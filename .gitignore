@@ -1,0 +1,35 @@
+# Dependencies
+node_modules/
+client/node_modules/
+server/node_modules/
+
+# Production build outputs
+client/dist/
+client/assets/
+
+# Environment files & secrets
+.env
+.env.local
+.env.*.local
+
+# SQLite Database & Backups
+data/*.db
+data/*.db-wal
+data/*.db-shm
+backups/
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+
+# Editor & OS files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Agent & AI tool metadata
+.agents/
+.claude/

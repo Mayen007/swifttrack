@@ -1,0 +1,131 @@
+// client/src/context/CartContext.jsx
+import React, { createContext, useContext, useState, useMemo } from 'react';
+import { sound } from '../services/sound.js';
+import { api } from '../services/api.js';
+
+const CartContext = createContext(null);
+
+export function CartProvider({ children }) {
+  const [items, setItems] = useState([]);
+  const [customerName, setCustomerName] = useState('');
+  const [customerPhone, setCustomerPhone] = useState('');
+  const [discountPercent, setDiscountPercent] = useState(0);
+  const [heldCarts, setHeldCarts] = useState([]);
+
+  const addItem = (product, qty = 1) => {
+    sound.playScan();
+    setItems((prev) => {
+      const existing = prev.find((item) => item.product.id === product.id);
+      if (existing) {
+        return prev.map((item) =>
+          item.product.id === product.id
+            ? { ...item, quantity: item.quantity + qty }
+            : item
+        );
+      }
+      return [...prev, { product, quantity: qty }];
+    });
+  };
+
+  const updateQty = (productId, qty) => {
+    if (qty <= 0) {
+      removeItem(productId);
+      return;
+    }
+    setItems((prev) =>
+      prev.map((item) =>
+        item.product.id === productId ? { ...item, quantity: qty } : item
+      )
+    );
+  };
+
+  const removeItem = (productId) => {
+    setItems((prev) => prev.filter((item) => item.product.id !== productId));
+  };
+
+  const clearCart = () => {
+    setItems([]);
+    setCustomerName('');
+    setCustomerPhone('');
+    setDiscountPercent(0);
+  };
+
+  const holdCart = () => {
+    if (items.length === 0) return;
+    const cartSnapshot = {
+      id: Date.now(),
+      items: [...items],
+      customerName,
+      customerPhone,
+      discountPercent,
+      heldAt: new Date().toLocaleTimeString('en-KE'),
+    };
+    setHeldCarts((prev) => [cartSnapshot, ...prev]);
+    clearCart();
+    api.toast('Cart held on reserve', 'info');
+  };
+
+  const recallCart = (cartId) => {
+    const target = heldCarts.find((c) => c.id === cartId);
+    if (!target) return;
+    setItems(target.items);
+    setCustomerName(target.customerName);
+    setCustomerPhone(target.customerPhone);
+    setDiscountPercent(target.discountPercent);
+    setHeldCarts((prev) => prev.filter((c) => c.id !== cartId));
+    api.toast('Held cart recalled', 'success');
+  };
+
+  const totals = useMemo(() => {
+    const rawSubtotal = items.reduce(
+      (sum, item) => sum + item.product.price * item.quantity,
+      0
+    );
+    const discountAmount = (rawSubtotal * (discountPercent || 0)) / 100;
+    const netTaxable = rawSubtotal - discountAmount;
+    // 16% Kenya VAT
+    const vatAmount = netTaxable * 0.16;
+    const grandTotal = netTaxable + vatAmount;
+
+    return {
+      rawSubtotal,
+      discountAmount,
+      netTaxable,
+      vatAmount,
+      grandTotal,
+      itemCount: items.reduce((sum, item) => sum + item.quantity, 0),
+    };
+  }, [items, discountPercent]);
+
+  return (
+    <CartContext.Provider
+      value={{
+        items,
+        customerName,
+        setCustomerName,
+        customerPhone,
+        setCustomerPhone,
+        discountPercent,
+        setDiscountPercent,
+        heldCarts,
+        addItem,
+        updateQty,
+        removeItem,
+        clearCart,
+        holdCart,
+        recallCart,
+        totals,
+      }}
+    >
+      {children}
+    </CartContext.Provider>
+  );
+}
+
+export function useCart() {
+  const context = useContext(CartContext);
+  if (!context) {
+    throw new Error('useCart must be used within a CartProvider');
+  }
+  return context;
+}
