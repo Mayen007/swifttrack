@@ -1,4 +1,6 @@
 @import "tailwindcss";
+@source "../index.html";
+@source "./**/*.{js,jsx,ts,tsx}";
 
 @theme {
   --color-brand-primary: #3b82f6;
@@ -151,22 +153,30 @@ dialog::backdrop {
 [data-theme="light"] .bg-\[\#0c0e12\],
 [data-theme="light"] .bg-\[\#0c0e14\],
 [data-theme="light"] .bg-\[\#0b0f19\],
+[data-theme="light"] .bg-\[\#0c101b\],
+[data-theme="light"] .bg-\[\#0e1320\],
+[data-theme="light"] .bg-\[\#0e1320\]\/80,
 [data-theme="light"] .bg-\[\#0f1219\],
 [data-theme="light"] .bg-\[\#0f121a\],
 .light .bg-\[\#0c0e12\],
 .light .bg-\[\#0c0e14\],
 .light .bg-\[\#0b0f19\],
+.light .bg-\[\#0c101b\],
+.light .bg-\[\#0e1320\],
+.light .bg-\[\#0e1320\]\/80,
 .light .bg-\[\#0f1219\],
 .light .bg-\[\#0f121a\] {
   background-color: #f8fafc !important;
 }
 
 /* 2. Elevated Cards, Modals, Drawers & Instrument Panels */
+[data-theme="light"] .bg-\[\#111622\],
 [data-theme="light"] .bg-\[\#12161f\],
 [data-theme="light"] .bg-\[\#121620\],
 [data-theme="light"] .bg-\[\#151923\],
 [data-theme="light"] .bg-gray-900,
 [data-theme="light"] .bg-gray-950,
+.light .bg-\[\#111622\],
 .light .bg-\[\#12161f\],
 .light .bg-\[\#121620\],
 .light .bg-\[\#151923\],
@@ -179,6 +189,7 @@ dialog::backdrop {
 /* 3. Inset Wells, Secondary Modules, Table Headers, Inactive Pills & Chart Cards */
 [data-theme="light"] .bg-\[\#10141c\],
 [data-theme="light"] .bg-\[\#141822\],
+[data-theme="light"] .bg-\[\#141a27\],
 [data-theme="light"] .bg-\[\#151a24\],
 [data-theme="light"] .bg-\[\#161b26\],
 [data-theme="light"] .bg-\[\#161c27\],
@@ -200,6 +211,7 @@ dialog::backdrop {
 [data-theme="light"] .bg-gray-800,
 .light .bg-\[\#10141c\],
 .light .bg-\[\#141822\],
+.light .bg-\[\#141a27\],
 .light .bg-\[\#151a24\],
 .light .bg-\[\#161b26\],
 .light .bg-\[\#161c27\],
@@ -258,11 +270,17 @@ dialog::backdrop {
 
 /* 5. Precision Hairline Borders & Structural Dividers (Crisp Slate-300 for maximum definition) */
 [data-theme="light"] .border-\[\#0c0e14\],
+[data-theme="light"] .border-\[\#181f2c\],
 [data-theme="light"] .border-\[\#1b212c\],
+[data-theme="light"] .border-\[\#1b2230\],
+[data-theme="light"] .border-\[\#1b2232\],
 [data-theme="light"] .border-\[\#1e2430\],
 [data-theme="light"] .border-\[\#1e2532\],
 [data-theme="light"] .border-\[\#1e2535\],
+[data-theme="light"] .border-\[\#202738\],
 [data-theme="light"] .border-\[\#222834\],
+[data-theme="light"] .border-\[\#222a3b\],
+[data-theme="light"] .border-\[\#252f44\],
 [data-theme="light"] .border-\[\#273347\],
 [data-theme="light"] .border-\[\#2a3447\],
 [data-theme="light"] .border-\[\#2b3548\],
@@ -273,11 +291,17 @@ dialog::backdrop {
 [data-theme="light"] .border-gray-800,
 [data-theme="light"] .border-gray-700,
 .light .border-\[\#0c0e14\],
+.light .border-\[\#181f2c\],
 .light .border-\[\#1b212c\],
+.light .border-\[\#1b2230\],
+.light .border-\[\#1b2232\],
 .light .border-\[\#1e2430\],
 .light .border-\[\#1e2532\],
 .light .border-\[\#1e2535\],
+.light .border-\[\#202738\],
 .light .border-\[\#222834\],
+.light .border-\[\#222a3b\],
+.light .border-\[\#252f44\],
 .light .border-\[\#273347\],
 .light .border-\[\#2a3447\],
 .light .border-\[\#2b3548\],
