@@ -1,19 +1,20 @@
 // server/db/seed.js
 // Comprehensive seed data for SwiftTrack Kenya Logistics & POS Platform
-const crypto = require('node:crypto');
 const { db, initSchema } = require('./database.js');
+const { hashPassword } = require('../utils/security.js');
 
-function hashPassword(password) {
-    const salt = 'swifttrack_secure_salt_2026';
-    return crypto.scryptSync(password, salt, 64).toString('hex');
-}
-
-function runSeed() {
-    console.log('Initializing database schema...');
+/**
+ * Clean Production Database Bootstrap
+ * Seeds ONLY foundation tables: company settings, branches, warehouses,
+ * roles, permissions, baseline operational staff, product catalog,
+ * inventory baseline, vehicles, drivers, and walk-in counter customer.
+ * NEVER creates synthetic orders, mock sales, or fake telemetry.
+ */
+function initProductionBootstrap() {
+    console.log('[Bootstrap] Initializing clean database schema...');
     initSchema();
 
-    console.log('Seeding company settings...');
-    // Company settings
+    console.log('[Bootstrap] Seeding company settings...');
     const existingCompany = db.prepare('SELECT id FROM company_settings WHERE id = 1').get();
     if (!existingCompany) {
         db.prepare(`
@@ -32,8 +33,7 @@ function runSeed() {
         `).run();
     }
 
-    console.log('Seeding branches & warehouses...');
-    // Branches
+    console.log('[Bootstrap] Seeding branches & warehouses...');
     const branches = [
         { id: 1, code: 'NRB-HQ', name: 'Nairobi Central Hub', city: 'Nairobi', address: 'Enterprise Rd, Industrial Area', phone: '+254 711 111 001', email: 'nairobi@swifttrack.co.ke' },
         { id: 2, code: 'MSA-01', name: 'Mombasa Port & Coastal Branch', city: 'Mombasa', address: 'Moi Avenue, Port Reitz Logistics Park', phone: '+254 711 111 002', email: 'mombasa@swifttrack.co.ke' },
@@ -68,8 +68,7 @@ function runSeed() {
         }
     }
 
-    console.log('Seeding roles & permissions...');
-    // Roles
+    console.log('[Bootstrap] Seeding roles & permissions...');
     const roles = [
         { id: 1, name: 'SUPER_ADMIN', display_name: 'Super Admin', description: 'Company-wide complete control over all operations, settings, and branches' },
         { id: 2, name: 'BRANCH_MANAGER', display_name: 'Branch Manager', description: 'Manages branch inventory, staff, approvals, expenses, and performance' },
@@ -127,11 +126,9 @@ function runSeed() {
         }
     }
 
-    // Role Permissions mapping according to Role Permission Matrix in specification
+    // Role Permissions mapping
     const rolePermissionMappings = [
-        // 1. SUPER_ADMIN: All permissions
         { role_id: 1, perm_codes: permissions.map(p => p.code) },
-        // 2. BRANCH_MANAGER: Own branch management, product creation/edit, own inventory, adjust/transfer approval, sales, refund approve, delivery assign, branch reports, own audit
         {
             role_id: 2,
             perm_codes: [
@@ -143,21 +140,18 @@ function runSeed() {
                 'reports:financial:own', 'expenses:create', 'expenses:approve', 'audit:view:own'
             ]
         },
-        // 3. DISPATCHER: Delivery create, assign, update, pod, exceptions, limited inventory view
         {
             role_id: 3,
             perm_codes: [
                 'inventory:view:own', 'delivery:create', 'delivery:assign', 'delivery:update:all'
             ]
         },
-        // 4. CASHIER: POS sales, payments, hold/resume, request refund, own shift report
         {
             role_id: 4,
             perm_codes: [
                 'inventory:view:own', 'pos:sale:create', 'pos:payment:process', 'refund:request', 'reports:shift:own'
             ]
         },
-        // 5. DRIVER: Update own delivery, submit proof of delivery
         {
             role_id: 5,
             perm_codes: [
@@ -176,36 +170,34 @@ function runSeed() {
         }
     }
 
-    console.log('Seeding operational users...');
-    const defaultPasswordHash = hashPassword('Password123!');
+    console.log('[Bootstrap] Seeding operational users with dynamic cryptographic salt hashes...');
+    const defaultPassword = 'Password123!';
 
     const users = [
-        // Super Admin (Global - branch_id = null)
         { id: 1, branch_id: null, role_id: 1, username: 'superadmin', email: 'superadmin@swifttrack.co.ke', full_name: 'Amina Kimani (Managing Director)', phone: '+254 722 000 001' },
-        // Nairobi Branch 1 Staff
         { id: 2, branch_id: 1, role_id: 2, username: 'manager.nairobi', email: 'manager.nairobi@swifttrack.co.ke', full_name: 'David Ochieng (Nairobi Branch Manager)', phone: '+254 722 000 002' },
         { id: 3, branch_id: 1, role_id: 3, username: 'dispatcher.nairobi', email: 'dispatcher.nairobi@swifttrack.co.ke', full_name: 'Faith Wanjiku (Logistics Dispatcher)', phone: '+254 722 000 003' },
         { id: 4, branch_id: 1, role_id: 4, username: 'cashier.nairobi', email: 'cashier.nairobi@swifttrack.co.ke', full_name: 'Kevin Mutua (Senior Cashier)', phone: '+254 722 000 004' },
         { id: 5, branch_id: 1, role_id: 5, username: 'driver.nairobi', email: 'driver.nairobi@swifttrack.co.ke', full_name: 'Joseph Kiprop (Lead Delivery Driver)', phone: '+254 722 000 005' },
-        // Mombasa Branch 2 Staff (To verify branch isolation)
         { id: 6, branch_id: 2, role_id: 2, username: 'manager.mombasa', email: 'manager.mombasa@swifttrack.co.ke', full_name: 'Hassan Mwadime (Mombasa Branch Manager)', phone: '+254 722 000 006' },
         { id: 7, branch_id: 2, role_id: 4, username: 'cashier.mombasa', email: 'cashier.mombasa@swifttrack.co.ke', full_name: 'Halima Bakari (Mombasa Cashier)', phone: '+254 722 000 007' },
         { id: 8, branch_id: 2, role_id: 5, username: 'driver.mombasa', email: 'driver.mombasa@swifttrack.co.ke', full_name: 'Ali Omar (Coast Fleet Driver)', phone: '+254 722 000 008' },
-        // Kisumu Branch 3 Staff
-        { id: 9, branch_id: 3, role_id: 2, username: 'manager.kisumu', email: 'manager.kisumu@swifttrack.co.ke', full_name: 'Grace Adhiambo (Kisumu Branch Manager)', phone: '+254 722 000 009' }
+        { id: 9, branch_id: 3, role_id: 2, username: 'manager.kisumu', email: 'manager.kisumu@swifttrack.co.ke', full_name: 'Grace Adhiambo (Kisumu Branch Manager)', phone: '+254 722 000 009' },
+        { id: 10, branch_id: 3, role_id: 5, username: 'driver.kisumu', email: 'driver.kisumu@swifttrack.co.ke', full_name: 'Francis Omondi (Lake Basin Fleet Driver)', phone: '+254 722 000 010' }
     ];
 
     for (const u of users) {
         const exist = db.prepare('SELECT id FROM users WHERE id = ?').get(u.id);
         if (!exist) {
+            const dynamicHash = hashPassword(defaultPassword);
             db.prepare(`
                 INSERT INTO users (id, branch_id, role_id, username, email, full_name, phone, password_hash, is_active)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)
-            `).run(u.id, u.branch_id, u.role_id, u.username, u.email, u.full_name, u.phone, defaultPasswordHash);
+            `).run(u.id, u.branch_id, u.role_id, u.username, u.email, u.full_name, u.phone, dynamicHash);
         }
     }
 
-    console.log('Seeding categories & products...');
+    console.log('[Bootstrap] Seeding product categories & catalog...');
     const categories = [
         { id: 1, code: 'LOG-SUP', name: 'Logistics Packaging & Supplies', description: 'Boxes, strapping, stretch film, security seals, pallets' },
         { id: 2, code: 'BLD-MAT', name: 'Building & Construction Supplies', description: 'Cement bags, fasteners, steel mesh, protective gear' },
@@ -222,31 +214,26 @@ function runSeed() {
     }
 
     const products = [
-        // Category 1: Logistics Supplies
         { id: 1, category_id: 1, sku: 'LOG-BX-01', barcode: '890123450001', name: 'Heavy Duty Corrugated Box (Large 60x40x40cm)', unit: 'PCS', cost: 120.0, price: 180.0, min: 50 },
         { id: 2, category_id: 1, sku: 'LOG-BX-02', barcode: '890123450002', name: 'Medium Dispatch Packing Carton (40x30x30cm)', unit: 'PCS', cost: 85.0, price: 130.0, min: 50 },
         { id: 3, category_id: 1, sku: 'LOG-FLM-01', barcode: '890123450003', name: 'Industrial Stretch Film Roll 500mm x 300m', unit: 'ROLL', cost: 950.0, price: 1450.0, min: 20 },
         { id: 4, category_id: 1, sku: 'LOG-TP-01', barcode: '890123450004', name: 'Reinforced Fragile Packaging Tape 48mm x 100m', unit: 'ROLL', cost: 180.0, price: 290.0, min: 30 },
         { id: 5, category_id: 1, sku: 'LOG-SL-01', barcode: '890123450005', name: 'Tamper-Evident Cargo Bolt Seals (Pack of 50)', unit: 'PACK', cost: 1800.0, price: 2600.0, min: 10 },
-        // Category 2: Building Materials
         { id: 6, category_id: 2, sku: 'BLD-CMT-01', barcode: '890123450006', name: 'Bamburi Portland Cement 32.5R (50kg Bag)', unit: 'BAG', cost: 720.0, price: 850.0, min: 40 },
         { id: 7, category_id: 2, sku: 'BLD-CMT-02', barcode: '890123450007', name: 'Savannah Blue Triangle Cement 42.5N (50kg)', unit: 'BAG', cost: 780.0, price: 920.0, min: 30 },
         { id: 8, category_id: 2, sku: 'BLD-ST-01', barcode: '890123450008', name: 'High Tensile Steel Binding Wire (25kg Roll)', unit: 'ROLL', cost: 3100.0, price: 3850.0, min: 15 },
         { id: 9, category_id: 2, sku: 'BLD-ST-02', barcode: '890123450009', name: 'Deformed High Yield Rebar D12 (12m Bar)', unit: 'BAR', cost: 1250.0, price: 1550.0, min: 50 },
         { id: 10, category_id: 2, sku: 'BLD-SAF-01', barcode: '890123450010', name: 'Heavy Duty Site Safety Helmet with Visor', unit: 'PCS', cost: 650.0, price: 950.0, min: 15 },
-        // Category 3: Electronics & High Value Cargo
         { id: 11, category_id: 3, sku: 'ELE-INV-01', barcode: '890123450011', name: 'Pure Sine Wave Solar Inverter 3.5kVA 24V', unit: 'UNIT', cost: 38000.0, price: 46500.0, min: 5 },
         { id: 12, category_id: 3, sku: 'ELE-BAT-01', barcode: '890123450012', name: 'Lithium LiFePO4 Energy Battery Pack 48V 100Ah', unit: 'UNIT', cost: 95000.0, price: 118000.0, min: 3 },
         { id: 13, category_id: 3, sku: 'ELE-SCN-01', barcode: '890123450013', name: 'Wireless Industrial 2D Barcode & QR Scanner', unit: 'PCS', cost: 4200.0, price: 6500.0, min: 8 },
         { id: 14, category_id: 3, sku: 'ELE-GPS-01', barcode: '890123450014', name: 'Fleet Asset Magnetic GPS Tracker (4G LTE)', unit: 'PCS', cost: 3100.0, price: 4800.0, min: 10 },
         { id: 15, category_id: 3, sku: 'ELE-UPS-01', barcode: '890123450015', name: 'Line Interactive 1500VA Office Workstation UPS', unit: 'UNIT', cost: 11200.0, price: 14800.0, min: 5 },
-        // Category 4: FMCG & Beverages Wholesale
         { id: 16, category_id: 4, sku: 'FMCG-WTR-01', barcode: '890123450016', name: 'Kilima Pure Natural Spring Water (Carton 24x500ml)', unit: 'CTN', cost: 480.0, price: 720.0, min: 40 },
         { id: 17, category_id: 4, sku: 'FMCG-WTR-02', barcode: '890123450017', name: 'Kilima Office Water Dispenser Bottle (18.9 Litre)', unit: 'BTL', cost: 250.0, price: 450.0, min: 30 },
         { id: 18, category_id: 4, sku: 'FMCG-RIC-01', barcode: '890123450018', name: 'Premium Mwea Pishori Grade A Rice (25kg Bag)', unit: 'BAG', cost: 3850.0, price: 4600.0, min: 20 },
         { id: 19, category_id: 4, sku: 'FMCG-OIL-01', barcode: '890123450019', name: 'Pure Refined Vegetable Cooking Oil (Jerrycan 20L)', unit: 'CAN', cost: 3950.0, price: 4650.0, min: 15 },
         { id: 20, category_id: 4, sku: 'FMCG-TEA-01', barcode: '890123450020', name: 'Export Quality Granulated Black Tea (10kg Carton)', unit: 'CTN', cost: 3200.0, price: 4100.0, min: 10 },
-        // Category 5: Automotive & Fleet Spares
         { id: 21, category_id: 5, sku: 'AUT-OIL-01', barcode: '890123450021', name: 'Total Rubia Heavy Fleet Engine Oil 15W-40 (20L Drum)', unit: 'DRUM', cost: 8900.0, price: 11200.0, min: 10 },
         { id: 22, category_id: 5, sku: 'AUT-HYD-01', barcode: '890123450022', name: 'Hydraulic Oil ISO VG 68 Anti-Wear (20L Drum)', unit: 'DRUM', cost: 7400.0, price: 9500.0, min: 8 },
         { id: 23, category_id: 5, sku: 'AUT-FLT-01', barcode: '890123450023', name: 'Isuzu FRR / FSR Heavy Fleet Fuel Filter Cartridge', unit: 'PCS', cost: 1150.0, price: 1750.0, min: 15 },
@@ -264,12 +251,7 @@ function runSeed() {
         }
     }
 
-    console.log('Seeding warehouse inventory & stock ledgers...');
-    // Seed initial stock across warehouses
-    // Warehouse 1: Nairobi Main (lots of stock)
-    // Warehouse 2: Nairobi Retail (moderate)
-    // Warehouse 3: Mombasa Port (moderate)
-    // Warehouse 4: Kisumu Depot (moderate to low)
+    console.log('[Bootstrap] Initializing warehouse inventory balances...');
     const stockDistribution = [
         { warehouse_id: 1, branch_id: 1, factor: 1.5 },
         { warehouse_id: 2, branch_id: 1, factor: 0.8 },
@@ -287,7 +269,6 @@ function runSeed() {
                     VALUES (?, ?, ?, ?, 0, ?)
                 `).run(dist.branch_id, dist.warehouse_id, p.id, baseQty, baseQty);
 
-                // Immutable stock movement log
                 db.prepare(`
                     INSERT INTO inventory_movements (
                         branch_id, warehouse_id, product_id, movement_type,
@@ -299,7 +280,7 @@ function runSeed() {
         }
     }
 
-    console.log('Seeding fleet vehicles & drivers...');
+    console.log('[Bootstrap] Seeding fleet vehicles & drivers...');
     const vehicles = [
         { id: 1, branch_id: 1, reg: 'KMDF 412B', type: 'MOTORCYCLE', model: 'Honda Ace 125 Cargo', capacity: 60 },
         { id: 2, branch_id: 1, reg: 'KBZ 891L', type: 'VAN', model: 'Toyota HiAce High-Roof Cargo', capacity: 1200 },
@@ -318,10 +299,10 @@ function runSeed() {
         }
     }
 
-    // Drivers
     const drivers = [
         { id: 1, user_id: 5, branch_id: 1, license: 'DL-NRB-88219', vehicle_id: 2, phone: '+254 722 000 005', status: 'AVAILABLE', lat: -1.3032, lng: 36.8456 },
-        { id: 2, user_id: 8, branch_id: 2, license: 'DL-MSA-44102', vehicle_id: 4, phone: '+254 722 000 008', status: 'AVAILABLE', lat: -4.0435, lng: 39.6682 }
+        { id: 2, user_id: 8, branch_id: 2, license: 'DL-MSA-44102', vehicle_id: 4, phone: '+254 722 000 008', status: 'AVAILABLE', lat: -4.0435, lng: 39.6682 },
+        { id: 3, user_id: 10, branch_id: 3, license: 'DL-KSM-99120', vehicle_id: 5, phone: '+254 722 000 010', status: 'AVAILABLE', lat: -0.0917, lng: 34.7680 }
     ];
 
     for (const d of drivers) {
@@ -334,16 +315,48 @@ function runSeed() {
         }
     }
 
-    console.log('Seeding customers...');
-    const customers = [
-        { id: 1, branch_id: null, no: 'CUST-0001', name: 'Walk-in Customer (General Counter)', phone: '+254 700 000 000', email: 'walkin@swifttrack.co.ke', address: 'Counter Pickup', city: 'Nairobi', pin: null },
+    console.log('[Bootstrap] Seeding default counter customer...');
+    const walkInCustomer = db.prepare('SELECT id FROM customers WHERE id = 1').get();
+    if (!walkInCustomer) {
+        db.prepare(`
+            INSERT INTO customers (id, branch_id, customer_number, full_name, phone, email, address, city, kra_pin)
+            VALUES (1, NULL, 'CUST-0001', 'Walk-in Customer (General Counter)', '+254 700 000 000', 'walkin@swifttrack.co.ke', 'Counter Pickup', 'Nairobi', NULL)
+        `).run();
+    }
+
+    console.log('[Bootstrap] Seeding system initialization audit log...');
+    const auditExist = db.prepare('SELECT id FROM audit_logs WHERE id = 1').get();
+    if (!auditExist) {
+        db.prepare(`
+            INSERT INTO audit_logs (
+                id, user_id, role, action, resource, resource_id, branch_id,
+                previous_value, new_value, reason, ip_address, user_agent
+            ) VALUES (
+                1, 1, 'SUPER_ADMIN', 'CREATE', 'COMPANY', '1', NULL,
+                NULL, '{"company_name":"SwiftTrack Kenya Logistics Ltd","status":"ACTIVE"}',
+                'Clean Enterprise System Provisioning & Bootstrap', '127.0.0.1', 'Node.js Production Bootstrap'
+            )
+        `).run();
+    }
+
+    console.log('✅ [Bootstrap] Clean production database bootstrap completed successfully.');
+}
+
+/**
+ * Demo Simulation Seeder
+ * Populates corporate customer profiles, sample operational transactions,
+ * active deliveries, held sales, refund approvals, and 14-day telemetry.
+ */
+function seedDemoSimulation() {
+    console.log('[Demo] Seeding commercial demo customers...');
+    const demoCustomers = [
         { id: 2, branch_id: 1, no: 'CUST-0002', name: 'Safaricom Enterprise Operations', phone: '+254 722 110 099', email: 'procurement@safaricom.co.ke', address: 'Waiyaki Way, HQ 2, Westlands', city: 'Nairobi', pin: 'P051000111A' },
         { id: 3, branch_id: 1, no: 'CUST-0003', name: 'Twiga Foods Central Hub', phone: '+254 711 330 088', email: 'logistics@twigafoods.com', address: 'Tatu City Industrial Logistics Park', city: 'Nairobi', pin: 'P051000222B' },
         { id: 4, branch_id: 1, no: 'CUST-0004', name: 'Mama Sarah Hardware & Building Supplies', phone: '+254 723 445 566', email: 'mamasarah.hardware@gmail.com', address: 'Jogoo Road, Next to Posta', city: 'Nairobi', pin: 'A004556677Z' },
         { id: 5, branch_id: 2, no: 'CUST-0005', name: 'Mombasa Shipping & Marine Agency', phone: '+254 733 998 877', email: 'cargo@mombasashipping.co.ke', address: 'Kilindini Port Gate 5', city: 'Mombasa', pin: 'P051998877K' }
     ];
 
-    for (const c of customers) {
+    for (const c of demoCustomers) {
         const exist = db.prepare('SELECT id FROM customers WHERE id = ?').get(c.id);
         if (!exist) {
             db.prepare(`
@@ -353,8 +366,7 @@ function runSeed() {
         }
     }
 
-    console.log('Seeding sample orders and deliveries...');
-    // Seed Sample Orders
+    console.log('[Demo] Seeding sample orders, sales, and deliveries...');
     const existingOrders = db.prepare('SELECT count(*) as cnt FROM orders').get();
     if (existingOrders.cnt === 0) {
         // Order 1: Walk-in POS Sale already completed
@@ -427,7 +439,7 @@ function runSeed() {
             )
         `).run();
 
-        // Order 3: Active Delivery In Transit with Driver 1 (Joseph Kiprop)
+        // Order 3: Active Delivery In Transit with Driver 1
         db.prepare(`
             INSERT INTO orders (
                 id, branch_id, order_number, customer_id, cashier_user_id, order_type,
@@ -518,67 +530,23 @@ function runSeed() {
         `).run();
     }
 
-    console.log('Seeding initial audit logs...');
-    const auditCount = db.prepare('SELECT count(*) as cnt FROM audit_logs').get();
-    if (auditCount.cnt === 0) {
-        db.prepare(`
-            INSERT INTO audit_logs (
-                user_id, role, action, resource, resource_id, branch_id,
-                previous_value, new_value, reason, ip_address, user_agent
-            ) VALUES (
-                1, 'SUPER_ADMIN', 'CREATE', 'COMPANY', '1', NULL,
-                NULL, '{"company_name":"SwiftTrack Kenya Logistics Ltd","status":"ACTIVE"}',
-                'System Initialization and Production Seed', '127.0.0.1', 'Node.js Seed Engine'
-            ),
-            (
-                1, 'SUPER_ADMIN', 'CREATE', 'BRANCH', '1', 1,
-                NULL, '{"branch_code":"NRB-HQ","name":"Nairobi Central Hub"}',
-                'Initial Nairobi Branch Provisioning', '127.0.0.1', 'Node.js Seed Engine'
-            )
-        `).run();
-    }
-
-    console.log('Ensuring rich visual analytics telemetry...');
+    console.log('[Demo] Ensuring rich visual analytics telemetry...');
     ensureRichChartTelemetry();
-
-    console.log('Database seeding completed successfully!');
 }
 
 function ensureRichChartTelemetry() {
-    // Check if we already have sufficient telemetry
     const failureCount = db.prepare("SELECT count(*) as cnt FROM deliveries WHERE failure_reason IS NOT NULL").get().cnt;
     const dateCount = db.prepare("SELECT count(DISTINCT date(created_at)) as cnt FROM orders").get().cnt;
 
-    // Ensure Driver 3 (Francis Omondi - Kisumu) exists
-    const user10 = db.prepare("SELECT id FROM users WHERE id = 10").get();
-    if (!user10) {
-        db.prepare(`
-            INSERT OR IGNORE INTO users (id, branch_id, role_id, username, email, full_name, phone, password_hash, is_active)
-            VALUES (10, 3, 5, 'driver.kisumu', 'driver.kisumu@swifttrack.co.ke', 'Francis Omondi (Lake Basin Fleet Driver)', '+254 722 000 010', ?, 1)
-        `).run(hashPassword('Password123!'));
-    }
-
-    const driver3 = db.prepare("SELECT id FROM drivers WHERE id = 3").get();
-    if (!driver3) {
-        db.prepare(`
-            INSERT OR IGNORE INTO drivers (id, user_id, branch_id, license_number, vehicle_id, phone, status, current_latitude, current_longitude, last_ping_at)
-            VALUES (3, 10, 3, 'DL-KSM-99120', 5, '+254 722 000 010', 'AVAILABLE', -0.0917, 34.7680, CURRENT_TIMESTAMP)
-        `).run();
-    }
-
     if (failureCount >= 5 && dateCount >= 10) {
-        return; // Already sufficiently populated
+        return;
     }
 
-    console.log('Backfilling 14-day operational chart telemetry (orders, deliveries, COD, failure exceptions)...');
+    console.log('[Demo] Backfilling 14-day operational chart telemetry (orders, deliveries, COD, failure exceptions)...');
 
-    // Historical 14-day orders and revenue simulation
-    // Past 14 days relative to today
     const products = db.prepare('SELECT id, selling_price, cost_price FROM products').all();
     const customers = db.prepare('SELECT id, branch_id FROM customers').all();
 
-    // Data distribution plan for the 14 days
-    // [daysAgo, nrbOrders, msaOrders, ksmOrders]
     const daysMatrix = [
         { daysAgo: 13, nrb: 8, msa: 4, ksm: 3 },
         { daysAgo: 12, nrb: 10, msa: 5, ksm: 4 },
@@ -623,11 +591,9 @@ function ensureRichChartTelemetry() {
                 const existing = db.prepare('SELECT id FROM orders WHERE order_number = ?').get(currentOrderNum);
                 if (existing) continue;
 
-                // Alternate order type: 60% POS walkin, 40% delivery order
                 const isDelivery = (i % 5 === 0 || i % 5 === 2);
                 const orderType = isDelivery ? 'DELIVERY_ORDER' : 'POS_WALKIN';
                 
-                // Select product
                 const p1 = products[(i + d.daysAgo * 3) % products.length];
                 const p2 = products[(i * 2 + 1) % products.length];
                 const qty1 = (i % 4) + 1;
@@ -637,7 +603,6 @@ function ensureRichChartTelemetry() {
                 const tax = Math.round(subtotal * 0.16 * 100) / 100;
                 const total = subtotal + tax;
 
-                // Status determination
                 let status = 'COMPLETED';
                 let deliveryStatus = 'DELIVERED';
                 let failReason = null;
@@ -648,18 +613,17 @@ function ensureRichChartTelemetry() {
                     if (i % 4 === 0) {
                         status = 'READY_FOR_DISPATCH';
                         deliveryStatus = 'READY_FOR_DISPATCH';
-                        paymentStatus = isDelivery ? 'UNPAID' : 'PAID'; // Outstanding COD
+                        paymentStatus = isDelivery ? 'UNPAID' : 'PAID';
                     } else if (i % 4 === 1) {
                         status = 'DISPATCHED';
                         deliveryStatus = 'IN_TRANSIT';
-                        paymentStatus = isDelivery ? 'UNPAID' : 'PAID'; // Outstanding COD
+                        paymentStatus = isDelivery ? 'UNPAID' : 'PAID';
                     } else if (i % 4 === 2) {
                         status = 'DELIVERED';
                         deliveryStatus = 'DELIVERED';
                         paymentStatus = 'PAID';
                     }
                 } else if (d.daysAgo <= 4 && (i === 0 || i === 3)) {
-                    // Sample failure on recent days across multiple failure reasons
                     status = 'CANCELLED';
                     deliveryStatus = 'FAILED';
                     failReason = failureReasons[(d.daysAgo + b.branchId + i) % failureReasons.length];
@@ -667,15 +631,12 @@ function ensureRichChartTelemetry() {
                     paymentStatus = 'UNPAID';
                 }
 
-                // COD status determination for delivery orders
-                // Approximately 30% of recent active deliveries are outstanding COD
                 if (isDelivery && !paymentStatus) {
                     paymentStatus = (i % 3 === 0) ? 'UNPAID' : 'PAID';
                 }
 
                 const custId = customers[(i + b.branchId) % customers.length]?.id || 1;
 
-                // Insert Order with historical timestamp
                 db.prepare(`
                     INSERT INTO orders (
                         id, branch_id, order_number, customer_id, cashier_user_id, order_type,
@@ -697,7 +658,6 @@ function ensureRichChartTelemetry() {
                     dateOffsetStr, dateOffsetStr
                 );
 
-                // Insert order items
                 db.prepare(`
                     INSERT INTO order_items (order_id, product_id, quantity, unit_price, discount_amount, tax_rate, tax_amount, total_price)
                     VALUES (?, ?, ?, ?, 0, 16.0, ?, ?),
@@ -707,7 +667,6 @@ function ensureRichChartTelemetry() {
                     orderIndex, p2.id, qty2, p2.selling_price, Math.round(p2.selling_price * qty2 * 0.16), p2.selling_price * qty2
                 );
 
-                // Insert sale and payment if completed/paid
                 if (paymentStatus === 'PAID') {
                     const saleNum = `SALE-SIM-${b.branchId}-${d.daysAgo}-${i + 1}`;
                     db.prepare(`
@@ -743,7 +702,6 @@ function ensureRichChartTelemetry() {
                     saleIndex++;
                 }
 
-                // If delivery, insert delivery record
                 if (isDelivery) {
                     const delNum = `DEL-SIM-${b.branchId}-${d.daysAgo}-${i + 1}`;
                     db.prepare(`
@@ -778,17 +736,34 @@ function ensureRichChartTelemetry() {
         }
     }
 
-    console.log('Operational visual analytics telemetry populated successfully!');
+    console.log('✅ [Demo] Operational visual analytics telemetry populated successfully.');
+}
+
+/**
+ * Full Seed: Runs production bootstrap followed by demo simulation.
+ */
+function runSeed() {
+    initProductionBootstrap();
+    seedDemoSimulation();
 }
 
 if (require.main === module) {
     try {
-        runSeed();
+        if (process.argv.includes('--prod')) {
+            initProductionBootstrap();
+        } else {
+            runSeed();
+        }
     } catch (err) {
-        console.error('Seed error:', err);
+        console.error('[Seed Error]:', err);
         process.exit(1);
     }
 }
 
-module.exports = { runSeed, ensureRichChartTelemetry, hashPassword };
-
+module.exports = {
+    initProductionBootstrap,
+    seedDemoSimulation,
+    runSeed,
+    ensureRichChartTelemetry,
+    hashPassword
+};

@@ -6,11 +6,18 @@ const crypto = require('node:crypto');
 const { db } = require('../db/database.js');
 const { authenticateToken, JWT_SECRET } = require('../middleware/auth.js');
 const { logAuditEvent } = require('../middleware/audit.js');
+const { hashPassword, verifyPassword } = require('../utils/security.js');
 
-function hashPassword(password) {
-    const salt = 'swifttrack_secure_salt_2026';
-    return crypto.scryptSync(password, salt, 64).toString('hex');
-}
+// GET /api/auth/config (Public platform capabilities configuration)
+router.get('/config', (req, res) => {
+    res.json({
+        demoMode: process.env.DEMO_MODE === 'true' || process.env.NODE_ENV !== 'production',
+        currency: 'KES',
+        vatRate: 16.0,
+        etimsEnabled: true,
+        companyName: 'SwiftTrack Kenya Logistics Ltd'
+    });
+});
 
 // POST /api/auth/login
 router.post('/login', (req, res) => {
@@ -38,9 +45,15 @@ router.post('/login', (req, res) => {
         return res.status(403).json({ error: 'User account has been deactivated. Please contact Super Admin.' });
     }
 
-    const computedHash = hashPassword(password);
-    if (computedHash !== user.password_hash) {
+    const verification = verifyPassword(password, user.password_hash);
+    if (!verification.isValid) {
         return res.status(401).json({ error: 'Invalid username or password' });
+    }
+
+    // Transparent password security upgrade: migrate legacy static hashes to dynamic per-user salt
+    if (verification.needsUpgrade) {
+        const upgradedHash = hashPassword(password);
+        db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(upgradedHash, user.id);
     }
 
     // Update last login
@@ -124,6 +137,13 @@ router.get('/me', authenticateToken, (req, res) => {
 
 // POST /api/auth/demo-switch (Allows instant switching among demo roles & branches for evaluation)
 router.post('/demo-switch', (req, res) => {
+    // Production Mode Guard: Disable demo persona switching in production unless explicitly permitted
+    if (process.env.DEMO_MODE !== 'true' && process.env.NODE_ENV === 'production') {
+        return res.status(403).json({
+            error: 'Forbidden: Demo persona switching is disabled in production mode. Please authenticate using your official credentials.'
+        });
+    }
+
     const { role, branch_id, branchId, username } = req.body;
     const targetBranchId = (branch_id !== undefined && branch_id !== null && branch_id !== '') 
         ? Number(branch_id) 

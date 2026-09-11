@@ -25,6 +25,7 @@ import {
   Sun,
   Moon,
   Monitor,
+  LogOut,
 } from 'lucide-react';
 
 export function Navbar({
@@ -35,7 +36,7 @@ export function Navbar({
   onToggleCollapse,
   isSidebarCollapsed = false,
 }) {
-  const { user, branches, selectedBranch, selectBranch, quickSwitch, isSuperAdmin } = useAuth();
+  const { user, branches, selectedBranch, selectBranch, quickSwitch, logout, demoMode, isSuperAdmin } = useAuth();
   const { theme, setTheme, resolvedTheme } = useTheme();
   const [branchDropdownOpen, setBranchDropdownOpen] = useState(false);
   const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
@@ -484,53 +485,68 @@ export function Navbar({
                 </div>
               </div>
 
-              {/* Single Consolidated Persona Switcher */}
-              <div className="p-2 border-b border-[#222834]">
-                <div className="px-1 pb-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider font-mono flex items-center justify-between">
-                  <span>SWITCH DEMO PERSONA</span>
-                  <Radio className="w-3 h-3 text-amber-400" />
-                </div>
-                <div className="space-y-1">
-                  {personaRoles.map((p) => {
-                    const isCurrentRole =
-                      user?.role === p.role ||
-                      (user?.role === 'BRANCH_MANAGER' &&
-                        ((p.role === 'BRANCH_MANAGER_NAIROBI' && user.branch_id === 1) ||
-                          (p.role === 'BRANCH_MANAGER_MOMBASA' && user.branch_id === 2)));
+              {/* Single Consolidated Persona Switcher (Demo / Evaluation Mode Only) */}
+              {demoMode && (
+                <div className="p-2 border-b border-[#222834]">
+                  <div className="px-1 pb-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider font-mono flex items-center justify-between">
+                    <span>SWITCH DEMO PERSONA</span>
+                    <Radio className="w-3 h-3 text-amber-400" />
+                  </div>
+                  <div className="space-y-1">
+                    {personaRoles.map((p) => {
+                      const isCurrentRole =
+                        user?.role === p.role ||
+                        (user?.role === 'BRANCH_MANAGER' &&
+                          ((p.role === 'BRANCH_MANAGER_NAIROBI' && user.branch_id === 1) ||
+                            (p.role === 'BRANCH_MANAGER_MOMBASA' && user.branch_id === 2)));
 
-                    const Icon = p.icon;
+                      const Icon = p.icon;
 
-                    return (
-                      <button
-                        key={p.role}
-                        onClick={() => handleRoleSelect(p.role)}
-                        className={`w-full px-2.5 py-1.5 rounded flex items-center justify-between text-left text-xs transition-colors cursor-pointer ${isCurrentRole
-                          ? 'bg-[#18202d] text-amber-300 font-medium border border-amber-400/30'
-                          : 'hover:bg-[#161b26] text-slate-300 hover:text-white'
-                          }`}
-                      >
-                        <div className="flex items-center gap-2 min-w-0">
-                          <Icon className={`w-3.5 h-3.5 shrink-0 ${isCurrentRole ? 'text-amber-400' : 'text-slate-400'}`} />
-                          <div className="min-w-0">
-                            <span className="truncate block leading-tight">{p.label}</span>
-                            <span className="text-[9px] text-slate-500 font-mono block leading-tight">{p.desc}</span>
+                      return (
+                        <button
+                          key={p.role}
+                          onClick={() => handleRoleSelect(p.role)}
+                          className={`w-full px-2.5 py-1.5 rounded flex items-center justify-between text-left text-xs transition-colors cursor-pointer ${isCurrentRole
+                            ? 'bg-[#18202d] text-amber-300 font-medium border border-amber-400/30'
+                            : 'hover:bg-[#161b26] text-slate-300 hover:text-white'
+                            }`}
+                        >
+                          <div className="flex items-center gap-2 min-w-0">
+                            <Icon className={`w-3.5 h-3.5 shrink-0 ${isCurrentRole ? 'text-amber-400' : 'text-slate-400'}`} />
+                            <div className="min-w-0">
+                              <span className="truncate block leading-tight">{p.label}</span>
+                              <span className="text-[9px] text-slate-500 font-mono block leading-tight">{p.desc}</span>
+                            </div>
                           </div>
-                        </div>
-                        {isCurrentRole && <Check className="w-3.5 h-3.5 text-amber-400 shrink-0" />}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
+                          {isCurrentRole && <Check className="w-3.5 h-3.5 text-amber-400 shrink-0" />}
+                        </button>
+                      );
+                    })}
+                  </div>
 
-              {/* Quick Reset Action */}
-              <div className="p-1 pt-1.5">
+                  <div className="pt-2">
+                    <button
+                      onClick={() => handleRoleSelect('SUPER_ADMIN')}
+                      className="w-full px-2.5 py-1.5 rounded text-left text-xs text-slate-400 hover:text-white hover:bg-[#161b26] flex items-center gap-2 transition-colors cursor-pointer"
+                    >
+                      <Shield className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                      <span>Reset to Super Admin HQ</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Enterprise Operator Sign Out */}
+              <div className="p-1.5">
                 <button
-                  onClick={() => handleRoleSelect('SUPER_ADMIN')}
-                  className="w-full px-2.5 py-1.5 rounded text-left text-xs text-slate-400 hover:text-white hover:bg-[#161b26] flex items-center gap-2 transition-colors cursor-pointer"
+                  onClick={() => {
+                    setProfileDropdownOpen(false);
+                    logout();
+                  }}
+                  className="w-full px-2.5 py-1.5 rounded text-left text-xs text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 flex items-center gap-2 transition-colors cursor-pointer"
                 >
-                  <Shield className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-                  <span>Reset to Super Admin HQ</span>
+                  <LogOut className="w-3.5 h-3.5 text-rose-400 shrink-0" />
+                  <span className="font-semibold">Sign Out Operator</span>
                 </button>
               </div>
             </div>

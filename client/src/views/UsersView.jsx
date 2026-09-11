@@ -96,7 +96,7 @@ const RBAC_CAPABILITY_MATRIX = [
 ];
 
 export function UsersView() {
-  const { user, branches, isSuperAdmin, isBranchManager, quickSwitch } = useAuth();
+  const { user, branches, isSuperAdmin, isBranchManager, quickSwitch, demoMode } = useAuth();
 
   // State
   const [users, setUsers] = useState([]);
@@ -843,14 +843,16 @@ export function UsersView() {
                             </button>
                           )}
 
-                          {/* Quick Switch (demo mode) */}
-                          <button
-                            onClick={() => handleQuickSwitch(roleName, u.branch_id)}
-                            title={`Instant switch demo persona to ${roleName} (${u.full_name})`}
-                            className="p-1.5 rounded bg-[#181d28] hover:bg-[#222938] text-slate-300 hover:text-white border border-[#222834] transition-colors cursor-pointer text-[10px] font-mono"
-                          >
-                            <RotateCcw className="w-3.5 h-3.5 text-purple-400" />
-                          </button>
+                          {/* Quick Switch (demo mode only) */}
+                          {demoMode && (
+                            <button
+                              onClick={() => handleQuickSwitch(roleName, u.branch_id)}
+                              title={`Instant switch demo persona to ${roleName} (${u.full_name})`}
+                              className="p-1.5 rounded bg-[#181d28] hover:bg-[#222938] text-slate-300 hover:text-white border border-[#222834] transition-colors cursor-pointer text-[10px] font-mono"
+                            >
+                              <RotateCcw className="w-3.5 h-3.5 text-purple-400" />
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>

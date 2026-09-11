@@ -1,27 +1,40 @@
 // server/server.js
-const express = require('express');
-const cors = require('cors');
+const fs = require('node:fs');
 const path = require('node:path');
+
+// 1. Load production or local .env configuration safely
+const envPath = path.resolve(__dirname, '../.env');
+if (fs.existsSync(envPath) && typeof process.loadEnvFile === 'function') {
+    try {
+        process.loadEnvFile(envPath);
+    } catch (e) {
+        console.warn('Could not load .env file:', e.message);
+    }
+}
+
+const express = require('express');
 const { db, initSchema } = require('./db/database.js');
-const { runSeed, ensureRichChartTelemetry } = require('./db/seed.js');
+const { runSeed, initProductionBootstrap, ensureRichChartTelemetry } = require('./db/seed.js');
+const { securityHeaders, configureCors, createRateLimiter } = require('./middleware/security.js');
 
 const app = express();
 const PORT = process.env.PORT || 4000;
 
-// Security & Body parsing middleware
-app.use(cors());
+// 2. Production Security & Body parsing middleware
+app.use(securityHeaders);
+app.use(configureCors());
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// Basic security headers
-app.use((req, res, next) => {
-    res.setHeader('X-Content-Type-Options', 'nosniff');
-    res.setHeader('X-Frame-Options', 'SAMEORIGIN');
-    res.setHeader('X-XSS-Protection', '1; mode=block');
-    next();
+// 3. Brute-force rate limiter on authentication endpoint
+const authRateLimiter = createRateLimiter({
+    windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS) || (15 * 60 * 1000),
+    max: parseInt(process.env.RATE_LIMIT_MAX_LOGIN_ATTEMPTS) || 15,
+    message: 'Too many authentication attempts. Please wait 15 minutes before trying again.'
 });
+app.use('/api/auth/login', authRateLimiter);
 
-// Mount API routes
+// 4. Mount API routes
 app.use('/api/auth', require('./routes/auth.js'));
 app.use('/api/branches', require('./routes/branches.js'));
 app.use('/api/users', require('./routes/users.js'));
@@ -38,18 +51,27 @@ app.use('/api/notifications', require('./routes/notifications.js'));
 app.use('/api/audit', require('./routes/audit.js'));
 app.use('/api/kenya', require('./routes/kenya.js'));
 
-// Health check endpoint
+// 5. Enterprise Health & Readiness check endpoint
 app.get('/api/health', (req, res) => {
+    let dbConnected = false;
+    try {
+        const row = db.prepare('SELECT 1 as ok').get();
+        dbConnected = row?.ok === 1;
+    } catch {}
+
     res.json({
-        status: 'online',
+        status: dbConnected ? 'online' : 'degraded',
+        database: dbConnected ? 'connected' : 'error',
         system: 'SwiftTrack Kenya Multi-Branch Logistics + POS',
         version: '1.0.0',
+        environment: process.env.NODE_ENV || 'development',
+        demoMode: process.env.DEMO_MODE === 'true' || process.env.NODE_ENV !== 'production',
+        uptimeSeconds: Math.floor(process.uptime()),
         timestamp: new Date().toISOString()
     });
 });
 
 // Serve frontend static assets (serves compiled Vite React + Tailwind bundle)
-const fs = require('node:fs');
 const distPath = path.resolve(__dirname, '../client/dist');
 const clientPath = fs.existsSync(distPath) ? distPath : path.resolve(__dirname, '../client');
 app.use(express.static(clientPath));
@@ -75,10 +97,16 @@ app.use((err, req, res, next) => {
 try {
     initSchema();
     const company = db.prepare('SELECT count(*) as count FROM company_settings').get();
+    const isDemoMode = process.env.DEMO_MODE === 'true' || process.env.NODE_ENV !== 'production';
     if (company.count === 0) {
-        console.log('Seeding initial system data...');
-        runSeed();
-    } else {
+        if (isDemoMode) {
+            console.log('Seeding initial system data with demo simulation...');
+            runSeed();
+        } else {
+            console.log('Initializing clean enterprise production database bootstrap...');
+            initProductionBootstrap();
+        }
+    } else if (isDemoMode) {
         ensureRichChartTelemetry();
     }
 } catch (e) {
@@ -90,6 +118,7 @@ if (require.main === module) {
         console.log(`========================================================`);
         console.log(`🚀 SwiftTrack Logistics + POS Server Running on Port ${PORT}`);
         console.log(`👉 http://localhost:${PORT}`);
+        console.log(`   Mode: ${process.env.DEMO_MODE === 'true' ? 'SANDBOX / EVALUATION' : 'ENTERPRISE PRODUCTION'}`);
         console.log(`========================================================`);
     });
 
@@ -101,6 +130,22 @@ if (require.main === module) {
         }
         process.exit(1);
     });
+
+    // Graceful process termination
+    const gracefulShutdown = (signal) => {
+        console.log(`\nReceived ${signal}. Shutting down cleanly...`);
+        server.close(() => {
+            console.log('HTTP connection pool drained.');
+            try {
+                db.close();
+                console.log('Database handle closed.');
+            } catch {}
+            process.exit(0);
+        });
+    };
+
+    process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+    process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 }
 
 module.exports = app;

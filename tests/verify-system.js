@@ -17,13 +17,14 @@ async function request(endpoint, options = {}) {
         }
     });
     const status = res.status;
+    const headers = res.headers;
     let data;
     try {
         data = await res.json();
     } catch {
         data = null;
     }
-    return { status, data };
+    return { status, headers, data };
 }
 
 async function runTests() {
@@ -357,8 +358,129 @@ async function runTests() {
         assert.strictEqual(deleteBlocked, true, 'Database trigger failed to block DELETE on audit_logs!');
         console.log('  ✔ Database trigger blocked DELETE on audit_logs with error\n');
 
+        // -------------------------------------------------------------
+        // TEST 8: Dynamic Cryptographic Salt Hashing & Transparent Salt Upgrade
+        // -------------------------------------------------------------
+        console.log('▶ TEST 8: Dynamic Cryptographic Salt Hashing & Transparent Upgrade...');
+
+        const crypto = require('node:crypto');
+        const { hashPassword, verifyPassword } = require('../server/utils/security.js');
+
+        // Verify hash format has dynamic salt:derivedKey
+        const newHash = hashPassword('SecureTestPass2026!');
+        assert.ok(newHash.includes(':'), 'Dynamic salt hash must contain colon separator');
+        const [saltHex, derivedKeyHex] = newHash.split(':');
+        assert.strictEqual(saltHex.length, 32, 'Salt should be 16 bytes (32 hex characters)');
+        assert.strictEqual(derivedKeyHex.length, 128, 'Derived key should be 64 bytes (128 hex characters)');
+        const verifyRes = verifyPassword('SecureTestPass2026!', newHash);
+        assert.strictEqual(verifyRes.isValid, true, 'Password verification failed on new dynamic hash');
+        assert.strictEqual(verifyRes.needsUpgrade, false, 'Dynamic hash should not need upgrade');
+        console.log('  ✔ Dynamic per-user salt hashing verified (16-byte random salt + 64-byte scrypt)');
+
+        // Setup legacy user with old static salt
+        const legacySalt = 'swifttrack_secure_salt_2026';
+        const legacyHash = crypto.scryptSync('OldStaticPass123!', legacySalt, 64).toString('hex');
+        const existingLegacyUser = db.prepare('SELECT id FROM users WHERE username = ?').get('test.legacy.user');
+        let legacyUserId;
+        if (!existingLegacyUser) {
+            const ins = db.prepare(`
+                INSERT INTO users (branch_id, role_id, username, email, full_name, phone, password_hash, is_active)
+                VALUES (1, 4, 'test.legacy.user', 'legacy@swifttrack.co.ke', 'Legacy Salt Test User', '+254 700 999 888', ?, 1)
+            `).run(legacyHash);
+            legacyUserId = ins.lastInsertRowid;
+        } else {
+            legacyUserId = existingLegacyUser.id;
+            db.prepare('UPDATE users SET password_hash = ?, is_active = 1 WHERE id = ?').run(legacyHash, legacyUserId);
+        }
+
+        // Verify login succeeds with legacy hash
+        const legacyLoginRes = await request('/api/auth/login', {
+            method: 'POST',
+            body: JSON.stringify({ username: 'test.legacy.user', password: 'OldStaticPass123!' })
+        });
+        assert.strictEqual(legacyLoginRes.status, 200, 'Legacy user login failed');
+
+        // Check DB to verify password_hash was transparently upgraded to dynamic salt format
+        const upgradedUser = db.prepare('SELECT password_hash FROM users WHERE id = ?').get(legacyUserId);
+        assert.ok(upgradedUser.password_hash.includes(':'), 'Password hash was not transparently upgraded to dynamic salt');
+        assert.notStrictEqual(upgradedUser.password_hash, legacyHash, 'Password hash should have been replaced with upgraded hash');
+        console.log('  ✔ Transparent zero-downtime password upgrade verified upon login');
+
+        // Deactivate test user (foreign key in audit_logs prevents hard deletion)
+        db.prepare('UPDATE users SET is_active = 0 WHERE id = ?').run(legacyUserId);
+        console.log('  ✔ Temporary test user deactivated (audit integrity preserved)\n');
+
+        // -------------------------------------------------------------
+        // TEST 9: Production HTTP Security Headers & Auth Config
+        // -------------------------------------------------------------
+        console.log('▶ TEST 9: Enterprise Security Headers & Auth Configuration...');
+
+        const healthRes = await request('/api/health');
+        assert.strictEqual(healthRes.status, 200);
+        assert.strictEqual(healthRes.headers.get('x-frame-options'), 'SAMEORIGIN');
+        assert.strictEqual(healthRes.headers.get('x-content-type-options'), 'nosniff');
+        assert.ok(healthRes.headers.get('content-security-policy'), 'CSP header missing');
+        assert.strictEqual(healthRes.headers.get('referrer-policy'), 'strict-origin-when-cross-origin');
+
+        // Verify HSTS specifically active in production mode
+        const prevEnv = process.env.NODE_ENV;
+        process.env.NODE_ENV = 'production';
+        const prodHealth = await request('/api/health');
+        assert.ok(prodHealth.headers.get('strict-transport-security'), 'HSTS header should be present in production');
+        process.env.NODE_ENV = prevEnv;
+
+        console.log('  ✔ Enterprise security headers verified (CSP, HSTS, X-Frame-Options, X-Content-Type-Options)');
+
+        const configRes = await request('/api/auth/config');
+        assert.strictEqual(configRes.status, 200);
+        assert.strictEqual(configRes.data.currency, 'KES');
+        assert.strictEqual(configRes.data.etimsEnabled, true);
+        console.log(`  ✔ Public config verified (Currency: ${configRes.data.currency}, eTIMS: ${configRes.data.etimsEnabled}, DemoMode: ${configRes.data.demoMode})\n`);
+
+        // -------------------------------------------------------------
+        // TEST 10: Production Demo Mode Enforcement Guard
+        // -------------------------------------------------------------
+        console.log('▶ TEST 10: Production Demo Mode Hard-Disable Guard...');
+
+        const originalDemoMode = process.env.DEMO_MODE;
+        const originalNodeEnv = process.env.NODE_ENV;
+
+        try {
+            // Emulate production mode with DEMO_MODE disabled
+            process.env.DEMO_MODE = 'false';
+            process.env.NODE_ENV = 'production';
+
+            const prodSwitchRes = await request('/api/auth/demo-switch', {
+                method: 'POST',
+                body: JSON.stringify({ role: 'SUPER_ADMIN' })
+            });
+
+            assert.strictEqual(prodSwitchRes.status, 403, 'Demo switch should return 403 in production mode');
+            assert.ok(prodSwitchRes.data.error.includes('disabled in production mode'), 'Error message should explain demo switching is disabled');
+            console.log('  ✔ Demo switch correctly rejected with 403 Forbidden when DEMO_MODE=false');
+        } finally {
+            process.env.DEMO_MODE = originalDemoMode;
+            process.env.NODE_ENV = originalNodeEnv;
+        }
+        console.log('  ✔ Production mode environment guard verified\n');
+
+        // -------------------------------------------------------------
+        // TEST 11: Enterprise Database Backup Engine
+        // -------------------------------------------------------------
+        console.log('▶ TEST 11: Enterprise Database Snapshot Backup...');
+
+        const { createBackup } = require('../server/db/backup.js');
+        const fs = require('node:fs');
+
+        const backupResult = createBackup();
+        assert.ok(fs.existsSync(backupResult.path), 'Backup snapshot file was not created on disk');
+        assert.ok(backupResult.size > 0, 'Backup snapshot file is empty');
+        assert.strictEqual(backupResult.sha256.length, 64, 'Backup SHA-256 checksum is invalid');
+        console.log(`  ✔ Point-in-time snapshot backup verified (${backupResult.filename}, ${backupResult.size} bytes)`);
+        console.log(`  ✔ SHA-256 integrity checksum: ${backupResult.sha256}\n`);
+
         console.log('================================================================');
-        console.log('🎉 ALL 7 SYSTEM VERIFICATION TESTS PASSED SUCCESSFULLY!');
+        console.log('🎉 ALL 11 SYSTEM VERIFICATION TESTS PASSED SUCCESSFULLY!');
         console.log('================================================================\n');
 
     } catch (error) {

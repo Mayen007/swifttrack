@@ -10,6 +10,12 @@ export function AuthProvider({ children }) {
   const [selectedBranch, setSelectedBranch] = useState(null);
   const [loading, setLoading] = useState(true);
   const [isSwitching, setIsSwitching] = useState(false);
+  const [demoMode, setDemoMode] = useState(true);
+  const [config, setConfig] = useState({
+    demoMode: true,
+    currency: 'KES',
+    etimsEnabled: true,
+  });
 
   // Load available branches
   const loadBranches = useCallback(async () => {
@@ -25,7 +31,64 @@ export function AuthProvider({ children }) {
     return [];
   }, []);
 
-  // Quick switch role (seamless in-place persona transition without app unmount)
+  // Standard Credential Login
+  const login = useCallback(async (username, password, rememberMe = false) => {
+    setIsSwitching(true);
+    try {
+      const res = await api.post('/api/auth/login', { username, password });
+      if (res && res.token) {
+        api.setToken(res.token);
+        if (rememberMe) {
+          localStorage.setItem('swifttrack_remember_user', username);
+        } else {
+          localStorage.removeItem('swifttrack_remember_user');
+        }
+
+        const normUser = {
+          ...res.user,
+          role: res.user.roleName || res.user.role,
+          full_name: res.user.fullName || res.user.full_name,
+          branch_id: res.user.branchId ?? res.user.branch_id,
+        };
+        setUser(normUser);
+
+        const bList = await loadBranches();
+        if (normUser.branch_id) {
+          const b = bList.find(item => item.id === normUser.branch_id);
+          setSelectedBranch(b || null);
+          if (b) localStorage.setItem('swifttrack_selected_branch_id', String(b.id));
+        } else {
+          const savedBranchId = localStorage.getItem('swifttrack_selected_branch_id');
+          if (savedBranchId === 'all') {
+            setSelectedBranch(null);
+          } else if (savedBranchId) {
+            const b = bList.find(item => String(item.id) === savedBranchId);
+            setSelectedBranch(b || null);
+          } else {
+            setSelectedBranch(null);
+          }
+        }
+
+        api.toast(`Welcome back, ${normUser.full_name}`, 'success');
+        return normUser;
+      }
+      throw new Error(res?.error || 'Authentication failed');
+    } finally {
+      setIsSwitching(false);
+    }
+  }, [loadBranches]);
+
+  // Clean Logout
+  const logout = useCallback(() => {
+    api.setToken(null);
+    localStorage.removeItem('swifttrack_token');
+    localStorage.removeItem('swifttrack_selected_branch_id');
+    setUser(null);
+    setSelectedBranch(null);
+    api.toast('Signed out successfully', 'info');
+  }, []);
+
+  // Quick switch role (demo/evaluation environments)
   const quickSwitch = useCallback(async (role, branchId = null) => {
     try {
       setIsSwitching(true);
@@ -36,11 +99,11 @@ export function AuthProvider({ children }) {
       }
 
       let res = null;
-      // 1. Try dedicated demo-switch endpoint (instant, password-free for demo accounts)
+      // 1. Try dedicated demo-switch endpoint
       try {
         res = await api.post('/api/auth/demo-switch', { role: targetRole, branch_id: branchId });
       } catch (e) {
-        console.warn('demo-switch endpoint failed, trying standard credentials login:', e.message);
+        console.warn('demo-switch endpoint failed or disabled:', e.message);
       }
 
       // 2. Fallback to standard credentials login if demo-switch was unavailable
@@ -68,14 +131,13 @@ export function AuthProvider({ children }) {
           branch_id: res.user.branchId ?? res.user.branch_id,
         };
         setUser(normUser);
-        
+
         const bList = await loadBranches();
         if (normUser.branch_id) {
           const b = bList.find(item => item.id === normUser.branch_id);
           setSelectedBranch(b || null);
           if (b) localStorage.setItem('swifttrack_selected_branch_id', String(b.id));
         } else {
-          // Global Super Admin: check saved preference
           const savedBranchId = localStorage.getItem('swifttrack_selected_branch_id');
           if (savedBranchId === 'all') {
             setSelectedBranch(null);
@@ -97,13 +159,25 @@ export function AuthProvider({ children }) {
     }
   }, [loadBranches]);
 
-  // Initial load - runs only once on mount
+  // Initial load on mount
   useEffect(() => {
     let isMounted = true;
     async function initAuth() {
       try {
         const savedBranchId = localStorage.getItem('swifttrack_selected_branch_id');
-        // 1. Check existing token
+
+        // Fetch auth config
+        try {
+          const cfg = await api.get('/api/auth/config');
+          if (cfg && isMounted) {
+            setConfig(cfg);
+            setDemoMode(cfg.demoMode === true);
+          }
+        } catch (e) {
+          console.warn('Could not load auth configuration:', e.message);
+        }
+
+        // Check existing token
         if (api.token) {
           try {
             const me = await api.get('/api/auth/me');
@@ -131,14 +205,9 @@ export function AuthProvider({ children }) {
               return;
             }
           } catch (e) {
-            console.warn('Existing token invalid, resetting demo session:', e);
+            console.warn('Existing token invalid, clearing session:', e);
             api.setToken(null);
           }
-        }
-        
-        // 2. Auto-login as Super Admin for instant live demo experience
-        if (isMounted) {
-          await quickSwitch('SUPER_ADMIN');
         }
       } catch (e) {
         console.error('Auth initialization error:', e);
@@ -148,37 +217,34 @@ export function AuthProvider({ children }) {
     }
     initAuth();
     return () => { isMounted = false; };
-  }, []); // Run strictly once on mount
+  }, [loadBranches]);
 
   const selectBranch = useCallback(async (branch) => {
     if (!branch) {
-      // "All Kenya Hubs (Consolidated Enterprise)" selected
       setSelectedBranch(null);
       localStorage.setItem('swifttrack_selected_branch_id', 'all');
-      if (user && user.role !== 'SUPER_ADMIN') {
-        await quickSwitch('SUPER_ADMIN');
-      }
       api.toast('Active branch context: All Kenya Hubs (Consolidated)', 'info');
       return;
     }
 
-    // Specific branch selected
     setSelectedBranch(branch);
     localStorage.setItem('swifttrack_selected_branch_id', String(branch.id));
 
-    // If Super Admin, cross-branch authority is built-in; just update context
     if (user?.role === 'SUPER_ADMIN') {
       api.toast(`Active branch context: ${branch.name}`, 'info');
       return;
     }
 
-    // If non-superadmin role and user assigned to a different branch, switch persona
     if (user?.branch_id && user.branch_id !== branch.id) {
-      await quickSwitch(user.role, branch.id);
+      if (demoMode) {
+        await quickSwitch(user.role, branch.id);
+      } else {
+        api.toast(`Switched branch context to ${branch.name}`, 'info');
+      }
     } else {
       api.toast(`Active branch context: ${branch.name}`, 'info');
     }
-  }, [user, quickSwitch]);
+  }, [user, quickSwitch, demoMode]);
 
   const isSuperAdmin = user?.role === 'SUPER_ADMIN';
   const isBranchManager = user?.role === 'BRANCH_MANAGER';
@@ -193,9 +259,13 @@ export function AuthProvider({ children }) {
         branches,
         selectedBranch,
         selectBranch,
+        login,
+        logout,
         quickSwitch,
         loading,
         isSwitching,
+        demoMode,
+        config,
         isSuperAdmin,
         isBranchManager,
         isDispatcher,

@@ -20,6 +20,7 @@ import { ReportsView } from './views/ReportsView.jsx';
 import { BranchesView } from './views/BranchesView.jsx';
 import { UsersView } from './views/UsersView.jsx';
 import { AuditView } from './views/AuditView.jsx';
+import { LoginView } from './views/LoginView.jsx';
 
 function MainApp() {
   const { user, loading, quickSwitch } = useAuth();
@@ -86,35 +87,7 @@ function MainApp() {
   }
 
   if (!user) {
-    return (
-      <div className="min-h-screen bg-[#0b0f19] flex items-center justify-center p-4">
-        <div className="bg-gray-900 border border-gray-800 rounded-2xl p-8 max-w-md w-full text-center space-y-6 shadow-2xl">
-          <div className="w-14 h-14 bg-blue-500/10 border border-blue-500/30 rounded-2xl flex items-center justify-center mx-auto text-blue-400">
-            <svg className="w-7 h-7" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-            </svg>
-          </div>
-          <div>
-            <h2 className="text-xl font-bold text-white tracking-tight">SwiftTrack Kenya</h2>
-            <p className="text-xs text-gray-400 mt-2">Select a demo profile to initialize your authenticated enterprise session.</p>
-          </div>
-          <div className="space-y-2">
-            <button
-              onClick={() => quickSwitch('SUPER_ADMIN')}
-              className="w-full py-2.5 px-4 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-semibold text-xs tracking-wide shadow-lg shadow-blue-500/20 transition-all cursor-pointer"
-            >
-              Sign In as Super Admin
-            </button>
-            <button
-              onClick={() => quickSwitch('CASHIER')}
-              className="w-full py-2.5 px-4 bg-gray-800 hover:bg-gray-700 text-gray-200 rounded-xl font-semibold text-xs tracking-wide border border-gray-700 transition-all cursor-pointer"
-            >
-              Sign In as Cashier (POS)
-            </button>
-          </div>
-        </div>
-      </div>
-    );
+    return <LoginView />;
   }
 
   const renderView = () => {

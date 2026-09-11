@@ -5,11 +5,7 @@ const crypto = require('node:crypto');
 const { db } = require('../db/database.js');
 const { authenticateToken, requireRole } = require('../middleware/auth.js');
 const { logAuditEvent } = require('../middleware/audit.js');
-
-function hashPassword(password) {
-    const salt = 'swifttrack_secure_salt_2026';
-    return crypto.scryptSync(password, salt, 64).toString('hex');
-}
+const { hashPassword } = require('../utils/security.js');
 
 // GET /api/users - List users (Super Admin sees all, Branch Manager sees only staff at own branch)
 router.get('/', authenticateToken, requireRole('SUPER_ADMIN', 'BRANCH_MANAGER'), (req, res) => {
