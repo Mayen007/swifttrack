@@ -583,8 +583,52 @@ async function runTests() {
         assert.ok(barcodeProdRes.data.category, 'Barcode category missing');
         console.log(`  ✔ Verified /api/products/barcode/:barcode returns price (${barcodeProdRes.data.price}) and category (${barcodeProdRes.data.category})\n`);
 
+        // -------------------------------------------------------------
+        // TEST 14: Notification Counter & Read/Unread Lifecycle
+        // -------------------------------------------------------------
+        console.log('▶ TEST 14: Notification Counter & Read/Unread Lifecycle...');
+
+        // 1. GET /api/notifications as Cashier
+        const notifsRes = await request('/api/notifications', {
+            headers: { Authorization: `Bearer ${cashierToken}` }
+        });
+        assert.strictEqual(notifsRes.status, 200, 'Notifications listing failed');
+        assert.strictEqual(typeof notifsRes.data.unread_count, 'number', 'unread_count is not a number');
+        assert.ok(Array.isArray(notifsRes.data.notifications), 'notifications is not an array');
+        const initialUnread = notifsRes.data.unread_count;
+        console.log(`  ✔ Verified notification listing (Total: ${notifsRes.data.notifications.length}, Unread: ${initialUnread})`);
+
+        // 2. Mark one notification as read if available
+        const unreadItem = notifsRes.data.notifications.find(n => !n.is_read);
+        if (unreadItem) {
+            const markOneRes = await request(`/api/notifications/${unreadItem.id}/read`, {
+                method: 'PATCH',
+                headers: { Authorization: `Bearer ${cashierToken}` }
+            });
+            assert.strictEqual(markOneRes.status, 200, 'Marking notification read failed');
+
+            const afterOneRes = await request('/api/notifications', {
+                headers: { Authorization: `Bearer ${cashierToken}` }
+            });
+            assert.strictEqual(afterOneRes.data.unread_count, initialUnread - 1, 'Unread count did not decrement after marking single notification read');
+            console.log(`  ✔ Verified single notification read decrement (${initialUnread} -> ${afterOneRes.data.unread_count})`);
+        }
+
+        // 3. Mark all notifications as read
+        const markAllRes = await request('/api/notifications/read-all', {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${cashierToken}` }
+        });
+        assert.strictEqual(markAllRes.status, 200, 'Mark all read failed');
+
+        const afterAllRes = await request('/api/notifications', {
+            headers: { Authorization: `Bearer ${cashierToken}` }
+        });
+        assert.strictEqual(afterAllRes.data.unread_count, 0, 'Unread count is not 0 after read-all');
+        console.log('  ✔ Verified read-all clears notification counter to 0\n');
+
         console.log('================================================================');
-        console.log('🎉 ALL 13 SYSTEM VERIFICATION TESTS PASSED SUCCESSFULLY!');
+        console.log('🎉 ALL 14 SYSTEM VERIFICATION TESTS PASSED SUCCESSFULLY!');
         console.log('================================================================\n');
 
     } catch (error) {

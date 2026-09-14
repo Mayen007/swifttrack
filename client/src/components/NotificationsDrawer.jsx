@@ -39,7 +39,25 @@ export function NotificationsDrawer({ isOpen, onClose, onRefreshCount }) {
     }
   };
 
+  const markOneRead = async (id) => {
+    try {
+      await api.patch(`/api/notifications/${id}/read`, {});
+      setNotifications((prev) => {
+        const next = prev.map((n) => (n.id === id ? { ...n, is_read: 1 } : n));
+        if (onRefreshCount) {
+          const unread = next.filter((n) => !n.is_read).length;
+          onRefreshCount(unread);
+        }
+        return next;
+      });
+    } catch (e) {
+      console.error('Failed to mark notification read:', e);
+    }
+  };
+
   if (!isOpen) return null;
+
+  const unreadTotal = notifications.filter((n) => !n.is_read).length;
 
   return (
     <div className="fixed inset-0 z-50 overflow-hidden">
@@ -56,7 +74,12 @@ export function NotificationsDrawer({ isOpen, onClose, onRefreshCount }) {
             <div>
               <h2 className="text-base font-bold text-white flex items-center gap-2">
                 <Bell className="w-5 h-5 text-blue-400" />
-                Notifications
+                <span>Notifications</span>
+                {unreadTotal > 0 && (
+                  <span className="text-[10px] font-mono font-semibold px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                    {unreadTotal} new
+                  </span>
+                )}
               </h2>
               <p className="text-xs text-gray-400 mt-1">Real-time alerts and system logs</p>
             </div>
@@ -64,7 +87,12 @@ export function NotificationsDrawer({ isOpen, onClose, onRefreshCount }) {
             <div className="flex items-center gap-2">
               <button
                 onClick={markAllRead}
-                className="text-xs font-medium text-blue-400 hover:text-blue-300 flex items-center gap-1 px-2.5 py-1.5 rounded-lg hover:bg-blue-950/40 transition-colors cursor-pointer"
+                disabled={unreadTotal === 0}
+                className={`text-xs font-medium flex items-center gap-1 px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer ${
+                  unreadTotal > 0
+                    ? 'text-blue-400 hover:text-blue-300 hover:bg-blue-950/40'
+                    : 'text-gray-500 cursor-not-allowed opacity-50'
+                }`}
               >
                 <CheckCheck className="w-3.5 h-3.5" />
                 Mark all read
@@ -96,9 +124,11 @@ export function NotificationsDrawer({ isOpen, onClose, onRefreshCount }) {
                 return (
                   <div
                     key={n.id}
+                    onClick={() => !n.is_read && markOneRead(n.id)}
+                    title={!n.is_read ? 'Click to mark as read' : ''}
                     className={`p-4 rounded-xl border transition-all duration-200 ${n.is_read
-                        ? 'bg-gray-800/40 border-gray-800 text-gray-300'
-                        : 'bg-blue-950/20 border-blue-900/40 text-white shadow-sm'
+                        ? 'bg-gray-800/40 border-gray-800 text-gray-400'
+                        : 'bg-blue-950/20 border-blue-900/40 text-white shadow-sm cursor-pointer hover:border-blue-700/60'
                       }`}
                   >
                     <div className="flex items-start gap-3">
@@ -107,7 +137,12 @@ export function NotificationsDrawer({ isOpen, onClose, onRefreshCount }) {
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-baseline justify-between gap-2">
-                          <h4 className="text-xs font-bold text-white truncate">{n.title}</h4>
+                          <div className="flex items-center gap-1.5 truncate">
+                            {!n.is_read && (
+                              <span className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" />
+                            )}
+                            <h4 className="text-xs font-bold text-white truncate">{n.title}</h4>
+                          </div>
                           <span className="text-[10px] text-gray-400 shrink-0 font-mono">
                             {new Date(n.created_at).toLocaleTimeString('en-KE', { hour: '2-digit', minute: '2-digit' })}
                           </span>

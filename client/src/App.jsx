@@ -7,6 +7,7 @@ import { Navbar } from './components/Navbar.jsx';
 import { Sidebar } from './components/Sidebar.jsx';
 import { NotificationsDrawer } from './components/NotificationsDrawer.jsx';
 import { ToastContainer } from './components/ToastContainer.jsx';
+import { api } from './services/api.js';
 
 import { DashboardView } from './views/DashboardView.jsx';
 import { PosView } from './views/PosView.jsx';
@@ -26,7 +27,33 @@ function MainApp() {
   const { user, loading, quickSwitch } = useAuth();
   const [currentView, setCurrentView] = useState('dashboard');
   const [notificationsOpen, setNotificationsOpen] = useState(false);
-  const [unreadCount, setUnreadCount] = useState(2);
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  // Poll/fetch real unread notification count
+  useEffect(() => {
+    let isMounted = true;
+    async function fetchUnreadCount() {
+      if (!user) {
+        if (isMounted) setUnreadCount(0);
+        return;
+      }
+      try {
+        const res = await api.get('/api/notifications');
+        if (isMounted && res) {
+          setUnreadCount(typeof res.unread_count === 'number' ? res.unread_count : 0);
+        }
+      } catch (e) {
+        // Silently ignore if unauthenticated or network error
+      }
+    }
+
+    fetchUnreadCount();
+    const interval = setInterval(fetchUnreadCount, 30000);
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
+  }, [user]);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
     try {
