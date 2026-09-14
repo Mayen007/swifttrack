@@ -720,3 +720,37 @@ dialog::backdrop {
   background: rgba(15, 23, 42, 0.55);
   backdrop-filter: blur(6px);
 }
+
+/* 14. Toast & Floating Notification Capsules (WCAG AAA High Contrast) */
+[data-theme="light"] .toast-capsule,
+.light .toast-capsule {
+  background-color: #ffffff !important;
+  box-shadow: 0 20px 25px -5px rgba(15, 23, 42, 0.15), 0 8px 10px -6px rgba(15, 23, 42, 0.08) !important;
+}
+
+[data-theme="light"] .toast-capsule p,
+[data-theme="light"] .toast-capsule span,
+.light .toast-capsule p,
+.light .toast-capsule span {
+  color: #090d16 !important;
+}
+
+[data-theme="light"] .text-blue-100,
+.light .text-blue-100 {
+  color: #1e3a8a !important;
+}
+
+[data-theme="light"] .text-emerald-100,
+.light .text-emerald-100 {
+  color: #064e3b !important;
+}
+
+[data-theme="light"] .text-rose-100,
+.light .text-rose-100 {
+  color: #881337 !important;
+}
+
+[data-theme="light"] .text-amber-100,
+.light .text-amber-100 {
+  color: #78350f !important;
+}
