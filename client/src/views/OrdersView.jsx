@@ -199,52 +199,52 @@ export function OrdersView() {
 
         {/* 2. UNIFIED HARDWARE TELEMETRY STRIP (Dieter Rams Matrix) */}
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-px bg-[#222834] border border-[#222834] rounded overflow-hidden">
-          <div className="bg-[#0c0e12] p-2.5 flex items-center justify-between">
-            <div>
-              <span className="text-[10px] text-emerald-400 font-mono uppercase tracking-wider block">Gross Sales Revenue</span>
-              <span className="text-lg font-mono font-bold text-emerald-400 tabular-nums">
-                {api.formatKES(totalVolume)}
+          <div className="bg-[#0c0e12] p-2.5 flex items-center justify-between min-w-0">
+            <div className="min-w-0">
+              <span className="text-[10px] text-emerald-400 font-mono uppercase tracking-wider block truncate">Gross Sales Revenue</span>
+              <span className="text-base sm:text-lg font-mono font-bold text-emerald-400 tabular-nums truncate block" title={api.formatKES(totalVolume)}>
+                {totalVolume >= 1000000 ? api.formatCompactKES(totalVolume) : api.formatKES(totalVolume)}
               </span>
             </div>
-            <span className="w-2 h-2 rounded-full bg-emerald-500" />
+            <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0 ml-2" />
           </div>
 
-          <div className="bg-[#0c0e12] p-2.5 flex items-center justify-between">
-            <div>
-              <span className="text-[10px] text-slate-400 font-mono uppercase tracking-wider block">Transactions Total</span>
-              <span className="text-lg font-mono font-bold text-slate-100 tabular-nums">{orders.length}</span>
+          <div className="bg-[#0c0e12] p-2.5 flex items-center justify-between min-w-0">
+            <div className="min-w-0">
+              <span className="text-[10px] text-slate-400 font-mono uppercase tracking-wider block truncate">Transactions Total</span>
+              <span className="text-base sm:text-lg font-mono font-bold text-slate-100 tabular-nums truncate block">{orders.length}</span>
             </div>
-            <Receipt className="w-4 h-4 text-slate-500" />
+            <Receipt className="w-4 h-4 text-slate-500 shrink-0 ml-1" />
           </div>
 
-          <div className="bg-[#0c0e12] p-2.5 flex items-center justify-between">
-            <div>
-              <span className="text-[10px] text-green-400 font-mono uppercase tracking-wider block">M-Pesa Express Total</span>
-              <span className="text-lg font-mono font-bold text-green-400 tabular-nums">
-                {api.formatKES(mpesaVolume)}
+          <div className="bg-[#0c0e12] p-2.5 flex items-center justify-between min-w-0">
+            <div className="min-w-0">
+              <span className="text-[10px] text-green-400 font-mono uppercase tracking-wider block truncate">M-Pesa Express Total</span>
+              <span className="text-base sm:text-lg font-mono font-bold text-green-400 tabular-nums truncate block" title={api.formatKES(mpesaVolume)}>
+                {mpesaVolume >= 1000000 ? api.formatCompactKES(mpesaVolume) : api.formatKES(mpesaVolume)}
               </span>
             </div>
-            <Smartphone className="w-4 h-4 text-green-500" />
+            <Smartphone className="w-4 h-4 text-green-500 shrink-0 ml-1" />
           </div>
 
-          <div className="bg-[#0c0e12] p-2.5 flex items-center justify-between">
-            <div>
-              <span className="text-[10px] text-blue-400 font-mono uppercase tracking-wider block">Cash Register Total</span>
-              <span className="text-lg font-mono font-bold text-blue-400 tabular-nums">
-                {api.formatKES(cashVolume)}
+          <div className="bg-[#0c0e12] p-2.5 flex items-center justify-between min-w-0">
+            <div className="min-w-0">
+              <span className="text-[10px] text-blue-400 font-mono uppercase tracking-wider block truncate">Cash Register Total</span>
+              <span className="text-base sm:text-lg font-mono font-bold text-blue-400 tabular-nums truncate block" title={api.formatKES(cashVolume)}>
+                {cashVolume >= 1000000 ? api.formatCompactKES(cashVolume) : api.formatKES(cashVolume)}
               </span>
             </div>
-            <Banknote className="w-4 h-4 text-blue-500" />
+            <Banknote className="w-4 h-4 text-blue-500 shrink-0 ml-1" />
           </div>
 
-          <div className="bg-[#0c0e12] p-2.5 flex items-center justify-between col-span-2 sm:col-span-1">
-            <div>
-              <span className="text-[10px] text-indigo-400 font-mono uppercase tracking-wider block">Channel Distribution</span>
-              <span className="text-xs font-mono font-bold text-slate-300">
+          <div className="bg-[#0c0e12] p-2.5 flex items-center justify-between min-w-0 col-span-2 sm:col-span-1">
+            <div className="min-w-0">
+              <span className="text-[10px] text-indigo-400 font-mono uppercase tracking-wider block truncate">Channel Distribution</span>
+              <span className="text-xs font-mono font-bold text-slate-300 truncate block">
                 {posCount} POS • {deliveryCount} Courier
               </span>
             </div>
-            <Truck className="w-4 h-4 text-indigo-400" />
+            <Truck className="w-4 h-4 text-indigo-400 shrink-0 ml-1" />
           </div>
         </div>
 

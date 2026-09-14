@@ -182,54 +182,54 @@ export function ReportsView() {
 
         {/* 2. UNIFIED HARDWARE TELEMETRY STRIP (Dieter Rams Matrix) */}
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-px bg-[#222834] border border-[#222834] rounded overflow-hidden">
-          <div className="bg-[#0c0e12] p-2.5 flex items-center justify-between">
-            <div>
-              <span className="text-[10px] text-slate-500 font-mono uppercase tracking-wider block">Gross Turnover</span>
-              <span className="text-lg font-mono font-bold text-slate-100 tabular-nums">
-                {api.formatKES(grossTurnover)}
+          <div className="bg-[#0c0e12] p-2.5 flex items-center justify-between min-w-0">
+            <div className="min-w-0">
+              <span className="text-[10px] text-slate-500 font-mono uppercase tracking-wider block truncate">Gross Turnover</span>
+              <span className="text-base sm:text-lg font-mono font-bold text-slate-100 tabular-nums truncate block" title={api.formatKES(grossTurnover)}>
+                {grossTurnover >= 1000000 ? api.formatCompactKES(grossTurnover) : api.formatKES(grossTurnover)}
               </span>
             </div>
-            <Receipt className="w-4 h-4 text-slate-500" />
+            <Receipt className="w-4 h-4 text-slate-500 shrink-0 ml-1" />
           </div>
 
-          <div className="bg-[#0c0e12] p-2.5 flex items-center justify-between">
-            <div>
-              <span className="text-[10px] text-emerald-400 font-mono uppercase tracking-wider block">Output VAT (16%)</span>
-              <span className="text-lg font-mono font-bold text-emerald-400 tabular-nums">
-                {api.formatKES(vatCollected)}
+          <div className="bg-[#0c0e12] p-2.5 flex items-center justify-between min-w-0">
+            <div className="min-w-0">
+              <span className="text-[10px] text-emerald-400 font-mono uppercase tracking-wider block truncate">Output VAT (16%)</span>
+              <span className="text-base sm:text-lg font-mono font-bold text-emerald-400 tabular-nums truncate block" title={api.formatKES(vatCollected)}>
+                {vatCollected >= 1000000 ? api.formatCompactKES(vatCollected) : api.formatKES(vatCollected)}
               </span>
             </div>
-            <span className="w-2 h-2 rounded-full bg-emerald-500" />
+            <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0 ml-2" />
           </div>
 
-          <div className="bg-[#0c0e12] p-2.5 flex items-center justify-between">
-            <div>
-              <span className="text-[10px] text-blue-400 font-mono uppercase tracking-wider block">Gross Profit Margin</span>
-              <span className="text-lg font-mono font-bold text-blue-400 tabular-nums">
+          <div className="bg-[#0c0e12] p-2.5 flex items-center justify-between min-w-0">
+            <div className="min-w-0">
+              <span className="text-[10px] text-blue-400 font-mono uppercase tracking-wider block truncate">Gross Profit Margin</span>
+              <span className="text-base sm:text-lg font-mono font-bold text-blue-400 tabular-nums whitespace-nowrap block">
                 {grossMarginPct}%
               </span>
             </div>
-            <Percent className="w-4 h-4 text-blue-500" />
+            <Percent className="w-4 h-4 text-blue-500 shrink-0 ml-1" />
           </div>
 
-          <div className="bg-[#0c0e12] p-2.5 flex items-center justify-between">
-            <div>
-              <span className="text-[10px] text-emerald-400 font-mono uppercase tracking-wider block">Net Operating Income</span>
-              <span className="text-lg font-mono font-bold text-emerald-400 tabular-nums">
-                {api.formatKES(netIncome)}
+          <div className="bg-[#0c0e12] p-2.5 flex items-center justify-between min-w-0">
+            <div className="min-w-0">
+              <span className="text-[10px] text-emerald-400 font-mono uppercase tracking-wider block truncate">Net Operating Income</span>
+              <span className="text-base sm:text-lg font-mono font-bold text-emerald-400 tabular-nums truncate block" title={api.formatKES(netIncome)}>
+                {netIncome >= 1000000 ? api.formatCompactKES(netIncome) : api.formatKES(netIncome)}
               </span>
             </div>
-            <span className="text-xs font-mono font-bold text-slate-400">({netMarginPct}%)</span>
+            <span className="text-xs font-mono font-bold text-slate-400 shrink-0 ml-1">({netMarginPct}%)</span>
           </div>
 
-          <div className="bg-[#0c0e12] p-2.5 flex items-center justify-between col-span-2 sm:col-span-1">
-            <div>
-              <span className="text-[10px] text-green-400 font-mono uppercase tracking-wider block">M-Pesa Penetration</span>
-              <span className="text-lg font-mono font-bold text-green-400 tabular-nums">
+          <div className="bg-[#0c0e12] p-2.5 flex items-center justify-between min-w-0 col-span-2 sm:col-span-1">
+            <div className="min-w-0">
+              <span className="text-[10px] text-green-400 font-mono uppercase tracking-wider block truncate">M-Pesa Penetration</span>
+              <span className="text-base sm:text-lg font-mono font-bold text-green-400 tabular-nums whitespace-nowrap block">
                 {mpesaRatio}%
               </span>
             </div>
-            <Smartphone className="w-4 h-4 text-green-500" />
+            <Smartphone className="w-4 h-4 text-green-500 shrink-0 ml-1" />
           </div>
         </div>
       </div>

@@ -243,52 +243,52 @@ export function ExpensesView() {
 
         {/* 2. UNIFIED HARDWARE TELEMETRY STRIP (Dieter Rams Matrix) */}
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-px bg-[#222834] border border-[#222834] rounded overflow-hidden">
-          <div className="bg-[#0c0e12] p-2.5 flex items-center justify-between">
-            <div>
-              <span className="text-[10px] text-slate-500 font-mono uppercase tracking-wider block">Total Settled Overhead</span>
-              <span className="text-lg font-mono font-bold text-rose-400 tabular-nums">
-                {api.formatKES(totalSettled)}
+          <div className="bg-[#0c0e12] p-2.5 flex items-center justify-between min-w-0">
+            <div className="min-w-0">
+              <span className="text-[10px] text-slate-500 font-mono uppercase tracking-wider block truncate">Total Settled Overhead</span>
+              <span className="text-base sm:text-lg font-mono font-bold text-rose-400 tabular-nums truncate block" title={api.formatKES(totalSettled)}>
+                {totalSettled >= 1000000 ? api.formatCompactKES(totalSettled) : api.formatKES(totalSettled)}
               </span>
             </div>
-            <Banknote className="w-4 h-4 text-rose-500" />
+            <Banknote className="w-4 h-4 text-rose-500 shrink-0 ml-1" />
           </div>
 
-          <div className="bg-[#0c0e12] p-2.5 flex items-center justify-between">
-            <div>
-              <span className="text-[10px] text-amber-400 font-mono uppercase tracking-wider block">Fuel & Fleet Maintenance</span>
-              <span className="text-lg font-mono font-bold text-amber-400 tabular-nums">
-                {api.formatKES(fuelMaintenanceTotal)}
+          <div className="bg-[#0c0e12] p-2.5 flex items-center justify-between min-w-0">
+            <div className="min-w-0">
+              <span className="text-[10px] text-amber-400 font-mono uppercase tracking-wider block truncate">Fuel & Fleet Maint</span>
+              <span className="text-base sm:text-lg font-mono font-bold text-amber-400 tabular-nums truncate block" title={api.formatKES(fuelMaintenanceTotal)}>
+                {fuelMaintenanceTotal >= 1000000 ? api.formatCompactKES(fuelMaintenanceTotal) : api.formatKES(fuelMaintenanceTotal)}
               </span>
             </div>
-            <Fuel className="w-4 h-4 text-amber-500" />
+            <Fuel className="w-4 h-4 text-amber-500 shrink-0 ml-1" />
           </div>
 
-          <div className="bg-[#0c0e12] p-2.5 flex items-center justify-between">
-            <div>
-              <span className="text-[10px] text-indigo-400 font-mono uppercase tracking-wider block">Utilities & Packaging</span>
-              <span className="text-lg font-mono font-bold text-indigo-400 tabular-nums">
-                {api.formatKES(utilitiesTotal)}
+          <div className="bg-[#0c0e12] p-2.5 flex items-center justify-between min-w-0">
+            <div className="min-w-0">
+              <span className="text-[10px] text-indigo-400 font-mono uppercase tracking-wider block truncate">Utilities & Packaging</span>
+              <span className="text-base sm:text-lg font-mono font-bold text-indigo-400 tabular-nums truncate block" title={api.formatKES(utilitiesTotal)}>
+                {utilitiesTotal >= 1000000 ? api.formatCompactKES(utilitiesTotal) : api.formatKES(utilitiesTotal)}
               </span>
             </div>
-            <Zap className="w-4 h-4 text-indigo-500" />
+            <Zap className="w-4 h-4 text-indigo-500 shrink-0 ml-1" />
           </div>
 
-          <div className="bg-[#0c0e12] p-2.5 flex items-center justify-between">
-            <div>
-              <span className="text-[10px] text-slate-400 font-mono uppercase tracking-wider block">Active Vouchers</span>
-              <span className="text-lg font-mono font-bold text-slate-100 tabular-nums">{expenses.length}</span>
+          <div className="bg-[#0c0e12] p-2.5 flex items-center justify-between min-w-0">
+            <div className="min-w-0">
+              <span className="text-[10px] text-slate-400 font-mono uppercase tracking-wider block truncate">Active Vouchers</span>
+              <span className="text-base sm:text-lg font-mono font-bold text-slate-100 tabular-nums truncate block">{expenses.length}</span>
             </div>
-            <FileText className="w-4 h-4 text-slate-500" />
+            <FileText className="w-4 h-4 text-slate-500 shrink-0 ml-1" />
           </div>
 
-          <div className="bg-[#0c0e12] p-2.5 flex items-center justify-between col-span-2 sm:col-span-1">
-            <div>
-              <span className="text-[10px] text-amber-400 font-mono uppercase tracking-wider block">Pending Approval</span>
-              <span className="text-lg font-mono font-bold text-amber-300 tabular-nums">
-                {pendingVouchers.length > 0 ? `${pendingVouchers.length} (${api.formatKES(pendingValue)})` : '0'}
+          <div className="bg-[#0c0e12] p-2.5 flex items-center justify-between min-w-0 col-span-2 sm:col-span-1">
+            <div className="min-w-0">
+              <span className="text-[10px] text-amber-400 font-mono uppercase tracking-wider block truncate">Pending Approval</span>
+              <span className="text-base sm:text-lg font-mono font-bold text-amber-300 tabular-nums truncate block" title={api.formatKES(pendingValue)}>
+                {pendingVouchers.length > 0 ? `${pendingVouchers.length} (${pendingValue >= 1000000 ? api.formatCompactKES(pendingValue) : api.formatKES(pendingValue)})` : '0'}
               </span>
             </div>
-            <Clock className={`w-4 h-4 ${pendingVouchers.length > 0 ? 'text-amber-400 animate-pulse' : 'text-slate-600'}`} />
+            <Clock className={`w-4 h-4 shrink-0 ml-1 ${pendingVouchers.length > 0 ? 'text-amber-400 animate-pulse' : 'text-slate-600'}`} />
           </div>
         </div>
 

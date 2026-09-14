@@ -336,46 +336,46 @@ export function InventoryView() {
 
         {/* 2. UNIFIED HARDWARE TELEMETRY STRIP (Dieter Rams Matrix) */}
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-px bg-[#222834] border border-[#222834] rounded overflow-hidden">
-          <div className="bg-[#0c0e12] p-2.5 flex items-center justify-between">
-            <div>
-              <span className="text-[10px] text-slate-500 font-mono uppercase tracking-wider block">Tracked SKUs</span>
-              <span className="text-lg font-mono font-bold text-slate-100 tabular-nums">{totalSkus}</span>
+          <div className="bg-[#0c0e12] p-2.5 flex items-center justify-between min-w-0">
+            <div className="min-w-0">
+              <span className="text-[10px] text-slate-500 font-mono uppercase tracking-wider block truncate">Tracked SKUs</span>
+              <span className="text-base sm:text-lg font-mono font-bold text-slate-100 tabular-nums truncate block">{totalSkus}</span>
             </div>
-            <Barcode className="w-4 h-4 text-slate-600" />
+            <Barcode className="w-4 h-4 text-slate-600 shrink-0 ml-1" />
           </div>
 
-          <div className="bg-[#0c0e12] p-2.5 flex items-center justify-between">
-            <div>
-              <span className="text-[10px] text-emerald-400 font-mono uppercase tracking-wider block">Total Inventory Value</span>
-              <span className="text-lg font-mono font-bold text-emerald-400 tabular-nums">
-                {api.formatKES(totalValuation)}
+          <div className="bg-[#0c0e12] p-2.5 flex items-center justify-between min-w-0">
+            <div className="min-w-0">
+              <span className="text-[10px] text-emerald-400 font-mono uppercase tracking-wider block truncate">Total Inventory Value</span>
+              <span className="text-base sm:text-lg font-mono font-bold text-emerald-400 tabular-nums truncate block" title={api.formatKES(totalValuation)}>
+                {totalValuation >= 1000000 ? api.formatCompactKES(totalValuation) : api.formatKES(totalValuation)}
               </span>
             </div>
-            <span className="w-2 h-2 rounded-full bg-emerald-500" />
+            <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0 ml-2" />
           </div>
 
-          <div className="bg-[#0c0e12] p-2.5 flex items-center justify-between">
-            <div>
-              <span className="text-[10px] text-blue-400 font-mono uppercase tracking-wider block">Total Units Available</span>
-              <span className="text-lg font-mono font-bold text-blue-400 tabular-nums">{totalUnits}</span>
+          <div className="bg-[#0c0e12] p-2.5 flex items-center justify-between min-w-0">
+            <div className="min-w-0">
+              <span className="text-[10px] text-blue-400 font-mono uppercase tracking-wider block truncate">Total Units Available</span>
+              <span className="text-base sm:text-lg font-mono font-bold text-blue-400 tabular-nums truncate block">{totalUnits}</span>
             </div>
-            <Boxes className="w-4 h-4 text-blue-500" />
+            <Boxes className="w-4 h-4 text-blue-500 shrink-0 ml-1" />
           </div>
 
-          <div className="bg-[#0c0e12] p-2.5 flex items-center justify-between">
-            <div>
-              <span className="text-[10px] text-rose-400 font-mono uppercase tracking-wider block">Reorder Deficits</span>
-              <span className="text-lg font-mono font-bold text-rose-400 tabular-nums">{lowStockCount}</span>
+          <div className="bg-[#0c0e12] p-2.5 flex items-center justify-between min-w-0">
+            <div className="min-w-0">
+              <span className="text-[10px] text-rose-400 font-mono uppercase tracking-wider block truncate">Reorder Deficits</span>
+              <span className="text-base sm:text-lg font-mono font-bold text-rose-400 tabular-nums truncate block">{lowStockCount}</span>
             </div>
-            <AlertTriangle className={`w-4 h-4 ${lowStockCount > 0 ? 'text-rose-400 animate-pulse' : 'text-slate-600'}`} />
+            <AlertTriangle className={`w-4 h-4 shrink-0 ml-1 ${lowStockCount > 0 ? 'text-rose-400 animate-pulse' : 'text-slate-600'}`} />
           </div>
 
-          <div className="bg-[#0c0e12] p-2.5 flex items-center justify-between col-span-2 sm:col-span-1">
-            <div>
-              <span className="text-[10px] text-cyan-400 font-mono uppercase tracking-wider block">Transit Transfers</span>
-              <span className="text-lg font-mono font-bold text-cyan-400 tabular-nums">{inTransitTransfersCount}</span>
+          <div className="bg-[#0c0e12] p-2.5 flex items-center justify-between min-w-0 col-span-2 sm:col-span-1">
+            <div className="min-w-0">
+              <span className="text-[10px] text-cyan-400 font-mono uppercase tracking-wider block truncate">Transit Transfers</span>
+              <span className="text-base sm:text-lg font-mono font-bold text-cyan-400 tabular-nums truncate block">{inTransitTransfersCount}</span>
             </div>
-            <Truck className="w-4 h-4 text-cyan-400" />
+            <Truck className="w-4 h-4 text-cyan-400 shrink-0 ml-1" />
           </div>
         </div>
 
@@ -524,9 +524,9 @@ export function InventoryView() {
                             )}
                           </div>
                           <div className="flex items-center gap-2 text-[10px] text-slate-400 mt-0.5">
-                            <span className="text-blue-400 font-semibold">{item.sku}</span>
+                            <span className="text-blue-400 font-semibold font-mono whitespace-nowrap">{item.sku}</span>
                             {item.barcode && (
-                              <span className="text-slate-500 flex items-center gap-1">
+                              <span className="text-slate-500 flex items-center gap-1 font-mono whitespace-nowrap">
                                 <Barcode className="w-3 h-3" />
                                 {item.barcode}
                               </span>

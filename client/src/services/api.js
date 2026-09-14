@@ -3,7 +3,22 @@
 
 class ApiService {
   constructor() {
-    this.token = typeof window !== 'undefined' ? localStorage.getItem('swifttrack_token') : null;
+    let initialToken = null;
+    if (typeof window !== 'undefined') {
+      try {
+        const params = new URLSearchParams(window.location.search);
+        const urlToken = params.get('token');
+        if (urlToken) {
+          localStorage.setItem('swifttrack_token', urlToken);
+          initialToken = urlToken;
+        } else {
+          initialToken = localStorage.getItem('swifttrack_token');
+        }
+      } catch {
+        initialToken = null;
+      }
+    }
+    this.token = initialToken;
     this.toastListeners = new Set();
   }
 
@@ -34,6 +49,22 @@ class ApiService {
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,
     }).format(amount || 0);
+  }
+
+  formatCompactKES(amount) {
+    const num = Number(amount) || 0;
+    const sign = num < 0 ? '-' : '';
+    const abs = Math.abs(num);
+    if (abs >= 1_000_000_000) {
+      return `${sign}Ksh ${(abs / 1_000_000_000).toFixed(2)}B`;
+    }
+    if (abs >= 1_000_000) {
+      return `${sign}Ksh ${(abs / 1_000_000).toFixed(2)}M`;
+    }
+    if (abs >= 100_000) {
+      return `${sign}Ksh ${(abs / 1_000).toFixed(1)}k`;
+    }
+    return this.formatKES(num);
   }
 
   async request(endpoint, options = {}) {

@@ -25,7 +25,15 @@ import { LoginView } from './views/LoginView.jsx';
 
 function MainApp() {
   const { user, loading, quickSwitch } = useAuth();
-  const [currentView, setCurrentView] = useState('dashboard');
+  const [currentView, setCurrentView] = useState(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const view = new URLSearchParams(window.location.search).get('view');
+        if (view) return view;
+      } catch {}
+    }
+    return 'dashboard';
+  });
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
 
@@ -93,9 +101,16 @@ function MainApp() {
     }
   }, [currentView]);
 
-  // Set default view based on user role
+  // Set default view based on user role (respecting URL ?view= param if provided)
   useEffect(() => {
     if (!user) return;
+    try {
+      const urlView = new URLSearchParams(window.location.search).get('view');
+      if (urlView) {
+        setCurrentView(urlView);
+        return;
+      }
+    } catch {}
     if (user.role === 'CASHIER') setCurrentView('pos');
     else if (user.role === 'DRIVER') setCurrentView('driver');
     else if (user.role === 'DISPATCHER') setCurrentView('dispatch');

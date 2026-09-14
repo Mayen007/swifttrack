@@ -227,60 +227,60 @@ export function DashboardView({ onNavigate }) {
       <div className="bg-[#12161f] border border-[#222834] rounded overflow-hidden">
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 divide-y sm:divide-y-0 sm:divide-x divide-[#222834]">
           {/* Gross Daily Sales */}
-          <div className="p-4 sm:p-5">
+          <div className="p-4 sm:p-5 min-w-0 overflow-hidden">
             <div className="flex items-center justify-between text-[10px] font-mono uppercase tracking-widest text-slate-400">
-              <span>GROSS SALES (TODAY)</span>
-              <span className="text-emerald-400 font-bold">+14.2%</span>
+              <span className="truncate">GROSS SALES (TODAY)</span>
+              <span className="text-emerald-400 font-bold shrink-0">+14.2%</span>
             </div>
-            <div className="mt-2 text-2xl font-bold font-mono tabular-nums text-white tracking-tight">
-              {api.formatKES(stats?.todaySales || 0)}
+            <div className="mt-2 text-xl xl:text-2xl font-bold font-mono tabular-nums text-white tracking-tight truncate" title={api.formatKES(stats?.todaySales || 0)}>
+              {(stats?.todaySales || 0) >= 1000000 ? api.formatCompactKES(stats?.todaySales || 0) : api.formatKES(stats?.todaySales || 0)}
             </div>
-            <div className="mt-1.5 text-[11px] font-mono text-slate-400 flex items-center gap-1.5">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block" />
-              <span>Target: KES 120,000.00 met</span>
+            <div className="mt-1.5 text-[11px] font-mono text-slate-400 flex items-center gap-1.5 truncate">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block shrink-0" />
+              <span className="truncate">Target: KES 120,000.00 met</span>
             </div>
           </div>
 
           {/* Orders Fulfilled */}
-          <div className="p-4 sm:p-5">
+          <div className="p-4 sm:p-5 min-w-0 overflow-hidden">
             <div className="flex items-center justify-between text-[10px] font-mono uppercase tracking-widest text-slate-400">
-              <span>TOTAL ORDERS</span>
-              <span className="text-slate-400">POS + DISPATCH</span>
+              <span className="truncate">TOTAL ORDERS</span>
+              <span className="text-slate-400 shrink-0">POS + DISPATCH</span>
             </div>
-            <div className="mt-2 text-2xl font-bold font-mono tabular-nums text-white tracking-tight">
+            <div className="mt-2 text-xl xl:text-2xl font-bold font-mono tabular-nums text-white tracking-tight truncate">
               {stats?.ordersCount || 0}
             </div>
-            <div className="mt-1.5 text-[11px] font-mono text-slate-400">
+            <div className="mt-1.5 text-[11px] font-mono text-slate-400 truncate">
               Avg ticket: {api.formatKES((stats?.todaySales || 0) / Math.max(stats?.ordersCount || 1, 1))}
             </div>
           </div>
 
           {/* Low Stock Alerts */}
-          <div className="p-4 sm:p-5">
+          <div className="p-4 sm:p-5 min-w-0 overflow-hidden">
             <div className="flex items-center justify-between text-[10px] font-mono uppercase tracking-widest text-slate-400">
-              <span>STOCK DEFICITS</span>
-              <span className={stats?.lowStockCount > 0 ? 'text-amber-400 font-bold' : 'text-slate-400'}>
+              <span className="truncate">STOCK DEFICITS</span>
+              <span className={stats?.lowStockCount > 0 ? 'text-amber-400 font-bold shrink-0' : 'text-slate-400 shrink-0'}>
                 {stats?.lowStockCount > 0 ? 'ACTION' : 'NOMINAL'}
               </span>
             </div>
-            <div className="mt-2 text-2xl font-bold font-mono tabular-nums text-amber-400 tracking-tight">
+            <div className="mt-2 text-xl xl:text-2xl font-bold font-mono tabular-nums text-amber-400 tracking-tight truncate">
               {stats?.lowStockCount || 0} <span className="text-xs font-normal text-slate-400">SKUs</span>
             </div>
-            <div className="mt-1.5 text-[11px] font-mono text-slate-400">
+            <div className="mt-1.5 text-[11px] font-mono text-slate-400 truncate">
               Below regional safety threshold
             </div>
           </div>
 
           {/* Active Fleet Units */}
-          <div className="p-4 sm:p-5">
+          <div className="p-4 sm:p-5 min-w-0 overflow-hidden">
             <div className="flex items-center justify-between text-[10px] font-mono uppercase tracking-widest text-slate-400">
-              <span>ACTIVE COURIERS</span>
-              <span className="text-emerald-400 font-bold">100% UP</span>
+              <span className="truncate">ACTIVE COURIERS</span>
+              <span className="text-emerald-400 font-bold shrink-0">100% UP</span>
             </div>
-            <div className="mt-2 text-2xl font-bold font-mono tabular-nums text-white tracking-tight">
+            <div className="mt-2 text-xl xl:text-2xl font-bold font-mono tabular-nums text-white tracking-tight truncate">
               {stats?.activeFleet || 0} <span className="text-xs font-normal text-slate-400">UNITS</span>
             </div>
-            <div className="mt-1.5 text-[11px] font-mono text-slate-400">
+            <div className="mt-1.5 text-[11px] font-mono text-slate-400 truncate">
               Boda bodas & vans connected
             </div>
           </div>

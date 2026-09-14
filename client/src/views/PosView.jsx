@@ -268,10 +268,10 @@ export function PosView() {
             >
               <div>
                 <div className="flex items-start justify-between gap-1">
-                  <span className="text-[10px] font-mono font-bold text-slate-400 uppercase tracking-wider">
+                  <span className="text-[10px] font-mono font-bold text-slate-400 uppercase tracking-wider whitespace-nowrap truncate">
                     {product.sku}
                   </span>
-                  <span className="text-[10px] text-slate-400 font-mono truncate max-w-[80px]">
+                  <span className="text-[10px] text-slate-400 font-mono truncate max-w-[80px] shrink-0 text-right">
                     {product.category || product.category_name || 'General'}
                   </span>
                 </div>

@@ -666,10 +666,10 @@ export function DispatchView() {
 
                         {/* Recipient & Destination Details */}
                         <div>
-                          <div className="flex items-center justify-between">
-                            <h4 className="text-xs font-bold text-slate-100 truncate">{item.recipient_name}</h4>
+                          <div className="flex items-center justify-between gap-2">
+                            <h4 className="text-xs font-bold text-slate-100 truncate min-w-0">{item.recipient_name}</h4>
                             {item.total_amount && (
-                              <span className="text-[11px] font-mono font-semibold text-slate-300 tabular-nums">
+                              <span className="text-[11px] font-mono font-semibold text-slate-300 tabular-nums shrink-0">
                                 {api.formatKES(item.total_amount)}
                               </span>
                             )}

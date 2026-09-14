@@ -6,6 +6,12 @@ const ThemeContext = createContext(null);
 export function ThemeProvider({ children }) {
   const [theme, setThemeState] = useState(() => {
     try {
+      if (typeof window !== 'undefined') {
+        const urlTheme = new URLSearchParams(window.location.search).get('theme');
+        if (urlTheme === 'light' || urlTheme === 'dark') {
+          return urlTheme;
+        }
+      }
       const saved = localStorage.getItem('swifttrack_theme');
       if (saved === 'light' || saved === 'dark' || saved === 'system') {
         return saved;
