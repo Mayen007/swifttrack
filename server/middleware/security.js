@@ -101,18 +101,30 @@ function securityHeaders(req, res, next) {
  */
 function configureCors() {
     const cors = require('cors');
-    const allowed = (process.env.CORS_ORIGINS || 'http://localhost:5173,http://localhost:4000')
+    const allowed = (process.env.CORS_ORIGINS || 'http://localhost:5173,http://localhost:5174,http://localhost:4000')
         .split(',')
-        .map(o => o.trim());
+        .map(o => o.trim())
+        .filter(Boolean);
 
     return cors({
         origin: (origin, callback) => {
             // Allow requests with no origin (e.g. mobile apps, curl, server-to-server)
             if (!origin) return callback(null, true);
+
+            // Allow if explicitly listed or wildcard
             if (allowed.includes(origin) || allowed.includes('*')) {
                 return callback(null, true);
             }
-            callback(new Error(`CORS policy rejection: Origin '${origin}' is not authorized.`));
+
+            // Allow any localhost/127.0.0.1 origin when localhost is configured in allowed origins
+            const hasLocalhostAllowed = allowed.some(o => o.includes('localhost') || o.includes('127.0.0.1'));
+            const isLocalhostOrigin = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin);
+            if (hasLocalhostAllowed && isLocalhostOrigin) {
+                return callback(null, true);
+            }
+
+            // Deny origin gracefully without throwing an uncaught exception
+            callback(null, false);
         },
         credentials: true,
         methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],

@@ -5,6 +5,7 @@
   "main": "index.js",
   "scripts": {
     "start": "node server/server.js",
+    "dev": "cd client && npm run dev",
     "build": "cd client && npm run build",
     "client:dev": "cd client && npm run dev",
     "test": "node tests/verify-system.js",
