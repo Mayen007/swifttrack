@@ -14,16 +14,21 @@ export function CartProvider({ children }) {
 
   const addItem = (product, qty = 1) => {
     sound.playScan();
+    const normalizedProduct = {
+      ...product,
+      price: Number(product.price ?? product.selling_price ?? 0),
+      selling_price: Number(product.selling_price ?? product.price ?? 0),
+    };
     setItems((prev) => {
-      const existing = prev.find((item) => item.product.id === product.id);
+      const existing = prev.find((item) => item.product.id === normalizedProduct.id);
       if (existing) {
         return prev.map((item) =>
-          item.product.id === product.id
+          item.product.id === normalizedProduct.id
             ? { ...item, quantity: item.quantity + qty }
             : item
         );
       }
-      return [...prev, { product, quantity: qty }];
+      return [...prev, { product: normalizedProduct, quantity: qty }];
     });
   };
 
@@ -78,7 +83,7 @@ export function CartProvider({ children }) {
 
   const totals = useMemo(() => {
     const rawSubtotal = items.reduce(
-      (sum, item) => sum + item.product.price * item.quantity,
+      (sum, item) => sum + Number(item.product.price ?? item.product.selling_price ?? 0) * item.quantity,
       0
     );
     const discountAmount = (rawSubtotal * (discountPercent || 0)) / 100;

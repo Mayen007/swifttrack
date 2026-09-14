@@ -10,7 +10,11 @@ router.get('/', authenticateToken, (req, res) => {
     const { category_id, search, barcode, sku, low_stock } = req.query;
 
     let query = `
-        SELECT p.*, c.name as category_name, c.code as category_code,
+        SELECT p.*,
+               p.selling_price as price,
+               c.name as category,
+               c.name as category_name,
+               c.code as category_code,
                COALESCE(SUM(i.quantity_on_hand), 0) as total_stock,
                COALESCE(SUM(i.quantity_available), 0) as available_stock
         FROM products p
@@ -81,7 +85,10 @@ router.get('/categories', authenticateToken, (req, res) => {
 // GET /api/products/barcode/:barcode - Direct barcode lookup for POS scanner
 router.get('/barcode/:barcode', authenticateToken, (req, res) => {
     const product = db.prepare(`
-        SELECT p.*, c.name as category_name
+        SELECT p.*,
+               p.selling_price as price,
+               c.name as category,
+               c.name as category_name
         FROM products p
         JOIN categories c ON p.category_id = c.id
         WHERE p.barcode = ? AND p.is_active = 1

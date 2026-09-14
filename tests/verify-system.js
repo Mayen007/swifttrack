@@ -544,8 +544,47 @@ async function runTests() {
         assert.ok(trfInMovement, 'TRANSFER_IN movement ledger entry missing');
         console.log('  ✔ Verified dual-hub ledger entries (TRANSFER_OUT & TRANSFER_IN)\n');
 
+        // -------------------------------------------------------------
+        // TEST 13: POS Catalog & Pricing Schema Integrity
+        // -------------------------------------------------------------
+        console.log('▶ TEST 13: POS Product Catalog & Pricing Integrity Check...');
+
+        // 1. GET /api/products as Cashier
+        const prodsRes = await request('/api/products', {
+            headers: { Authorization: `Bearer ${cashierToken}` }
+        });
+        assert.strictEqual(prodsRes.status, 200, 'Products listing failed');
+        assert.ok(Array.isArray(prodsRes.data) && prodsRes.data.length > 0, 'No products returned');
+        const firstProd = prodsRes.data[0];
+        assert.ok(firstProd.price !== undefined && firstProd.price > 0, `Product price missing or 0: ${firstProd.price}`);
+        assert.ok(firstProd.selling_price !== undefined && firstProd.selling_price > 0, `Product selling_price missing or 0: ${firstProd.selling_price}`);
+        assert.ok(firstProd.category, `Product category missing: ${firstProd.category}`);
+        assert.ok(firstProd.category_name, `Product category_name missing: ${firstProd.category_name}`);
+        console.log(`  ✔ Verified /api/products returns dual price/selling_price (${firstProd.price}) and category (${firstProd.category})`);
+
+        // 2. GET /api/pos/products as Cashier
+        const posProdsRes = await request('/api/pos/products', {
+            headers: { Authorization: `Bearer ${cashierToken}` }
+        });
+        assert.strictEqual(posProdsRes.status, 200, 'POS products listing failed');
+        assert.ok(Array.isArray(posProdsRes.data) && posProdsRes.data.length > 0, 'No POS products returned');
+        const posFirstProd = posProdsRes.data[0];
+        assert.ok(posFirstProd.price !== undefined && posFirstProd.price > 0, `POS product price missing or 0: ${posFirstProd.price}`);
+        assert.ok(posFirstProd.selling_price !== undefined && posFirstProd.selling_price > 0, `POS product selling_price missing or 0: ${posFirstProd.selling_price}`);
+        assert.ok(posFirstProd.category, `POS product category missing: ${posFirstProd.category}`);
+        console.log(`  ✔ Verified /api/pos/products returns dual price/selling_price (${posFirstProd.price}) and category (${posFirstProd.category})`);
+
+        // 3. Barcode lookup
+        const barcodeProdRes = await request(`/api/products/barcode/${firstProd.barcode}`, {
+            headers: { Authorization: `Bearer ${cashierToken}` }
+        });
+        assert.strictEqual(barcodeProdRes.status, 200, 'Barcode lookup failed');
+        assert.ok(barcodeProdRes.data.price !== undefined && barcodeProdRes.data.price > 0, 'Barcode price missing or 0');
+        assert.ok(barcodeProdRes.data.category, 'Barcode category missing');
+        console.log(`  ✔ Verified /api/products/barcode/:barcode returns price (${barcodeProdRes.data.price}) and category (${barcodeProdRes.data.category})\n`);
+
         console.log('================================================================');
-        console.log('🎉 ALL 12 SYSTEM VERIFICATION TESTS PASSED SUCCESSFULLY!');
+        console.log('🎉 ALL 13 SYSTEM VERIFICATION TESTS PASSED SUCCESSFULLY!');
         console.log('================================================================\n');
 
     } catch (error) {

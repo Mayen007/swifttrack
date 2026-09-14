@@ -11,8 +11,13 @@ router.get('/products', authenticateToken, requireRole('CASHIER', 'BRANCH_MANAGE
     const { q, category_id } = req.query;
 
     let query = `
-        SELECT p.id, p.sku, p.barcode, p.name, p.unit, p.selling_price, p.min_stock_alert,
-               c.name as category_name, c.id as category_id,
+        SELECT p.id, p.sku, p.barcode, p.name, p.unit,
+               p.selling_price,
+               p.selling_price as price,
+               p.min_stock_alert,
+               c.name as category,
+               c.name as category_name,
+               c.id as category_id,
                COALESCE(SUM(i.quantity_available), 0) as available_qty
         FROM products p
         JOIN categories c ON p.category_id = c.id
