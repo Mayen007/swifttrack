@@ -58,12 +58,15 @@ export function PosView() {
   // Search input ref
   const searchInputRef = useRef(null);
 
-  // Load products
+  // Load products scoped to the active branch station
   useEffect(() => {
     async function loadCatalog() {
       try {
         setLoading(true);
-        const data = await api.get('/api/products');
+        const branchParam = selectedBranch
+          ? `?branch_id=${selectedBranch.id}`
+          : (user?.branch_id ? `?branch_id=${user.branch_id}` : '');
+        const data = await api.get(`/api/products${branchParam}`);
         if (Array.isArray(data)) {
           const normalized = data.map((p) => ({
             ...p,
@@ -82,7 +85,7 @@ export function PosView() {
       }
     }
     loadCatalog();
-  }, []);
+  }, [selectedBranch, user?.branch_id]);
 
   // Keyboard shortcut F2 to focus search
   useEffect(() => {
@@ -297,7 +300,7 @@ export function PosView() {
           <div className="flex items-center gap-2">
             <span className="w-2 h-2 rounded-full bg-emerald-500" />
             <h2 className="text-xs font-bold text-white uppercase tracking-widest font-mono">
-              REGISTER // T-01
+              REGISTER // {selectedBranch ? `${selectedBranch.code}` : (user?.branch_code || 'T-01')}
             </h2>
           </div>
           <div className="flex items-center gap-1.5">

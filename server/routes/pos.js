@@ -7,7 +7,9 @@ const { logAuditEvent } = require('../middleware/audit.js');
 
 // GET /api/pos/products - Fast search for POS terminal
 router.get('/products', authenticateToken, requireRole('CASHIER', 'BRANCH_MANAGER', 'SUPER_ADMIN'), (req, res) => {
-    const branchId = req.user.branchId || 1;
+    const branchId = (req.user.roleName === 'SUPER_ADMIN' && req.query.branch_id)
+        ? Number(req.query.branch_id)
+        : (req.user.branchId || 1);
     const { q, category_id } = req.query;
 
     let query = `
@@ -45,7 +47,9 @@ router.get('/products', authenticateToken, requireRole('CASHIER', 'BRANCH_MANAGE
 
 // POST /api/pos/checkout - Complete POS sale with atomic stock deduction and Kenya receipt generation
 router.post('/checkout', authenticateToken, requireRole('CASHIER', 'BRANCH_MANAGER', 'SUPER_ADMIN'), (req, res) => {
-    const branchId = req.user.branchId || 1;
+    const branchId = (req.user.roleName === 'SUPER_ADMIN' && req.body.branch_id)
+        ? Number(req.body.branch_id)
+        : (req.user.branchId || 1);
     const {
         customer_id,
         items, // Array: [{ product_id, quantity, unit_price, discount_amount }]
