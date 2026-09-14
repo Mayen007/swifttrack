@@ -33,3 +33,4 @@ Thumbs.db
 # Agent & AI tool metadata
 .agents/
 .claude/
+skills-lock.json

@@ -479,8 +479,73 @@ async function runTests() {
         console.log(`  ✔ Point-in-time snapshot backup verified (${backupResult.filename}, ${backupResult.size} bytes)`);
         console.log(`  ✔ SHA-256 integrity checksum: ${backupResult.sha256}\n`);
 
+        // -------------------------------------------------------------
+        // TEST 12: Inter-Branch Stock Transfer Lifecycle
+        // -------------------------------------------------------------
+        console.log('▶ TEST 12: Inter-Branch Stock Transfer Lifecycle (Nairobi -> Mombasa)...');
+
+        const nrbStockBefore = db.prepare('SELECT quantity_on_hand FROM inventory WHERE warehouse_id = 1 AND product_id = 1').get()?.quantity_on_hand || 0;
+        const msaStockBefore = db.prepare('SELECT quantity_on_hand FROM inventory WHERE warehouse_id = 3 AND product_id = 1').get()?.quantity_on_hand || 0;
+
+        // 1. Nairobi Manager requests transfer of 5 units to Mombasa
+        const trfReq = await request('/api/inventory/transfers', {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${mgrNrbToken}` },
+            body: JSON.stringify({
+                source_branch_id: 1,
+                source_warehouse_id: 1,
+                target_branch_id: 2,
+                target_warehouse_id: 3,
+                items: [{ product_id: 1, quantity: 5 }],
+                notes: 'Automated test inter-branch rebalance'
+            })
+        });
+        assert.strictEqual(trfReq.status, 201, 'Transfer creation failed');
+        assert.strictEqual(trfReq.data.status, 'PENDING_APPROVAL');
+        const transferId = trfReq.data.id;
+        const transferNo = trfReq.data.transfer_number;
+        console.log(`  ✔ Transfer request created: ${transferNo} (ID: ${transferId}, Status: PENDING_APPROVAL)`);
+
+        // 2. Nairobi Manager approves transfer
+        const trfApprove = await request(`/api/inventory/transfers/${transferId}/status`, {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${mgrNrbToken}` },
+            body: JSON.stringify({ action: 'APPROVE' })
+        });
+        assert.strictEqual(trfApprove.status, 200, 'Transfer approval failed');
+        console.log('  ✔ Transfer approved (Status: APPROVED)');
+
+        // 3. Dispatch transfer (stock deducted at source)
+        const trfDispatch = await request(`/api/inventory/transfers/${transferId}/status`, {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${mgrNrbToken}` },
+            body: JSON.stringify({ action: 'DISPATCH' })
+        });
+        assert.strictEqual(trfDispatch.status, 200, 'Transfer dispatch failed');
+        const nrbStockAfterDispatch = db.prepare('SELECT quantity_on_hand FROM inventory WHERE warehouse_id = 1 AND product_id = 1').get().quantity_on_hand;
+        assert.strictEqual(nrbStockAfterDispatch, nrbStockBefore - 5, 'Source stock was not decremented on dispatch');
+        console.log(`  ✔ Transfer dispatched: Source inventory decremented from ${nrbStockBefore} to ${nrbStockAfterDispatch} (TRANSFER_OUT)`);
+
+        // 4. Mombasa Manager receives transfer (stock added at destination)
+        const trfReceive = await request(`/api/inventory/transfers/${transferId}/status`, {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${mgrMsaToken}` },
+            body: JSON.stringify({ action: 'RECEIVE' })
+        });
+        assert.strictEqual(trfReceive.status, 200, 'Transfer receive failed');
+        const msaStockAfterReceive = db.prepare('SELECT quantity_on_hand FROM inventory WHERE warehouse_id = 3 AND product_id = 1').get().quantity_on_hand;
+        assert.strictEqual(msaStockAfterReceive, msaStockBefore + 5, 'Target stock was not incremented on receive');
+        console.log(`  ✔ Transfer received: Target inventory incremented from ${msaStockBefore} to ${msaStockAfterReceive} (TRANSFER_IN)`);
+
+        // 5. Verify movements ledger records
+        const trfOutMovement = db.prepare("SELECT * FROM inventory_movements WHERE reference_id = ? AND movement_type = 'TRANSFER_OUT'").get(transferNo);
+        assert.ok(trfOutMovement, 'TRANSFER_OUT movement ledger entry missing');
+        const trfInMovement = db.prepare("SELECT * FROM inventory_movements WHERE reference_id = ? AND movement_type = 'TRANSFER_IN'").get(transferNo);
+        assert.ok(trfInMovement, 'TRANSFER_IN movement ledger entry missing');
+        console.log('  ✔ Verified dual-hub ledger entries (TRANSFER_OUT & TRANSFER_IN)\n');
+
         console.log('================================================================');
-        console.log('🎉 ALL 11 SYSTEM VERIFICATION TESTS PASSED SUCCESSFULLY!');
+        console.log('🎉 ALL 12 SYSTEM VERIFICATION TESTS PASSED SUCCESSFULLY!');
         console.log('================================================================\n');
 
     } catch (error) {

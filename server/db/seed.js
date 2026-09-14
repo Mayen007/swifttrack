@@ -315,12 +315,19 @@ function initProductionBootstrap() {
         }
     }
 
-    console.log('[Bootstrap] Seeding default counter customer...');
+    console.log('[Bootstrap] Seeding baseline customers (counter and corporate delivery)...');
     const walkInCustomer = db.prepare('SELECT id FROM customers WHERE id = 1').get();
     if (!walkInCustomer) {
         db.prepare(`
             INSERT INTO customers (id, branch_id, customer_number, full_name, phone, email, address, city, kra_pin)
             VALUES (1, NULL, 'CUST-0001', 'Walk-in Customer (General Counter)', '+254 700 000 000', 'walkin@swifttrack.co.ke', 'Counter Pickup', 'Nairobi', NULL)
+        `).run();
+    }
+    const corporateCustomer = db.prepare('SELECT id FROM customers WHERE id = 2').get();
+    if (!corporateCustomer) {
+        db.prepare(`
+            INSERT INTO customers (id, branch_id, customer_number, full_name, phone, email, address, city, kra_pin)
+            VALUES (2, 1, 'CUST-0002', 'Alpha Apex Corporate Client Ltd', '+254 722 991 122', 'cargo@alphaapex.co.ke', 'Riverside Drive, Delta Chambers Block C', 'Nairobi', 'P059998881A')
         `).run();
     }
 
@@ -747,9 +754,50 @@ function runSeed() {
     seedDemoSimulation();
 }
 
+/**
+ * Clean Database Reset:
+ * Automatically creates a snapshot backup first, clears existing tables,
+ * and re-seeds cleanly with either production master data or demo simulation.
+ */
+function resetDatabase(isProd = false) {
+    console.log('[Reset] Creating pre-reset snapshot backup...');
+    const { createBackup } = require('./backup.js');
+    try {
+        createBackup();
+    } catch (e) {
+        console.warn('[Reset] Pre-reset backup warning:', e.message);
+    }
+
+    console.log('[Reset] Clearing database tables and triggers...');
+    db.exec('PRAGMA foreign_keys = OFF;');
+    const tables = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'").all();
+    for (const t of tables) {
+        db.exec(`DROP TABLE IF EXISTS ${t.name};`);
+    }
+    const triggers = db.prepare("SELECT name FROM sqlite_master WHERE type='trigger'").all();
+    for (const tr of triggers) {
+        db.exec(`DROP TRIGGER IF EXISTS ${tr.name};`);
+    }
+    db.exec('PRAGMA foreign_keys = ON;');
+
+    initSchema();
+    if (isProd) {
+        initProductionBootstrap();
+        console.log('[Reset] Clean enterprise production bootstrap complete. Zero mock orders/sales.');
+    } else {
+        runSeed();
+        console.log('[Reset] Demo simulation database reset complete.');
+    }
+}
+
 if (require.main === module) {
     try {
-        if (process.argv.includes('--prod')) {
+        const isClean = process.argv.includes('--clean') || process.argv.includes('--reset');
+        const isProd = process.argv.includes('--prod');
+
+        if (isClean) {
+            resetDatabase(isProd);
+        } else if (isProd) {
             initProductionBootstrap();
         } else {
             runSeed();
@@ -763,6 +811,7 @@ if (require.main === module) {
 module.exports = {
     initProductionBootstrap,
     seedDemoSimulation,
+    resetDatabase,
     runSeed,
     ensureRichChartTelemetry,
     hashPassword

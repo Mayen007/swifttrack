@@ -309,7 +309,7 @@ router.post('/transfers/:id/status', authenticateToken, requireRole('SUPER_ADMIN
     db.transaction(() => {
         if (action === 'APPROVE') {
             if (transfer.status !== 'PENDING_APPROVAL') throw new Error('Transfer is not pending approval');
-            db.prepare('UPDATE stock_transfers SET status = "APPROVED", approved_by_user_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
+            db.prepare("UPDATE stock_transfers SET status = 'APPROVED', approved_by_user_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?")
                 .run(req.user.id, transferId);
         } else if (action === 'DISPATCH') {
             if (!['PENDING_APPROVAL', 'APPROVED'].includes(transfer.status)) throw new Error('Transfer cannot be dispatched');
@@ -334,7 +334,7 @@ router.post('/transfers/:id/status', authenticateToken, requireRole('SUPER_ADMIN
                     -item.quantity_requested, prev, newOnHand, transfer.transfer_number, req.user.id
                 );
             }
-            db.prepare('UPDATE stock_transfers SET status = "IN_TRANSIT", updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(transferId);
+            db.prepare("UPDATE stock_transfers SET status = 'IN_TRANSIT', updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(transferId);
         } else if (action === 'RECEIVE') {
             if (transfer.status !== 'IN_TRANSIT') throw new Error('Transfer must be in transit to receive');
             // Add stock to target warehouse
@@ -366,7 +366,7 @@ router.post('/transfers/:id/status', authenticateToken, requireRole('SUPER_ADMIN
                     item.quantity_requested, prev, newOnHand, transfer.transfer_number, req.user.id
                 );
             }
-            db.prepare('UPDATE stock_transfers SET status = "RECEIVED", received_by_user_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
+            db.prepare("UPDATE stock_transfers SET status = 'RECEIVED', received_by_user_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?")
                 .run(req.user.id, transferId);
         }
 

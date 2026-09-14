@@ -11,6 +11,8 @@
     "db:setup": "node -e \"require('./server/db/database.js').initSchema()\"",
     "db:seed:prod": "node server/db/seed.js --prod",
     "db:seed:demo": "node server/db/seed.js",
+    "db:reset:prod": "node server/db/seed.js --clean --prod",
+    "db:reset:demo": "node server/db/seed.js --clean",
     "db:backup": "node server/db/backup.js"
   },
   "keywords": [],
