@@ -2,6 +2,7 @@
 // Comprehensive seed data for SwiftTrack Kenya Logistics & POS Platform
 const { db, initSchema } = require('./database.js');
 const { hashPassword } = require('../utils/security.js');
+const { seedAllBranchesDemoData } = require('./seedDemoBranches.js');
 
 /**
  * Clean Production Database Bootstrap
@@ -537,7 +538,8 @@ function seedDemoSimulation() {
         `).run();
     }
 
-    console.log('[Demo] Ensuring rich visual analytics telemetry...');
+    console.log('[Demo] Ensuring rich visual analytics telemetry across all branches...');
+    seedAllBranchesDemoData();
     ensureRichChartTelemetry();
 }
 
@@ -814,5 +816,6 @@ module.exports = {
     resetDatabase,
     runSeed,
     ensureRichChartTelemetry,
+    seedAllBranchesDemoData,
     hashPassword
 };
