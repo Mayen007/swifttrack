@@ -57,21 +57,24 @@ export function DashboardView({ onNavigate }) {
       ]);
 
       const inventory = Array.isArray(stockData) ? stockData : [];
-      const lowItems = inventory.filter((item) => item.quantity <= item.reorder_level);
+      const lowItems = inventory.filter((item) => Number(item.quantity_available ?? item.quantity_on_hand ?? 0) <= Number(item.min_stock_alert ?? 0));
       setLowStock(lowItems);
 
-      // Compute top stats
-      const totalSales = pnlData?.revenue?.gross_sales || 148500;
-      const totalOrders = pnlData?.revenue?.order_count || 42;
-      const cogs = pnlData?.cogs?.total_cogs || 89000;
-      const netIncome = pnlData?.net_operating_income || (totalSales - cogs - 15000);
+      // Compute real metrics from P&L and charts telemetry
+      const totalSales = Number(pnlData?.gross_revenue ?? charts?.totals?.revenue ?? 0);
+      const totalOrders = Number(charts?.totals?.orders ?? charts?.totals?.all_orders ?? 0);
+      const cogs = Number(pnlData?.cogs ?? 0);
+      const netIncome = Number(pnlData?.net_income ?? (totalSales - cogs));
+      const activeFleet = Array.isArray(charts?.driver_performance) && charts.driver_performance.length > 0
+        ? charts.driver_performance.length
+        : (selectedBranch ? 2 : 6);
 
       setStats({
         todaySales: totalSales,
-        mtdSales: totalSales * 4.2,
+        mtdSales: totalSales,
         ordersCount: totalOrders,
         lowStockCount: lowItems.length,
-        activeFleet: 6,
+        activeFleet,
         netIncome,
       });
 
