@@ -41,11 +41,16 @@ export function Navbar({
   const [branchDropdownOpen, setBranchDropdownOpen] = useState(false);
   const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
   const [branchFilter, setBranchFilter] = useState('');
-  const [audioMuted, setAudioMuted] = useState(false);
+  const [audioMuted, setAudioMuted] = useState(() => sound.isMuted());
   const [currentTime, setCurrentTime] = useState(() => new Date());
 
   const branchRef = useRef(null);
   const profileRef = useRef(null);
+
+  // Sync with global sound synthesizer mute state & persistence
+  useEffect(() => {
+    return sound.onMuteChange(setAudioMuted);
+  }, []);
 
   // Precision 1-second interval clock
   useEffect(() => {
@@ -90,9 +95,7 @@ export function Navbar({
   };
 
   const toggleAudio = () => {
-    const nextState = !audioMuted;
-    setAudioMuted(nextState);
-    if (!nextState) sound.playSuccess();
+    sound.toggleMute();
   };
 
   const filteredBranches = branches.filter((b) =>
@@ -367,8 +370,8 @@ export function Navbar({
             ? 'bg-[#12161f] border-[#222834] text-slate-400 hover:text-slate-200'
             : 'bg-[#161c28] border-[#273347] text-amber-400 hover:text-amber-300'
             }`}
-          title={audioMuted ? 'System Audio: Muted' : 'System Audio: Active'}
-          aria-label="Toggle system audio"
+          title={audioMuted ? 'System Audio: Muted (Click to unmute)' : 'System Audio: Active (Click to mute)'}
+          aria-label={audioMuted ? 'Unmute system audio' : 'Mute system audio'}
         >
           {audioMuted ? <VolumeX className="w-3.5 h-3.5" /> : <Volume2 className="w-3.5 h-3.5" />}
         </button>

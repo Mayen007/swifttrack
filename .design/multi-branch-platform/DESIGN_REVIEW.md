@@ -69,8 +69,8 @@ The SwiftTrack Kenya Logistics Platform demonstrates outstanding fidelity to the
 1. **Global Keyboard Shortcuts Cheat Sheet Modal**:
    - *Suggestion*: Introduce an accessible modal (triggered via `?` or `Shift + /`) summarizing existing hardware shortcuts (`F2` for barcode catalog search, `Esc` to close overlays, `Enter` to confirm tenders) to assist high-volume warehouse cashiers and dispatchers.
 
-2. **Audio Telemetry Volume / Mute Control**:
-   - *Suggestion*: While the tactile audio engine (`sound.playScan()`, `sound.playSuccess()`, `sound.playError()`) provides great feedback in busy depot environments, provide a discrete toggle button in the top navbar telemetry strip to mute audio in quiet administrative offices.
+2. **Audio Telemetry Volume / Mute Control (Resolved)**:
+   - *Status*: The physical toggle button exists on the navbar. We have now wired it to the central `sound.js` synthesizer instance with `localStorage` persistence (`swifttrack_sound_muted`) and reactive state synchronization. Toggling mute now globally silences all scanner beeps, checkout chimes, and validation sounds across POS, Inventory, Dispatch, and Approvals.
 
 3. **Kanban Drag-and-Drop Acceleration**:
    - *Suggestion*: In `DispatchView.jsx`, the current button-based stage progression (`Assign Courier` -> `Confirm Pickup` -> `En Route` -> `Confirm Delivery`) is clear and robust; supplementing it with HTML5 drag-and-drop between columns will offer dispatchers an alternative fast-path workflow.

@@ -4,9 +4,48 @@
 class SoundSynthesizer {
   constructor() {
     this.ctx = null;
+    this.muted = typeof window !== 'undefined' ? localStorage.getItem('swifttrack_sound_muted') === 'true' : false;
+    this.listeners = new Set();
+  }
+
+  isMuted() {
+    return this.muted;
+  }
+
+  setMuted(muted) {
+    this.muted = Boolean(muted);
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem('swifttrack_sound_muted', String(this.muted));
+      } catch (e) {
+        console.warn('Failed to persist mute state:', e);
+      }
+    }
+    this.listeners.forEach((cb) => {
+      try {
+        cb(this.muted);
+      } catch (e) {
+        console.error('Error in sound listener:', e);
+      }
+    });
+  }
+
+  toggleMute() {
+    const next = !this.muted;
+    this.setMuted(next);
+    if (!next) {
+      this.playSuccess();
+    }
+    return next;
+  }
+
+  onMuteChange(listener) {
+    this.listeners.add(listener);
+    return () => this.listeners.delete(listener);
   }
 
   getAudioContext() {
+    if (this.muted) return null;
     if (!this.ctx && typeof window !== 'undefined') {
       const AudioCtx = window.AudioContext || window.webkitAudioContext;
       if (AudioCtx) {
@@ -20,6 +59,7 @@ class SoundSynthesizer {
   }
 
   playScan() {
+    if (this.muted) return;
     try {
       const ctx = this.getAudioContext();
       if (!ctx) return;
@@ -41,6 +81,7 @@ class SoundSynthesizer {
   }
 
   playSuccess() {
+    if (this.muted) return;
     try {
       const ctx = this.getAudioContext();
       if (!ctx) return;
@@ -63,6 +104,7 @@ class SoundSynthesizer {
   }
 
   playError() {
+    if (this.muted) return;
     try {
       const ctx = this.getAudioContext();
       if (!ctx) return;
