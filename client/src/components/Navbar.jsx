@@ -454,57 +454,6 @@ export function Navbar({
                 </div>
               </div>
 
-              {/* Theme Selection in Profile Menu */}
-              <div className="p-2 border-b border-[#222834]">
-                <div className="px-1 pb-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider font-mono flex items-center justify-between">
-                  <span>INTERFACE THEME</span>
-                  <span className="text-amber-400 font-mono text-[9px] uppercase px-1.5 py-0.5 rounded bg-[#18202d] border border-[#222834]">
-                    {theme} {theme === 'system' ? `(${resolvedTheme})` : ''}
-                  </span>
-                </div>
-                <div className="grid grid-cols-3 gap-1">
-                  <button
-                    onClick={() => {
-                      if (!audioMuted) sound.playScan();
-                      setTheme('light');
-                    }}
-                    className={`px-2 py-1.5 rounded flex items-center justify-center gap-1.5 text-xs transition-colors cursor-pointer ${theme === 'light'
-                      ? 'bg-[#18202d] text-amber-300 font-medium border border-amber-400/30'
-                      : 'hover:bg-[#161b26] text-slate-400 hover:text-slate-200'
-                      }`}
-                  >
-                    <Sun className="w-3.5 h-3.5" />
-                    <span>Light</span>
-                  </button>
-                  <button
-                    onClick={() => {
-                      if (!audioMuted) sound.playScan();
-                      setTheme('dark');
-                    }}
-                    className={`px-2 py-1.5 rounded flex items-center justify-center gap-1.5 text-xs transition-colors cursor-pointer ${theme === 'dark'
-                      ? 'bg-[#18202d] text-amber-300 font-medium border border-amber-400/30'
-                      : 'hover:bg-[#161b26] text-slate-400 hover:text-slate-200'
-                      }`}
-                  >
-                    <Moon className="w-3.5 h-3.5" />
-                    <span>Dark</span>
-                  </button>
-                  <button
-                    onClick={() => {
-                      if (!audioMuted) sound.playScan();
-                      setTheme('system');
-                    }}
-                    className={`px-2 py-1.5 rounded flex items-center justify-center gap-1.5 text-xs transition-colors cursor-pointer ${theme === 'system'
-                      ? 'bg-[#18202d] text-amber-300 font-medium border border-amber-400/30'
-                      : 'hover:bg-[#161b26] text-slate-400 hover:text-slate-200'
-                      }`}
-                  >
-                    <Monitor className="w-3.5 h-3.5" />
-                    <span>System</span>
-                  </button>
-                </div>
-              </div>
-
               {/* Single Consolidated Persona Switcher (Demo / Evaluation Mode Only) */}
               {demoMode && (
                 <div className="p-2 border-b border-[#222834]">

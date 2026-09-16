@@ -1,6 +1,5 @@
 import React from 'react';
 import { useAuth } from '../context/AuthContext.jsx';
-import { useTheme } from '../context/ThemeContext.jsx';
 import { sound } from '../services/sound.js';
 import {
   LayoutDashboard,
@@ -20,9 +19,6 @@ import {
   MapPin,
   ChevronRight,
   ChevronLeft,
-  Sun,
-  Moon,
-  Monitor,
 } from 'lucide-react';
 
 export function Sidebar({
@@ -34,7 +30,6 @@ export function Sidebar({
   onToggleCollapse,
 }) {
   const { user, selectedBranch } = useAuth();
-  const { theme, setTheme, resolvedTheme } = useTheme();
   const role = user?.role;
 
   const navSections = [
@@ -340,57 +335,7 @@ export function Sidebar({
             {/* Scrollable Content (Always non-collapsed on mobile) */}
             {renderNavContent(false)}
 
-            {/* Mobile Drawer Theme Switcher */}
-            <div className="p-3 border-t border-[#222834] bg-[#0c0e12] shrink-0">
-              <div className="flex items-center justify-between text-[10px] font-mono text-slate-400 uppercase tracking-wider mb-2">
-                <span>INTERFACE THEME</span>
-                <span className="text-amber-400 font-bold uppercase">{theme} {theme === 'system' ? `(${resolvedTheme})` : ''}</span>
-              </div>
-              <div className="grid grid-cols-3 gap-1.5 p-1 rounded bg-[#121620] border border-[#222834]">
-                <button
-                  onClick={() => {
-                    sound.playScan();
-                    setTheme('light');
-                  }}
-                  className={`py-1.5 px-2 rounded text-[11px] font-mono font-medium flex items-center justify-center gap-1.5 transition-colors cursor-pointer ${
-                    theme === 'light'
-                      ? 'bg-[#18202d] text-amber-400 font-bold border border-[#222834]'
-                      : 'text-slate-400 hover:text-slate-200'
-                  }`}
-                >
-                  <Sun className="w-3.5 h-3.5" />
-                  <span>Light</span>
-                </button>
-                <button
-                  onClick={() => {
-                    sound.playScan();
-                    setTheme('dark');
-                  }}
-                  className={`py-1.5 px-2 rounded text-[11px] font-mono font-medium flex items-center justify-center gap-1.5 transition-colors cursor-pointer ${
-                    theme === 'dark'
-                      ? 'bg-[#18202d] text-amber-400 font-bold border border-[#222834]'
-                      : 'text-slate-400 hover:text-slate-200'
-                  }`}
-                >
-                  <Moon className="w-3.5 h-3.5" />
-                  <span>Dark</span>
-                </button>
-                <button
-                  onClick={() => {
-                    sound.playScan();
-                    setTheme('system');
-                  }}
-                  className={`py-1.5 px-2 rounded text-[11px] font-mono font-medium flex items-center justify-center gap-1.5 transition-colors cursor-pointer ${
-                    theme === 'system'
-                      ? 'bg-[#18202d] text-amber-400 font-bold border border-[#222834]'
-                      : 'text-slate-400 hover:text-slate-200'
-                  }`}
-                >
-                  <Monitor className="w-3.5 h-3.5" />
-                  <span>Auto</span>
-                </button>
-              </div>
-            </div>
+
 
             {/* Mobile Drawer Footer */}
             <div className="p-3 border-t border-[#222834] bg-[#0c0e12] flex items-center justify-between text-[10px] text-slate-400 font-mono shrink-0">
