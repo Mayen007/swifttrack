@@ -136,7 +136,7 @@ export function Navbar({
           <div className="w-7 h-7 rounded bg-[#161c28] border border-[#273347] flex items-center justify-center text-amber-400 font-mono font-bold text-xs shrink-0">
             <Truck className="w-3.5 h-3.5 text-amber-400" />
           </div>
-          <div className="flex items-baseline gap-1.5 shrink-0">
+          <div className="hidden sm:flex items-baseline gap-1.5 shrink-0">
             <span className="text-xs font-bold tracking-tight text-white uppercase font-sans">
               SwiftTrack
             </span>
@@ -146,20 +146,20 @@ export function Navbar({
           </div>
         </div>
 
-        <div className="h-4 w-px bg-[#222834] shrink-0" />
+        <div className="hidden sm:block h-4 w-px bg-[#222834] shrink-0" />
 
         {/* Unified Hub / Station Context Selector */}
         <div className="relative shrink-0" ref={branchRef}>
           <button
             onClick={() => setBranchDropdownOpen(!branchDropdownOpen)}
-            className="flex items-center gap-1.5 sm:gap-2 px-2.5 py-1.5 rounded bg-[#12161f] hover:bg-[#181d28] border border-[#222834] hover:border-[#354054] text-xs text-slate-300 transition-colors cursor-pointer"
+            className="flex items-center gap-1.5 sm:gap-2 px-2 sm:px-2.5 py-1.5 rounded bg-[#12161f] hover:bg-[#181d28] border border-[#222834] hover:border-[#354054] text-xs text-slate-300 transition-colors cursor-pointer"
             aria-label="Switch operational branch"
             title="Switch Operational Branch / Station"
           >
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0 inline-block"></span>
             <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0" />
 
-            <span className="font-medium text-slate-100 tracking-tight max-w-[100px] sm:max-w-[140px] md:max-w-[180px] truncate">
+            <span className="font-medium text-slate-100 tracking-tight max-w-[70px] xs:max-w-[95px] sm:max-w-[140px] md:max-w-[180px] truncate">
               {selectedBranch ? selectedBranch.name : 'All Kenya Hubs'}
             </span>
             <span className="text-[10px] font-mono text-slate-400 hidden md:inline shrink-0">
@@ -313,9 +313,26 @@ export function Navbar({
           </div>
         </div>
 
-        {/* Dieter Rams 3-State Theme Selector Instrument (Light / Dark / System) */}
+        {/* Mobile 1-Tap Theme Flip Button (< sm) */}
+        <button
+          onClick={() => {
+            sound.playScan();
+            setTheme(resolvedTheme === 'dark' ? 'light' : 'dark');
+          }}
+          title={resolvedTheme === 'dark' ? 'Switch to Light Mode (Braun Porcelain)' : 'Switch to Dark Mode (Obsidian Matte)'}
+          aria-label={resolvedTheme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
+          className="sm:hidden p-1.5 rounded bg-[#12161f] border border-[#222834] text-amber-400 hover:text-amber-300 transition-colors cursor-pointer flex items-center justify-center shrink-0"
+        >
+          {resolvedTheme === 'dark' ? (
+            <Sun className="w-3.5 h-3.5 text-amber-400" />
+          ) : (
+            <Moon className="w-3.5 h-3.5 text-slate-700" />
+          )}
+        </button>
+
+        {/* Desktop / Tablet Dieter Rams 3-State Theme Selector Instrument (>= sm) */}
         <div
-          className="flex items-center p-0.5 rounded bg-[#12161f] border border-[#222834]"
+          className="hidden sm:flex items-center p-0.5 rounded bg-[#12161f] border border-[#222834] shrink-0"
           role="group"
           aria-label="Theme selector"
         >
