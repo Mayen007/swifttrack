@@ -1,9 +1,11 @@
 // client/src/services/api.js
-// Centralized HTTP client with JWT injection, error handling, and toast event bus
+// Centralized HTTP client with JWT injection, transparent token rotation, error handling, and toast event bus
 
 class ApiService {
   constructor() {
     let initialToken = null;
+    let initialRefreshToken = null;
+
     if (typeof window !== 'undefined') {
       try {
         const params = new URLSearchParams(window.location.search);
@@ -14,11 +16,17 @@ class ApiService {
         } else {
           initialToken = localStorage.getItem('swifttrack_token');
         }
+        initialRefreshToken = localStorage.getItem('swifttrack_refresh_token');
       } catch {
         initialToken = null;
+        initialRefreshToken = null;
       }
     }
+
     this.token = initialToken;
+    this.refreshToken = initialRefreshToken;
+    this.isRefreshing = false;
+    this.refreshSubscribers = [];
     this.toastListeners = new Set();
   }
 
@@ -30,6 +38,25 @@ class ApiService {
       } else {
         localStorage.removeItem('swifttrack_token');
       }
+    }
+  }
+
+  setRefreshToken(refreshToken) {
+    this.refreshToken = refreshToken;
+    if (typeof window !== 'undefined') {
+      if (refreshToken) {
+        localStorage.setItem('swifttrack_refresh_token', refreshToken);
+      } else {
+        localStorage.removeItem('swifttrack_refresh_token');
+      }
+    }
+  }
+
+  clearAuth() {
+    this.setToken(null);
+    this.setRefreshToken(null);
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('swifttrack:auth_cleared'));
     }
   }
 
@@ -67,7 +94,33 @@ class ApiService {
     return this.formatKES(num);
   }
 
-  async request(endpoint, options = {}) {
+  async refreshAccessToken() {
+    if (!this.refreshToken) {
+      throw new Error('No refresh token available');
+    }
+
+    const res = await fetch('/api/auth/refresh', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refreshToken: this.refreshToken }),
+    });
+
+    const data = await res.json().catch(() => null);
+
+    if (!res.ok || !data?.token) {
+      this.clearAuth();
+      throw new Error(data?.error || 'Session renewal failed');
+    }
+
+    this.setToken(data.token);
+    if (data.refreshToken) {
+      this.setRefreshToken(data.refreshToken);
+    }
+
+    return data.token;
+  }
+
+  async request(endpoint, options = {}, isRetry = false) {
     const headers = {
       'Content-Type': 'application/json',
       ...(options.headers || {}),
@@ -86,16 +139,51 @@ class ApiService {
       const data = await res.json().catch(() => null);
 
       if (!res.ok) {
-        const errorMsg = data?.error || data?.message || `HTTP ${res.status}: Request failed`;
-        if (res.status === 401 && !endpoint.includes('/api/auth/login')) {
-          this.toast('Session expired. Please re-authenticate.', 'error');
+        // Handle 401 Session Expiration and attempt transparent background refresh
+        const isAuthRoute = endpoint.includes('/api/auth/login') ||
+                            endpoint.includes('/api/auth/refresh') ||
+                            endpoint.includes('/api/auth/logout') ||
+                            endpoint.includes('/api/auth/2fa');
+
+        if (res.status === 401 && !isAuthRoute && !isRetry && this.refreshToken) {
+          try {
+            if (!this.isRefreshing) {
+              this.isRefreshing = true;
+              const newToken = await this.refreshAccessToken();
+              this.isRefreshing = false;
+              this.refreshSubscribers.forEach(cb => cb(newToken));
+              this.refreshSubscribers = [];
+              return this.request(endpoint, options, true);
+            } else {
+              // Wait for existing refresh to resolve
+              return new Promise((resolve, reject) => {
+                this.refreshSubscribers.push((newToken) => {
+                  this.request(endpoint, options, true).then(resolve).catch(reject);
+                });
+              });
+            }
+          } catch (refreshErr) {
+            this.isRefreshing = false;
+            this.refreshSubscribers = [];
+            this.clearAuth();
+            this.toast('Session expired. Please log in again.', 'error');
+            throw new Error('Session expired');
+          }
         }
-        throw new Error(errorMsg);
+
+        const errorMsg = data?.error || data?.message || `HTTP ${res.status}: Request failed`;
+        const err = new Error(errorMsg);
+        err.status = res.status;
+        err.code = data?.code;
+        err.mustChangePassword = data?.mustChangePassword;
+        err.remainingMinutes = data?.remainingMinutes;
+        err.remainingAttempts = data?.remainingAttempts;
+        throw err;
       }
 
       return data;
     } catch (err) {
-      console.error(`API Error [${endpoint}]:`, err);
+      console.error(`API Error [${endpoint}]:`, err.message);
       throw err;
     }
   }

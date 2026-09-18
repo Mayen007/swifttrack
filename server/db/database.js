@@ -37,11 +37,38 @@ db.transaction = (fn) => {
     };
 };
 
+// Safely add missing columns to existing tables during schema evolution
+function migrateAuthSchema() {
+    try {
+        const userCols = db.prepare("PRAGMA table_info(users)").all().map(c => c.name);
+
+        const newCols = [
+            { name: 'password_changed_at', def: 'DATETIME' },
+            { name: 'must_change_password', def: 'INTEGER NOT NULL DEFAULT 0' },
+            { name: 'failed_login_attempts', def: 'INTEGER NOT NULL DEFAULT 0' },
+            { name: 'locked_until', def: 'DATETIME' },
+            { name: 'token_version', def: 'INTEGER NOT NULL DEFAULT 1' },
+            { name: 'two_factor_enabled', def: 'INTEGER NOT NULL DEFAULT 0' },
+            { name: 'two_factor_secret', def: 'TEXT' },
+            { name: 'two_factor_recovery_codes', def: 'TEXT' }
+        ];
+
+        for (const col of newCols) {
+            if (!userCols.includes(col.name)) {
+                db.exec(`ALTER TABLE users ADD COLUMN ${col.name} ${col.def};`);
+            }
+        }
+    } catch (err) {
+        console.warn('Auth schema migration notice:', err.message);
+    }
+}
+
 // Initialize schema
 function initSchema() {
     const schemaPath = path.resolve(__dirname, 'schema.sql');
     const schemaSql = fs.readFileSync(schemaPath, 'utf8');
     db.exec(schemaSql);
+    migrateAuthSchema();
 }
 
 module.exports = {

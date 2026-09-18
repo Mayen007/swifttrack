@@ -11,10 +11,13 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true);
   const [isSwitching, setIsSwitching] = useState(false);
   const [demoMode, setDemoMode] = useState(true);
+  const [mustChangePassword, setMustChangePassword] = useState(false);
   const [config, setConfig] = useState({
     demoMode: true,
     currency: 'KES',
     etimsEnabled: true,
+    passwordMinLength: 10,
+    twoFactorAvailable: true,
   });
 
   // Load available branches
@@ -31,61 +34,178 @@ export function AuthProvider({ children }) {
     return [];
   }, []);
 
+  const handleAuthSuccess = useCallback(async (res, username, rememberMe) => {
+    if (res.token) {
+      api.setToken(res.token);
+      if (res.refreshToken) {
+        api.setRefreshToken(res.refreshToken);
+      }
+
+      if (rememberMe && username) {
+        localStorage.setItem('swifttrack_remember_user', username);
+      } else if (!rememberMe) {
+        localStorage.removeItem('swifttrack_remember_user');
+      }
+
+      const normUser = {
+        ...res.user,
+        role: res.user.roleName || res.user.role,
+        full_name: res.user.fullName || res.user.full_name,
+        branch_id: res.user.branchId ?? res.user.branch_id,
+        mustChangePassword: Boolean(res.user.mustChangePassword),
+        twoFactorEnabled: Boolean(res.user.twoFactorEnabled),
+      };
+
+      setUser(normUser);
+      setMustChangePassword(Boolean(normUser.mustChangePassword));
+
+      const bList = await loadBranches();
+      if (normUser.branch_id) {
+        const b = bList.find(item => item.id === normUser.branch_id);
+        setSelectedBranch(b || null);
+        if (b) localStorage.setItem('swifttrack_selected_branch_id', String(b.id));
+      } else {
+        const savedBranchId = localStorage.getItem('swifttrack_selected_branch_id');
+        if (savedBranchId === 'all') {
+          setSelectedBranch(null);
+        } else if (savedBranchId) {
+          const b = bList.find(item => String(item.id) === savedBranchId);
+          setSelectedBranch(b || null);
+        } else {
+          setSelectedBranch(null);
+        }
+      }
+
+      api.toast(`Welcome back, ${normUser.full_name}`, 'success');
+      return normUser;
+    }
+  }, [loadBranches]);
+
   // Standard Credential Login
   const login = useCallback(async (username, password, rememberMe = false) => {
     setIsSwitching(true);
     try {
       const res = await api.post('/api/auth/login', { username, password });
-      if (res && res.token) {
-        api.setToken(res.token);
-        if (rememberMe) {
-          localStorage.setItem('swifttrack_remember_user', username);
-        } else {
-          localStorage.removeItem('swifttrack_remember_user');
-        }
 
-        const normUser = {
-          ...res.user,
-          role: res.user.roleName || res.user.role,
-          full_name: res.user.fullName || res.user.full_name,
-          branch_id: res.user.branchId ?? res.user.branch_id,
-        };
-        setUser(normUser);
-
-        const bList = await loadBranches();
-        if (normUser.branch_id) {
-          const b = bList.find(item => item.id === normUser.branch_id);
-          setSelectedBranch(b || null);
-          if (b) localStorage.setItem('swifttrack_selected_branch_id', String(b.id));
-        } else {
-          const savedBranchId = localStorage.getItem('swifttrack_selected_branch_id');
-          if (savedBranchId === 'all') {
-            setSelectedBranch(null);
-          } else if (savedBranchId) {
-            const b = bList.find(item => String(item.id) === savedBranchId);
-            setSelectedBranch(b || null);
-          } else {
-            setSelectedBranch(null);
-          }
-        }
-
-        api.toast(`Welcome back, ${normUser.full_name}`, 'success');
-        return normUser;
+      // If 2FA challenge triggered, pass result to view
+      if (res && res.require2FA) {
+        return res;
       }
+
+      if (res && res.token) {
+        return await handleAuthSuccess(res, username, rememberMe);
+      }
+
       throw new Error(res?.error || 'Authentication failed');
     } finally {
       setIsSwitching(false);
     }
-  }, [loadBranches]);
+  }, [handleAuthSuccess]);
+
+  // Complete 2FA Verification
+  const verify2FA = useCallback(async (tempToken, code, username = '', rememberMe = false) => {
+    setIsSwitching(true);
+    try {
+      const res = await api.post('/api/auth/2fa/verify', { tempToken, code });
+      if (res && res.token) {
+        return await handleAuthSuccess(res, username, rememberMe);
+      }
+      throw new Error(res?.error || 'Two-factor verification failed');
+    } finally {
+      setIsSwitching(false);
+    }
+  }, [handleAuthSuccess]);
 
   // Clean Logout
-  const logout = useCallback(() => {
-    api.setToken(null);
-    localStorage.removeItem('swifttrack_token');
+  const logout = useCallback(async () => {
+    try {
+      await api.post('/api/auth/logout');
+    } catch {}
+    api.clearAuth();
     localStorage.removeItem('swifttrack_selected_branch_id');
     setUser(null);
     setSelectedBranch(null);
+    setMustChangePassword(false);
     api.toast('Signed out successfully', 'info');
+  }, []);
+
+  // Password Change
+  const changePassword = useCallback(async (current_password, new_password, confirm_password) => {
+    const res = await api.post('/api/auth/change-password', {
+      current_password,
+      new_password,
+      confirm_password,
+    });
+
+    if (res && res.token) {
+      api.setToken(res.token);
+      if (res.refreshToken) {
+        api.setRefreshToken(res.refreshToken);
+      }
+      setMustChangePassword(false);
+      setUser(prev => prev ? { ...prev, mustChangePassword: false } : null);
+      api.toast('Password updated successfully', 'success');
+      return res;
+    }
+    throw new Error(res?.error || 'Failed to update password');
+  }, []);
+
+  // Self-Service Forgot Password Request
+  const forgotPassword = useCallback(async (identifier) => {
+    return await api.post('/api/auth/forgot-password', { identifier });
+  }, []);
+
+  // Self-Service Reset Password Submission
+  const resetPassword = useCallback(async (token, new_password, confirm_password) => {
+    return await api.post('/api/auth/reset-password', { token, new_password, confirm_password });
+  }, []);
+
+  // 2FA Setup
+  const setup2FA = useCallback(async () => {
+    return await api.post('/api/auth/2fa/setup');
+  }, []);
+
+  // 2FA Enable
+  const enable2FA = useCallback(async (secret, code, hashedRecoveryCodes) => {
+    const res = await api.post('/api/auth/2fa/enable', { secret, code, hashedRecoveryCodes });
+    setUser(prev => prev ? { ...prev, twoFactorEnabled: true } : null);
+    api.toast('Two-factor authentication enabled', 'success');
+    return res;
+  }, []);
+
+  // 2FA Disable
+  const disable2FA = useCallback(async (password, code) => {
+    const res = await api.post('/api/auth/2fa/disable', { password, code });
+    setUser(prev => prev ? { ...prev, twoFactorEnabled: false } : null);
+    api.toast('Two-factor authentication disabled', 'info');
+    return res;
+  }, []);
+
+  // Regenerate Recovery Codes
+  const regenerateRecoveryCodes = useCallback(async (password) => {
+    return await api.post('/api/auth/2fa/recovery-codes', { password });
+  }, []);
+
+  // Session Management
+  const getSessions = useCallback(async () => {
+    return await api.get('/api/auth/sessions');
+  }, []);
+
+  const terminateSession = useCallback(async (sessionId) => {
+    const res = await api.delete(`/api/auth/sessions/${sessionId}`);
+    api.toast('Session terminated', 'info');
+    return res;
+  }, []);
+
+  const terminateOtherSessions = useCallback(async () => {
+    const res = await api.delete('/api/auth/sessions');
+    api.toast('All other sessions terminated', 'info');
+    return res;
+  }, []);
+
+  // Login History
+  const getLoginHistory = useCallback(async () => {
+    return await api.get('/api/auth/login-history');
   }, []);
 
   // Quick switch role (demo/evaluation environments)
@@ -99,14 +219,12 @@ export function AuthProvider({ children }) {
       }
 
       let res = null;
-      // 1. Try dedicated demo-switch endpoint
       try {
         res = await api.post('/api/auth/demo-switch', { role: targetRole, branch_id: branchId });
       } catch (e) {
         console.warn('demo-switch endpoint failed or disabled:', e.message);
       }
 
-      // 2. Fallback to standard credentials login if demo-switch was unavailable
       if (!res || !res.token) {
         const roleCredentials = {
           SUPER_ADMIN: { username: 'superadmin', password: 'Password123!' },
@@ -124,13 +242,20 @@ export function AuthProvider({ children }) {
 
       if (res && res.token) {
         api.setToken(res.token);
+        if (res.refreshToken) {
+          api.setRefreshToken(res.refreshToken);
+        }
+
         const normUser = {
           ...res.user,
           role: res.user.roleName || res.user.role,
           full_name: res.user.fullName || res.user.full_name,
           branch_id: res.user.branchId ?? res.user.branch_id,
+          mustChangePassword: Boolean(res.user.mustChangePassword),
+          twoFactorEnabled: Boolean(res.user.twoFactorEnabled),
         };
         setUser(normUser);
+        setMustChangePassword(Boolean(normUser.mustChangePassword));
 
         const bList = await loadBranches();
         if (normUser.branch_id) {
@@ -187,8 +312,12 @@ export function AuthProvider({ children }) {
                 role: me.user.roleName || me.user.role,
                 full_name: me.user.fullName || me.user.full_name,
                 branch_id: me.user.branchId ?? me.user.branch_id,
+                mustChangePassword: Boolean(me.user.mustChangePassword),
+                twoFactorEnabled: Boolean(me.user.twoFactorEnabled),
               };
               setUser(normUser);
+              setMustChangePassword(Boolean(normUser.mustChangePassword));
+
               const bList = await loadBranches();
               if (normUser.branch_id) {
                 const b = bList.find(item => item.id === normUser.branch_id);
@@ -206,7 +335,7 @@ export function AuthProvider({ children }) {
             }
           } catch (e) {
             console.warn('Existing token invalid, clearing session:', e);
-            api.setToken(null);
+            api.clearAuth();
           }
         }
       } catch (e) {
@@ -216,7 +345,19 @@ export function AuthProvider({ children }) {
       }
     }
     initAuth();
-    return () => { isMounted = false; };
+
+    // Listen for auth cleared event
+    const handleAuthCleared = () => {
+      setUser(null);
+      setSelectedBranch(null);
+      setMustChangePassword(false);
+    };
+    window.addEventListener('swifttrack:auth_cleared', handleAuthCleared);
+
+    return () => {
+      isMounted = false;
+      window.removeEventListener('swifttrack:auth_cleared', handleAuthCleared);
+    };
   }, [loadBranches]);
 
   const selectBranch = useCallback(async (branch) => {
@@ -260,8 +401,22 @@ export function AuthProvider({ children }) {
         selectedBranch,
         selectBranch,
         login,
+        verify2FA,
         logout,
         quickSwitch,
+        changePassword,
+        forgotPassword,
+        resetPassword,
+        setup2FA,
+        enable2FA,
+        disable2FA,
+        regenerateRecoveryCodes,
+        getSessions,
+        terminateSession,
+        terminateOtherSessions,
+        getLoginHistory,
+        mustChangePassword,
+        setMustChangePassword,
         loading,
         isSwitching,
         demoMode,

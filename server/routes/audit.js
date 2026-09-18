@@ -62,4 +62,28 @@ router.get('/', authenticateToken, requireRole('SUPER_ADMIN', 'BRANCH_MANAGER'),
     res.json(formatted);
 });
 
+// GET /api/audit/failed-logins - View failed login attempt telemetry
+router.get('/failed-logins', authenticateToken, requireRole('SUPER_ADMIN', 'BRANCH_MANAGER'), (req, res) => {
+    let query = `
+        SELECT lh.id, lh.user_id, lh.username_attempted, lh.status, lh.failure_reason,
+               lh.ip_address, lh.user_agent, lh.created_at, lh.branch_id,
+               b.name as branch_name, b.code as branch_code
+        FROM login_history lh
+        LEFT JOIN branches b ON lh.branch_id = b.id
+        WHERE lh.status != 'SUCCESS'
+    `;
+    const params = [];
+
+    if (req.user.roleName !== 'SUPER_ADMIN') {
+        query += ' AND (lh.branch_id = ? OR lh.branch_id IS NULL)';
+        params.push(req.user.branchId);
+    }
+
+    query += ' ORDER BY lh.created_at DESC LIMIT 100';
+
+    const logs = db.prepare(query).all(...params);
+    res.json(logs);
+});
+
 module.exports = router;
+

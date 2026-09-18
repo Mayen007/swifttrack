@@ -12,6 +12,11 @@ if (fs.existsSync(envPath) && typeof process.loadEnvFile === 'function') {
     }
 }
 
+const { validateStartupEnv } = require('./utils/env.js');
+
+// Validate critical secrets and production safeguards
+validateStartupEnv();
+
 const express = require('express');
 const { db, initSchema } = require('./db/database.js');
 const { runSeed, initProductionBootstrap, ensureRichChartTelemetry } = require('./db/seed.js');

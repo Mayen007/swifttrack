@@ -1,11 +1,11 @@
 // server/middleware/auth.js
 const jwt = require('jsonwebtoken');
 const { db } = require('../db/database.js');
-
-const JWT_SECRET = process.env.JWT_SECRET || 'swifttrack_jwt_super_secret_production_key_2026';
+const { getJwtSecret } = require('../utils/env.js');
 
 /**
- * Validates the Authorization Bearer token and hydrates user permissions
+ * Validates the Authorization Bearer token, checks revocation, verifies session and token versions,
+ * and enforces mandatory first-login password changes.
  */
 function authenticateToken(req, res, next) {
     const authHeader = req.headers['authorization'];
@@ -15,14 +15,25 @@ function authenticateToken(req, res, next) {
         return res.status(401).json({ error: 'Authentication required: No token provided' });
     }
 
-    jwt.verify(token, JWT_SECRET, (err, decoded) => {
+    const secret = getJwtSecret();
+
+    jwt.verify(token, secret, (err, decoded) => {
         if (err) {
-            return res.status(403).json({ error: 'Invalid or expired token. Please log in again.' });
+            return res.status(401).json({ error: 'Invalid or expired token. Please log in again.' });
         }
 
-        // Fetch fresh user record from DB to verify user is active and get latest role/branch
+        // 1. Revocation Blacklist Check
+        if (decoded.jti) {
+            const revoked = db.prepare('SELECT id FROM revoked_tokens WHERE jti = ?').get(decoded.jti);
+            if (revoked) {
+                return res.status(401).json({ error: 'Token has been revoked or signed out. Please log in again.' });
+            }
+        }
+
+        // 2. Fetch fresh user record from DB
         const user = db.prepare(`
             SELECT u.id, u.username, u.email, u.full_name, u.phone, u.branch_id, u.is_active,
+                   u.token_version, u.must_change_password, u.two_factor_enabled,
                    r.name as role_name, r.display_name as role_display_name,
                    b.name as branch_name, b.code as branch_code
             FROM users u
@@ -35,7 +46,51 @@ function authenticateToken(req, res, next) {
             return res.status(403).json({ error: 'User account is inactive or no longer exists' });
         }
 
-        // Fetch permissions granted to this role
+        // 3. Admin Force Logout / Password Change Token Version Invalidation
+        if (decoded.tokenVersion !== undefined && Number(decoded.tokenVersion) < Number(user.token_version)) {
+            return res.status(401).json({ error: 'Session has been terminated by an administrator or password change. Please log in again.' });
+        }
+
+        // 4. Session Validation (if token contains sessionId)
+        if (decoded.sessionId) {
+            const session = db.prepare(`
+                SELECT is_active, datetime(expires_at) <= datetime(CURRENT_TIMESTAMP) as is_expired
+                FROM user_sessions
+                WHERE id = ?
+            `).get(decoded.sessionId);
+
+            if (session) {
+                if (!session.is_active || session.is_expired) {
+                    return res.status(401).json({ error: 'Session has expired or was terminated. Please log in again.' });
+                }
+                // Refresh session activity timestamp
+                try {
+                    db.prepare('UPDATE user_sessions SET last_activity_at = CURRENT_TIMESTAMP WHERE id = ?').run(decoded.sessionId);
+                } catch {}
+            }
+        }
+
+        // 5. First-Login Mandatory Password Change Enforcement
+        if (user.must_change_password === 1) {
+            // Allow only self password change, user profile fetch, logout, and public config
+            const allowedPaths = [
+                '/api/auth/change-password',
+                '/api/auth/me',
+                '/api/auth/logout',
+                '/api/auth/config'
+            ];
+            const isAllowedPath = allowedPaths.some(p => req.originalUrl?.startsWith(p) || req.baseUrl?.startsWith(p));
+
+            if (!isAllowedPath) {
+                return res.status(403).json({
+                    error: 'Mandatory password change required. You must establish a new password before accessing system tools.',
+                    code: 'PASSWORD_CHANGE_REQUIRED',
+                    mustChangePassword: true
+                });
+            }
+        }
+
+        // 6. Fetch permissions granted to this role
         const permissionsRows = db.prepare(`
             SELECT p.code
             FROM role_permissions rp
@@ -57,6 +112,11 @@ function authenticateToken(req, res, next) {
             branchCode: user.branch_code,
             roleName: user.role_name,
             roleDisplayName: user.role_display_name,
+            mustChangePassword: Boolean(user.must_change_password),
+            twoFactorEnabled: Boolean(user.two_factor_enabled),
+            sessionId: decoded.sessionId || null,
+            jti: decoded.jti || null,
+            tokenVersion: user.token_version,
             permissions
         };
 
@@ -143,5 +203,8 @@ module.exports = {
     requireRole,
     requirePermission,
     enforceBranchIsolation,
-    JWT_SECRET
+    getJwtSecret,
+    get JWT_SECRET() {
+        return getJwtSecret();
+    }
 };

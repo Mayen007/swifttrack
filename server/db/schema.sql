@@ -90,6 +90,14 @@ CREATE TABLE IF NOT EXISTS users (
     password_hash TEXT NOT NULL,
     is_active INTEGER NOT NULL DEFAULT 1,
     last_login_at DATETIME,
+    password_changed_at DATETIME,
+    must_change_password INTEGER NOT NULL DEFAULT 0,
+    failed_login_attempts INTEGER NOT NULL DEFAULT 0,
+    locked_until DATETIME,
+    token_version INTEGER NOT NULL DEFAULT 1,
+    two_factor_enabled INTEGER NOT NULL DEFAULT 0,
+    two_factor_secret TEXT,
+    two_factor_recovery_codes TEXT,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
@@ -502,3 +510,61 @@ CREATE INDEX IF NOT EXISTS idx_deliveries_branch_status ON deliveries(branch_id,
 CREATE INDEX IF NOT EXISTS idx_deliveries_driver ON deliveries(driver_id, status);
 CREATE INDEX IF NOT EXISTS idx_audit_logs_branch_date ON audit_logs(branch_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_notifications_user_unread ON notifications(user_id, is_read);
+
+-- ==============================================================================
+-- 23. AUTHENTICATION HARDENING, SESSIONS & AUDIT TABLES
+-- ==============================================================================
+
+-- Active user device sessions with refresh token rotation
+CREATE TABLE IF NOT EXISTS user_sessions (
+    id TEXT PRIMARY KEY,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    refresh_token_hash TEXT NOT NULL,
+    ip_address TEXT,
+    user_agent TEXT,
+    device_info TEXT,
+    is_active INTEGER NOT NULL DEFAULT 1,
+    last_activity_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    expires_at DATETIME NOT NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_user_sessions_user ON user_sessions(user_id, is_active);
+CREATE INDEX IF NOT EXISTS idx_user_sessions_expiry ON user_sessions(expires_at);
+
+-- Immediate JWT revocation blacklist
+CREATE TABLE IF NOT EXISTS revoked_tokens (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    jti TEXT NOT NULL UNIQUE,
+    user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+    revoked_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    expires_at DATETIME NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_revoked_tokens_jti ON revoked_tokens(jti);
+
+-- Self-service password reset tokens
+CREATE TABLE IF NOT EXISTS password_reset_tokens (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    token_hash TEXT NOT NULL UNIQUE,
+    expires_at DATETIME NOT NULL,
+    used_at DATETIME,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_pwd_reset_token_hash ON password_reset_tokens(token_hash);
+
+-- Login and failed authentication attempt history
+CREATE TABLE IF NOT EXISTS login_history (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    username_attempted TEXT NOT NULL,
+    status TEXT NOT NULL, -- 'SUCCESS', 'FAILED_PASSWORD', 'ACCOUNT_LOCKED', 'ACCOUNT_INACTIVE', '2FA_PENDING', '2FA_FAILED'
+    failure_reason TEXT,
+    ip_address TEXT,
+    user_agent TEXT,
+    branch_id INTEGER REFERENCES branches(id) ON DELETE SET NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_login_history_user ON login_history(user_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_login_history_status ON login_history(status, created_at);
+CREATE INDEX IF NOT EXISTS idx_login_history_ip ON login_history(ip_address, created_at);
+

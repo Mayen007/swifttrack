@@ -2,6 +2,8 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useTheme } from '../context/ThemeContext.jsx';
 import { sound } from '../services/sound.js';
+import { PasswordChangeModal } from './auth/PasswordChangeModal.jsx';
+import { SecuritySettingsModal } from './auth/SecuritySettingsModal.jsx';
 import {
   Truck,
   MapPin,
@@ -16,6 +18,7 @@ import {
   Bike,
   Check,
   Lock,
+  KeyRound,
   Volume2,
   VolumeX,
   Search,
@@ -36,10 +39,11 @@ export function Navbar({
   onToggleCollapse,
   isSidebarCollapsed = false,
 }) {
-  const { user, branches, selectedBranch, selectBranch, quickSwitch, logout, demoMode, isSuperAdmin } = useAuth();
+  const { user, branches, selectedBranch, selectBranch, quickSwitch, logout, demoMode, isSuperAdmin, mustChangePassword } = useAuth();
   const { theme, setTheme, resolvedTheme } = useTheme();
   const [branchDropdownOpen, setBranchDropdownOpen] = useState(false);
   const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
+  const [securityModalOpen, setSecurityModalOpen] = useState(false);
   const [branchFilter, setBranchFilter] = useState('');
   const [audioMuted, setAudioMuted] = useState(() => sound.isMuted());
   const [currentTime, setCurrentTime] = useState(() => new Date());
@@ -106,9 +110,10 @@ export function Navbar({
   );
 
   return (
-    <header className="h-14 px-3 sm:px-5 bg-[#0c0e14] border-b border-[#222834] flex items-center justify-between sticky top-0 z-40 select-none">
-      {/* 1. LEFT SECTION: Mobile Toggle + Brand Lockup + Single Branch Context Dial */}
-      <div className="flex items-center gap-2.5 sm:gap-3 shrink-0">
+    <>
+      <header className="h-14 px-3 sm:px-5 bg-[#0c0e14] border-b border-[#222834] flex items-center justify-between sticky top-0 z-40 select-none">
+        {/* 1. LEFT SECTION: Mobile Toggle + Brand Lockup + Single Branch Context Dial */}
+        <div className="flex items-center gap-2.5 sm:gap-3 shrink-0">
         {/* Sidebar Toggle: Mobile Drawer on < lg, Desktop Collapse on lg: */}
         <button
           onClick={() => {
@@ -505,6 +510,27 @@ export function Navbar({
                 </div>
               )}
 
+              {/* Security & Sessions */}
+              <div className="p-1.5 border-b border-[#222834]">
+                <button
+                  onClick={() => {
+                    setProfileDropdownOpen(false);
+                    setSecurityModalOpen(true);
+                  }}
+                  className="w-full px-2.5 py-1.5 rounded text-left text-xs text-slate-300 hover:text-white hover:bg-[#161b26] flex items-center justify-between transition-colors cursor-pointer"
+                >
+                  <div className="flex items-center gap-2">
+                    <KeyRound className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                    <span>Security & Sessions</span>
+                  </div>
+                  {user?.twoFactorEnabled && (
+                    <span className="text-[9px] font-mono font-bold text-blue-400 bg-blue-500/10 border border-blue-500/20 px-1.5 py-0.2 rounded">
+                      2FA ACTIVE
+                    </span>
+                  )}
+                </button>
+              </div>
+
               {/* Enterprise Operator Sign Out */}
               <div className="p-1.5">
                 <button
@@ -523,5 +549,17 @@ export function Navbar({
         </div>
       </div>
     </header>
+
+    {/* Operator Security & Sessions Management Modal */}
+    <SecuritySettingsModal
+      isOpen={securityModalOpen}
+      onClose={() => setSecurityModalOpen(false)}
+    />
+
+    {/* Mandatory First-Login / Administrative Password Change Modal */}
+    {(mustChangePassword || user?.mustChangePassword) && (
+      <PasswordChangeModal isOpen={true} isMandatory={true} />
+    )}
+  </>
   );
 }

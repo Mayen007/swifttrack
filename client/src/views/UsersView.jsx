@@ -16,7 +16,9 @@ import {
   RotateCcw,
   Search,
   Lock,
+  Unlock,
   Key,
+  KeyRound,
   Edit3,
   AlertTriangle,
   Check,
@@ -29,6 +31,10 @@ import {
   ArrowRight,
   UserCheck,
   UserX,
+  LogOut,
+  History,
+  Copy,
+  Smartphone
 } from 'lucide-react';
 
 // Static comprehensive RBAC permission matrix for SwiftTrack Kenya
@@ -116,6 +122,18 @@ export function UsersView() {
   const [isMatrixDrawerOpen, setIsMatrixDrawerOpen] = useState(false);
   const [inspectingUser, setInspectingUser] = useState(null);
   const [selectedUserForEdit, setSelectedUserForEdit] = useState(null);
+
+  // Security & Authentication Administrative States
+  const [isLoginHistoryModalOpen, setIsLoginHistoryModalOpen] = useState(false);
+  const [loginHistoryTarget, setLoginHistoryTarget] = useState(null);
+  const [loginHistoryList, setLoginHistoryList] = useState([]);
+  const [loginHistoryLoading, setLoginHistoryLoading] = useState(false);
+  const [tempPasswordModal, setTempPasswordModal] = useState(null);
+  const [tempPasswordCopied, setTempPasswordCopied] = useState(false);
+  const [isFailedLoginsDrawerOpen, setIsFailedLoginsDrawerOpen] = useState(false);
+  const [failedLoginsList, setFailedLoginsList] = useState([]);
+  const [failedLoginsLoading, setFailedLoginsLoading] = useState(false);
+  const [adminActionLoading, setAdminActionLoading] = useState(null);
 
   // Form States - Create User
   const [createFormData, setCreateFormData] = useState({
@@ -323,6 +341,103 @@ export function UsersView() {
     }
   };
 
+  // Security Administrative Actions
+  const handleForceLogout = async (targetUser) => {
+    if (!window.confirm(`Force terminate all active sessions for @${targetUser.username}? The user will be immediately logged out across all devices.`)) {
+      return;
+    }
+    try {
+      setAdminActionLoading(targetUser.id);
+      await api.post(`/api/users/${targetUser.id}/force-logout`);
+      sound.playSuccess();
+      api.toast(`All active sessions for @${targetUser.username} terminated`, 'success');
+      await fetchUsersAndRoles();
+      if (inspectingUser && inspectingUser.id === targetUser.id) {
+        setInspectingUser(prev => prev ? { ...prev, token_version: (prev.token_version || 1) + 1 } : null);
+      }
+    } catch (err) {
+      sound.playError();
+      api.toast(err.message || 'Failed to force logout user', 'error');
+    } finally {
+      setAdminActionLoading(null);
+    }
+  };
+
+  const handleAdminResetPassword = async (targetUser) => {
+    if (!window.confirm(`Reset password for @${targetUser.username}? A temporary password will be generated, and the operator will be forced to choose a new password on their next login.`)) {
+      return;
+    }
+    try {
+      setAdminActionLoading(targetUser.id);
+      const res = await api.post(`/api/users/${targetUser.id}/reset-password`, {});
+      sound.playSuccess();
+      setTempPasswordCopied(false);
+      setTempPasswordModal({
+        username: targetUser.username,
+        fullName: targetUser.full_name,
+        temporaryPassword: res.temporaryPassword,
+      });
+      await fetchUsersAndRoles();
+      if (inspectingUser && inspectingUser.id === targetUser.id) {
+        setInspectingUser(prev => prev ? { ...prev, must_change_password: 1, failed_login_attempts: 0, is_locked: 0 } : null);
+      }
+    } catch (err) {
+      sound.playError();
+      api.toast(err.message || 'Failed to reset password', 'error');
+    } finally {
+      setAdminActionLoading(null);
+    }
+  };
+
+  const handleUnlockAccount = async (targetUser) => {
+    try {
+      setAdminActionLoading(targetUser.id);
+      await api.post(`/api/users/${targetUser.id}/unlock`);
+      sound.playSuccess();
+      api.toast(`Account for @${targetUser.username} has been unlocked`, 'success');
+      await fetchUsersAndRoles();
+      if (inspectingUser && inspectingUser.id === targetUser.id) {
+        setInspectingUser(prev => prev ? { ...prev, failed_login_attempts: 0, is_locked: 0, locked_until: null } : null);
+      }
+    } catch (err) {
+      sound.playError();
+      api.toast(err.message || 'Failed to unlock account', 'error');
+    } finally {
+      setAdminActionLoading(null);
+    }
+  };
+
+  const handleOpenLoginHistory = async (targetUser) => {
+    sound.playScan();
+    setLoginHistoryTarget(targetUser);
+    setIsLoginHistoryModalOpen(true);
+    setLoginHistoryLoading(true);
+    try {
+      const data = await api.get(`/api/users/${targetUser.id}/login-history`);
+      setLoginHistoryList(Array.isArray(data) ? data : []);
+    } catch (err) {
+      api.toast('Failed to load login history: ' + err.message, 'error');
+      setLoginHistoryList([]);
+    } finally {
+      setLoginHistoryLoading(false);
+    }
+  };
+
+  const handleOpenFailedLogins = async () => {
+    sound.playScan();
+    setIsFailedLoginsDrawerOpen(true);
+    setFailedLoginsLoading(true);
+    try {
+      const data = await api.get('/api/users/security/failed-logins');
+      setFailedLoginsList(Array.isArray(data) ? data : []);
+    } catch (err) {
+      api.toast('Failed to load failed login history: ' + err.message, 'error');
+      setFailedLoginsList([]);
+    } finally {
+      setFailedLoginsLoading(false);
+    }
+  };
+
   // KPIs
   const kpis = useMemo(() => {
     const totalStaff = users.length;
@@ -437,6 +552,15 @@ export function UsersView() {
           >
             <Layers className="w-3.5 h-3.5 text-purple-400" />
             <span>RBAC MATRIX</span>
+          </button>
+
+          <button
+            onClick={handleOpenFailedLogins}
+            title="Inspect failed login attempts and lockout security events"
+            className="px-3 py-1.5 rounded border border-[#222834] bg-[#181d28] hover:bg-[#202736] text-xs font-mono text-amber-400 hover:text-amber-300 flex items-center gap-1.5 transition-colors cursor-pointer"
+          >
+            <AlertTriangle className="w-3.5 h-3.5 text-amber-400" />
+            <span>FAILED LOGINS AUDIT</span>
           </button>
 
           <button
@@ -807,7 +931,12 @@ export function UsersView() {
 
                       {/* 6. Account Status */}
                       <td className="p-3 text-center">
-                        {isActive ? (
+                        {u.is_locked ? (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/10 text-amber-400 border border-amber-500/30 animate-pulse">
+                            <Lock className="w-3 h-3 text-amber-400" />
+                            LOCKED
+                          </span>
+                        ) : isActive ? (
                           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
                             <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
                             ACTIVE
@@ -823,13 +952,58 @@ export function UsersView() {
                       {/* 7. Actions */}
                       <td className="p-3 text-right">
                         <div className="flex items-center justify-end gap-1.5">
+                          {/* Unlock if locked */}
+                          {Boolean(u.is_locked) && canEdit && (
+                            <button
+                              onClick={() => handleUnlockAccount(u)}
+                              disabled={adminActionLoading === u.id}
+                              title="Unlock operator account and reset failed login attempts"
+                              className="p-1.5 rounded bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 transition-colors cursor-pointer"
+                            >
+                              <Unlock className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+
+                          {/* Login History */}
+                          <button
+                            onClick={() => handleOpenLoginHistory(u)}
+                            title="Audit operator login attempts and terminal history"
+                            className="p-1.5 rounded bg-[#181d28] hover:bg-[#222938] text-slate-300 hover:text-white border border-[#222834] transition-colors cursor-pointer"
+                          >
+                            <History className="w-3.5 h-3.5 text-blue-400" />
+                          </button>
+
+                          {/* Admin Reset Password (with mandatory first-login change) */}
+                          {canEdit && (
+                            <button
+                              onClick={() => handleAdminResetPassword(u)}
+                              disabled={adminActionLoading === u.id}
+                              title="Admin password reset: issue temporary password with mandatory first-login change"
+                              className="p-1.5 rounded bg-[#181d28] hover:bg-[#222938] text-amber-400 hover:text-amber-300 border border-[#222834] transition-colors cursor-pointer"
+                            >
+                              <KeyRound className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+
+                          {/* Force Invalidate Sessions */}
+                          {canEdit && (
+                            <button
+                              onClick={() => handleForceLogout(u)}
+                              disabled={adminActionLoading === u.id}
+                              title="Force logout: terminate all active web sessions across all devices"
+                              className="p-1.5 rounded bg-[#181d28] hover:bg-[#222938] text-rose-400 hover:text-rose-300 border border-[#222834] transition-colors cursor-pointer"
+                            >
+                              <LogOut className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+
                           {/* Inspect Privileges */}
                           <button
                             onClick={() => openInspector(u)}
-                            title="Inspect staff account profile and RBAC permissions"
+                            title="Inspect staff account dossier, 2FA status, and RBAC permissions"
                             className="p-1.5 rounded bg-[#181d28] hover:bg-[#222938] text-slate-300 hover:text-white border border-[#222834] transition-colors cursor-pointer"
                           >
-                            <Eye className="w-3.5 h-3.5 text-blue-400" />
+                            <Eye className="w-3.5 h-3.5 text-slate-400" />
                           </button>
 
                           {/* Edit / Manage */}
@@ -839,7 +1013,7 @@ export function UsersView() {
                               title="Edit user details, credentials, or toggle active status"
                               className="p-1.5 rounded bg-[#181d28] hover:bg-[#222938] text-slate-300 hover:text-white border border-[#222834] transition-colors cursor-pointer"
                             >
-                              <Edit3 className="w-3.5 h-3.5 text-amber-400" />
+                              <Edit3 className="w-3.5 h-3.5 text-slate-400" />
                             </button>
                           )}
 
@@ -1461,26 +1635,371 @@ export function UsersView() {
                 </div>
               </div>
 
-              {/* Cryptographic Hash Security Notice */}
-              <div className="p-2.5 rounded bg-[#181d28] border border-[#222834] flex items-start gap-2 text-[11px] text-slate-400">
-                <Lock className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
-                <div>
-                  <span className="text-white font-bold block">CRYPTOGRAPHIC PRIVILEGE BOUNDARY:</span>
-                  All actions executed under @{inspectingUser.username} are cryptographically attributed with SHA-256 state signatures in the immutable audit ledger.
+              {/* Authentication & Security Dossier */}
+                <div className="bg-[#181d28] border border-[#222834] rounded p-3 space-y-2 text-[11px]">
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-400">2FA TOTP PROTECTION:</span>
+                    {inspectingUser.two_factor_enabled ? (
+                      <span className="text-blue-400 font-bold flex items-center gap-1">
+                        <Smartphone className="w-3.5 h-3.5 text-blue-400" />
+                        RFC 6238 TOTP ACTIVE
+                      </span>
+                    ) : (
+                      <span className="text-slate-500 font-mono">NOT CONFIGURED</span>
+                    )}
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-400">PASSWORD ROTATION:</span>
+                    <span className="text-slate-300">
+                      {inspectingUser.password_changed_at
+                        ? new Date(inspectingUser.password_changed_at).toLocaleString('en-KE', {
+                            dateStyle: 'medium',
+                            timeStyle: 'short',
+                          })
+                        : 'Initial Password'}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-400">FIRST-LOGIN CHANGE:</span>
+                    {inspectingUser.must_change_password ? (
+                      <span className="text-amber-400 font-bold font-mono">
+                        MANDATORY (PENDING FIRST LOGIN)
+                      </span>
+                    ) : (
+                      <span className="text-emerald-400 font-mono">COMPLETED / VERIFIED</span>
+                    )}
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-400">FAILED ATTEMPTS:</span>
+                    <span className="font-mono font-bold text-slate-300">
+                      {inspectingUser.failed_login_attempts || 0} / 5
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-400">LOCKOUT STATUS:</span>
+                    {inspectingUser.is_locked ? (
+                      <span className="text-rose-400 font-bold font-mono animate-pulse flex items-center gap-1">
+                        <Lock className="w-3 h-3 text-rose-400" />
+                        LOCKED (UNTIL {inspectingUser.locked_until})
+                      </span>
+                    ) : (
+                      <span className="text-emerald-400 font-mono">CLEARED / AUTHORIZED</span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Quick Security Actions for this operator */}
+                {canEditUser(inspectingUser) && (
+                  <div className="p-2.5 rounded bg-[#181d28] border border-[#222834] space-y-2">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                      ADMINISTRATIVE SECURITY ACTIONS
+                    </span>
+                    <div className="grid grid-cols-2 gap-2 text-xs">
+                      {Boolean(inspectingUser.is_locked) && (
+                        <button
+                          onClick={() => handleUnlockAccount(inspectingUser)}
+                          className="px-2 py-1.5 rounded bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 font-mono flex items-center justify-center gap-1.5 cursor-pointer"
+                        >
+                          <Unlock className="w-3.5 h-3.5" />
+                          <span>Unlock Account</span>
+                        </button>
+                      )}
+                      <button
+                        onClick={() => handleOpenLoginHistory(inspectingUser)}
+                        className="px-2 py-1.5 rounded bg-[#12161f] hover:bg-[#202736] text-blue-400 border border-[#222834] font-mono flex items-center justify-center gap-1.5 cursor-pointer"
+                      >
+                        <History className="w-3.5 h-3.5" />
+                        <span>Login History</span>
+                      </button>
+                      <button
+                        onClick={() => handleAdminResetPassword(inspectingUser)}
+                        className="px-2 py-1.5 rounded bg-[#12161f] hover:bg-[#202736] text-amber-400 border border-[#222834] font-mono flex items-center justify-center gap-1.5 cursor-pointer"
+                      >
+                        <KeyRound className="w-3.5 h-3.5" />
+                        <span>Reset Password</span>
+                      </button>
+                      <button
+                        onClick={() => handleForceLogout(inspectingUser)}
+                        className="px-2 py-1.5 rounded bg-[#12161f] hover:bg-[#202736] text-rose-400 border border-[#222834] font-mono flex items-center justify-center gap-1.5 cursor-pointer"
+                      >
+                        <LogOut className="w-3.5 h-3.5" />
+                        <span>Force Logout</span>
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Cryptographic Hash Security Notice */}
+                <div className="p-2.5 rounded bg-[#181d28] border border-[#222834] flex items-start gap-2 text-[11px] text-slate-400">
+                  <Lock className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                  <div>
+                    <span className="text-white font-bold block">CRYPTOGRAPHIC PRIVILEGE BOUNDARY:</span>
+                    All actions executed under @{inspectingUser.username} are cryptographically attributed with SHA-256 state signatures in the immutable audit ledger.
+                  </div>
                 </div>
               </div>
+
+              {/* Footer */}
+              <div className="p-3 border-t border-[#222834] bg-[#181d28] flex items-center justify-end">
+                <button
+                  onClick={() => {
+                    sound.playScan();
+                    setInspectingUser(null);
+                  }}
+                  className="px-3 py-1.5 rounded bg-[#12161f] hover:bg-[#202736] border border-[#222834] text-xs font-mono text-slate-200"
+                >
+                  CLOSE DOSSIER
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+      {/* ========================================================================= */}
+      {/* MODAL 5: TEMPORARY PASSWORD COPY MODAL */}
+      {/* ========================================================================= */}
+      {tempPasswordModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-xs animate-in fade-in duration-150">
+          <div className="bg-[#12161f] border border-[#222834] rounded w-full max-w-md overflow-hidden shadow-2xl">
+            <div className="p-4 border-b border-[#222834] flex items-center justify-between bg-[#181d28]">
+              <div className="flex items-center gap-2">
+                <KeyRound className="w-4 h-4 text-amber-400" />
+                <h3 className="font-bold text-sm text-white font-mono uppercase tracking-wider">
+                  TEMPORARY PASSWORD ISSUED
+                </h3>
+              </div>
+              <button
+                onClick={() => setTempPasswordModal(null)}
+                className="text-slate-400 hover:text-white p-1"
+              >
+                <X className="w-4 h-4" />
+              </button>
             </div>
 
-            {/* Footer */}
-            <div className="p-3 border-t border-[#222834] bg-[#181d28] flex items-center justify-end">
+            <div className="p-5 space-y-4 font-mono text-xs">
+              <p className="text-slate-300">
+                A temporary replacement password has been generated for{' '}
+                <span className="text-white font-bold">@{tempPasswordModal.username}</span>.
+              </p>
+
+              <div className="p-3 rounded-lg bg-[#0e1320] border border-amber-500/40">
+                <div className="flex items-center justify-between text-[10px] text-amber-400 font-bold mb-1.5">
+                  <span>TEMPORARY CREDENTIAL</span>
+                  <button
+                    onClick={() => {
+                      navigator.clipboard.writeText(tempPasswordModal.temporaryPassword);
+                      setTempPasswordCopied(true);
+                      setTimeout(() => setTempPasswordCopied(false), 2000);
+                    }}
+                    className="flex items-center gap-1 text-slate-300 hover:text-white cursor-pointer"
+                  >
+                    {tempPasswordCopied ? (
+                      <Check className="w-3.5 h-3.5 text-emerald-400" />
+                    ) : (
+                      <Copy className="w-3.5 h-3.5" />
+                    )}
+                    <span>{tempPasswordCopied ? 'COPIED' : 'COPY'}</span>
+                  </button>
+                </div>
+                <div className="text-base font-bold text-white tracking-wider select-all py-1">
+                  {tempPasswordModal.temporaryPassword}
+                </div>
+              </div>
+
+              <div className="p-2.5 rounded bg-amber-500/10 border border-amber-500/20 text-amber-300 text-[11px] leading-relaxed">
+                <span className="font-bold block text-amber-400">MANDATORY ROTATION ENFORCED:</span>
+                Existing sessions for this user were invalidated. When @{tempPasswordModal.username} signs in with this password, SwiftTrack will immediately prompt them to define a new private password before operational access is unlocked.
+              </div>
+
+              <div className="pt-2 flex justify-end">
+                <button
+                  onClick={() => setTempPasswordModal(null)}
+                  className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded text-xs uppercase tracking-wider"
+                >
+                  DISMISS & COPY TO CLIPBOARD
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* MODAL 6: STAFF LOGIN HISTORY MODAL */}
+      {/* ========================================================================= */}
+      {isLoginHistoryModalOpen && loginHistoryTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-xs animate-in fade-in duration-150">
+          <div className="bg-[#12161f] border border-[#222834] rounded w-full max-w-2xl max-h-[85vh] flex flex-col overflow-hidden shadow-2xl">
+            <div className="p-4 border-b border-[#222834] flex items-center justify-between bg-[#181d28] shrink-0">
+              <div className="flex items-center gap-2">
+                <History className="w-4 h-4 text-blue-400" />
+                <h3 className="font-bold text-sm text-white font-mono uppercase tracking-wider">
+                  LOGIN AUDIT TRAIL // @{loginHistoryTarget.username.toUpperCase()}
+                </h3>
+              </div>
               <button
-                onClick={() => {
-                  sound.playScan();
-                  setInspectingUser(null);
-                }}
+                onClick={() => setIsLoginHistoryModalOpen(false)}
+                className="text-slate-400 hover:text-white p-1"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="p-4 overflow-y-auto flex-1 font-mono text-xs">
+              {loginHistoryLoading ? (
+                <div className="p-8 text-center text-slate-400">
+                  <RotateCcw className="w-5 h-5 text-blue-400 animate-spin mx-auto mb-2" />
+                  <span>Loading authentication log history...</span>
+                </div>
+              ) : loginHistoryList.length === 0 ? (
+                <div className="p-8 text-center text-slate-500">
+                  No recorded authentication events on file for this operator.
+                </div>
+              ) : (
+                <div className="border border-[#222834] rounded overflow-hidden">
+                  <table className="w-full text-left font-mono text-[11px]">
+                    <thead className="bg-[#181d28] text-slate-400 border-b border-[#222834] uppercase text-[10px]">
+                      <tr>
+                        <th className="p-2.5">Timestamp</th>
+                        <th className="p-2.5">Event Status</th>
+                        <th className="p-2.5">Failure / Reason</th>
+                        <th className="p-2.5">IP Address</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-[#222834]">
+                      {loginHistoryList.map((log) => {
+                        const isSuccess = log.status === 'SUCCESS';
+                        const isLocked = log.status === 'ACCOUNT_LOCKED';
+                        return (
+                          <tr key={log.id} className="hover:bg-[#181d28]/60">
+                            <td className="p-2.5 text-slate-300">
+                              {new Date(log.created_at).toLocaleString('en-KE', {
+                                dateStyle: 'short',
+                                timeStyle: 'short',
+                              })}
+                            </td>
+                            <td className="p-2.5">
+                              {isSuccess ? (
+                                <span className="inline-flex items-center gap-1 px-1.5 py-0.2 rounded text-[10px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
+                                  SUCCESS
+                                </span>
+                              ) : isLocked ? (
+                                <span className="inline-flex items-center gap-1 px-1.5 py-0.2 rounded text-[10px] font-bold bg-amber-500/10 text-amber-400 border border-amber-500/30">
+                                  LOCKED
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 px-1.5 py-0.2 rounded text-[10px] font-bold bg-rose-500/10 text-rose-400 border border-rose-500/30">
+                                  {log.status}
+                                </span>
+                              )}
+                            </td>
+                            <td className="p-2.5 text-slate-400 max-w-[200px] truncate">
+                              {log.failure_reason || 'Terminal Authentication Verified'}
+                            </td>
+                            <td className="p-2.5 text-slate-300">{log.ip_address || '—'}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+
+            <div className="p-3 border-t border-[#222834] bg-[#181d28] flex items-center justify-between shrink-0 font-mono text-[10px] text-slate-400">
+              <span>SHOWING RECENT {loginHistoryList.length} ATTEMPTS</span>
+              <button
+                onClick={() => setIsLoginHistoryModalOpen(false)}
                 className="px-3 py-1.5 rounded bg-[#12161f] hover:bg-[#202736] border border-[#222834] text-xs font-mono text-slate-200"
               >
-                CLOSE DOSSIER
+                CLOSE
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* MODAL 7: FAILED LOGINS SYSTEM SECURITY AUDIT DRAWER */}
+      {/* ========================================================================= */}
+      {isFailedLoginsDrawerOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-xs animate-in fade-in duration-150">
+          <div className="bg-[#12161f] border border-[#222834] rounded w-full max-w-3xl max-h-[85vh] flex flex-col overflow-hidden shadow-2xl">
+            <div className="p-4 border-b border-[#222834] flex items-center justify-between bg-[#181d28] shrink-0">
+              <div className="flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4 text-amber-400" />
+                <h3 className="font-bold text-sm text-white font-mono uppercase tracking-wider">
+                  SECURITY AUDIT // FAILED LOGINS & LOCKOUT EVENTS
+                </h3>
+              </div>
+              <button
+                onClick={() => setIsFailedLoginsDrawerOpen(false)}
+                className="text-slate-400 hover:text-white p-1"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="p-4 overflow-y-auto flex-1 font-mono text-xs space-y-3">
+              <p className="text-slate-400">
+                Log of recent rejected credentials, lockouts, and authentication anomalies within your authorized station scope.
+              </p>
+
+              {failedLoginsLoading ? (
+                <div className="p-8 text-center text-slate-400">
+                  <RotateCcw className="w-5 h-5 text-amber-400 animate-spin mx-auto mb-2" />
+                  <span>Loading failed login audit records...</span>
+                </div>
+              ) : failedLoginsList.length === 0 ? (
+                <div className="p-8 text-center text-slate-500">
+                  No failed login attempts recorded. System security integrity nominal.
+                </div>
+              ) : (
+                <div className="border border-[#222834] rounded overflow-hidden">
+                  <table className="w-full text-left font-mono text-[11px]">
+                    <thead className="bg-[#181d28] text-slate-400 border-b border-[#222834] uppercase text-[10px]">
+                      <tr>
+                        <th className="p-2.5">Timestamp</th>
+                        <th className="p-2.5">Target Username</th>
+                        <th className="p-2.5">Station Hub</th>
+                        <th className="p-2.5">Failure Reason</th>
+                        <th className="p-2.5">IP Address</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-[#222834]">
+                      {failedLoginsList.map((log) => (
+                        <tr key={log.id} className="hover:bg-[#181d28]/60">
+                          <td className="p-2.5 text-slate-300">
+                            {new Date(log.created_at).toLocaleString('en-KE', {
+                              dateStyle: 'short',
+                              timeStyle: 'short',
+                            })}
+                          </td>
+                          <td className="p-2.5 font-bold text-amber-400">
+                            @{log.username_attempted || 'unknown'}
+                          </td>
+                          <td className="p-2.5 text-slate-400">
+                            {log.branch_code || log.branch_name || 'HQ / Global'}
+                          </td>
+                          <td className="p-2.5 text-rose-400 font-medium">
+                            {log.failure_reason || log.status}
+                          </td>
+                          <td className="p-2.5 text-slate-300">{log.ip_address || '—'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+
+            <div className="p-3 border-t border-[#222834] bg-[#181d28] flex items-center justify-between shrink-0 font-mono text-[10px] text-slate-400">
+              <span>{failedLoginsList.length} RECENT ANOMALOUS ATTEMPTS</span>
+              <button
+                onClick={() => setIsFailedLoginsDrawerOpen(false)}
+                className="px-3 py-1.5 rounded bg-[#12161f] hover:bg-[#202736] border border-[#222834] text-xs font-mono text-slate-200"
+              >
+                CLOSE AUDIT
               </button>
             </div>
           </div>

@@ -26,10 +26,16 @@ SwiftTrack Kenya connects physical regional hubs (**Nairobi Central Hub**, **Mom
 - Regional station cashiers and branch managers only access local inventory, POS tenders, and courier dispatches.
 - Regional HQ administrators possess consolidated cross-hub visibility (`HQ-ALL`) with real-time station filtering.
 
-### 3. Enterprise Production Cryptography & Hardening
-- **Cryptographic Dynamic Salt Hashing**: 16-byte cryptographically random dynamic salt `scrypt` hashing (`server/utils/security.js`) with constant-time verification and zero-downtime legacy hash auto-upgrading.
-- **Enterprise Security Middleware**: Sliding-window IP rate limiting, strict HTTP security headers (CSP, HSTS, X-Frame-Options, X-Content-Type-Options, Referrer-Policy), and origin-validated CORS (`server/middleware/security.js`).
-- **Production Guard (`DEMO_MODE=false`)**: High-entropy 512-bit `JWT_SECRET` verification. Unauthenticated demo role switching is strictly rejected with `403 Forbidden`.
+### 3. Enterprise Production Authentication & Cryptographic Hardening (Phase 1)
+- **Strict Startup Secrets Validation**: Zero fallback secrets. Boots safely with ephemeral keys in development, but halts node process in production if `JWT_SECRET` has insufficient entropy (< 32 characters) or matches insecure default placeholders.
+- **Short-Lived Access Tokens & Rotating Refresh Tokens**: 15-minute JWT access tokens combined with 7-day single-use rotating refresh tokens. Refresh token replay attacks are blocked immediately.
+- **Session Management & Immediate Revocation**: Active `user_sessions` tracking with device and IP metadata. Logout and session termination immediately blacklist the JWT `jti` in `revoked_tokens`.
+- **Brute-Force Protection & Account Lockout**: 5 consecutive invalid credentials trigger a 15-minute lockout (`HTTP 423 Locked`) with remaining time telemetry and administrative unlock capability.
+- **Strong Corporate Password Policy**: Enforces 7 rules (10+ characters, mixed case, numbers, symbols, identity exclusion, and 100+ breached password blacklist).
+- **First-Login Mandatory Password Rotation**: New staff accounts or admin-reset accounts flag `must_change_password`, blocking operational endpoints with `403 PASSWORD_CHANGE_REQUIRED` until changed.
+- **Self-Service & Admin Password Recovery**: 15-minute SHA-256 password reset tokens for self-service recovery, plus administrative one-click temporary password generation.
+- **Optional Two-Factor Authentication (RFC 6238 TOTP)**: Zero external dependency native TOTP engine (`server/utils/totp.js`) with Base32 decoding, HMAC-SHA1 30s window drift tolerance, and 8 single-use backup recovery codes.
+- **Comprehensive Audit Telemetry**: Full `login_history` tracking with IP, user-agent, and status, coupled with dedicated failed-logins anomaly investigation.
 
 ### 4. Statutory Kenya Fiscal & Tax Compliance
 - **KRA 16% Fiscal Output VAT Schedule**: Automated tripartite turnover breakdown (Gross Turnover, Taxable Sales Base, and Output VAT Remittance) with ETR audit verification badges.
