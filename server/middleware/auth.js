@@ -124,6 +124,8 @@ function authenticateToken(req, res, next) {
     });
 }
 
+const { SCOPES, AUTHORIZATION_MATRIX, checkPermission } = require('../config/permissions.js');
+
 /**
  * Restricts route to specific roles
  * @param  {...string} allowedRoles
@@ -135,7 +137,7 @@ function requireRole(...allowedRoles) {
         }
         if (!allowedRoles.includes(req.user.roleName)) {
             return res.status(403).json({
-                error: `Forbidden: Action requires one of the following roles: [${allowedRoles.join(', ')}]. Your current role is '${req.user.roleDisplayName}'.`
+                error: `Forbidden: Action requires one of the following roles: [${allowedRoles.join(', ')}]. Your current role is '${req.user.roleDisplayName || req.user.roleName}'.`
             });
         }
         next();
@@ -155,7 +157,7 @@ function requirePermission(permissionCode) {
         if (req.user.roleName === 'SUPER_ADMIN') {
             return next();
         }
-        if (!req.user.permissions.includes(permissionCode)) {
+        if (!req.user.permissions || !req.user.permissions.includes(permissionCode)) {
             return res.status(403).json({
                 error: `Forbidden: Missing required permission '${permissionCode}'.`
             });
@@ -181,7 +183,7 @@ function enforceBranchIsolation(req, res, next) {
     }
 
     // For all operational branch roles (Branch Manager, Dispatcher, Cashier, Driver):
-    const attemptedBranchId = req.query.branch_id || req.params.branchId || (req.body && req.body.branch_id);
+    const attemptedBranchId = req.query.branch_id || req.params.branchId || req.params.branch_id || (req.body && req.body.branch_id);
 
     if (attemptedBranchId !== undefined && attemptedBranchId !== null && attemptedBranchId !== '') {
         if (Number(attemptedBranchId) !== Number(req.user.branchId)) {
@@ -198,11 +200,134 @@ function enforceBranchIsolation(req, res, next) {
     next();
 }
 
+/**
+ * Canonical unified authorization middleware based on the Role x Resource x Action x Branch matrix
+ *
+ * @param {string} resource - e.g. 'pos', 'inventory', 'dispatch', 'delivery', 'users', 'reports', 'expenses', 'branches', 'audit'
+ * @param {string} action - e.g. 'create', 'view', 'refund_approve', 'adjust_approve', etc.
+ * @param {object} [options]
+ * @param {string} [options.entityTable] - DB table name to query for record-level branch/ownership checks
+ * @param {string} [options.idParam='id'] - req.params parameter holding entity ID
+ * @param {string} [options.idBody] - req.body parameter holding entity ID
+ * @param {string} [options.branchColumn='branch_id'] - column on entity indicating branch
+ * @param {string} [options.ownerColumn] - column on entity indicating user ownership
+ * @param {string} [options.driverColumn='driver_id'] - column on entity indicating driver ID
+ * @param {boolean} [options.isTransfer=false] - whether this is an inter-branch transfer
+ * @param {boolean} [options.preventSelfApproval=false] - prevent approving own request (separation of duties)
+ */
+function authorize(resource, action, options = {}) {
+    return (req, res, next) => {
+        if (!req.user) {
+            return res.status(401).json({ error: 'Authentication required' });
+        }
+
+        const context = {};
+        let targetBranchId = req.query.branch_id || req.params.branchId || req.params.branch_id || (req.body && req.body.branch_id);
+        let entityOwnerUserId = null;
+        let entityDriverId = null;
+
+        // If options.entityTable is provided and an ID is present in params or body
+        const entityId = (options.idParam && req.params[options.idParam])
+            || (!options.idParam && req.params.id)
+            || (options.idBody && req.body && req.body[options.idBody]);
+
+        if (options.entityTable && entityId) {
+            try {
+                const entity = db.prepare(`SELECT * FROM ${options.entityTable} WHERE id = ?`).get(entityId);
+                if (!entity) {
+                    return res.status(404).json({ error: `${options.entityTable} record not found.` });
+                }
+                req.targetEntity = entity;
+
+                const bCol = options.branchColumn || 'branch_id';
+                if (entity[bCol] !== undefined && entity[bCol] !== null) {
+                    targetBranchId = entity[bCol];
+                }
+
+                if (options.ownerColumn && entity[options.ownerColumn] !== undefined) {
+                    entityOwnerUserId = entity[options.ownerColumn];
+                }
+
+                const dCol = options.driverColumn || 'driver_id';
+                if (entity[dCol] !== undefined) {
+                    entityDriverId = entity[dCol];
+                }
+            } catch (err) {
+                console.error(`Error resolving entity ${options.entityTable} #${entityId}:`, err);
+            }
+        }
+
+        // Inter-branch transfers special handling
+        if (options.isTransfer) {
+            context.isTransfer = true;
+            if (entityId) {
+                const trf = db.prepare('SELECT source_branch_id, target_branch_id FROM stock_transfers WHERE id = ?').get(entityId);
+                if (trf) {
+                    context.sourceBranchId = trf.source_branch_id;
+                    context.targetBranchId = trf.target_branch_id;
+                    req.targetEntity = trf;
+                }
+            } else if (req.body && req.body.source_branch_id && req.body.target_branch_id) {
+                context.sourceBranchId = req.body.source_branch_id;
+                context.targetBranchId = req.body.target_branch_id;
+            }
+        }
+
+        // Driver context
+        if (req.user.roleName === 'DRIVER') {
+            const driverRec = db.prepare('SELECT id FROM drivers WHERE user_id = ?').get(req.user.id);
+            context.userDriverId = driverRec ? driverRec.id : null;
+            if (entityDriverId) {
+                context.driverId = entityDriverId;
+            }
+        }
+
+        if (targetBranchId != null) context.branchId = targetBranchId;
+        if (entityOwnerUserId != null) context.ownerUserId = entityOwnerUserId;
+
+        // Perform matrix authorization check
+        const authResult = checkPermission(req.user, resource, action, context);
+
+        if (!authResult.granted) {
+            return res.status(403).json({
+                error: authResult.reason,
+                code: 'FORBIDDEN_AUTHORIZATION',
+                resource,
+                action,
+                scope: authResult.scope
+            });
+        }
+
+        // Separation of duties / self-approval prevention (checked if role is fundamentally authorized)
+        if (options.preventSelfApproval && req.user.roleName !== 'SUPER_ADMIN') {
+            if (entityOwnerUserId && Number(entityOwnerUserId) === Number(req.user.id)) {
+                return res.status(403).json({
+                    error: 'Forbidden: Separation of duties violation. You cannot approve your own request.',
+                    code: 'SELF_APPROVAL_PROHIBITED'
+                });
+            }
+        }
+
+        // Setup effective branch id on req for downstream route queries
+        if (req.user.roleName === 'SUPER_ADMIN') {
+            req.effectiveBranchId = targetBranchId ? Number(targetBranchId) : (req.query.branch_id ? Number(req.query.branch_id) : null);
+        } else {
+            req.effectiveBranchId = req.user.branchId;
+        }
+
+        next();
+    };
+}
+
 module.exports = {
     authenticateToken,
     requireRole,
     requirePermission,
     enforceBranchIsolation,
+    authorize,
+    SCOPES,
+    AUTHORIZATION_MATRIX,
+    checkPermission,
     getJwtSecret,
     get JWT_SECRET() {
         return getJwtSecret();

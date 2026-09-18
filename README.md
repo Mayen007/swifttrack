@@ -205,12 +205,30 @@ npm test
 - `npm run dev` — Launches the Vite frontend client development server.
 - `npm run build` — Compiles production frontend client assets into `client/dist/`.
 - `npm test` — Executes the 14-test end-to-end verification suite.
+- `node tests/verify-auth-phase1.js` — Executes the 12-test Phase 1.1 Authentication Hardening test suite.
+- `node tests/verify-auth-phase1-2.js` — Executes the 16-test Phase 1.2 Authorization Matrix (Role × Resource × Action × Branch) test suite.
 - `npm run db:setup` — Initializes SQLite database schemas and triggers.
 - `npm run db:seed:branches` — Seeds full multi-branch demo dataset (Nairobi, Mombasa, Kisumu, Nakuru).
 - `npm run db:seed:prod` — Seeds clean production baseline records.
 - `npm run db:reset:prod` — Safely backs up, clears, and rebuilds a pristine production database.
 - `npm run db:reset:demo` — Backs up, clears, and resets the demo database.
 - `npm run db:backup` — Creates an instant SHA-256 verified database snapshot in `backups/`.
+
+### Security Architecture & Access Control
+- **Phase 1.1 — Authentication Foundation**:
+  - Zero JWT fallback secret; mandatory production secrets validation at boot.
+  - Corporate 7-rule strong password policy with scrypt hashing and 16-byte random salts.
+  - Sliding session management, rotating refresh tokens, and instant JTI revocation blacklist.
+  - Progressive account lockout (HTTP 423) after 5 failed attempts + unlock telemetry.
+  - First-login mandatory password change gates.
+  - TOTP Two-Factor Authentication (RFC 6238) with single-use cryptographic recovery codes.
+- **Phase 1.2 — Role × Resource × Action × Branch Authorization Matrix**:
+  - Centralized deny-by-default access matrix (`server/config/permissions.js`).
+  - Scopes: `GLOBAL`, `OWN_BRANCH`, `OWN_RECORD`, and `DENIED`.
+  - Separation of duties (self-approval prohibited for refunds and expenses).
+  - Dynamic entity-level branch resolution preventing horizontal privilege escalation (HTTP 403).
+  - Vertical privilege escalation blocks against unauthorized administrative mutations (HTTP 403).
+  - Super-Admin company-wide cross-branch authority with dynamic scoping.
 
 ### Client Scripts (`client/package.json`)
 - `npm run dev` — Starts Vite dev server with Hot Module Replacement (HMR).

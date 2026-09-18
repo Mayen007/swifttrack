@@ -2,11 +2,11 @@
 const express = require('express');
 const router = express.Router();
 const { db } = require('../db/database.js');
-const { authenticateToken, requireRole } = require('../middleware/auth.js');
+const { authenticateToken, requireRole, authorize } = require('../middleware/auth.js');
 const { logAuditEvent } = require('../middleware/audit.js');
 
 // GET /api/deliveries/driver/active - Active runs list for Driver View
-router.get('/driver/active', authenticateToken, (req, res) => {
+router.get('/driver/active', authenticateToken, authorize('delivery', 'view_own'), (req, res) => {
     const driver = db.prepare('SELECT id, status, license_number FROM drivers WHERE user_id = ?').get(req.user.id);
     let deliveries = [];
     if (driver) {
@@ -56,7 +56,7 @@ router.get('/driver/active', authenticateToken, (req, res) => {
 });
 
 // GET /api/deliveries/my - Dedicated Driver View: assigned deliveries ONLY (supports DRIVER, SUPER_ADMIN, DISPATCHER, BRANCH_MANAGER)
-router.get('/my', authenticateToken, requireRole('DRIVER', 'SUPER_ADMIN', 'DISPATCHER', 'BRANCH_MANAGER'), (req, res) => {
+router.get('/my', authenticateToken, authorize('delivery', 'view_own'), (req, res) => {
     // Find driver record for current user
     let driver = db.prepare('SELECT id, status, license_number FROM drivers WHERE user_id = ?').get(req.user.id);
     
@@ -144,7 +144,7 @@ router.get('/history', authenticateToken, requireRole('DRIVER', 'SUPER_ADMIN', '
 });
 
 // PATCH /api/deliveries/:id/start - Driver or Supervisor starts transit
-router.patch('/:id/start', authenticateToken, requireRole('DRIVER', 'SUPER_ADMIN', 'DISPATCHER', 'BRANCH_MANAGER'), (req, res) => {
+router.patch('/:id/start', authenticateToken, authorize('delivery', 'start', { entityTable: 'deliveries', idParam: 'id' }), (req, res) => {
     const deliveryId = Number(req.params.id);
     const { latitude, longitude } = req.body;
 
@@ -155,7 +155,7 @@ router.patch('/:id/start', authenticateToken, requireRole('DRIVER', 'SUPER_ADMIN
         driverId = driver.id;
     }
 
-    const delivery = db.prepare('SELECT * FROM deliveries WHERE id = ?').get(deliveryId);
+    const delivery = req.targetEntity || db.prepare('SELECT * FROM deliveries WHERE id = ?').get(deliveryId);
     if (!delivery) return res.status(404).json({ error: 'Delivery not found' });
 
     // Enforce driver ownership only for actual drivers (Super Admin / Dispatcher can supervise)
@@ -192,7 +192,7 @@ router.patch('/:id/start', authenticateToken, requireRole('DRIVER', 'SUPER_ADMIN
 });
 
 // POST /api/deliveries/:id/pod - Submit Proof of Delivery (Canvas Signature, OTP, Photo, GPS)
-router.post('/:id/pod', authenticateToken, requireRole('DRIVER', 'DISPATCHER', 'BRANCH_MANAGER', 'SUPER_ADMIN'), (req, res) => {
+router.post('/:id/pod', authenticateToken, authorize('delivery', 'pod_submit', { entityTable: 'deliveries', idParam: 'id' }), (req, res) => {
     const deliveryId = Number(req.params.id);
     const {
         recipient_name,
@@ -209,7 +209,7 @@ router.post('/:id/pod', authenticateToken, requireRole('DRIVER', 'DISPATCHER', '
         return res.status(400).json({ error: 'Recipient name is required for proof of delivery.' });
     }
 
-    const delivery = db.prepare('SELECT * FROM deliveries WHERE id = ?').get(deliveryId);
+    const delivery = req.targetEntity || db.prepare('SELECT * FROM deliveries WHERE id = ?').get(deliveryId);
     if (!delivery) return res.status(404).json({ error: 'Delivery not found' });
 
     // Driver ownership check
@@ -261,11 +261,21 @@ router.post('/:id/pod', authenticateToken, requireRole('DRIVER', 'DISPATCHER', '
             }
         }
 
-        // 5. Add status history
+        // 5. Append delivery status history
         db.prepare(`
             INSERT INTO delivery_status_history (delivery_id, status, notes, latitude, longitude, updated_by_user_id)
-            VALUES (?, 'DELIVERED', ?, ?, ?, ?)
-        `).run(deliveryId, `Delivered to ${recipient_name}. POD verified.`, latitude || null, longitude || null, req.user.id);
+            VALUES (?, 'DELIVERED', 'Delivered to recipient with electronic signature & POD captured', ?, ?, ?)
+        `).run(deliveryId, latitude || null, longitude || null, req.user.id);
+
+        // 6. Notify Dispatcher & Branch Manager
+        db.prepare(`
+            INSERT INTO notifications (branch_id, type, title, message, reference_type, reference_id)
+            VALUES (?, 'DELIVERY_COMPLETED', 'Delivery Completed Successfully', ?, 'DELIVERY', ?)
+        `).run(
+            delivery.branch_id,
+            `Delivery #${delivery.delivery_number} successfully completed. Recipient: ${recipient_name}.`,
+            String(deliveryId)
+        );
 
         logAuditEvent({
             userId: req.user.id,
@@ -274,8 +284,8 @@ router.post('/:id/pod', authenticateToken, requireRole('DRIVER', 'DISPATCHER', '
             resource: 'DELIVERY',
             resourceId: delivery.delivery_number,
             branchId: delivery.branch_id,
-            newValue: { recipient_name, verified: true, has_signature: !!signature_data },
-            reason: 'Submitted proof of delivery'
+            newValue: { recipient_name, status: 'DELIVERED' },
+            reason: 'Driver submitted valid POD with electronic signature'
         });
     })();
 
@@ -283,7 +293,7 @@ router.post('/:id/pod', authenticateToken, requireRole('DRIVER', 'DISPATCHER', '
 });
 
 // POST /api/deliveries/:id/problem - Driver or Supervisor reports delivery exception
-router.post('/:id/problem', authenticateToken, requireRole('DRIVER', 'SUPER_ADMIN', 'DISPATCHER', 'BRANCH_MANAGER'), (req, res) => {
+router.post('/:id/problem', authenticateToken, authorize('delivery', 'problem', { entityTable: 'deliveries', idParam: 'id' }), (req, res) => {
     const deliveryId = Number(req.params.id);
     const { failure_reason, failure_notes, latitude, longitude } = req.body;
 

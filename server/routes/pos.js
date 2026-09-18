@@ -2,11 +2,11 @@
 const express = require('express');
 const router = express.Router();
 const { db } = require('../db/database.js');
-const { authenticateToken, requireRole } = require('../middleware/auth.js');
+const { authenticateToken, requireRole, authorize } = require('../middleware/auth.js');
 const { logAuditEvent } = require('../middleware/audit.js');
 
 // GET /api/pos/products - Fast search for POS terminal
-router.get('/products', authenticateToken, requireRole('CASHIER', 'BRANCH_MANAGER', 'SUPER_ADMIN'), (req, res) => {
+router.get('/products', authenticateToken, authorize('pos', 'view'), (req, res) => {
     const branchId = (req.user.roleName === 'SUPER_ADMIN' && req.query.branch_id)
         ? Number(req.query.branch_id)
         : (req.user.branchId || 1);
@@ -46,7 +46,7 @@ router.get('/products', authenticateToken, requireRole('CASHIER', 'BRANCH_MANAGE
 });
 
 // POST /api/pos/checkout - Complete POS sale with atomic stock deduction and Kenya receipt generation
-router.post('/checkout', authenticateToken, requireRole('CASHIER', 'BRANCH_MANAGER', 'SUPER_ADMIN'), (req, res) => {
+router.post('/checkout', authenticateToken, authorize('pos', 'create'), (req, res) => {
     const branchId = (req.user.roleName === 'SUPER_ADMIN' && req.body.branch_id)
         ? Number(req.body.branch_id)
         : (req.user.branchId || 1);
@@ -295,7 +295,7 @@ router.post('/checkout', authenticateToken, requireRole('CASHIER', 'BRANCH_MANAG
 });
 
 // POST /api/pos/hold - Hold current sale
-router.post('/hold', authenticateToken, requireRole('CASHIER', 'BRANCH_MANAGER', 'SUPER_ADMIN'), (req, res) => {
+router.post('/hold', authenticateToken, authorize('pos', 'hold'), (req, res) => {
     const branchId = req.user.branchId || 1;
     const { customer_name, customer_phone, cart_data, subtotal, total, notes } = req.body;
 
@@ -320,7 +320,7 @@ router.post('/hold', authenticateToken, requireRole('CASHIER', 'BRANCH_MANAGER',
 });
 
 // GET /api/pos/held - List held sales for this branch
-router.get('/held', authenticateToken, requireRole('CASHIER', 'BRANCH_MANAGER', 'SUPER_ADMIN'), (req, res) => {
+router.get('/held', authenticateToken, authorize('pos', 'view'), (req, res) => {
     const branchId = req.user.branchId || 1;
     const held = db.prepare(`
         SELECT hs.*, u.full_name as cashier_name
@@ -339,7 +339,7 @@ router.get('/held', authenticateToken, requireRole('CASHIER', 'BRANCH_MANAGER', 
 });
 
 // DELETE /api/pos/held/:id - Resume or discard held sale
-router.delete('/held/:id', authenticateToken, requireRole('CASHIER', 'BRANCH_MANAGER', 'SUPER_ADMIN'), (req, res) => {
+router.delete('/held/:id', authenticateToken, authorize('pos', 'hold', { entityTable: 'held_sales' }), (req, res) => {
     const heldId = Number(req.params.id);
     db.prepare('DELETE FROM held_sales WHERE id = ?').run(heldId);
     res.json({ message: 'Held sale cleared successfully' });

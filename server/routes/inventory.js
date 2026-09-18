@@ -2,11 +2,11 @@
 const express = require('express');
 const router = express.Router();
 const { db } = require('../db/database.js');
-const { authenticateToken, requireRole, enforceBranchIsolation } = require('../middleware/auth.js');
+const { authenticateToken, requireRole, enforceBranchIsolation, authorize } = require('../middleware/auth.js');
 const { logAuditEvent } = require('../middleware/audit.js');
 
 // GET /api/inventory - Stock matrix (Branch-scoped or company-wide for Super Admin)
-router.get('/', authenticateToken, enforceBranchIsolation, (req, res) => {
+router.get('/', authenticateToken, authorize('inventory', 'view'), (req, res) => {
     let query = `
         SELECT i.*, p.sku, p.barcode, p.name as product_name, p.unit, p.selling_price, p.cost_price,
                p.min_stock_alert, c.name as category_name,
@@ -41,7 +41,7 @@ router.get('/', authenticateToken, enforceBranchIsolation, (req, res) => {
 });
 
 // GET /api/inventory/movements - Immutable stock movement ledger
-router.get('/movements', authenticateToken, enforceBranchIsolation, (req, res) => {
+router.get('/movements', authenticateToken, authorize('inventory', 'view'), (req, res) => {
     let query = `
         SELECT im.*, p.sku, p.name as product_name, p.unit,
                w.name as warehouse_name, b.name as branch_name,
@@ -71,7 +71,7 @@ router.get('/movements', authenticateToken, enforceBranchIsolation, (req, res) =
 });
 
 // POST /api/inventory/adjust - Submit stock adjustment request
-router.post('/adjust', authenticateToken, requireRole('SUPER_ADMIN', 'BRANCH_MANAGER'), (req, res) => {
+router.post('/adjust', authenticateToken, authorize('inventory', 'adjust_request'), (req, res) => {
     const { warehouse_id, product_id, adjustment_type, quantity, reason, notes } = req.body;
 
     if (!warehouse_id || !product_id || !adjustment_type || !quantity || !reason) {
@@ -183,7 +183,7 @@ router.post('/adjust', authenticateToken, requireRole('SUPER_ADMIN', 'BRANCH_MAN
 });
 
 // GET /api/inventory/transfers - List inter-branch stock transfers
-router.get('/transfers', authenticateToken, enforceBranchIsolation, (req, res) => {
+router.get('/transfers', authenticateToken, authorize('inventory', 'view'), (req, res) => {
     let query = `
         SELECT st.*,
                sb.name as source_branch_name, tb.name as target_branch_name,
@@ -225,7 +225,7 @@ router.get('/transfers', authenticateToken, enforceBranchIsolation, (req, res) =
 });
 
 // POST /api/inventory/transfers - Initiate inter-branch transfer request
-router.post('/transfers', authenticateToken, requireRole('SUPER_ADMIN', 'BRANCH_MANAGER'), (req, res) => {
+router.post('/transfers', authenticateToken, authorize('inventory', 'transfer_request', { isTransfer: true }), (req, res) => {
     const { source_branch_id, source_warehouse_id, target_branch_id, target_warehouse_id, items, notes } = req.body;
 
     if (!source_branch_id || !source_warehouse_id || !target_branch_id || !target_warehouse_id || !items || !items.length) {
@@ -295,7 +295,7 @@ router.post('/transfers', authenticateToken, requireRole('SUPER_ADMIN', 'BRANCH_
 });
 
 // POST /api/inventory/transfers/:id/status - Progress transfer state (APPROVED -> IN_TRANSIT -> RECEIVED)
-router.post('/transfers/:id/status', authenticateToken, requireRole('SUPER_ADMIN', 'BRANCH_MANAGER'), (req, res) => {
+router.post('/transfers/:id/status', authenticateToken, authorize('inventory', 'transfer_status', { isTransfer: true, idParam: 'id' }), (req, res) => {
     const transferId = Number(req.params.id);
     const { action } = req.body; // 'APPROVE', 'DISPATCH', 'RECEIVE', 'REJECT'
 

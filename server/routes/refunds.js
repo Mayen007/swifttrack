@@ -2,11 +2,11 @@
 const express = require('express');
 const router = express.Router();
 const { db } = require('../db/database.js');
-const { authenticateToken, requireRole, enforceBranchIsolation } = require('../middleware/auth.js');
+const { authenticateToken, requireRole, enforceBranchIsolation, authorize } = require('../middleware/auth.js');
 const { logAuditEvent } = require('../middleware/audit.js');
 
 // GET /api/refunds or /api/refunds/queue - List refund requests (Branch Manager sees own branch, Super Admin sees all)
-router.get(['/', '/queue'], authenticateToken, requireRole('BRANCH_MANAGER', 'SUPER_ADMIN', 'CASHIER'), enforceBranchIsolation, (req, res) => {
+router.get(['/', '/queue'], authenticateToken, authorize('pos', 'view'), (req, res) => {
     let query = `
         SELECT rr.*, s.sale_number, s.total_amount as sale_total, s.created_at as sale_date,
                c.full_name as customer_name,
@@ -39,7 +39,7 @@ router.get(['/', '/queue'], authenticateToken, requireRole('BRANCH_MANAGER', 'SU
 });
 
 // POST /api/refunds/request - Cashier or Branch Manager requests a refund
-router.post('/request', authenticateToken, requireRole('CASHIER', 'BRANCH_MANAGER', 'SUPER_ADMIN'), (req, res) => {
+router.post('/request', authenticateToken, authorize('pos', 'refund_request'), (req, res) => {
     const { sale_number, amount, reason } = req.body;
 
     if (!sale_number || !amount || !reason) {
@@ -101,9 +101,9 @@ router.post('/request', authenticateToken, requireRole('CASHIER', 'BRANCH_MANAGE
 });
 
 // POST /api/refunds/:id/approve - Branch Manager or Super Admin approves refund
-router.post('/:id/approve', authenticateToken, requireRole('BRANCH_MANAGER', 'SUPER_ADMIN'), (req, res) => {
+router.post('/:id/approve', authenticateToken, authorize('pos', 'refund_approve', { entityTable: 'refund_requests', preventSelfApproval: true, ownerColumn: 'cashier_user_id' }), (req, res) => {
     const requestId = Number(req.params.id);
-    const refundReq = db.prepare('SELECT * FROM refund_requests WHERE id = ?').get(requestId);
+    const refundReq = req.targetEntity || db.prepare('SELECT * FROM refund_requests WHERE id = ?').get(requestId);
 
     if (!refundReq) return res.status(404).json({ error: 'Refund request not found.' });
     if (refundReq.status !== 'PENDING_APPROVAL') {
@@ -197,7 +197,7 @@ router.post('/:id/approve', authenticateToken, requireRole('BRANCH_MANAGER', 'SU
 });
 
 // POST /api/refunds/:id/reject - Branch Manager rejects refund request
-router.post('/:id/reject', authenticateToken, requireRole('BRANCH_MANAGER', 'SUPER_ADMIN'), (req, res) => {
+router.post('/:id/reject', authenticateToken, authorize('pos', 'refund_approve', { entityTable: 'refund_requests' }), (req, res) => {
     const requestId = Number(req.params.id);
     const { rejection_reason } = req.body;
 

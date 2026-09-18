@@ -4,12 +4,12 @@ const express = require('express');
 const router = express.Router();
 const crypto = require('node:crypto');
 const { db } = require('../db/database.js');
-const { authenticateToken, requireRole } = require('../middleware/auth.js');
+const { authenticateToken, requireRole, authorize } = require('../middleware/auth.js');
 const { logAuditEvent } = require('../middleware/audit.js');
 const { hashPassword, validatePasswordStrength, generateSecureRandom } = require('../utils/security.js');
 
 // GET /api/users - List users (Super Admin sees all, Branch Manager sees only staff at own branch)
-router.get('/', authenticateToken, requireRole('SUPER_ADMIN', 'BRANCH_MANAGER'), (req, res) => {
+router.get('/', authenticateToken, authorize('users', 'view'), (req, res) => {
     let query = `
         SELECT u.id, u.username, u.email, u.full_name, u.phone, u.branch_id, u.is_active,
                u.last_login_at, u.created_at, u.must_change_password, u.token_version,
@@ -38,7 +38,7 @@ router.get('/', authenticateToken, requireRole('SUPER_ADMIN', 'BRANCH_MANAGER'),
 });
 
 // POST /api/users - Provision new staff member
-router.post('/', authenticateToken, requireRole('SUPER_ADMIN', 'BRANCH_MANAGER'), (req, res) => {
+router.post('/', authenticateToken, authorize('users', 'create'), (req, res) => {
     const { username, email, full_name, phone, password, role_id, branch_id, must_change_password = 1 } = req.body;
 
     if (!username || !email || !full_name || !password || !role_id) {
@@ -133,9 +133,9 @@ router.post('/', authenticateToken, requireRole('SUPER_ADMIN', 'BRANCH_MANAGER')
 });
 
 // PUT /api/users/:id - Edit staff or toggle active status
-router.put('/:id', authenticateToken, requireRole('SUPER_ADMIN', 'BRANCH_MANAGER'), (req, res) => {
+router.put('/:id', authenticateToken, authorize('users', 'edit', { entityTable: 'users', idParam: 'id' }), (req, res) => {
     const targetUserId = Number(req.params.id);
-    const targetUser = db.prepare('SELECT * FROM users WHERE id = ?').get(targetUserId);
+    const targetUser = req.targetEntity || db.prepare('SELECT * FROM users WHERE id = ?').get(targetUserId);
 
     if (!targetUser) {
         return res.status(404).json({ error: 'User not found' });
@@ -205,7 +205,7 @@ router.put('/:id', authenticateToken, requireRole('SUPER_ADMIN', 'BRANCH_MANAGER
 });
 
 // POST /api/users/:id/force-logout - Admin forcibly terminates all sessions for a user
-router.post('/:id/force-logout', authenticateToken, requireRole('SUPER_ADMIN', 'BRANCH_MANAGER'), (req, res) => {
+router.post('/:id/force-logout', authenticateToken, authorize('users', 'manage', { entityTable: 'users', idParam: 'id' }), (req, res) => {
     const targetUserId = Number(req.params.id);
     const targetUser = db.prepare('SELECT id, branch_id, role_id, username, token_version FROM users WHERE id = ?').get(targetUserId);
 
@@ -248,9 +248,9 @@ router.post('/:id/force-logout', authenticateToken, requireRole('SUPER_ADMIN', '
 });
 
 // POST /api/users/:id/reset-password - Admin resets password & enforces first-login password change
-router.post('/:id/reset-password', authenticateToken, requireRole('SUPER_ADMIN', 'BRANCH_MANAGER'), (req, res) => {
+router.post('/:id/reset-password', authenticateToken, authorize('users', 'manage', { entityTable: 'users', idParam: 'id' }), (req, res) => {
     const targetUserId = Number(req.params.id);
-    const targetUser = db.prepare('SELECT id, branch_id, role_id, username, email FROM users WHERE id = ?').get(targetUserId);
+    const targetUser = req.targetEntity || db.prepare('SELECT id, branch_id, role_id, username, email FROM users WHERE id = ?').get(targetUserId);
 
     if (!targetUser) {
         return res.status(404).json({ error: 'User not found' });
@@ -313,9 +313,9 @@ router.post('/:id/reset-password', authenticateToken, requireRole('SUPER_ADMIN',
 });
 
 // POST /api/users/:id/unlock - Admin manually unlocks locked account
-router.post('/:id/unlock', authenticateToken, requireRole('SUPER_ADMIN', 'BRANCH_MANAGER'), (req, res) => {
+router.post('/:id/unlock', authenticateToken, authorize('users', 'manage', { entityTable: 'users', idParam: 'id' }), (req, res) => {
     const targetUserId = Number(req.params.id);
-    const targetUser = db.prepare('SELECT id, branch_id, role_id, username FROM users WHERE id = ?').get(targetUserId);
+    const targetUser = req.targetEntity || db.prepare('SELECT id, branch_id, role_id, username FROM users WHERE id = ?').get(targetUserId);
 
     if (!targetUser) {
         return res.status(404).json({ error: 'User not found' });
@@ -348,9 +348,9 @@ router.post('/:id/unlock', authenticateToken, requireRole('SUPER_ADMIN', 'BRANCH
 });
 
 // GET /api/users/:id/login-history - Admin audits login history for user
-router.get('/:id/login-history', authenticateToken, requireRole('SUPER_ADMIN', 'BRANCH_MANAGER'), (req, res) => {
+router.get('/:id/login-history', authenticateToken, authorize('users', 'manage', { entityTable: 'users', idParam: 'id' }), (req, res) => {
     const targetUserId = Number(req.params.id);
-    const targetUser = db.prepare('SELECT id, branch_id, username FROM users WHERE id = ?').get(targetUserId);
+    const targetUser = req.targetEntity || db.prepare('SELECT id, branch_id, username FROM users WHERE id = ?').get(targetUserId);
 
     if (!targetUser) {
         return res.status(404).json({ error: 'User not found' });
@@ -372,7 +372,7 @@ router.get('/:id/login-history', authenticateToken, requireRole('SUPER_ADMIN', '
 });
 
 // GET /api/users/security/failed-logins - Admin audits system failed logins
-router.get('/security/failed-logins', authenticateToken, requireRole('SUPER_ADMIN', 'BRANCH_MANAGER'), (req, res) => {
+router.get('/security/failed-logins', authenticateToken, authorize('audit', 'failed_logins'), (req, res) => {
     let query = `
         SELECT lh.id, lh.user_id, lh.username_attempted, lh.status, lh.failure_reason,
                lh.ip_address, lh.user_agent, lh.created_at, lh.branch_id,

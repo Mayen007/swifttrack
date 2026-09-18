@@ -2,11 +2,11 @@
 const express = require('express');
 const router = express.Router();
 const { db } = require('../db/database.js');
-const { authenticateToken, requireRole, enforceBranchIsolation } = require('../middleware/auth.js');
+const { authenticateToken, requireRole, enforceBranchIsolation, authorize } = require('../middleware/auth.js');
 const { logAuditEvent } = require('../middleware/audit.js');
 
 // GET /api/branches - List branches (Super Admin sees detailed metrics; operational roles see network directory)
-router.get('/', authenticateToken, (req, res) => {
+router.get('/', authenticateToken, authorize('branches', 'view'), (req, res) => {
     if (req.user.roleName === 'SUPER_ADMIN') {
         const branches = db.prepare(`
             SELECT b.*,
@@ -34,7 +34,7 @@ router.get('/', authenticateToken, (req, res) => {
 });
 
 // GET /api/branches/:id - Get specific branch (Enforces branch isolation)
-router.get('/:id', authenticateToken, (req, res) => {
+router.get('/:id', authenticateToken, authorize('branches', 'view'), (req, res) => {
     const targetBranchId = Number(req.params.id);
 
     if (req.user.roleName !== 'SUPER_ADMIN' && targetBranchId !== Number(req.user.branchId)) {
@@ -61,7 +61,7 @@ router.get('/:id', authenticateToken, (req, res) => {
 });
 
 // POST /api/branches - Create branch (SUPER_ADMIN ONLY)
-router.post('/', authenticateToken, requireRole('SUPER_ADMIN'), (req, res) => {
+router.post('/', authenticateToken, authorize('branches', 'create'), (req, res) => {
     const { code, name, city, address, phone, email } = req.body;
 
     if (!code || !name || !city || !address || !phone || !email) {
@@ -105,15 +105,8 @@ router.post('/', authenticateToken, requireRole('SUPER_ADMIN'), (req, res) => {
 });
 
 // PUT /api/branches/:id - Edit branch
-router.put('/:id', authenticateToken, (req, res) => {
+router.put('/:id', authenticateToken, authorize('branches', 'manage', { entityTable: 'branches', idParam: 'id', branchColumn: 'id' }), (req, res) => {
     const targetBranchId = Number(req.params.id);
-
-    // Only Super Admin or the Branch Manager of this branch can edit
-    if (req.user.roleName !== 'SUPER_ADMIN') {
-        if (req.user.roleName !== 'BRANCH_MANAGER' || targetBranchId !== Number(req.user.branchId)) {
-            return res.status(403).json({ error: 'Forbidden: You do not have permission to modify this branch.' });
-        }
-    }
 
     const { name, city, address, phone, email, is_active } = req.body;
     const previous = db.prepare('SELECT * FROM branches WHERE id = ?').get(targetBranchId);

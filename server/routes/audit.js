@@ -2,10 +2,10 @@
 const express = require('express');
 const router = express.Router();
 const { db } = require('../db/database.js');
-const { authenticateToken, requireRole, enforceBranchIsolation } = require('../middleware/auth.js');
+const { authenticateToken, requireRole, enforceBranchIsolation, authorize } = require('../middleware/auth.js');
 
 // GET /api/audit - View append-only audit trail
-router.get('/', authenticateToken, requireRole('SUPER_ADMIN', 'BRANCH_MANAGER'), enforceBranchIsolation, (req, res) => {
+router.get('/', authenticateToken, authorize('audit', 'view_own'), (req, res) => {
     const { resource, action, date } = req.query;
 
     let query = `
@@ -63,7 +63,7 @@ router.get('/', authenticateToken, requireRole('SUPER_ADMIN', 'BRANCH_MANAGER'),
 });
 
 // GET /api/audit/failed-logins - View failed login attempt telemetry
-router.get('/failed-logins', authenticateToken, requireRole('SUPER_ADMIN', 'BRANCH_MANAGER'), (req, res) => {
+router.get('/failed-logins', authenticateToken, authorize('audit', 'failed_logins'), (req, res) => {
     let query = `
         SELECT lh.id, lh.user_id, lh.username_attempted, lh.status, lh.failure_reason,
                lh.ip_address, lh.user_agent, lh.created_at, lh.branch_id,

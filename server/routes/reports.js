@@ -2,7 +2,7 @@
 const express = require('express');
 const router = express.Router();
 const { db } = require('../db/database.js');
-const { authenticateToken, enforceBranchIsolation } = require('../middleware/auth.js');
+const { authenticateToken, enforceBranchIsolation, authorize } = require('../middleware/auth.js');
 
 // GET /api/reports/dashboard - Role-tailored dashboard metrics
 router.get('/dashboard', authenticateToken, enforceBranchIsolation, (req, res) => {
@@ -244,7 +244,7 @@ router.get('/dashboard', authenticateToken, enforceBranchIsolation, (req, res) =
 });
 
 // GET /api/reports/dashboard-charts - Comprehensive visual analytics for 10 dashboard graphs & charts
-router.get('/dashboard-charts', authenticateToken, enforceBranchIsolation, (req, res) => {
+router.get('/dashboard-charts', authenticateToken, authorize('reports', 'financial_own'), (req, res) => {
     try {
         const targetBranch = req.effectiveBranchId || (req.query.branch_id ? Number(req.query.branch_id) : null);
         const days = Math.min(Math.max(parseInt(req.query.days) || 14, 7), 90);
@@ -641,7 +641,7 @@ router.get('/dashboard-charts', authenticateToken, enforceBranchIsolation, (req,
 });
 
 // GET /api/reports/vat - Kenya Revenue Authority 16% VAT Report
-router.get('/vat', authenticateToken, enforceBranchIsolation, (req, res) => {
+router.get('/vat', authenticateToken, authorize('reports', 'financial_own'), (req, res) => {
     const branchId = req.effectiveBranchId || (req.query.branch_id ? Number(req.query.branch_id) : null);
     const bFilter = branchId ? ' WHERE s.branch_id = ' + branchId : '';
     const bAnd = branchId ? ' AND s.branch_id = ' + branchId : '';
@@ -702,7 +702,7 @@ router.get('/vat', authenticateToken, enforceBranchIsolation, (req, res) => {
 });
 
 // GET /api/reports/pnl - Comprehensive Branch & Consolidated Profit & Loss
-router.get('/pnl', authenticateToken, enforceBranchIsolation, (req, res) => {
+router.get('/pnl', authenticateToken, authorize('reports', 'financial_own'), (req, res) => {
     const branchId = req.effectiveBranchId || (req.query.branch_id ? Number(req.query.branch_id) : null);
     const bFilterSales = branchId ? ' WHERE s.branch_id = ' + branchId : '';
     const bFilterExpenses = branchId ? ' WHERE branch_id = ' + branchId : '';
@@ -751,7 +751,7 @@ router.get('/pnl', authenticateToken, enforceBranchIsolation, (req, res) => {
 });
 
 // GET /api/reports/payments - Payment Methods Analysis (M-Pesa, Cash, Card)
-router.get('/payments', authenticateToken, enforceBranchIsolation, (req, res) => {
+router.get('/payments', authenticateToken, authorize('reports', 'financial_own'), (req, res) => {
     const branchId = req.effectiveBranchId || (req.query.branch_id ? Number(req.query.branch_id) : null);
     const bFilter = branchId ? ' WHERE s.branch_id = ' + branchId : '';
 

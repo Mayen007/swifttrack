@@ -2,11 +2,11 @@
 const express = require('express');
 const router = express.Router();
 const { db } = require('../db/database.js');
-const { authenticateToken, requireRole, enforceBranchIsolation } = require('../middleware/auth.js');
+const { authenticateToken, requireRole, enforceBranchIsolation, authorize } = require('../middleware/auth.js');
 const { logAuditEvent } = require('../middleware/audit.js');
 
 // GET /api/dispatch/kanban - Flattened deliveries for Dispatch Kanban board
-router.get('/kanban', authenticateToken, requireRole('DISPATCHER', 'BRANCH_MANAGER', 'SUPER_ADMIN'), enforceBranchIsolation, (req, res) => {
+router.get('/kanban', authenticateToken, authorize('dispatch', 'view'), (req, res) => {
     const branchId = req.effectiveBranchId;
     let deliveriesQuery = `
         SELECT d.*, o.order_number, o.total_amount, o.delivery_address, o.delivery_city,
@@ -34,7 +34,7 @@ router.get('/kanban', authenticateToken, requireRole('DISPATCHER', 'BRANCH_MANAG
 });
 
 // GET /api/dispatch/board - Operational Command Center data
-router.get('/board', authenticateToken, requireRole('DISPATCHER', 'BRANCH_MANAGER', 'SUPER_ADMIN'), enforceBranchIsolation, (req, res) => {
+router.get('/board', authenticateToken, authorize('dispatch', 'view'), (req, res) => {
     const branchId = req.effectiveBranchId;
 
     let deliveriesQuery = `
@@ -115,14 +115,14 @@ router.get('/board', authenticateToken, requireRole('DISPATCHER', 'BRANCH_MANAGE
 });
 
 // POST /api/dispatch/assign - Assign Driver & Vehicle to Delivery
-router.post('/assign', authenticateToken, requireRole('DISPATCHER', 'BRANCH_MANAGER', 'SUPER_ADMIN'), (req, res) => {
+router.post('/assign', authenticateToken, authorize('dispatch', 'assign', { entityTable: 'deliveries', idBody: 'delivery_id' }), (req, res) => {
     const { delivery_id, driver_id, vehicle_id, priority, notes } = req.body;
 
     if (!delivery_id || !driver_id) {
         return res.status(400).json({ error: 'Delivery ID and Driver ID are required.' });
     }
 
-    const delivery = db.prepare('SELECT * FROM deliveries WHERE id = ?').get(delivery_id);
+    const delivery = req.targetEntity || db.prepare('SELECT * FROM deliveries WHERE id = ?').get(delivery_id);
     if (!delivery) return res.status(404).json({ error: 'Delivery not found' });
 
     // Branch isolation
@@ -178,20 +178,20 @@ router.post('/assign', authenticateToken, requireRole('DISPATCHER', 'BRANCH_MANA
             resource: 'DELIVERY',
             resourceId: delivery.delivery_number,
             branchId: delivery.branch_id,
-            newValue: { driver_id, driver_name: driver.full_name, vehicle_id },
-            reason: 'Dispatcher assigned delivery driver'
+            newValue: { driver_id, driver_name: driver.full_name, vehicle_id, priority },
+            reason: 'Assigned driver to delivery'
         });
     })();
 
-    res.json({ message: `Delivery #${delivery.delivery_number} successfully assigned to ${driver.full_name}.` });
+    res.json({ message: `Delivery assigned to ${driver.full_name}`, status: 'ASSIGNED' });
 });
 
 // PATCH /api/dispatch/:id/priority - Update delivery priority
-router.patch('/:id/priority', authenticateToken, requireRole('DISPATCHER', 'BRANCH_MANAGER', 'SUPER_ADMIN'), (req, res) => {
+router.patch('/:id/priority', authenticateToken, authorize('dispatch', 'update', { entityTable: 'deliveries', idParam: 'id' }), (req, res) => {
     const deliveryId = Number(req.params.id);
     const { priority } = req.body; // 'NORMAL', 'HIGH', 'URGENT'
 
-    const delivery = db.prepare('SELECT * FROM deliveries WHERE id = ?').get(deliveryId);
+    const delivery = req.targetEntity || db.prepare('SELECT * FROM deliveries WHERE id = ?').get(deliveryId);
     if (!delivery) return res.status(404).json({ error: 'Delivery not found' });
 
     if (req.user.roleName !== 'SUPER_ADMIN' && delivery.branch_id !== req.user.branchId) {
@@ -203,7 +203,7 @@ router.patch('/:id/priority', authenticateToken, requireRole('DISPATCHER', 'BRAN
 });
 
 // POST /api/dispatch/:id/fail - Mark delivery as failed and initiate return-to-branch
-router.post('/:id/fail', authenticateToken, requireRole('DISPATCHER', 'BRANCH_MANAGER', 'SUPER_ADMIN'), (req, res) => {
+router.post('/:id/fail', authenticateToken, authorize('dispatch', 'update', { entityTable: 'deliveries', idParam: 'id' }), (req, res) => {
     const deliveryId = Number(req.params.id);
     const { failure_reason, failure_notes, initiate_return } = req.body;
 
@@ -263,11 +263,11 @@ router.post('/:id/fail', authenticateToken, requireRole('DISPATCHER', 'BRANCH_MA
 });
 
 // PUT /api/dispatch/:id/status - Update delivery stage
-router.put('/:id/status', authenticateToken, (req, res) => {
+router.put('/:id/status', authenticateToken, authorize('dispatch', 'update', { entityTable: 'deliveries', idParam: 'id' }), (req, res) => {
     const deliveryId = Number(req.params.id);
     const { status, latitude, longitude } = req.body;
 
-    const delivery = db.prepare('SELECT * FROM deliveries WHERE id = ?').get(deliveryId);
+    const delivery = req.targetEntity || db.prepare('SELECT * FROM deliveries WHERE id = ?').get(deliveryId);
     if (!delivery) return res.status(404).json({ error: 'Delivery not found' });
 
     db.transaction(() => {

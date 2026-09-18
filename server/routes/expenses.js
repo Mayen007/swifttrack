@@ -2,11 +2,11 @@
 const express = require('express');
 const router = express.Router();
 const { db } = require('../db/database.js');
-const { authenticateToken, requireRole, enforceBranchIsolation } = require('../middleware/auth.js');
+const { authenticateToken, requireRole, enforceBranchIsolation, authorize } = require('../middleware/auth.js');
 const { logAuditEvent } = require('../middleware/audit.js');
 
 // GET /api/expenses - List expenses (Branch scoped or all for Super Admin)
-router.get('/', authenticateToken, enforceBranchIsolation, (req, res) => {
+router.get('/', authenticateToken, authorize('expenses', 'create'), (req, res) => {
     let query = `
         SELECT e.*, b.name as branch_name,
                u_cr.full_name as created_by_name,
@@ -35,7 +35,7 @@ router.get('/', authenticateToken, enforceBranchIsolation, (req, res) => {
 });
 
 // POST /api/expenses - Submit branch expense
-router.post('/', authenticateToken, (req, res) => {
+router.post('/', authenticateToken, authorize('expenses', 'create'), (req, res) => {
     const branchId = req.user.branchId || (req.body.branch_id ? Number(req.body.branch_id) : 1);
 
     if (req.user.roleName !== 'SUPER_ADMIN' && branchId !== req.user.branchId) {
@@ -82,9 +82,9 @@ router.post('/', authenticateToken, (req, res) => {
 });
 
 // POST /api/expenses/:id/approve - Approve expense (Branch Manager / Super Admin)
-router.post('/:id/approve', authenticateToken, requireRole('BRANCH_MANAGER', 'SUPER_ADMIN'), (req, res) => {
+router.post('/:id/approve', authenticateToken, authorize('expenses', 'approve', { entityTable: 'expenses', idParam: 'id' }), (req, res) => {
     const expenseId = Number(req.params.id);
-    const exp = db.prepare('SELECT * FROM expenses WHERE id = ?').get(expenseId);
+    const exp = req.targetEntity || db.prepare('SELECT * FROM expenses WHERE id = ?').get(expenseId);
 
     if (!exp) return res.status(404).json({ error: 'Expense not found' });
     if (req.user.roleName !== 'SUPER_ADMIN' && exp.branch_id !== req.user.branchId) {
