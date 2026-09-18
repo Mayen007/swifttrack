@@ -15,13 +15,20 @@
     "db:seed:branches": "node server/db/seedDemoBranches.js",
     "db:reset:prod": "node server/db/seed.js --clean --prod",
     "db:reset:demo": "node server/db/seed.js --clean",
-    "db:backup": "node server/db/backup.js"
+    "db:backup": "node server/db/backup.js",
+    "db:migrate": "node server/db/postgres/migrator.js up",
+    "db:migrate:status": "node server/db/postgres/migrator.js status",
+    "db:migrate:rollback": "node server/db/postgres/migrator.js rollback",
+    "db:pg:seed": "node server/db/postgres/seed.js",
+    "db:pg:retention": "node server/db/postgres/retention.js",
+    "db:migrate:sqlite-to-pg": "node scripts/migrate-sqlite-to-postgres.js"
   },
   "keywords": [],
   "type": "commonjs",
   "dependencies": {
     "cors": "^2.8.6",
     "express": "^5.2.1",
-    "jsonwebtoken": "^9.0.3"
+    "jsonwebtoken": "^9.0.3",
+    "pg": "^8.23.0"
   }
 }
