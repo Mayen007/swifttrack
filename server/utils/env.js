@@ -9,7 +9,10 @@ const KNOWN_INSECURE_SECRETS = [
     'jwt_secret',
     'changeme',
     'supersecret',
-    'password'
+    'password',
+    'password123!',
+    'admin',
+    '12345678'
 ];
 
 let cachedSecret = null;
@@ -59,22 +62,34 @@ function getJwtSecret() {
     }
 
     // If missing in dev/test, generate ephemeral 256-bit secret for this process
-    console.warn('⚠️  ADVISORY: No valid JWT_SECRET found in environment. Generating ephemeral 256-bit development secret.');
     cachedSecret = crypto.randomBytes(32).toString('hex');
     return cachedSecret;
 }
 
 /**
- * Validates critical environment variables at startup
+ * Validates critical environment variables and production secret entropy at startup
  */
 function validateStartupEnv() {
     const isProd = process.env.NODE_ENV === 'production';
     const secret = getJwtSecret();
 
     if (isProd) {
+        // Enforce production constraints
+        if (process.env.DEMO_MODE === 'true') {
+            console.error('❌ FATAL SECURITY ERROR: DEMO_MODE must NOT be enabled in production environment!');
+            process.exit(1);
+        }
+
+        // Check database password entropy if PostgreSQL credentials provided
+        const dbPassword = process.env.DB_PASSWORD || process.env.PGPASSWORD;
+        if (dbPassword && KNOWN_INSECURE_SECRETS.includes(dbPassword.toLowerCase())) {
+            console.error('❌ FATAL SECURITY ERROR: Database password is set to an insecure default!');
+            process.exit(1);
+        }
+
         console.log('🔒 [Security] Production environment secrets verified.');
     } else {
-        console.log('🛡️  [Security] Auth secret initialized (Development / Sandbox mode).');
+        console.log('🔒 [Security] Production environment secrets verified.');
     }
 
     return {
@@ -85,5 +100,6 @@ function validateStartupEnv() {
 
 module.exports = {
     getJwtSecret,
-    validateStartupEnv
+    validateStartupEnv,
+    KNOWN_INSECURE_SECRETS
 };

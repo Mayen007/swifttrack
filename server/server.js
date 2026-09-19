@@ -27,6 +27,9 @@ const { responseEnhancer, centralErrorHandler, NotFoundError } = require('./util
 const { idempotencyMiddleware } = require('./middleware/idempotency.js');
 const v1Router = require('./routes/v1/index.js');
 
+const { tieredBodyParser, tieredUrlEncodedParser } = require('./middleware/bodyLimits.js');
+const { csrfProtection } = require('./middleware/csrf.js');
+
 const app = express();
 const PORT = process.env.PORT || 4000;
 
@@ -36,11 +39,12 @@ app.use(requestIdMiddleware);
 // 2. Response envelope enhancer (adds res.apiSuccess and res.apiError)
 app.use(responseEnhancer);
 
-// 3. Production Security & Body parsing middleware
+// 3. Production Security, CORS & Tiered Body Parsing middleware
 app.use(securityHeaders);
 app.use(configureCors());
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+app.use(tieredBodyParser);
+app.use(tieredUrlEncodedParser);
+app.use(csrfProtection);
 
 // 4. Idempotency Key interceptor for mutating requests
 app.use(idempotencyMiddleware());

@@ -1,5 +1,6 @@
 // server/middleware/security.js
-// Production Security Middleware: Rate Limiting, HTTP Security Headers & Origin Validation
+// Production Security Middleware: Rate Limiting, Strict CSP, HTTP Security Headers & Origin Validation
+const crypto = require('node:crypto');
 
 /**
  * Creates an in-memory sliding-window rate limiter per client IP
@@ -59,19 +60,25 @@ function createRateLimiter(options = {}) {
 }
 
 /**
- * Enterprise HTTP Security Headers (Strict modern protection against XSS, clickjacking, MIME-sniffing)
+ * Enterprise HTTP Security Headers
+ * Enforces Strict CSP Level 3 (NO unsafe-eval, NO unsafe-inline script-src via cryptographic nonces)
  */
 function securityHeaders(req, res, next) {
+    // Generate unique per-request cryptographic nonce
+    const nonce = crypto.randomBytes(16).toString('base64');
+    res.locals.cspNonce = nonce;
+    req.cspNonce = nonce;
+
     // Prevent MIME-sniffing
     res.setHeader('X-Content-Type-Options', 'nosniff');
     
-    // Guard against clickjacking
+    // Guard against clickjacking (frame-ancestors handles modern browsers, X-Frame-Options handles legacy)
     res.setHeader('X-Frame-Options', 'SAMEORIGIN');
     
     // Legacy XSS filter protection
     res.setHeader('X-XSS-Protection', '1; mode=block');
     
-    // Referrer policy
+    // Strict referrer policy
     res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
     
     // HSTS (enforced in production or HTTPS)
@@ -79,56 +86,118 @@ function securityHeaders(req, res, next) {
         res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains; preload');
     }
 
-    // Permissions policy
-    res.setHeader('Permissions-Policy', 'geolocation=(self), camera=(), microphone=()');
+    // Modern Permissions Policy
+    res.setHeader('Permissions-Policy', 'geolocation=(self), camera=(), microphone=(), payment=(self)');
 
-    // Content Security Policy
-    res.setHeader(
-        'Content-Security-Policy',
-        "default-src 'self'; " +
-        "script-src 'self' 'unsafe-inline' 'unsafe-eval'; " +
-        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; " +
-        "font-src 'self' https://fonts.gstatic.com data:; " +
-        "img-src 'self' data: blob: https:; " +
-        "connect-src 'self' http://localhost:* ws://localhost:*;"
-    );
+    // Strict Content Security Policy (Level 3)
+    const isProd = process.env.NODE_ENV === 'production';
+    const connectSrc = isProd
+        ? "'self'"
+        : "'self' http://localhost:* ws://localhost:* http://127.0.0.1:* ws://127.0.0.1:*";
+
+    const cspDirectives = [
+        "default-src 'self'",
+        // Strictly allow scripts from 'self' and scripts matching the per-request cryptographic nonce.
+        // Unsafe-eval and unsafe-inline are strictly eliminated.
+        `script-src 'self' 'nonce-${nonce}'`,
+        // Styles allow 'self', Google Fonts, and unsafe-inline for dynamic CSS variables/Tailwind runtime
+        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+        "font-src 'self' https://fonts.gstatic.com data:",
+        "img-src 'self' data: blob: https:",
+        `connect-src ${connectSrc}`,
+        "object-src 'none'",
+        "base-uri 'self'",
+        "form-action 'self'",
+        "frame-ancestors 'self'",
+        isProd ? "upgrade-insecure-requests" : ""
+    ].filter(Boolean).join('; ');
+
+    res.setHeader('Content-Security-Policy', cspDirectives);
 
     next();
 }
 
 /**
- * Configures CORS headers according to environment configuration
+ * Configures CORS headers with strict production boundaries
+ * Rejects wildcards, non-HTTPS schemes, and localhost when in production.
  */
 function configureCors() {
     const cors = require('cors');
-    const allowed = (process.env.CORS_ORIGINS || 'http://localhost:5173,http://localhost:5174,http://localhost:4000')
+    const isProd = process.env.NODE_ENV === 'production';
+
+    const rawAllowed = (process.env.CORS_ORIGINS || (isProd ? 'https://app.swifttrack.co.ke,https://swifttrack.co.ke' : 'http://localhost:5173,http://localhost:5174,http://localhost:4000'))
         .split(',')
         .map(o => o.trim())
         .filter(Boolean);
 
+    // In production, strictly reject wildcard '*' or insecure http localhost
+    const allowed = rawAllowed.filter(origin => {
+        if (!isProd) return true;
+        if (origin === '*') {
+            console.error('❌ SECURITY WARNING: Wildcard CORS origin (*) is rejected in production!');
+            return false;
+        }
+        if (/^http:\/\/(localhost|127\.0\.0\.1)/i.test(origin)) {
+            console.error(`❌ SECURITY WARNING: Localhost origin (${origin}) is rejected in production mode!`);
+            return false;
+        }
+        return true;
+    });
+
     return cors({
         origin: (origin, callback) => {
-            // Allow requests with no origin (e.g. mobile apps, curl, server-to-server)
+            // Allow requests with no origin (e.g. mobile applications, curl, native apps, server-to-server)
             if (!origin) return callback(null, true);
 
-            // Allow if explicitly listed or wildcard
+            // In production, reject wildcard origin attempts outright
+            if (isProd) {
+                if (allowed.includes(origin)) {
+                    return callback(null, true);
+                }
+                const err = new Error(`CORS blocked: Origin '${origin}' is not authorized in production.`);
+                err.status = 403;
+                err.statusCode = 403;
+                err.code = 'CORS_FORBIDDEN';
+                return callback(err);
+            }
+
+            // Development / Test mode: allow listed or wildcard or localhost
             if (allowed.includes(origin) || allowed.includes('*')) {
                 return callback(null, true);
             }
 
-            // Allow any localhost/127.0.0.1 origin when localhost is configured in allowed origins
             const hasLocalhostAllowed = allowed.some(o => o.includes('localhost') || o.includes('127.0.0.1'));
             const isLocalhostOrigin = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin);
             if (hasLocalhostAllowed && isLocalhostOrigin) {
                 return callback(null, true);
             }
 
-            // Deny origin gracefully without throwing an uncaught exception
-            callback(null, false);
+            // Reject unapproved origin
+            const err = new Error(`CORS blocked: Origin '${origin}' is not authorized.`);
+            err.status = 403;
+            err.statusCode = 403;
+            err.code = 'CORS_FORBIDDEN';
+            callback(err);
         },
         credentials: true,
         methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-        allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
+        allowedHeaders: [
+            'Content-Type',
+            'Authorization',
+            'X-Requested-With',
+            'X-Request-ID',
+            'Idempotency-Key',
+            'X-CSRF-Protection'
+        ],
+        exposedHeaders: [
+            'X-Request-ID',
+            'Idempotency-Key',
+            'Idempotent-Replay',
+            'RateLimit-Limit',
+            'RateLimit-Remaining',
+            'RateLimit-Reset',
+            'Retry-After'
+        ]
     });
 }
 

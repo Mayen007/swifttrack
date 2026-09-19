@@ -7,28 +7,63 @@ const { logAuditEvent } = require('../middleware/audit.js');
 
 // GET /api/branches - List branches (Super Admin sees detailed metrics; operational roles see network directory)
 router.get('/', authenticateToken, authorize('branches', 'view'), (req, res) => {
+    const { city, search, is_active } = req.query;
+
     if (req.user.roleName === 'SUPER_ADMIN') {
+        const where = [];
+        const params = [];
+
+        if (city) {
+            where.push('b.city = ?');
+            params.push(city);
+        }
+        if (search) {
+            where.push('(b.name LIKE ? OR b.code LIKE ? OR b.city LIKE ?)');
+            const s = `%${search.trim()}%`;
+            params.push(s, s, s);
+        }
+        if (is_active !== undefined) {
+            where.push('b.is_active = ?');
+            params.push(Number(is_active));
+        }
+
+        const whereSql = where.length > 0 ? `WHERE ${where.join(' AND ')}` : '';
         const branches = db.prepare(`
             SELECT b.*,
                    (SELECT count(*) FROM users WHERE branch_id = b.id AND is_active = 1) as staff_count,
                    (SELECT count(*) FROM warehouses WHERE branch_id = b.id AND is_active = 1) as warehouse_count,
                    (SELECT count(*) FROM orders WHERE branch_id = b.id) as total_orders
             FROM branches b
+            ${whereSql}
             ORDER BY b.id ASC
-        `).all();
+        `).all(...params);
         return res.json(branches);
     }
 
     // Operational staff see active branch directory (needed for inter-hub transfers, dispatch routing, and station switching)
+    const where = ['b.is_active = 1'];
+    const params = [req.user.branchId || 0, req.user.branchId || 0];
+
+    if (city) {
+        where.push('b.city = ?');
+        params.push(city);
+    }
+    if (search) {
+        where.push('(b.name LIKE ? OR b.code LIKE ? OR b.city LIKE ?)');
+        const s = `%${search.trim()}%`;
+        params.push(s, s, s);
+    }
+
+    const whereSql = `WHERE ${where.join(' AND ')}`;
     const branches = db.prepare(`
         SELECT b.id, b.code, b.name, b.city, b.address, b.phone, b.email, b.is_active,
                CASE WHEN b.id = ? THEN (SELECT count(*) FROM users WHERE branch_id = b.id AND is_active = 1) ELSE 0 END as staff_count,
                (SELECT count(*) FROM warehouses WHERE branch_id = b.id AND is_active = 1) as warehouse_count,
                CASE WHEN b.id = ? THEN (SELECT count(*) FROM orders WHERE branch_id = b.id) ELSE 0 END as total_orders
         FROM branches b
-        WHERE b.is_active = 1
+        ${whereSql}
         ORDER BY b.id ASC
-    `).all(req.user.branchId || 0, req.user.branchId || 0);
+    `).all(...params);
 
     res.json(branches);
 });
