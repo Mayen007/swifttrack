@@ -22,59 +22,40 @@ const { db, initSchema } = require('./db/database.js');
 const { runSeed, initProductionBootstrap, ensureRichChartTelemetry } = require('./db/seed.js');
 const { securityHeaders, configureCors, createRateLimiter } = require('./middleware/security.js');
 
+const { requestIdMiddleware } = require('./middleware/requestId.js');
+const { responseEnhancer, centralErrorHandler, NotFoundError } = require('./utils/response.js');
+const { idempotencyMiddleware } = require('./middleware/idempotency.js');
+const v1Router = require('./routes/v1/index.js');
+
 const app = express();
 const PORT = process.env.PORT || 4000;
 
-// 2. Production Security & Body parsing middleware
+// 1. Request ID & correlation tracking (runs first on every request)
+app.use(requestIdMiddleware);
+
+// 2. Response envelope enhancer (adds res.apiSuccess and res.apiError)
+app.use(responseEnhancer);
+
+// 3. Production Security & Body parsing middleware
 app.use(securityHeaders);
 app.use(configureCors());
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// 3. Brute-force rate limiter on authentication endpoint
+// 4. Idempotency Key interceptor for mutating requests
+app.use(idempotencyMiddleware());
+
+// 5. Brute-force rate limiter on authentication endpoint
 const authRateLimiter = createRateLimiter({
     windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS) || (15 * 60 * 1000),
     max: parseInt(process.env.RATE_LIMIT_MAX_LOGIN_ATTEMPTS) || 15,
     message: 'Too many authentication attempts. Please wait 15 minutes before trying again.'
 });
-app.use('/api/auth/login', authRateLimiter);
+app.use(['/api/v1/auth/login', '/api/auth/login'], authRateLimiter);
 
-// 4. Mount API routes
-app.use('/api/auth', require('./routes/auth.js'));
-app.use('/api/branches', require('./routes/branches.js'));
-app.use('/api/users', require('./routes/users.js'));
-app.use('/api/products', require('./routes/products.js'));
-app.use('/api/inventory', require('./routes/inventory.js'));
-app.use('/api/pos', require('./routes/pos.js'));
-app.use('/api/orders', require('./routes/orders.js'));
-app.use('/api/dispatch', require('./routes/dispatch.js'));
-app.use('/api/deliveries', require('./routes/deliveries.js'));
-app.use('/api/refunds', require('./routes/refunds.js'));
-app.use('/api/expenses', require('./routes/expenses.js'));
-app.use('/api/reports', require('./routes/reports.js'));
-app.use('/api/notifications', require('./routes/notifications.js'));
-app.use('/api/audit', require('./routes/audit.js'));
-app.use('/api/kenya', require('./routes/kenya.js'));
-
-// 5. Enterprise Health & Readiness check endpoint
-app.get('/api/health', (req, res) => {
-    let dbConnected = false;
-    try {
-        const row = db.prepare('SELECT 1 as ok').get();
-        dbConnected = row?.ok === 1;
-    } catch {}
-
-    res.json({
-        status: dbConnected ? 'online' : 'degraded',
-        database: dbConnected ? 'connected' : 'error',
-        system: 'SwiftTrack Kenya Multi-Branch Logistics + POS',
-        version: '1.0.0',
-        environment: process.env.NODE_ENV || 'development',
-        demoMode: process.env.DEMO_MODE === 'true' || process.env.NODE_ENV !== 'production',
-        uptimeSeconds: Math.floor(process.uptime()),
-        timestamp: new Date().toISOString()
-    });
-});
+// 6. Mount API routes: primary versioned /api/v1 and legacy alias /api
+app.use('/api/v1', v1Router);
+app.use('/api', v1Router);
 
 // Serve frontend static assets (serves compiled Vite React + Tailwind bundle)
 const distPath = path.resolve(__dirname, '../client/dist');
@@ -89,14 +70,13 @@ app.use((req, res, next) => {
     next();
 });
 
-// Centralized Error Handler
-app.use((err, req, res, next) => {
-    console.error('API Error:', err);
-    res.status(err.status || 500).json({
-        error: err.message || 'Internal Server Error',
-        timestamp: new Date().toISOString()
-    });
+// Unmatched API routes 404 handler
+app.use('/api', (req, res, next) => {
+    next(new NotFoundError(`API endpoint '${req.method} ${req.originalUrl}' was not found.`));
 });
+
+// Centralized Error Handler
+app.use(centralErrorHandler);
 
 // Ensure DB schema & seed are initialized
 try {

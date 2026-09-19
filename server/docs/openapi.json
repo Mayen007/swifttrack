@@ -1,0 +1,337 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "SwiftTrack Kenya — Enterprise Logistics & Retail POS API",
+    "description": "Production REST API for multi-branch warehouse logistics, last-mile courier fulfillment, retail point-of-sale, and statutory KRA 16% VAT compliance.",
+    "version": "1.4.0",
+    "contact": {
+      "name": "SwiftTrack Kenya Technical Operations",
+      "email": "api@swifttrack.co.ke",
+      "url": "https://swifttrack.co.ke"
+    },
+    "license": {
+      "name": "Proprietary Commercial License"
+    }
+  },
+  "servers": [
+    {
+      "url": "/api/v1",
+      "description": "Current Production API Version 1"
+    },
+    {
+      "url": "/api",
+      "description": "Legacy API Backward Compatibility Alias"
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "BearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "Standard Bearer JWT access token obtained via /api/v1/auth/login"
+      },
+      "IdempotencyKey": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "Idempotency-Key",
+        "description": "Unique client-generated idempotency key (UUID or 16+ hex) to safely retry mutating operations"
+      }
+    },
+    "schemas": {
+      "SuccessEnvelope": {
+        "type": "object",
+        "properties": {
+          "success": { "type": "boolean", "example": true },
+          "data": { "type": "object" },
+          "meta": {
+            "type": "object",
+            "properties": {
+              "requestId": { "type": "string", "example": "req_1789754_a9b1c2" },
+              "timestamp": { "type": "string", "format": "date-time", "example": "2026-09-19T09:00:00.000Z" }
+            }
+          }
+        },
+        "required": ["success", "data", "meta"]
+      },
+      "ErrorEnvelope": {
+        "type": "object",
+        "properties": {
+          "success": { "type": "boolean", "example": false },
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": { "type": "string", "example": "VALIDATION_ERROR" },
+              "message": { "type": "string", "example": "Validation failed: 1 error(s) detected" },
+              "details": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "field": { "type": "string", "example": "amount" },
+                    "issue": { "type": "string", "example": "'amount' must be at least 1" }
+                  }
+                }
+              },
+              "requestId": { "type": "string", "example": "req_1789754_a9b1c2" },
+              "timestamp": { "type": "string", "format": "date-time", "example": "2026-09-19T09:00:00.000Z" }
+            },
+            "required": ["code", "message", "details", "requestId", "timestamp"]
+          },
+          "code": { "type": "string", "example": "VALIDATION_ERROR" },
+          "message": { "type": "string", "example": "Validation failed: 1 error(s) detected" }
+        },
+        "required": ["success", "error"]
+      },
+      "PaginationMeta": {
+        "type": "object",
+        "properties": {
+          "page": { "type": "integer", "example": 1 },
+          "limit": { "type": "integer", "example": 20 },
+          "totalRecords": { "type": "integer", "example": 145 },
+          "totalPages": { "type": "integer", "example": 8 },
+          "hasNextPage": { "type": "boolean", "example": true },
+          "hasPrevPage": { "type": "boolean", "example": false }
+        },
+        "required": ["page", "limit", "totalRecords", "totalPages", "hasNextPage", "hasPrevPage"]
+      },
+      "LoginRequest": {
+        "type": "object",
+        "properties": {
+          "username": { "type": "string", "example": "superadmin" },
+          "password": { "type": "string", "format": "password", "example": "Admin123!" }
+        },
+        "required": ["username", "password"]
+      },
+      "CheckoutRequest": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": { "type": "integer", "example": 1 },
+                "quantity": { "type": "integer", "example": 2 }
+              },
+              "required": ["id", "quantity"]
+            }
+          },
+          "payment_method": { "type": "string", "enum": ["CASH", "MPESA", "CARD", "BANK_TRANSFER"], "example": "MPESA" },
+          "mpesa_phone": { "type": "string", "example": "0711000001" },
+          "discount_amount": { "type": "number", "example": 0 },
+          "delivery_required": { "type": "boolean", "example": false }
+        },
+        "required": ["items", "payment_method"]
+      }
+    }
+  },
+  "paths": {
+    "/auth/login": {
+      "post": {
+        "summary": "Authenticate user operator and issue access + refresh tokens",
+        "tags": ["Authentication"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/LoginRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Authentication successful",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "token": { "type": "string", "description": "15-minute JWT Bearer token" },
+                    "refreshToken": { "type": "string", "description": "Rotating single-use refresh token" },
+                    "user": { "type": "object" }
+                  }
+                }
+              }
+            }
+          },
+          "401": { "description": "Invalid credentials", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } } },
+          "423": { "description": "Account locked due to 5 consecutive failed login attempts" }
+        }
+      }
+    },
+    "/auth/refresh": {
+      "post": {
+        "summary": "Rotate refresh token and issue fresh 15-minute access token",
+        "tags": ["Authentication"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "refreshToken": { "type": "string" }
+                },
+                "required": ["refreshToken"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Token rotation successful" },
+          "401": { "description": "Invalid, expired, or replayed refresh token" }
+        }
+      }
+    },
+    "/auth/logout": {
+      "post": {
+        "summary": "Revoke active session and blacklist JWT access token",
+        "tags": ["Authentication"],
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "200": { "description": "Logged out and tokens revoked" }
+        }
+      }
+    },
+    "/branches": {
+      "get": {
+        "summary": "List all active company branches and regional hubs",
+        "tags": ["Branches"],
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "200": { "description": "List of regional branches" }
+        }
+      }
+    },
+    "/products": {
+      "get": {
+        "summary": "Search product catalog with pricing, category, and real-time stock balances",
+        "tags": ["Products & Catalog"],
+        "security": [{ "BearerAuth": [] }],
+        "parameters": [
+          { "name": "category_id", "in": "query", "schema": { "type": "integer" } },
+          { "name": "search", "in": "query", "schema": { "type": "string" }, "description": "Search by product name, SKU, or barcode" },
+          { "name": "page", "in": "query", "schema": { "type": "integer", "default": 1 } },
+          { "name": "limit", "in": "query", "schema": { "type": "integer", "default": 20 } },
+          { "name": "sort", "in": "query", "schema": { "type": "string", "default": "name:asc" } }
+        ],
+        "responses": {
+          "200": { "description": "Array of products matching search criteria" }
+        }
+      }
+    },
+    "/pos/checkout": {
+      "post": {
+        "summary": "Process retail counter sale checkout with KRA 16% VAT computation",
+        "tags": ["Point of Sale (POS)"],
+        "security": [{ "BearerAuth": [] }, { "IdempotencyKey": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/CheckoutRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Sale completed and receipt recorded" },
+          "400": { "description": "Invalid checkout payload or insufficient inventory" },
+          "409": { "description": "Idempotent request conflict (concurrent execution)" },
+          "422": { "description": "Idempotency key payload mismatch" }
+        }
+      }
+    },
+    "/inventory": {
+      "get": {
+        "summary": "Retrieve multi-warehouse stock balances for operator's assigned branch",
+        "tags": ["Warehouse Inventory"],
+        "security": [{ "BearerAuth": [] }],
+        "parameters": [
+          { "name": "warehouse_id", "in": "query", "schema": { "type": "integer" } },
+          { "name": "low_stock", "in": "query", "schema": { "type": "boolean" } }
+        ],
+        "responses": {
+          "200": { "description": "Warehouse stock levels" }
+        }
+      }
+    },
+    "/inventory/transfers": {
+      "post": {
+        "summary": "Initiate inter-branch stock transfer request",
+        "tags": ["Warehouse Inventory"],
+        "security": [{ "BearerAuth": [] }, { "IdempotencyKey": [] }],
+        "responses": {
+          "200": { "description": "Stock transfer request created" }
+        }
+      }
+    },
+    "/dispatch/board": {
+      "get": {
+        "summary": "Fetch real-time logistics dispatch board and delivery pipeline",
+        "tags": ["Fleet Logistics & Dispatch"],
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "200": { "description": "Active dispatch tasks and available couriers" }
+        }
+      }
+    },
+    "/deliveries/my": {
+      "get": {
+        "summary": "Mobile driver portal endpoint to retrieve assigned deliveries",
+        "tags": ["Mobile Courier Fulfillment"],
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "200": { "description": "Active assigned delivery route" }
+        }
+      }
+    },
+    "/deliveries/{id}/pod": {
+      "post": {
+        "summary": "Submit digital Proof of Delivery with OTP, signature, and GPS coordinates",
+        "tags": ["Mobile Courier Fulfillment"],
+        "security": [{ "BearerAuth": [] }, { "IdempotencyKey": [] }],
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }
+        ],
+        "responses": {
+          "200": { "description": "Proof of delivery recorded and delivery finalized" }
+        }
+      }
+    },
+    "/refunds/request": {
+      "post": {
+        "summary": "Submit customer refund request requiring Branch Manager approval",
+        "tags": ["Governance & Approvals"],
+        "security": [{ "BearerAuth": [] }, { "IdempotencyKey": [] }],
+        "responses": {
+          "200": { "description": "Refund request entered into approval queue" }
+        }
+      }
+    },
+    "/reports/vat": {
+      "get": {
+        "summary": "Generate statutory KRA 16% Fiscal Output VAT breakdown",
+        "tags": ["Statutory Reports & Analytics"],
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "200": { "description": "KRA VAT Remittance schedule" }
+        }
+      }
+    },
+    "/audit": {
+      "get": {
+        "summary": "Inspect immutable enterprise audit trail with role and date filters",
+        "tags": ["Audit & Compliance"],
+        "security": [{ "BearerAuth": [] }],
+        "parameters": [
+          { "name": "page", "in": "query", "schema": { "type": "integer", "default": 1 } },
+          { "name": "limit", "in": "query", "schema": { "type": "integer", "default": 50 } }
+        ],
+        "responses": {
+          "200": { "description": "Paginated audit logs" }
+        }
+      }
+    }
+  }
+}
