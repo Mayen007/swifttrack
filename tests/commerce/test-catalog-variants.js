@@ -76,6 +76,9 @@ async function runTest(name, fn) {
         });
     });
 
+    let createdProductId = null;
+    let createdVariantId = null;
+
     try {
         // 1. Authenticate as Super Admin
         const loginRes = await makeRequest('/api/v1/auth/login', {
@@ -86,8 +89,6 @@ async function runTest(name, fn) {
         assert.ok(authToken, 'Superadmin authentication failed');
 
         const timestamp = Date.now().toString().slice(-6);
-        let createdProductId = null;
-        let createdVariantId = null;
 
         // -------------------------------------------------------------
         // TEST 1: Brands & Suppliers API
@@ -260,6 +261,13 @@ async function runTest(name, fn) {
         }
 
     } finally {
+        if (createdProductId) {
+            const { db } = require('../../server/db/database.js');
+            db.prepare('DELETE FROM variant_inventory WHERE product_id = ?').run(createdProductId);
+            db.prepare('DELETE FROM product_variants WHERE product_id = ?').run(createdProductId);
+            db.prepare('DELETE FROM inventory WHERE product_id = ?').run(createdProductId);
+            db.prepare('DELETE FROM products WHERE id = ?').run(createdProductId);
+        }
         server.close();
     }
 })();

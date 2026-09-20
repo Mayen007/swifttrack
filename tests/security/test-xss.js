@@ -157,36 +157,59 @@ async function runTest(name, fn) {
             // Attempt to create branch with script tags
             const xssBranchCode = `XSS${Date.now().toString().slice(-4)}`;
             const xssName = '<script>document.cookie="stolen"</script>';
-            const createRes = await makeRequest('/api/v1/branches', {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'X-Requested-With': 'XMLHttpRequest'
-                },
-                body: {
-                    code: xssBranchCode,
-                    name: xssName,
-                    city: '<img src=x onerror=alert(1)>',
-                    address: '123 Test St',
-                    phone: '+254711000000',
-                    email: 'xss@test.ke'
+            let createdBranchId = null;
+            try {
+                const createRes = await makeRequest('/api/v1/branches', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    body: {
+                        code: xssBranchCode,
+                        name: xssName,
+                        city: '<img src=x onerror=alert(1)>',
+                        address: '123 Test St',
+                        phone: '+254711000000',
+                        email: 'xss@test.ke'
+                    }
+                });
+
+                assert([200, 201].includes(createRes.status), 'Branch creation failed');
+                createdBranchId = createRes.body?.data?.id || createRes.body?.id;
+
+                // Retrieve created branch
+                const getRes = await makeRequest(`/api/v1/branches?search=${xssBranchCode}`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                assert.strictEqual(getRes.status, 200);
+                assert.ok(getRes.headers['content-type'].includes('application/json'));
+                assert.strictEqual(getRes.headers['x-content-type-options'], 'nosniff');
+                // The JSON contains the string literally, safely encapsulated as JSON data
+                const branches = Array.isArray(getRes.body.data) ? getRes.body.data : getRes.body;
+                const target = branches.find(b => b.code === xssBranchCode);
+                assert.ok(target, 'Created branch not found');
+                assert.strictEqual(target.name, xssName);
+                if (!createdBranchId && target?.id) {
+                    createdBranchId = target.id;
                 }
-            });
-
-            assert([200, 201].includes(createRes.status), 'Branch creation failed');
-
-            // Retrieve created branch
-            const getRes = await makeRequest(`/api/v1/branches?search=${xssBranchCode}`, {
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
-            assert.strictEqual(getRes.status, 200);
-            assert.ok(getRes.headers['content-type'].includes('application/json'));
-            assert.strictEqual(getRes.headers['x-content-type-options'], 'nosniff');
-            // The JSON contains the string literally, safely encapsulated as JSON data
-            const branches = Array.isArray(getRes.body.data) ? getRes.body.data : getRes.body;
-            const target = branches.find(b => b.code === xssBranchCode);
-            assert.ok(target, 'Created branch not found');
-            assert.strictEqual(target.name, xssName);
+            } finally {
+                if (createdBranchId) {
+                    const { db } = require('../../server/db/database.js');
+                    db.prepare('DELETE FROM inventory WHERE branch_id = ?').run(createdBranchId);
+                    db.prepare('DELETE FROM warehouses WHERE branch_id = ?').run(createdBranchId);
+                    db.exec('DROP TRIGGER IF EXISTS prevent_audit_logs_update;');
+                    db.prepare('UPDATE audit_logs SET branch_id = NULL WHERE branch_id = ?').run(createdBranchId);
+                    db.exec(`
+                        CREATE TRIGGER IF NOT EXISTS prevent_audit_logs_update
+                        BEFORE UPDATE ON audit_logs
+                        BEGIN
+                            SELECT RAISE(FAIL, 'CRITICAL SECURITY VIOLATION: audit_logs is append-only and cannot be modified.');
+                        END;
+                    `);
+                    db.prepare('DELETE FROM branches WHERE id = ?').run(createdBranchId);
+                }
+            }
         });
 
         console.log('\n============================================================');

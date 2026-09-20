@@ -279,6 +279,11 @@ console.log(`PASSED:      ${passedTests}`);
 console.log(`FAILED:      ${totalTests - passedTests}`);
 console.log('============================================================\n');
 
+// Cleanup test product
+db.prepare('DELETE FROM inventory_movements WHERE product_id = ?').run(testProductId);
+db.prepare('DELETE FROM inventory WHERE product_id = ?').run(testProductId);
+db.prepare('DELETE FROM products WHERE id = ?').run(testProductId);
+
 if (passedTests === totalTests) {
   console.log('🎉 ALL INVENTORY STATE ENGINE TESTS PASSED!\n');
   process.exit(0);

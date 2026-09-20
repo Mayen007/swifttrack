@@ -111,45 +111,87 @@ async function runTest(name, fn) {
         });
 
         await runTest('1.3: Cross-origin mutating request with custom X-CSRF-Protection header passes CSRF guard', async () => {
-            const res = await makeRequest('/api/v1/branches', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Origin': approvedOrigin,
-                    'X-CSRF-Protection': '1',
-                    'Authorization': `Bearer ${token}`
-                },
-                body: {
-                    code: `CSRF_${Date.now().toString().slice(-4)}`,
-                    name: 'Legit Request with CSRF Token',
-                    city: 'Nairobi',
-                    address: 'CBD Hub',
-                    phone: '+254700000000',
-                    email: 'csrf@test.ke'
+            const csrfCode = `CSRF_${Date.now().toString().slice(-4)}`;
+            let createdId = null;
+            try {
+                const res = await makeRequest('/api/v1/branches', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Origin': approvedOrigin,
+                        'X-CSRF-Protection': '1',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: {
+                        code: csrfCode,
+                        name: 'Legit Request with CSRF Token',
+                        city: 'Nairobi',
+                        address: 'CBD Hub',
+                        phone: '+254700000000',
+                        email: 'csrf@test.ke'
+                    }
+                });
+                // Passes CSRF guard (returns 200 or 201)
+                assert([200, 201].includes(res.status), `Expected 200/201, got ${res.status}`);
+                createdId = res.body?.data?.id || res.body?.id;
+            } finally {
+                if (createdId) {
+                    const { db } = require('../../server/db/database.js');
+                    db.prepare('DELETE FROM inventory WHERE branch_id = ?').run(createdId);
+                    db.prepare('DELETE FROM warehouses WHERE branch_id = ?').run(createdId);
+                    db.exec('DROP TRIGGER IF EXISTS prevent_audit_logs_update;');
+                    db.prepare('UPDATE audit_logs SET branch_id = NULL WHERE branch_id = ?').run(createdId);
+                    db.exec(`
+                        CREATE TRIGGER IF NOT EXISTS prevent_audit_logs_update
+                        BEFORE UPDATE ON audit_logs
+                        BEGIN
+                            SELECT RAISE(FAIL, 'CRITICAL SECURITY VIOLATION: audit_logs is append-only and cannot be modified.');
+                        END;
+                    `);
+                    db.prepare('DELETE FROM branches WHERE id = ?').run(createdId);
                 }
-            });
-            // Passes CSRF guard (returns 200 or 201)
-            assert([200, 201].includes(res.status), `Expected 200/201, got ${res.status}`);
+            }
         });
 
         await runTest('1.4: Bearer authorization header exempts programmatic API clients from CSRF', async () => {
-            const res = await makeRequest('/api/v1/branches', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Origin': approvedOrigin,
-                    'Authorization': `Bearer ${token}`
-                },
-                body: {
-                    code: `BEAR_${Date.now().toString().slice(-4)}`,
-                    name: 'API Client Hub',
-                    city: 'Mombasa',
-                    address: 'Port Hub',
-                    phone: '+254700000001',
-                    email: 'bearer@test.ke'
+            const bearCode = `BEAR_${Date.now().toString().slice(-4)}`;
+            let createdId = null;
+            try {
+                const res = await makeRequest('/api/v1/branches', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Origin': approvedOrigin,
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: {
+                        code: bearCode,
+                        name: 'API Client Hub',
+                        city: 'Mombasa',
+                        address: 'Port Hub',
+                        phone: '+254700000001',
+                        email: 'bearer@test.ke'
+                    }
+                });
+                assert([200, 201].includes(res.status), `Expected 200/201, got ${res.status}`);
+                createdId = res.body?.data?.id || res.body?.id;
+            } finally {
+                if (createdId) {
+                    const { db } = require('../../server/db/database.js');
+                    db.prepare('DELETE FROM inventory WHERE branch_id = ?').run(createdId);
+                    db.prepare('DELETE FROM warehouses WHERE branch_id = ?').run(createdId);
+                    db.exec('DROP TRIGGER IF EXISTS prevent_audit_logs_update;');
+                    db.prepare('UPDATE audit_logs SET branch_id = NULL WHERE branch_id = ?').run(createdId);
+                    db.exec(`
+                        CREATE TRIGGER IF NOT EXISTS prevent_audit_logs_update
+                        BEFORE UPDATE ON audit_logs
+                        BEGIN
+                            SELECT RAISE(FAIL, 'CRITICAL SECURITY VIOLATION: audit_logs is append-only and cannot be modified.');
+                        END;
+                    `);
+                    db.prepare('DELETE FROM branches WHERE id = ?').run(createdId);
                 }
-            });
-            assert([200, 201].includes(res.status), `Expected 200/201, got ${res.status}`);
+            }
         });
 
         // -------------------------------------------------------------

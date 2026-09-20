@@ -61,44 +61,44 @@ export function InventoryTransfersTable({
   return (
     <div className="bg-[#12161f] border border-[#222834] rounded overflow-hidden font-mono">
       <div className="overflow-x-auto">
-        <table className="w-full text-left text-xs border-collapse">
+        <table className="w-full min-w-[850px] text-left text-xs border-collapse">
           <thead>
             <tr className="border-b border-[#222834] bg-[#0e121a] text-slate-400 text-[10px] uppercase tracking-wider">
-              <th className="py-2.5 px-3">Transfer #</th>
-              <th className="py-2.5 px-3">Source Route</th>
-              <th className="py-2.5 px-3">Target Route</th>
-              <th className="py-2.5 px-3">Items Manifest</th>
-              <th className="py-2.5 px-3 text-center">Status</th>
-              <th className="py-2.5 px-3 text-right">Workflow Actions</th>
+              <th className="py-2.5 px-3 whitespace-nowrap">Transfer #</th>
+              <th className="py-2.5 px-3 min-w-[160px]">Source Route</th>
+              <th className="py-2.5 px-3 min-w-[160px]">Target Route</th>
+              <th className="py-2.5 px-3 min-w-[200px]">Items Manifest</th>
+              <th className="py-2.5 px-3 text-center whitespace-nowrap">Status</th>
+              <th className="py-2.5 px-3 text-right whitespace-nowrap">Workflow Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-[#1e2430]">
             {transfers.map((t) => (
               <tr key={t.id} className="hover:bg-[#181d28]/70 transition-colors">
-                <td className="py-2.5 px-3">
+                <td className="py-2.5 px-3 whitespace-nowrap">
                   <div className="font-bold text-blue-400">{t.transfer_number}</div>
                   <div className="text-[10px] text-slate-500">{t.created_at?.slice(0, 10)}</div>
                 </td>
-                <td className="py-2.5 px-3">
-                  <div className="font-semibold text-white">{t.source_branch_name}</div>
-                  <div className="text-[10px] text-slate-400">{t.source_warehouse_name}</div>
+                <td className="py-2.5 px-3 max-w-[180px]">
+                  <div className="font-semibold text-white truncate" title={t.source_branch_name}>{t.source_branch_name}</div>
+                  <div className="text-[10px] text-slate-400 truncate" title={t.source_warehouse_name}>{t.source_warehouse_name}</div>
                 </td>
-                <td className="py-2.5 px-3">
-                  <div className="font-semibold text-white">{t.target_branch_name}</div>
-                  <div className="text-[10px] text-slate-400">{t.target_warehouse_name}</div>
+                <td className="py-2.5 px-3 max-w-[180px]">
+                  <div className="font-semibold text-white truncate" title={t.target_branch_name}>{t.target_branch_name}</div>
+                  <div className="text-[10px] text-slate-400 truncate" title={t.target_warehouse_name}>{t.target_warehouse_name}</div>
                 </td>
-                <td className="py-2.5 px-3">
-                  <div className="text-slate-300">
+                <td className="py-2.5 px-3 max-w-[260px]">
+                  <div className="text-slate-300 truncate" title={t.items?.map((it) => `${it.product_name} (${it.quantity_requested || it.quantity} ${it.unit || 'pcs'})`).join(', ')}>
                     {t.items?.map((it) => `${it.product_name} (${it.quantity_requested || it.quantity} ${it.unit || 'pcs'})`).join(', ') || 'Items'}
                   </div>
                   {t.notes && <div className="text-[10px] text-slate-500 truncate max-w-xs">{t.notes}</div>}
                 </td>
-                <td className="py-2.5 px-3 text-center">
+                <td className="py-2.5 px-3 text-center whitespace-nowrap">
                   <span className={`px-2 py-0.5 rounded text-[10px] font-bold border ${getStatusStyle(t.status)}`}>
                     {t.status}
                   </span>
                 </td>
-                <td className="py-2.5 px-3 text-right">
+                <td className="py-2.5 px-3 text-right whitespace-nowrap">
                   <div className="inline-flex items-center gap-1.5">
                     {t.status === 'PENDING_APPROVAL' && (
                       <button

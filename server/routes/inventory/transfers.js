@@ -161,19 +161,29 @@ router.post('/transfers/:id/status', authenticateToken, authorize('inventory', '
       db.prepare("UPDATE stock_transfers SET status = 'IN_TRANSIT', updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(transferId);
     } else if (action === 'RECEIVE') {
       if (transfer.status !== 'IN_TRANSIT') throw new Error('Transfer must be in transit to receive');
+      const receivedItemsMap = new Map();
+      if (Array.isArray(req.body.received_items)) {
+        req.body.received_items.forEach(ri => receivedItemsMap.set(Number(ri.item_id || ri.id), ri));
+      }
+
       for (const item of items) {
-        const qty = item.quantity_requested;
-        // Decrement in_transit on source
+        const customItem = receivedItemsMap.get(item.id);
+        const qtySent = item.quantity_sent || item.quantity_requested;
+        const qtyReceived = customItem ? Math.max(0, Number(customItem.quantity_received)) : qtySent;
+        const discrepancy = Math.max(0, qtySent - qtyReceived);
+        const discReason = customItem?.discrepancy_reason || (discrepancy > 0 ? 'Transit discrepancy / loss' : null);
+
+        // Decrement in_transit on source for all sent units
         const srcInv = db.prepare('SELECT * FROM inventory WHERE warehouse_id = ? AND product_id = ?').get(transfer.source_warehouse_id, item.product_id);
-        if (srcInv && srcInv.quantity_in_transit >= qty) {
-          db.prepare('UPDATE inventory SET quantity_in_transit = quantity_in_transit - ? WHERE id = ?').run(qty, srcInv.id);
+        if (srcInv && srcInv.quantity_in_transit >= qtySent) {
+          db.prepare('UPDATE inventory SET quantity_in_transit = quantity_in_transit - ? WHERE id = ?').run(qtySent, srcInv.id);
         }
 
-        // Increment on_hand and available on target
+        // Increment on_hand and available on target by received units
         const targetInv = getOrInitInventory(transfer.target_warehouse_id, item.product_id, transfer.target_branch_id);
         const prev = targetInv.quantity_on_hand;
-        const newOnHand = prev + qty;
-        const newAvailable = targetInv.quantity_available + qty;
+        const newOnHand = prev + qtyReceived;
+        const newAvailable = targetInv.quantity_available + qtyReceived;
 
         db.prepare(`
           UPDATE inventory
@@ -183,14 +193,27 @@ router.post('/transfers/:id/status', authenticateToken, authorize('inventory', '
 
         assertInventoryInvariant({ ...targetInv, quantity_on_hand: newOnHand, quantity_available: newAvailable }, 'transferReceive');
 
-        db.prepare('UPDATE stock_transfer_items SET quantity_received = ? WHERE id = ?').run(qty, item.id);
+        db.prepare(`
+          UPDATE stock_transfer_items
+          SET quantity_received = ?, quantity_discrepancy = ?, discrepancy_reason = ?
+          WHERE id = ?
+        `).run(qtyReceived, discrepancy, discReason, item.id);
 
         logMovement({
           branchId: transfer.target_branch_id, warehouseId: transfer.target_warehouse_id, productId: item.product_id,
-          movementType: 'TRANSFER_IN', quantityChange: qty, prevQty: prev, newQty: newOnHand,
+          movementType: 'TRANSFER_IN', quantityChange: qtyReceived, prevQty: prev, newQty: newOnHand,
           fromState: 'IN_TRANSIT', toState: 'AVAILABLE', referenceType: 'TRANSFER', referenceId: transfer.transfer_number,
           reason: `Received inter-branch transfer ${transfer.transfer_number}`, userId: req.user.id
         });
+
+        if (discrepancy > 0) {
+          logMovement({
+            branchId: transfer.source_branch_id, warehouseId: transfer.source_warehouse_id, productId: item.product_id,
+            movementType: 'TRANSIT_LOSS', quantityChange: -discrepancy, prevQty: qtySent, newQty: qtyReceived,
+            fromState: 'IN_TRANSIT', toState: 'EXTERNAL', referenceType: 'TRANSFER', referenceId: transfer.transfer_number,
+            reason: `Transfer discrepancy: ${discReason}`, userId: req.user.id
+          });
+        }
       }
       db.prepare("UPDATE stock_transfers SET status = 'RECEIVED', received_by_user_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?")
         .run(req.user.id, transferId);

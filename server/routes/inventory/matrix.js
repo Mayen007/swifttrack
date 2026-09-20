@@ -83,12 +83,47 @@ router.get('/movements', authenticateToken, authorize('inventory', 'view'), (req
     params.push(Number(req.query.product_id));
   }
 
-  if (req.query.state) {
+  if (req.query.movement_type) {
+    query += ' AND im.movement_type = ?';
+    params.push(req.query.movement_type);
+  }
+
+  if (req.query.reference_type) {
+    query += ' AND im.reference_type = ?';
+    params.push(req.query.reference_type);
+  }
+
+  if (req.query.from_state) {
+    query += ' AND im.from_state = ?';
+    params.push(req.query.from_state);
+  }
+
+  if (req.query.to_state) {
+    query += ' AND im.to_state = ?';
+    params.push(req.query.to_state);
+  } else if (req.query.state) {
     query += ' AND (im.from_state = ? OR im.to_state = ?)';
     params.push(req.query.state, req.query.state);
   }
 
-  query += ' ORDER BY im.id DESC LIMIT 150';
+  if (req.query.search) {
+    const q = `%${req.query.search.trim()}%`;
+    query += ' AND (p.sku LIKE ? OR p.name LIKE ? OR im.reference_id LIKE ? OR im.reason LIKE ?)';
+    params.push(q, q, q, q);
+  }
+
+  if (req.query.date_from) {
+    query += ' AND im.created_at >= ?';
+    params.push(req.query.date_from);
+  }
+
+  if (req.query.date_to) {
+    query += ' AND im.created_at <= ?';
+    params.push(req.query.date_to + ' 23:59:59');
+  }
+
+  const limit = Math.min(Number(req.query.limit) || 150, 500);
+  query += ` ORDER BY im.id DESC LIMIT ${limit}`;
 
   const movements = db.prepare(query).all(...params);
   res.json(movements);

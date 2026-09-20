@@ -37,18 +37,18 @@ export function ProductTable({
   return (
     <div className="bg-[#12161f] border border-[#222834] rounded overflow-hidden">
       <div className="overflow-x-auto">
-        <table className="w-full text-left text-xs border-collapse">
+        <table className="w-full min-w-[920px] text-left text-xs border-collapse">
           <thead>
             <tr className="border-b border-[#222834] bg-[#0e121a] text-slate-400 font-mono text-[10px] uppercase tracking-wider">
-              <th className="py-2.5 px-3">SKU / Barcode</th>
-              <th className="py-2.5 px-3">Product Name & Brand</th>
-              <th className="py-2.5 px-3">Unit</th>
-              <th className="py-2.5 px-3 text-right">Cost Price</th>
-              <th className="py-2.5 px-3 text-right">Retail Price</th>
-              <th className="py-2.5 px-3 text-right">Wholesale Price</th>
-              <th className="py-2.5 px-3 text-center">Tax / VAT</th>
-              <th className="py-2.5 px-3 text-center">Variants</th>
-              <th className="py-2.5 px-3 text-right">Actions</th>
+              <th className="py-2.5 px-3 whitespace-nowrap">SKU / Barcode</th>
+              <th className="py-2.5 px-3 min-w-[200px]">Product Name & Brand</th>
+              <th className="py-2.5 px-3 whitespace-nowrap">Unit</th>
+              <th className="py-2.5 px-3 text-right whitespace-nowrap">Cost Price</th>
+              <th className="py-2.5 px-3 text-right whitespace-nowrap">Retail Price</th>
+              <th className="py-2.5 px-3 text-right whitespace-nowrap">Wholesale Price</th>
+              <th className="py-2.5 px-3 text-center whitespace-nowrap">Tax / VAT</th>
+              <th className="py-2.5 px-3 text-center whitespace-nowrap">Variants</th>
+              <th className="py-2.5 px-3 text-right whitespace-nowrap">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-[#1e2430]">
@@ -62,28 +62,28 @@ export function ProductTable({
                   }`}
                 >
                   {/* SKU & Barcode */}
-                  <td className="py-3 px-3">
+                  <td className="py-3 px-3 whitespace-nowrap">
                     <div className="font-mono font-bold text-slate-200">{p.sku}</div>
                     <div className="flex items-center gap-1 text-[10px] font-mono text-slate-400 mt-0.5">
-                      <Barcode className="w-3 h-3 text-slate-500" />
+                      <Barcode className="w-3 h-3 text-slate-500 shrink-0" />
                       <span>{p.barcode || 'N/A'}</span>
                     </div>
                   </td>
 
                   {/* Name, Category & Brand */}
-                  <td className="py-3 px-3">
-                    <div className="font-semibold text-white text-xs">{p.name}</div>
+                  <td className="py-3 px-3 max-w-[240px]">
+                    <div className="font-semibold text-white text-xs truncate" title={p.name}>{p.name}</div>
                     <div className="flex items-center gap-1.5 mt-1 flex-wrap">
-                      <span className="px-1.5 py-0.5 rounded text-[10px] font-mono bg-blue-500/10 border border-blue-500/20 text-blue-400">
+                      <span className="px-1.5 py-0.5 rounded text-[10px] font-mono bg-blue-500/10 border border-blue-500/20 text-blue-400 shrink-0">
                         {p.category}
                       </span>
                       {p.brand_name && (
-                        <span className="px-1.5 py-0.5 rounded text-[10px] font-mono bg-amber-500/10 border border-amber-500/20 text-amber-400">
+                        <span className="px-1.5 py-0.5 rounded text-[10px] font-mono bg-amber-500/10 border border-amber-500/20 text-amber-400 shrink-0">
                           {p.brand_name}
                         </span>
                       )}
                       {p.reorder_threshold > 0 && (
-                        <span className="text-[10px] font-mono text-slate-400">
+                        <span className="text-[10px] font-mono text-slate-400 shrink-0">
                           Min: {p.reorder_threshold}
                         </span>
                       )}
@@ -91,24 +91,24 @@ export function ProductTable({
                   </td>
 
                   {/* Unit of Measure */}
-                  <td className="py-3 px-3">
+                  <td className="py-3 px-3 whitespace-nowrap">
                     <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-[#1a2130] border border-[#2b3548] text-slate-300">
                       {p.unit_of_measure || 'UNIT'}
                     </span>
                   </td>
 
                   {/* Cost Price */}
-                  <td className="py-3 px-3 text-right font-mono text-slate-400">
+                  <td className="py-3 px-3 text-right font-mono text-slate-400 whitespace-nowrap tabular-nums">
                     {formatKes(p.cost_price)}
                   </td>
 
                   {/* Selling Price */}
-                  <td className="py-3 px-3 text-right font-mono font-bold text-emerald-400">
+                  <td className="py-3 px-3 text-right font-mono font-bold text-emerald-400 whitespace-nowrap tabular-nums">
                     {formatKes(p.selling_price)}
                   </td>
 
                   {/* Wholesale Price */}
-                  <td className="py-3 px-3 text-right font-mono text-amber-400">
+                  <td className="py-3 px-3 text-right font-mono text-amber-400 whitespace-nowrap tabular-nums">
                     {formatKes(p.wholesale_price || p.selling_price)}
                   </td>
 

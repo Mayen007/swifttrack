@@ -34,19 +34,19 @@ export function InventoryTable({
   return (
     <div className="bg-[#12161f] border border-[#222834] rounded overflow-hidden font-mono">
       <div className="overflow-x-auto">
-        <table className="w-full text-left text-xs border-collapse">
+        <table className="w-full min-w-[980px] text-left text-xs border-collapse">
           <thead>
             <tr className="border-b border-[#222834] bg-[#0e121a] text-slate-400 text-[10px] uppercase tracking-wider">
-              <th className="py-2.5 px-3">SKU / Barcode</th>
-              <th className="py-2.5 px-3">Product Name & Category</th>
-              <th className="py-2.5 px-3">Hub & Warehouse</th>
+              <th className="py-2.5 px-3 w-[150px]">SKU / Barcode</th>
+              <th className="py-2.5 px-3 min-w-[180px]">Product Name & Category</th>
+              <th className="py-2.5 px-3 min-w-[160px]">Hub & Warehouse</th>
               <th className="py-2.5 px-3 text-right">On Hand</th>
               <th className="py-2.5 px-3 text-right text-emerald-400">Available</th>
               <th className="py-2.5 px-3 text-right text-amber-400">Reserved</th>
               <th className="py-2.5 px-3 text-right text-blue-400">In Transit</th>
               <th className="py-2.5 px-3 text-right text-rose-400">Damaged</th>
               <th className="py-2.5 px-3 text-right text-red-400">Expired</th>
-              <th className="py-2.5 px-3 text-right">Actions</th>
+              <th className="py-2.5 px-3 text-right whitespace-nowrap">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-[#1e2430]">
@@ -55,23 +55,23 @@ export function InventoryTable({
               return (
                 <tr key={it.id} className="hover:bg-[#181d28]/70 transition-colors">
                   {/* SKU & Barcode */}
-                  <td className="py-2.5 px-3">
+                  <td className="py-2.5 px-3 whitespace-nowrap">
                     <div className="font-bold text-slate-200">{it.sku}</div>
                     <div className="flex items-center gap-1 text-[10px] text-slate-500 mt-0.5">
-                      <Barcode className="w-3 h-3" />
+                      <Barcode className="w-3 h-3 shrink-0" />
                       <span>{it.barcode || 'N/A'}</span>
                     </div>
                   </td>
 
                   {/* Name & Category */}
-                  <td className="py-2.5 px-3">
-                    <div className="font-semibold text-white truncate max-w-[200px]">{it.product_name}</div>
-                    <div className="flex items-center gap-1.5 mt-0.5">
-                      <span className="px-1.5 py-0.5 rounded text-[9px] bg-blue-500/10 border border-blue-500/20 text-blue-300">
+                  <td className="py-2.5 px-3 max-w-[220px]">
+                    <div className="font-semibold text-white truncate" title={it.product_name}>{it.product_name}</div>
+                    <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                      <span className="px-1.5 py-0.5 rounded text-[9px] bg-blue-500/10 border border-blue-500/20 text-blue-300 shrink-0">
                         {it.category_name || it.category || 'General'}
                       </span>
                       {isLowStock && (
-                        <span className="px-1 py-0.5 rounded text-[9px] font-bold bg-rose-500/20 text-rose-300 border border-rose-500/30">
+                        <span className="px-1 py-0.5 rounded text-[9px] font-bold bg-rose-500/20 text-rose-300 border border-rose-500/30 shrink-0">
                           LOW STOCK
                         </span>
                       )}
@@ -79,25 +79,25 @@ export function InventoryTable({
                   </td>
 
                   {/* Hub / Warehouse */}
-                  <td className="py-2.5 px-3">
-                    <div className="text-slate-300">{it.warehouse_name}</div>
-                    <div className="text-[10px] text-slate-500">{it.branch_name}</div>
+                  <td className="py-2.5 px-3 max-w-[180px]">
+                    <div className="text-slate-300 truncate" title={it.warehouse_name}>{it.warehouse_name}</div>
+                    <div className="text-[10px] text-slate-500 truncate" title={it.branch_name}>{it.branch_name}</div>
                   </td>
 
                   {/* ON HAND */}
-                  <td className="py-2.5 px-3 text-right font-bold text-white">
+                  <td className="py-2.5 px-3 text-right font-bold text-white whitespace-nowrap tabular-nums">
                     {(it.quantity_on_hand ?? 0).toLocaleString()}
                   </td>
 
                   {/* AVAILABLE */}
-                  <td className="py-2.5 px-3 text-right">
+                  <td className="py-2.5 px-3 text-right whitespace-nowrap tabular-nums">
                     <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-emerald-500/10 border border-emerald-500/30 text-emerald-400">
                       {(it.quantity_available ?? 0).toLocaleString()}
                     </span>
                   </td>
 
                   {/* RESERVED */}
-                  <td className="py-2.5 px-3 text-right">
+                  <td className="py-2.5 px-3 text-right whitespace-nowrap tabular-nums">
                     <span
                       className={`px-1.5 py-0.5 rounded text-[10px] ${
                         it.quantity_reserved > 0
@@ -110,7 +110,7 @@ export function InventoryTable({
                   </td>
 
                   {/* IN TRANSIT */}
-                  <td className="py-2.5 px-3 text-right">
+                  <td className="py-2.5 px-3 text-right whitespace-nowrap tabular-nums">
                     <span
                       className={`px-1.5 py-0.5 rounded text-[10px] ${
                         it.quantity_in_transit > 0
@@ -123,7 +123,7 @@ export function InventoryTable({
                   </td>
 
                   {/* DAMAGED */}
-                  <td className="py-2.5 px-3 text-right">
+                  <td className="py-2.5 px-3 text-right whitespace-nowrap tabular-nums">
                     <span
                       className={`px-1.5 py-0.5 rounded text-[10px] ${
                         it.quantity_damaged > 0
@@ -136,7 +136,7 @@ export function InventoryTable({
                   </td>
 
                   {/* EXPIRED */}
-                  <td className="py-2.5 px-3 text-right">
+                  <td className="py-2.5 px-3 text-right whitespace-nowrap tabular-nums">
                     <span
                       className={`px-1.5 py-0.5 rounded text-[10px] ${
                         it.quantity_expired > 0
@@ -149,7 +149,7 @@ export function InventoryTable({
                   </td>
 
                   {/* Actions */}
-                  <td className="py-2.5 px-3 text-right">
+                  <td className="py-2.5 px-3 text-right whitespace-nowrap">
                     <div className="inline-flex items-center gap-1">
                       <button
                         onClick={() => onQuarantineItem(it)}

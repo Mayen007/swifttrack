@@ -6,7 +6,9 @@ export function InventoryHeader({
   loading,
   lastSyncTime,
   onRefresh,
+  onOpenReceiving,
   onOpenTransfer,
+  onOpenStocktake,
   onOpenStateTransition,
 }) {
   return (
@@ -15,7 +17,7 @@ export function InventoryHeader({
         <div className="flex items-center gap-2">
           <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 font-mono text-[10px] font-bold tracking-wider uppercase">
             <Package className="w-3 h-3" />
-            PHASE 3: INVENTORY STATE ENGINE
+            PHASE 3: INVENTORY OPERATIONS ENGINE
           </span>
           <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-blue-500/10 border border-blue-500/20 text-blue-400 font-mono text-[10px]">
             <span className="w-1.5 h-1.5 rounded-full bg-blue-400 shrink-0" />
@@ -24,22 +26,22 @@ export function InventoryHeader({
         </div>
         <h1 className="text-lg font-bold text-white tracking-tight flex items-center gap-2 mt-1">
           <Package className="w-5 h-5 text-emerald-400" />
-          Multi-Branch Inventory & State Machine
+          Multi-Branch Inventory & Operations Suite
         </h1>
         <p className="text-xs text-slate-400 mt-0.5">
-          Real-time stock ledger tracking On-Hand, Available, Reserved, In-Transit, Damaged, and Expired states
+          Receiving (GRN), cycle counts, variances, inter-branch transfers, write-offs & movement ledger
         </p>
       </div>
 
       {/* Action Switchboard */}
       <div className="flex items-center flex-wrap gap-2 shrink-0">
         <button
-          onClick={onOpenStateTransition}
-          title="Quarantine damaged or segregate expired goods"
-          className="px-3 py-1.5 rounded border border-rose-500/30 bg-rose-500/10 hover:bg-rose-500/20 text-xs font-mono text-rose-300 flex items-center gap-1.5 transition-colors cursor-pointer"
+          onClick={onOpenReceiving}
+          title="Receive supplier delivery note (GRN)"
+          className="px-3 py-1.5 rounded border border-emerald-500/30 bg-emerald-500/10 hover:bg-emerald-500/20 text-xs font-mono text-emerald-300 flex items-center gap-1.5 transition-colors cursor-pointer"
         >
-          <ShieldAlert className="w-3.5 h-3.5 text-rose-400" />
-          <span>QUARANTINE / EXPIRE</span>
+          <Package className="w-3.5 h-3.5 text-emerald-400" />
+          <span>RECEIVE GOODS</span>
         </button>
 
         <button
@@ -48,7 +50,16 @@ export function InventoryHeader({
           className="px-3 py-1.5 rounded border border-blue-500/30 bg-blue-500/10 hover:bg-blue-500/20 text-xs font-mono text-blue-300 flex items-center gap-1.5 transition-colors cursor-pointer"
         >
           <ArrowRightLeft className="w-3.5 h-3.5 text-blue-400" />
-          <span>NEW TRANSFER</span>
+          <span>TRANSFER</span>
+        </button>
+
+        <button
+          onClick={onOpenStateTransition}
+          title="Quarantine damaged or segregate expired goods"
+          className="px-3 py-1.5 rounded border border-rose-500/30 bg-rose-500/10 hover:bg-rose-500/20 text-xs font-mono text-rose-300 flex items-center gap-1.5 transition-colors cursor-pointer"
+        >
+          <ShieldAlert className="w-3.5 h-3.5 text-rose-400" />
+          <span>QUARANTINE</span>
         </button>
 
         <button

@@ -310,7 +310,102 @@ CREATE TABLE IF NOT EXISTS stock_transfer_items (
     product_id INTEGER NOT NULL REFERENCES products(id) ON DELETE RESTRICT,
     quantity_requested INTEGER NOT NULL,
     quantity_sent INTEGER NOT NULL DEFAULT 0,
-    quantity_received INTEGER NOT NULL DEFAULT 0
+    quantity_received INTEGER NOT NULL DEFAULT 0,
+    quantity_discrepancy INTEGER NOT NULL DEFAULT 0,
+    discrepancy_reason TEXT
+);
+
+-- 14a. GOODS RECEIVED NOTES (INBOUND STOCK RECEIPTS)
+CREATE TABLE IF NOT EXISTS stock_receipts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    receipt_number TEXT NOT NULL UNIQUE,
+    branch_id INTEGER NOT NULL REFERENCES branches(id) ON DELETE RESTRICT,
+    warehouse_id INTEGER NOT NULL REFERENCES warehouses(id) ON DELETE RESTRICT,
+    supplier_id INTEGER REFERENCES suppliers(id) ON DELETE SET NULL,
+    supplier_invoice_no TEXT,
+    delivery_note_no TEXT,
+    received_by_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+    total_items INTEGER NOT NULL DEFAULT 0,
+    total_cost REAL NOT NULL DEFAULT 0.0,
+    status TEXT NOT NULL DEFAULT 'RECEIVED', -- 'RECEIVED', 'CANCELLED'
+    notes TEXT,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 14b. STOCK RECEIPT ITEMS
+CREATE TABLE IF NOT EXISTS stock_receipt_items (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    stock_receipt_id INTEGER NOT NULL REFERENCES stock_receipts(id) ON DELETE CASCADE,
+    product_id INTEGER NOT NULL REFERENCES products(id) ON DELETE RESTRICT,
+    variant_id INTEGER REFERENCES product_variants(id) ON DELETE SET NULL,
+    quantity_received INTEGER NOT NULL,
+    unit_cost REAL NOT NULL DEFAULT 0.0,
+    batch_number TEXT,
+    expiry_date DATE,
+    condition TEXT NOT NULL DEFAULT 'GOOD' -- 'GOOD', 'DAMAGED'
+);
+
+-- 14c. STOCKTAKES & PHYSICAL CYCLE COUNTS
+CREATE TABLE IF NOT EXISTS stocktakes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    stocktake_number TEXT NOT NULL UNIQUE,
+    branch_id INTEGER NOT NULL REFERENCES branches(id) ON DELETE RESTRICT,
+    warehouse_id INTEGER NOT NULL REFERENCES warehouses(id) ON DELETE RESTRICT,
+    title TEXT NOT NULL,
+    count_type TEXT NOT NULL DEFAULT 'CYCLE_COUNT', -- 'FULL', 'CYCLE_COUNT', 'CATEGORY'
+    category_id INTEGER REFERENCES categories(id) ON DELETE SET NULL,
+    status TEXT NOT NULL DEFAULT 'IN_PROGRESS', -- 'IN_PROGRESS', 'PENDING_APPROVAL', 'RECONCILED', 'CANCELLED'
+    created_by_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+    reconciled_by_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    total_products_counted INTEGER NOT NULL DEFAULT 0,
+    total_variance_units INTEGER NOT NULL DEFAULT 0,
+    total_variance_value REAL NOT NULL DEFAULT 0.0,
+    notes TEXT,
+    started_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    completed_at DATETIME,
+    reconciled_at DATETIME,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 14d. STOCKTAKE ITEMS
+CREATE TABLE IF NOT EXISTS stocktake_items (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    stocktake_id INTEGER NOT NULL REFERENCES stocktakes(id) ON DELETE CASCADE,
+    product_id INTEGER NOT NULL REFERENCES products(id) ON DELETE RESTRICT,
+    variant_id INTEGER REFERENCES product_variants(id) ON DELETE SET NULL,
+    system_quantity INTEGER NOT NULL DEFAULT 0,
+    counted_quantity INTEGER,
+    variance_quantity INTEGER NOT NULL DEFAULT 0,
+    unit_cost REAL NOT NULL DEFAULT 0.0,
+    variance_value REAL NOT NULL DEFAULT 0.0,
+    counted_by_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    status TEXT NOT NULL DEFAULT 'PENDING', -- 'PENDING', 'COUNTED', 'VERIFIED'
+    notes TEXT,
+    counted_at DATETIME
+);
+
+-- 14e. CERTIFIED STOCK WRITE-OFFS
+CREATE TABLE IF NOT EXISTS stock_write_offs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    write_off_number TEXT NOT NULL UNIQUE,
+    branch_id INTEGER NOT NULL REFERENCES branches(id) ON DELETE RESTRICT,
+    warehouse_id INTEGER NOT NULL REFERENCES warehouses(id) ON DELETE RESTRICT,
+    product_id INTEGER NOT NULL REFERENCES products(id) ON DELETE RESTRICT,
+    variant_id INTEGER REFERENCES product_variants(id) ON DELETE SET NULL,
+    from_state TEXT NOT NULL DEFAULT 'DAMAGED', -- 'DAMAGED', 'EXPIRED', 'AVAILABLE', 'LOST'
+    quantity INTEGER NOT NULL,
+    unit_cost REAL NOT NULL DEFAULT 0.0,
+    total_loss_value REAL NOT NULL DEFAULT 0.0,
+    reason_category TEXT NOT NULL, -- 'EXPIRED', 'DAMAGED', 'THEFT_LOST', 'OBSOLETE', 'CONTAMINATED'
+    disposal_method TEXT NOT NULL DEFAULT 'SCRAPPED', -- 'SCRAPPED', 'DESTROYED', 'RTV_SUPPLIER', 'DONATED'
+    status TEXT NOT NULL DEFAULT 'APPROVED', -- 'PENDING_APPROVAL', 'APPROVED', 'REJECTED'
+    requested_by_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+    approved_by_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    notes TEXT,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 -- 15. CUSTOMERS

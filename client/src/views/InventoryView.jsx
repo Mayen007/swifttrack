@@ -10,20 +10,27 @@ import { InventoryFilters } from '../components/inventory/InventoryFilters.jsx';
 import { InventoryTable } from '../components/inventory/InventoryTable.jsx';
 import { InventoryLedgerTable } from '../components/inventory/InventoryLedgerTable.jsx';
 import { InventoryTransfersTable } from '../components/inventory/InventoryTransfersTable.jsx';
+import { InventoryReceivingTable } from '../components/inventory/InventoryReceivingTable.jsx';
+import { InventoryStocktakeView } from '../components/inventory/InventoryStocktakeView.jsx';
 import { InventoryStateTransitionModal } from '../components/inventory/InventoryStateTransitionModal.jsx';
 import { InventoryTransferModal } from '../components/inventory/InventoryTransferModal.jsx';
+import { InventoryReceivingModal } from '../components/inventory/InventoryReceivingModal.jsx';
+import { InventoryStocktakeModal } from '../components/inventory/InventoryStocktakeModal.jsx';
+import { InventoryWriteOffModal } from '../components/inventory/InventoryWriteOffModal.jsx';
+import { InventoryAdjustmentModal } from '../components/inventory/InventoryAdjustmentModal.jsx';
 
 export function InventoryView() {
   const { selectedBranch } = useAuth();
   const [inventory, setInventory] = useState([]);
   const [movements, setMovements] = useState([]);
   const [transfers, setTransfers] = useState([]);
+  const [receipts, setReceipts] = useState([]);
   const [branches, setBranches] = useState([]);
   const [loading, setLoading] = useState(true);
   const [lastSyncTime, setLastSyncTime] = useState(null);
 
   // Filters & Tabs
-  const [activeTab, setActiveTab] = useState('matrix'); // 'matrix', 'movements', 'transfers'
+  const [activeTab, setActiveTab] = useState('matrix'); // 'matrix', 'receiving', 'transfers', 'stocktake', 'movements'
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedWarehouseId, setSelectedWarehouseId] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('ALL');
@@ -37,20 +44,28 @@ export function InventoryView() {
   const [transferModalOpen, setTransferModalOpen] = useState(false);
   const [selectedItemForTransfer, setSelectedItemForTransfer] = useState(null);
 
+  const [receivingModalOpen, setReceivingModalOpen] = useState(false);
+  const [stocktakeModalOpen, setStocktakeModalOpen] = useState(false);
+  const [writeOffModalOpen, setWriteOffModalOpen] = useState(false);
+  const [adjustmentModalOpen, setAdjustmentModalOpen] = useState(false);
+  const [selectedItemForAction, setSelectedItemForAction] = useState(null);
+
   const fetchInventoryData = useCallback(async () => {
     try {
       setLoading(true);
       const branchParam = selectedBranch ? `?branch_id=${selectedBranch.id}` : '';
-      const [invData, movData, trfData, branchData] = await Promise.all([
+      const [invData, movData, trfData, recData, branchData] = await Promise.all([
         api.get(`/api/v1/inventory${branchParam}`),
         api.get(`/api/v1/inventory/movements${branchParam}`).catch(() => []),
         api.get(`/api/v1/inventory/transfers${branchParam}`).catch(() => []),
+        api.get(`/api/v1/inventory/receiving${branchParam}`).catch(() => []),
         api.get('/api/branches').catch(() => []),
       ]);
 
       setInventory(Array.isArray(invData) ? invData : []);
       setMovements(Array.isArray(movData) ? movData : []);
       setTransfers(Array.isArray(trfData) ? trfData : []);
+      setReceipts(Array.isArray(recData) ? recData : []);
       setBranches(Array.isArray(branchData) ? branchData : []);
       setLastSyncTime(new Date().toLocaleTimeString('en-KE', { hour12: false }));
     } catch (e) {
@@ -122,6 +137,57 @@ export function InventoryView() {
     });
   }, [inventory, selectedWarehouseId, selectedCategory, stateFilter, searchQuery]);
 
+  const filteredReceipts = useMemo(() => {
+    return receipts.filter((r) => {
+      if (selectedWarehouseId && String(r.warehouse_id) !== String(selectedWarehouseId)) return false;
+      if (!searchQuery.trim()) return true;
+      const q = searchQuery.toLowerCase().trim();
+      return (
+        r.receipt_number?.toLowerCase().includes(q) ||
+        r.supplier_invoice_no?.toLowerCase().includes(q) ||
+        r.delivery_note_no?.toLowerCase().includes(q) ||
+        r.warehouse_name?.toLowerCase().includes(q) ||
+        r.items?.some((it) => it.product_name?.toLowerCase().includes(q) || it.sku?.toLowerCase().includes(q))
+      );
+    });
+  }, [receipts, selectedWarehouseId, searchQuery]);
+
+  const filteredTransfers = useMemo(() => {
+    return transfers.filter((t) => {
+      if (
+        selectedWarehouseId &&
+        String(t.source_warehouse_id) !== String(selectedWarehouseId) &&
+        String(t.target_warehouse_id) !== String(selectedWarehouseId)
+      ) {
+        return false;
+      }
+      if (!searchQuery.trim()) return true;
+      const q = searchQuery.toLowerCase().trim();
+      return (
+        t.transfer_number?.toLowerCase().includes(q) ||
+        t.source_branch_name?.toLowerCase().includes(q) ||
+        t.target_branch_name?.toLowerCase().includes(q) ||
+        t.notes?.toLowerCase().includes(q) ||
+        t.items?.some((it) => it.product_name?.toLowerCase().includes(q))
+      );
+    });
+  }, [transfers, selectedWarehouseId, searchQuery]);
+
+  const filteredMovements = useMemo(() => {
+    return movements.filter((m) => {
+      if (selectedWarehouseId && String(m.warehouse_id) !== String(selectedWarehouseId)) return false;
+      if (!searchQuery.trim()) return true;
+      const q = searchQuery.toLowerCase().trim();
+      return (
+        m.sku?.toLowerCase().includes(q) ||
+        m.product_name?.toLowerCase().includes(q) ||
+        m.reference_id?.toLowerCase().includes(q) ||
+        m.reason?.toLowerCase().includes(q) ||
+        m.movement_type?.toLowerCase().includes(q)
+      );
+    });
+  }, [movements, selectedWarehouseId, searchQuery]);
+
   return (
     <div className="space-y-4 animate-in fade-in duration-200">
       <InventoryHeader
@@ -131,10 +197,12 @@ export function InventoryView() {
           sound.playScan();
           fetchInventoryData();
         }}
+        onOpenReceiving={() => setReceivingModalOpen(true)}
         onOpenTransfer={() => {
           setSelectedItemForTransfer(filteredInventory[0] || null);
           setTransferModalOpen(true);
         }}
+        onOpenStocktake={() => setStocktakeModalOpen(true)}
         onOpenStateTransition={() => {
           setSelectedItemForTransition(filteredInventory[0] || null);
           setTransitionMode('QUARANTINE');
@@ -184,19 +252,26 @@ export function InventoryView() {
             setTransferModalOpen(true);
           }}
           onAdjustItem={(it) => {
-            setSelectedItemForTransition(it);
-            setTransitionMode('WRITEOFF');
-            setTransitionModalOpen(true);
+            setSelectedItemForAction(it);
+            setAdjustmentModalOpen(true);
           }}
         />
       )}
 
-      {activeTab === 'movements' && (
-        <InventoryLedgerTable loading={loading} movements={movements} />
+      {activeTab === 'receiving' && (
+        <InventoryReceivingTable loading={loading} receipts={filteredReceipts} />
       )}
 
       {activeTab === 'transfers' && (
-        <InventoryTransfersTable loading={loading} transfers={transfers} onRefresh={fetchInventoryData} />
+        <InventoryTransfersTable loading={loading} transfers={filteredTransfers} onRefresh={fetchInventoryData} />
+      )}
+
+      {activeTab === 'stocktake' && (
+        <InventoryStocktakeView branchId={selectedBranch?.id} onNewSession={() => setStocktakeModalOpen(true)} />
+      )}
+
+      {activeTab === 'movements' && (
+        <InventoryLedgerTable loading={loading} movements={filteredMovements} />
       )}
 
       <InventoryStateTransitionModal
@@ -213,6 +288,37 @@ export function InventoryView() {
         item={selectedItemForTransfer}
         warehouses={warehouses}
         branches={branches}
+        onSuccess={fetchInventoryData}
+      />
+
+      <InventoryReceivingModal
+        isOpen={receivingModalOpen}
+        onClose={() => setReceivingModalOpen(false)}
+        warehouses={warehouses}
+        products={inventory}
+        onSuccess={fetchInventoryData}
+      />
+
+      <InventoryStocktakeModal
+        isOpen={stocktakeModalOpen}
+        onClose={() => setStocktakeModalOpen(false)}
+        warehouses={warehouses}
+        categories={categories}
+        onSuccess={fetchInventoryData}
+      />
+
+      <InventoryWriteOffModal
+        isOpen={writeOffModalOpen}
+        onClose={() => setWriteOffModalOpen(false)}
+        item={selectedItemForAction}
+        warehouses={warehouses}
+        onSuccess={fetchInventoryData}
+      />
+
+      <InventoryAdjustmentModal
+        isOpen={adjustmentModalOpen}
+        onClose={() => setAdjustmentModalOpen(false)}
+        item={selectedItemForAction}
         onSuccess={fetchInventoryData}
       />
     </div>

@@ -28,7 +28,7 @@ export function InventoryFilters({
       {/* Top Bar: View Mode Tabs & Search */}
       <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
         {/* Navigation Tabs */}
-        <div className="flex items-center gap-1 bg-[#0c0e12] p-1 rounded border border-[#222834]">
+        <div className="flex flex-wrap items-center gap-1 bg-[#0c0e12] p-1 rounded border border-[#222834]">
           <button
             onClick={() => setActiveTab('matrix')}
             className={`px-3 py-1.5 rounded text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer ${
@@ -39,13 +39,13 @@ export function InventoryFilters({
             STOCK MATRIX
           </button>
           <button
-            onClick={() => setActiveTab('movements')}
+            onClick={() => setActiveTab('receiving')}
             className={`px-3 py-1.5 rounded text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer ${
-              activeTab === 'movements' ? 'bg-emerald-500 text-slate-950' : 'text-slate-400 hover:text-white'
+              activeTab === 'receiving' ? 'bg-emerald-500 text-slate-950' : 'text-slate-400 hover:text-white'
             }`}
           >
-            <FileText className="w-3.5 h-3.5" />
-            STATE LEDGER
+            <Layers className="w-3.5 h-3.5" />
+            RECEIVING (GRN)
           </button>
           <button
             onClick={() => setActiveTab('transfers')}
@@ -56,6 +56,24 @@ export function InventoryFilters({
             <ArrowRightLeft className="w-3.5 h-3.5" />
             TRANSFERS
           </button>
+          <button
+            onClick={() => setActiveTab('stocktake')}
+            className={`px-3 py-1.5 rounded text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer ${
+              activeTab === 'stocktake' ? 'bg-emerald-500 text-slate-950' : 'text-slate-400 hover:text-white'
+            }`}
+          >
+            <FileText className="w-3.5 h-3.5" />
+            STOCKTAKE
+          </button>
+          <button
+            onClick={() => setActiveTab('movements')}
+            className={`px-3 py-1.5 rounded text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer ${
+              activeTab === 'movements' ? 'bg-emerald-500 text-slate-950' : 'text-slate-400 hover:text-white'
+            }`}
+          >
+            <FileText className="w-3.5 h-3.5" />
+            MOVEMENT HISTORY
+          </button>
         </div>
 
         {/* Search Input */}
@@ -65,7 +83,15 @@ export function InventoryFilters({
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search by SKU, Barcode, or Product Name..."
+            placeholder={
+              activeTab === 'transfers'
+                ? 'Search by Transfer # or Route...'
+                : activeTab === 'receiving'
+                ? 'Search by GRN #, Invoice, or Delivery Note...'
+                : activeTab === 'movements'
+                ? 'Search by SKU, Product, or Reference...'
+                : 'Search by SKU, Barcode, or Product Name...'
+            }
             className="w-full bg-[#181d28] border border-[#222834] rounded pl-8 pr-8 py-1.5 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-emerald-500 transition-colors"
           />
           {searchQuery && (
@@ -80,13 +106,13 @@ export function InventoryFilters({
       </div>
 
       {/* Second Bar: Warehouse, Category & State Filter */}
-      {activeTab === 'matrix' && (
+      {activeTab !== 'stocktake' && (
         <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-[#1e2430]">
           {/* Warehouse Selector */}
           <select
             value={selectedWarehouseId}
             onChange={(e) => setSelectedWarehouseId(e.target.value)}
-            className="bg-[#181d28] border border-[#222834] rounded px-2.5 py-1.5 text-xs text-slate-300 focus:border-emerald-500 focus:outline-none cursor-pointer"
+            className="bg-[#181d28] border border-[#222834] rounded px-2.5 py-1.5 text-xs text-slate-300 focus:border-emerald-500 focus:outline-none cursor-pointer max-w-[220px] truncate"
           >
             <option value="">All Warehouses</option>
             {warehouses.map((w) => (
@@ -96,33 +122,38 @@ export function InventoryFilters({
             ))}
           </select>
 
-          {/* Category Selector */}
-          <select
-            value={selectedCategory}
-            onChange={(e) => setSelectedCategory(e.target.value)}
-            className="bg-[#181d28] border border-[#222834] rounded px-2.5 py-1.5 text-xs text-slate-300 focus:border-emerald-500 focus:outline-none cursor-pointer"
-          >
-            <option value="ALL">All Categories</option>
-            {categories.map((c) => (
-              <option key={c} value={c}>
-                {c}
-              </option>
-            ))}
-          </select>
+          {/* Category & State filter on matrix */}
+          {activeTab === 'matrix' && (
+            <>
+              {/* Category Selector */}
+              <select
+                value={selectedCategory}
+                onChange={(e) => setSelectedCategory(e.target.value)}
+                className="bg-[#181d28] border border-[#222834] rounded px-2.5 py-1.5 text-xs text-slate-300 focus:border-emerald-500 focus:outline-none cursor-pointer"
+              >
+                <option value="ALL">All Categories</option>
+                {categories.map((c) => (
+                  <option key={c} value={c}>
+                    {c}
+                  </option>
+                ))}
+              </select>
 
-          {/* State Filter Selector */}
-          <select
-            value={stateFilter}
-            onChange={(e) => setStateFilter(e.target.value)}
-            className="bg-[#181d28] border border-[#222834] rounded px-2.5 py-1.5 text-xs text-slate-300 focus:border-emerald-500 focus:outline-none cursor-pointer"
-          >
-            <option value="ALL">All States</option>
-            <option value="LOW_STOCK">Low Stock (At Reorder Threshold)</option>
-            <option value="DAMAGED">Damaged / Quarantine Only</option>
-            <option value="EXPIRED">Expired Stock Only</option>
-            <option value="RESERVED">Reserved for Orders</option>
-            <option value="IN_TRANSIT">In-Transit Freight</option>
-          </select>
+              {/* State Filter Selector */}
+              <select
+                value={stateFilter}
+                onChange={(e) => setStateFilter(e.target.value)}
+                className="bg-[#181d28] border border-[#222834] rounded px-2.5 py-1.5 text-xs text-slate-300 focus:border-emerald-500 focus:outline-none cursor-pointer"
+              >
+                <option value="ALL">All States</option>
+                <option value="LOW_STOCK">Low Stock (At Reorder Threshold)</option>
+                <option value="DAMAGED">Damaged / Quarantine Only</option>
+                <option value="EXPIRED">Expired Stock Only</option>
+                <option value="RESERVED">Reserved for Orders</option>
+                <option value="IN_TRANSIT">In-Transit Freight</option>
+              </select>
+            </>
+          )}
 
           {hasActiveFilters && (
             <button

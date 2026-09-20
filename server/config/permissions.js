@@ -30,7 +30,10 @@ const AUTHORIZATION_MATRIX = {
             adjust_request: SCOPES.GLOBAL,
             adjust_approve: SCOPES.GLOBAL,
             transfer_request: SCOPES.GLOBAL,
-            transfer_status: SCOPES.GLOBAL
+            transfer_status: SCOPES.GLOBAL,
+            receive_stock: SCOPES.GLOBAL,
+            stocktake: SCOPES.GLOBAL,
+            write_off: SCOPES.GLOBAL
         },
         dispatch: {
             view: SCOPES.GLOBAL,
@@ -84,7 +87,10 @@ const AUTHORIZATION_MATRIX = {
             adjust_request: SCOPES.OWN_BRANCH,
             adjust_approve: SCOPES.OWN_BRANCH,
             transfer_request: SCOPES.OWN_BRANCH,
-            transfer_status: SCOPES.OWN_BRANCH
+            transfer_status: SCOPES.OWN_BRANCH,
+            receive_stock: SCOPES.OWN_BRANCH,
+            stocktake: SCOPES.OWN_BRANCH,
+            write_off: SCOPES.OWN_BRANCH
         },
         dispatch: {
             view: SCOPES.OWN_BRANCH,
@@ -138,7 +144,10 @@ const AUTHORIZATION_MATRIX = {
             adjust_request: SCOPES.DENIED,
             adjust_approve: SCOPES.DENIED,
             transfer_request: SCOPES.DENIED,
-            transfer_status: SCOPES.DENIED
+            transfer_status: SCOPES.DENIED,
+            receive_stock: SCOPES.DENIED,
+            stocktake: SCOPES.DENIED,
+            write_off: SCOPES.DENIED
         },
         dispatch: {
             view: SCOPES.OWN_BRANCH,
@@ -192,7 +201,10 @@ const AUTHORIZATION_MATRIX = {
             adjust_request: SCOPES.DENIED,
             adjust_approve: SCOPES.DENIED,
             transfer_request: SCOPES.DENIED,
-            transfer_status: SCOPES.DENIED
+            transfer_status: SCOPES.DENIED,
+            receive_stock: SCOPES.DENIED,
+            stocktake: SCOPES.DENIED,
+            write_off: SCOPES.DENIED
         },
         dispatch: {
             view: SCOPES.DENIED,
@@ -246,7 +258,10 @@ const AUTHORIZATION_MATRIX = {
             adjust_request: SCOPES.DENIED,
             adjust_approve: SCOPES.DENIED,
             transfer_request: SCOPES.DENIED,
-            transfer_status: SCOPES.DENIED
+            transfer_status: SCOPES.DENIED,
+            receive_stock: SCOPES.DENIED,
+            stocktake: SCOPES.DENIED,
+            write_off: SCOPES.DENIED
         },
         dispatch: {
             view: SCOPES.DENIED,
