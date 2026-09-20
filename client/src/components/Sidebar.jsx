@@ -208,6 +208,7 @@ export function Sidebar({
                     type="button"
                     onClick={() => handleItemClick(item.id)}
                     aria-label={item.label}
+                    title={item.label}
                     className={`relative w-full h-10 flex items-center justify-center cursor-pointer rounded transition-colors duration-150 group select-none ${isActive
                         ? 'bg-[#181f2c] text-amber-400'
                         : 'text-slate-400 hover:text-slate-200 hover:bg-[#141822]'
@@ -222,6 +223,7 @@ export function Sidebar({
                     <Icon
                       className={`w-4 h-4 shrink-0 transition-colors duration-150 ${isActive ? 'text-amber-400' : 'text-slate-400 group-hover:text-slate-200'
                         }`}
+                      title={item.label}
                     />
 
                     {/* Floating Tooltip in Collapsed Mode */}
@@ -240,6 +242,7 @@ export function Sidebar({
                   key={item.id}
                   type="button"
                   onClick={() => handleItemClick(item.id)}
+                  title={item.label}
                   className={`relative w-full flex items-center justify-between px-3 py-2 text-xs font-medium transition-colors duration-150 cursor-pointer rounded text-left select-none ${isActive
                       ? 'bg-[#181f2c] text-white'
                       : 'text-slate-400 hover:text-slate-200 hover:bg-[#141822]'
@@ -255,6 +258,7 @@ export function Sidebar({
                     <Icon
                       className={`w-4 h-4 shrink-0 transition-colors duration-150 ${isActive ? 'text-amber-400' : 'text-slate-400'
                         }`}
+                      title={item.label}
                     />
                     <span className="truncate">{item.label}</span>
                   </div>

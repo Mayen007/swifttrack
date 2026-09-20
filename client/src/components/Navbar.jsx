@@ -167,8 +167,8 @@ export function Navbar({
             <span className="font-medium text-slate-100 tracking-tight max-w-[70px] xs:max-w-[95px] sm:max-w-[140px] md:max-w-[180px] truncate">
               {selectedBranch ? selectedBranch.name : 'All Kenya Hubs'}
             </span>
-            <span className="text-[10px] font-mono text-slate-400 hidden md:inline shrink-0">
-              [{selectedBranch?.code || 'HQ'}]
+            <span className="text-[10px] font-mono font-bold text-amber-400 bg-[#161c28] border border-[#273347] px-2 py-0.5 rounded hidden md:inline-flex items-center shrink-0 tracking-wide">
+              {selectedBranch?.code || 'HQ'}
             </span>
 
             <ChevronDown
@@ -211,9 +211,9 @@ export function Navbar({
                 >
                   <div className="flex items-center gap-2.5 min-w-0">
                     <div
-                      className={`w-6 h-6 rounded border flex items-center justify-center shrink-0 font-mono text-[10px] ${
+                      className={`min-w-[56px] px-2.5 py-1 rounded border flex items-center justify-center shrink-0 font-mono text-[10px] font-bold tracking-wide ${
                         !selectedBranch
-                          ? 'border-amber-400/40 bg-amber-400/10 text-amber-400 font-bold'
+                          ? 'border-amber-400/40 bg-amber-400/10 text-amber-400'
                           : 'border-[#222834] bg-[#161c28] text-slate-400'
                       }`}
                     >
@@ -251,10 +251,10 @@ export function Navbar({
                     >
                       <div className="flex items-center gap-2.5 min-w-0">
                         <div
-                          className={`w-6 h-6 rounded border flex items-center justify-center shrink-0 font-mono text-[10px] ${
+                          className={`min-w-[56px] px-2.5 py-1 rounded border flex items-center justify-center shrink-0 font-mono text-[10px] font-bold tracking-wide ${
                             isSelected
-                              ? 'border-amber-400/40 bg-amber-400/10 text-amber-400 font-bold'
-                              : 'border-[#222834] bg-[#161c28] text-slate-400'
+                              ? 'border-amber-400/40 bg-amber-400/10 text-amber-400'
+                              : 'border-[#222834] bg-[#161c28] text-slate-300'
                           }`}
                         >
                           {b.code}
