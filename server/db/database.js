@@ -89,6 +89,56 @@ function migrateCommerceSchema() {
     }
 }
 
+/**
+ * Non-destructive runtime migration for Phase 3: 3.1 Inventory States
+ * Adds quantity_in_transit, quantity_damaged, quantity_expired to inventory & variant_inventory,
+ * and from_state / to_state to inventory_movements.
+ */
+function migrateInventoryStatesSchema() {
+    try {
+        // 1. inventory table columns
+        const invInfo = db.prepare('PRAGMA table_info(inventory)').all();
+        const invCols = invInfo.map(c => c.name);
+        const newInvCols = [
+            { name: 'quantity_in_transit', def: 'INTEGER NOT NULL DEFAULT 0' },
+            { name: 'quantity_damaged', def: 'INTEGER NOT NULL DEFAULT 0' },
+            { name: 'quantity_expired', def: 'INTEGER NOT NULL DEFAULT 0' }
+        ];
+        for (const col of newInvCols) {
+            if (!invCols.includes(col.name)) {
+                db.exec(`ALTER TABLE inventory ADD COLUMN ${col.name} ${col.def};`);
+            }
+        }
+
+        // 2. variant_inventory table columns (if table exists)
+        const hasVariantInv = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='variant_inventory'").get();
+        if (hasVariantInv) {
+            const vInfo = db.prepare('PRAGMA table_info(variant_inventory)').all();
+            const vCols = vInfo.map(c => c.name);
+            for (const col of newInvCols) {
+                if (!vCols.includes(col.name)) {
+                    db.exec(`ALTER TABLE variant_inventory ADD COLUMN ${col.name} ${col.def};`);
+                }
+            }
+        }
+
+        // 3. inventory_movements table columns
+        const movInfo = db.prepare('PRAGMA table_info(inventory_movements)').all();
+        const movCols = movInfo.map(c => c.name);
+        const newMovCols = [
+            { name: 'from_state', def: "TEXT NOT NULL DEFAULT 'AVAILABLE'" },
+            { name: 'to_state', def: "TEXT NOT NULL DEFAULT 'AVAILABLE'" }
+        ];
+        for (const col of newMovCols) {
+            if (!movCols.includes(col.name)) {
+                db.exec(`ALTER TABLE inventory_movements ADD COLUMN ${col.name} ${col.def};`);
+            }
+        }
+    } catch (err) {
+        console.warn('Inventory states schema migration notice:', err.message);
+    }
+}
+
 // Initialize schema
 function initSchema() {
     const schemaPath = path.resolve(__dirname, 'schema.sql');
@@ -96,6 +146,7 @@ function initSchema() {
     db.exec(schemaSql);
     migrateAuthSchema();
     migrateCommerceSchema();
+    migrateInventoryStatesSchema();
 }
 
 module.exports = {

@@ -903,11 +903,66 @@ function ensureRichChartTelemetry() {
 }
 
 /**
+ * Ensures realistic Kenyan multi-state inventory samples (damaged, expired, reserved, in-transit)
+ */
+function ensureMultiStateInventorySeed() {
+    try {
+        // Mombasa Warehouse (branch 2) - 8 units of Cement damaged (broken packaging)
+        const cement = db.prepare("SELECT id FROM products WHERE sku LIKE '%CEM%' OR name LIKE '%Cement%' LIMIT 1").get();
+        if (cement) {
+            const wh = db.prepare("SELECT id, branch_id FROM warehouses WHERE branch_id = 2 LIMIT 1").get();
+            if (wh) {
+                const inv = db.prepare("SELECT * FROM inventory WHERE warehouse_id = ? AND product_id = ?").get(wh.id, cement.id);
+                if (inv && inv.quantity_damaged === 0 && inv.quantity_available >= 8) {
+                    db.prepare("UPDATE inventory SET quantity_damaged = 8, quantity_available = quantity_available - 8 WHERE id = ?").run(inv.id);
+                }
+            }
+        }
+        // Nairobi Warehouse (branch 1) - 15 units reserved for pending delivery order
+        const box = db.prepare("SELECT id FROM products WHERE sku LIKE '%BOX%' OR name LIKE '%Box%' LIMIT 1").get();
+        if (box) {
+            const wh = db.prepare("SELECT id, branch_id FROM warehouses WHERE branch_id = 1 LIMIT 1").get();
+            if (wh) {
+                const inv = db.prepare("SELECT * FROM inventory WHERE warehouse_id = ? AND product_id = ?").get(wh.id, box.id);
+                if (inv && inv.quantity_reserved === 0 && inv.quantity_available >= 15) {
+                    db.prepare("UPDATE inventory SET quantity_reserved = 15, quantity_available = quantity_available - 15 WHERE id = ?").run(inv.id);
+                }
+            }
+        }
+        // Kisumu Warehouse (branch 3) - 6 units expired goods
+        const water = db.prepare("SELECT id FROM products WHERE sku LIKE '%WTR%' OR name LIKE '%Water%' OR category_id = 1 LIMIT 1").get();
+        if (water) {
+            const wh = db.prepare("SELECT id, branch_id FROM warehouses WHERE branch_id = 3 LIMIT 1").get();
+            if (wh) {
+                const inv = db.prepare("SELECT * FROM inventory WHERE warehouse_id = ? AND product_id = ?").get(wh.id, water.id);
+                if (inv && inv.quantity_expired === 0 && inv.quantity_available >= 6) {
+                    db.prepare("UPDATE inventory SET quantity_expired = 6, quantity_available = quantity_available - 6 WHERE id = ?").run(inv.id);
+                }
+            }
+        }
+        // Nairobi Warehouse - 10 units in transit to Mombasa
+        const tape = db.prepare("SELECT id FROM products WHERE sku LIKE '%TAPE%' OR name LIKE '%Tape%' LIMIT 1").get();
+        if (tape) {
+            const wh = db.prepare("SELECT id FROM warehouses WHERE branch_id = 1 LIMIT 1").get();
+            if (wh) {
+                const inv = db.prepare("SELECT * FROM inventory WHERE warehouse_id = ? AND product_id = ?").get(wh.id, tape.id);
+                if (inv && inv.quantity_in_transit === 0) {
+                    db.prepare("UPDATE inventory SET quantity_in_transit = 10 WHERE id = ?").run(inv.id);
+                }
+            }
+        }
+    } catch (e) {
+        console.warn('Multi-state seed notice:', e.message);
+    }
+}
+
+/**
  * Full Seed: Runs production bootstrap followed by demo simulation.
  */
 function runSeed() {
     initProductionBootstrap();
     seedDemoSimulation();
+    ensureMultiStateInventorySeed();
 }
 
 /**

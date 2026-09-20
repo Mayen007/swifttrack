@@ -195,8 +195,11 @@ CREATE TABLE IF NOT EXISTS variant_inventory (
     product_id INTEGER NOT NULL REFERENCES products(id) ON DELETE CASCADE,
     variant_id INTEGER NOT NULL REFERENCES product_variants(id) ON DELETE CASCADE,
     quantity_on_hand INTEGER NOT NULL DEFAULT 0,
-    quantity_reserved INTEGER NOT NULL DEFAULT 0,
     quantity_available INTEGER NOT NULL DEFAULT 0,
+    quantity_reserved INTEGER NOT NULL DEFAULT 0,
+    quantity_in_transit INTEGER NOT NULL DEFAULT 0,
+    quantity_damaged INTEGER NOT NULL DEFAULT 0,
+    quantity_expired INTEGER NOT NULL DEFAULT 0,
     last_recounted_at DATETIME,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(warehouse_id, variant_id)
@@ -236,8 +239,11 @@ CREATE TABLE IF NOT EXISTS inventory (
     warehouse_id INTEGER NOT NULL REFERENCES warehouses(id) ON DELETE RESTRICT,
     product_id INTEGER NOT NULL REFERENCES products(id) ON DELETE RESTRICT,
     quantity_on_hand INTEGER NOT NULL DEFAULT 0,
-    quantity_reserved INTEGER NOT NULL DEFAULT 0,
     quantity_available INTEGER NOT NULL DEFAULT 0,
+    quantity_reserved INTEGER NOT NULL DEFAULT 0,
+    quantity_in_transit INTEGER NOT NULL DEFAULT 0,
+    quantity_damaged INTEGER NOT NULL DEFAULT 0,
+    quantity_expired INTEGER NOT NULL DEFAULT 0,
     last_recounted_at DATETIME,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(warehouse_id, product_id)
@@ -253,7 +259,9 @@ CREATE TABLE IF NOT EXISTS inventory_movements (
     quantity_change INTEGER NOT NULL,
     previous_quantity INTEGER NOT NULL,
     new_quantity INTEGER NOT NULL,
-    reference_type TEXT NOT NULL, -- SALE, ORDER, TRANSFER, ADJUSTMENT, MANUAL
+    from_state TEXT NOT NULL DEFAULT 'AVAILABLE', -- AVAILABLE, RESERVED, IN_TRANSIT, DAMAGED, EXPIRED, EXTERNAL
+    to_state TEXT NOT NULL DEFAULT 'AVAILABLE',   -- AVAILABLE, RESERVED, IN_TRANSIT, DAMAGED, EXPIRED, EXTERNAL
+    reference_type TEXT NOT NULL, -- SALE, ORDER, TRANSFER, ADJUSTMENT, MANUAL, QUARANTINE, EXPIRY, WRITE_OFF
     reference_id TEXT,
     reason TEXT NOT NULL,
     user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
