@@ -101,7 +101,10 @@ class ApiService {
 
     const res = await fetch('/api/auth/refresh', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Requested-With': 'XMLHttpRequest',
+      },
       body: JSON.stringify({ refreshToken: this.refreshToken }),
     });
 
@@ -123,6 +126,7 @@ class ApiService {
   async request(endpoint, options = {}, isRetry = false) {
     const headers = {
       'Content-Type': 'application/json',
+      'X-Requested-With': 'XMLHttpRequest',
       ...(options.headers || {}),
     };
 

@@ -214,41 +214,195 @@ function initProductionBootstrap() {
         }
     }
 
+    console.log('[Bootstrap] Seeding brands & suppliers...');
+    const brands = [
+        { id: 1, code: 'SWIFT-PACK', name: 'SwiftPack Commercial', description: 'Heavy-duty industrial packaging materials' },
+        { id: 2, code: 'BAMBURI', name: 'Bamburi Cement Ltd', description: 'Premier Portland cement & structural aggregates' },
+        { id: 3, code: 'SAVANNAH', name: 'Savannah Cement', description: 'Hydraulic and construction cements' },
+        { id: 4, code: 'LUMEN-SOL', name: 'Lumen Solar & Power', description: 'Inverters, deep-cycle solar batteries & power conditioning' },
+        { id: 5, code: 'KILIMA', name: 'Kilima Natural Springs', description: 'Certified pure spring water and beverages' },
+        { id: 6, code: 'TOTAL-ERG', name: 'TotalEnergies Kenya', description: 'Commercial engine lubricants and fleet hydraulic fluids' },
+        { id: 7, code: 'ISUZU-EA', name: 'Isuzu East Africa Spares', description: 'OEM commercial truck spares and service filters' }
+    ];
+
+    for (const b of brands) {
+        const exist = db.prepare('SELECT id FROM brands WHERE id = ?').get(b.id);
+        if (!exist) {
+            db.prepare('INSERT INTO brands (id, code, name, description, is_active) VALUES (?, ?, ?, ?, 1)').run(b.id, b.code, b.name, b.description);
+        }
+    }
+
+    const suppliers = [
+        { id: 1, code: 'SUP-BAMBURI', name: 'Bamburi Industrial Depot', contact_person: 'David Maina', email: 'orders@bamburi.co.ke', phone: '+254 722 100 001', lead_time_days: 2, payment_terms: 'NET30' },
+        { id: 2, code: 'SUP-SWIFTPACK', name: 'SwiftPack Industries Kenya', contact_person: 'Grace Wambui', email: 'sales@swiftpack.co.ke', phone: '+254 722 100 002', lead_time_days: 1, payment_terms: 'NET15' },
+        { id: 3, code: 'SUP-SOLARMAX', name: 'SolarMax Technologies East Africa', contact_person: 'Kevin Ochieng', email: 'wholesale@solarmax.ke', phone: '+254 722 100 003', lead_time_days: 4, payment_terms: 'NET45' },
+        { id: 4, code: 'SUP-TOTAL', name: 'TotalEnergies Commercial Distribution', contact_person: 'Fatuma Hassan', email: 'logistics@totalenergies.co.ke', phone: '+254 722 100 004', lead_time_days: 3, payment_terms: 'NET30' }
+    ];
+
+    for (const s of suppliers) {
+        const exist = db.prepare('SELECT id FROM suppliers WHERE id = ?').get(s.id);
+        if (!exist) {
+            db.prepare(`
+                INSERT INTO suppliers (id, code, name, contact_person, email, phone, lead_time_days, payment_terms, is_active)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)
+            `).run(s.id, s.code, s.name, s.contact_person, s.email, s.phone, s.lead_time_days, s.payment_terms);
+        }
+    }
+
     const products = [
-        { id: 1, category_id: 1, sku: 'LOG-BX-01', barcode: '890123450001', name: 'Heavy Duty Corrugated Box (Large 60x40x40cm)', unit: 'PCS', cost: 120.0, price: 180.0, min: 50 },
-        { id: 2, category_id: 1, sku: 'LOG-BX-02', barcode: '890123450002', name: 'Medium Dispatch Packing Carton (40x30x30cm)', unit: 'PCS', cost: 85.0, price: 130.0, min: 50 },
-        { id: 3, category_id: 1, sku: 'LOG-FLM-01', barcode: '890123450003', name: 'Industrial Stretch Film Roll 500mm x 300m', unit: 'ROLL', cost: 950.0, price: 1450.0, min: 20 },
-        { id: 4, category_id: 1, sku: 'LOG-TP-01', barcode: '890123450004', name: 'Reinforced Fragile Packaging Tape 48mm x 100m', unit: 'ROLL', cost: 180.0, price: 290.0, min: 30 },
-        { id: 5, category_id: 1, sku: 'LOG-SL-01', barcode: '890123450005', name: 'Tamper-Evident Cargo Bolt Seals (Pack of 50)', unit: 'PACK', cost: 1800.0, price: 2600.0, min: 10 },
-        { id: 6, category_id: 2, sku: 'BLD-CMT-01', barcode: '890123450006', name: 'Bamburi Portland Cement 32.5R (50kg Bag)', unit: 'BAG', cost: 720.0, price: 850.0, min: 40 },
-        { id: 7, category_id: 2, sku: 'BLD-CMT-02', barcode: '890123450007', name: 'Savannah Blue Triangle Cement 42.5N (50kg)', unit: 'BAG', cost: 780.0, price: 920.0, min: 30 },
-        { id: 8, category_id: 2, sku: 'BLD-ST-01', barcode: '890123450008', name: 'High Tensile Steel Binding Wire (25kg Roll)', unit: 'ROLL', cost: 3100.0, price: 3850.0, min: 15 },
-        { id: 9, category_id: 2, sku: 'BLD-ST-02', barcode: '890123450009', name: 'Deformed High Yield Rebar D12 (12m Bar)', unit: 'BAR', cost: 1250.0, price: 1550.0, min: 50 },
-        { id: 10, category_id: 2, sku: 'BLD-SAF-01', barcode: '890123450010', name: 'Heavy Duty Site Safety Helmet with Visor', unit: 'PCS', cost: 650.0, price: 950.0, min: 15 },
-        { id: 11, category_id: 3, sku: 'ELE-INV-01', barcode: '890123450011', name: 'Pure Sine Wave Solar Inverter 3.5kVA 24V', unit: 'UNIT', cost: 38000.0, price: 46500.0, min: 5 },
-        { id: 12, category_id: 3, sku: 'ELE-BAT-01', barcode: '890123450012', name: 'Lithium LiFePO4 Energy Battery Pack 48V 100Ah', unit: 'UNIT', cost: 95000.0, price: 118000.0, min: 3 },
-        { id: 13, category_id: 3, sku: 'ELE-SCN-01', barcode: '890123450013', name: 'Wireless Industrial 2D Barcode & QR Scanner', unit: 'PCS', cost: 4200.0, price: 6500.0, min: 8 },
-        { id: 14, category_id: 3, sku: 'ELE-GPS-01', barcode: '890123450014', name: 'Fleet Asset Magnetic GPS Tracker (4G LTE)', unit: 'PCS', cost: 3100.0, price: 4800.0, min: 10 },
-        { id: 15, category_id: 3, sku: 'ELE-UPS-01', barcode: '890123450015', name: 'Line Interactive 1500VA Office Workstation UPS', unit: 'UNIT', cost: 11200.0, price: 14800.0, min: 5 },
-        { id: 16, category_id: 4, sku: 'FMCG-WTR-01', barcode: '890123450016', name: 'Kilima Pure Natural Spring Water (Carton 24x500ml)', unit: 'CTN', cost: 480.0, price: 720.0, min: 40 },
-        { id: 17, category_id: 4, sku: 'FMCG-WTR-02', barcode: '890123450017', name: 'Kilima Office Water Dispenser Bottle (18.9 Litre)', unit: 'BTL', cost: 250.0, price: 450.0, min: 30 },
-        { id: 18, category_id: 4, sku: 'FMCG-RIC-01', barcode: '890123450018', name: 'Premium Mwea Pishori Grade A Rice (25kg Bag)', unit: 'BAG', cost: 3850.0, price: 4600.0, min: 20 },
-        { id: 19, category_id: 4, sku: 'FMCG-OIL-01', barcode: '890123450019', name: 'Pure Refined Vegetable Cooking Oil (Jerrycan 20L)', unit: 'CAN', cost: 3950.0, price: 4650.0, min: 15 },
-        { id: 20, category_id: 4, sku: 'FMCG-TEA-01', barcode: '890123450020', name: 'Export Quality Granulated Black Tea (10kg Carton)', unit: 'CTN', cost: 3200.0, price: 4100.0, min: 10 },
-        { id: 21, category_id: 5, sku: 'AUT-OIL-01', barcode: '890123450021', name: 'Total Rubia Heavy Fleet Engine Oil 15W-40 (20L Drum)', unit: 'DRUM', cost: 8900.0, price: 11200.0, min: 10 },
-        { id: 22, category_id: 5, sku: 'AUT-HYD-01', barcode: '890123450022', name: 'Hydraulic Oil ISO VG 68 Anti-Wear (20L Drum)', unit: 'DRUM', cost: 7400.0, price: 9500.0, min: 8 },
-        { id: 23, category_id: 5, sku: 'AUT-FLT-01', barcode: '890123450023', name: 'Isuzu FRR / FSR Heavy Fleet Fuel Filter Cartridge', unit: 'PCS', cost: 1150.0, price: 1750.0, min: 15 },
-        { id: 24, category_id: 5, sku: 'AUT-BRK-01', barcode: '890123450024', name: 'Commercial Vehicle Heavy Air Brake Fluid (5L Can)', unit: 'CAN', cost: 1850.0, price: 2650.0, min: 12 },
-        { id: 25, category_id: 5, sku: 'AUT-TYR-01', barcode: '890123450025', name: 'Truck Heavy Radial Tyre 315/80R22.5 All-Position', unit: 'PCS', cost: 34000.0, price: 41500.0, min: 6 }
+        { id: 1, category_id: 1, brand_id: 1, supplier_id: 2, sku: 'LOG-BX-01', barcode: '890123450001', name: 'Heavy Duty Corrugated Box (Large 60x40x40cm)', unit: 'PCS', cost: 120.0, price: 180.0, wholesale: 150.0, min: 50, tax: 'STANDARD_16' },
+        { id: 2, category_id: 1, brand_id: 1, supplier_id: 2, sku: 'LOG-BX-02', barcode: '890123450002', name: 'Medium Dispatch Packing Carton (40x30x30cm)', unit: 'PCS', cost: 85.0, price: 130.0, wholesale: 110.0, min: 50, tax: 'STANDARD_16' },
+        { id: 3, category_id: 1, brand_id: 1, supplier_id: 2, sku: 'LOG-FLM-01', barcode: '890123450003', name: 'Industrial Stretch Film Roll 500mm x 300m', unit: 'ROLL', cost: 950.0, price: 1450.0, wholesale: 1250.0, min: 20, tax: 'STANDARD_16' },
+        { id: 4, category_id: 1, brand_id: 1, supplier_id: 2, sku: 'LOG-TP-01', barcode: '890123450004', name: 'Reinforced Fragile Packaging Tape 48mm x 100m', unit: 'ROLL', cost: 180.0, price: 290.0, wholesale: 240.0, min: 30, tax: 'STANDARD_16' },
+        { id: 5, category_id: 1, brand_id: 1, supplier_id: 2, sku: 'LOG-SL-01', barcode: '890123450005', name: 'Tamper-Evident Cargo Bolt Seals (Pack of 50)', unit: 'PACK', cost: 1800.0, price: 2600.0, wholesale: 2200.0, min: 10, tax: 'STANDARD_16' },
+        { id: 6, category_id: 2, brand_id: 2, supplier_id: 1, sku: 'BLD-CMT-01', barcode: '890123450006', name: 'Bamburi Portland Cement 32.5R (50kg Bag)', unit: 'BAG', cost: 720.0, price: 850.0, wholesale: 780.0, min: 40, tax: 'STANDARD_16' },
+        { id: 7, category_id: 2, brand_id: 3, supplier_id: 1, sku: 'BLD-CMT-02', barcode: '890123450007', name: 'Savannah Blue Triangle Cement 42.5N (50kg)', unit: 'BAG', cost: 780.0, price: 920.0, wholesale: 840.0, min: 30, tax: 'STANDARD_16' },
+        { id: 8, category_id: 2, brand_id: 2, supplier_id: 1, sku: 'BLD-ST-01', barcode: '890123450008', name: 'High Tensile Steel Binding Wire (25kg Roll)', unit: 'ROLL', cost: 3100.0, price: 3850.0, wholesale: 3450.0, min: 15, tax: 'STANDARD_16' },
+        { id: 9, category_id: 2, brand_id: 2, supplier_id: 1, sku: 'BLD-ST-02', barcode: '890123450009', name: 'Deformed High Yield Rebar D12 (12m Bar)', unit: 'BAR', cost: 1250.0, price: 1550.0, wholesale: 1380.0, min: 50, tax: 'STANDARD_16' },
+        { id: 10, category_id: 2, brand_id: 1, supplier_id: 2, sku: 'BLD-SAF-01', barcode: '890123450010', name: 'Heavy Duty Site Safety Helmet with Visor', unit: 'PCS', cost: 650.0, price: 950.0, wholesale: 800.0, min: 15, tax: 'STANDARD_16' },
+        { id: 11, category_id: 3, brand_id: 4, supplier_id: 3, sku: 'ELE-INV-01', barcode: '890123450011', name: 'Pure Sine Wave Solar Inverter 3.5kVA 24V', unit: 'UNIT', cost: 38000.0, price: 46500.0, wholesale: 42000.0, min: 5, tax: 'STANDARD_16' },
+        { id: 12, category_id: 3, brand_id: 4, supplier_id: 3, sku: 'ELE-BAT-01', barcode: '890123450012', name: 'Lithium LiFePO4 Energy Battery Pack 48V 100Ah', unit: 'UNIT', cost: 95000.0, price: 118000.0, wholesale: 106000.0, min: 3, tax: 'STANDARD_16' },
+        { id: 13, category_id: 3, brand_id: 1, supplier_id: 3, sku: 'ELE-SCN-01', barcode: '890123450013', name: 'Wireless Industrial 2D Barcode & QR Scanner', unit: 'PCS', cost: 4200.0, price: 6500.0, wholesale: 5400.0, min: 8, tax: 'STANDARD_16' },
+        { id: 14, category_id: 3, brand_id: 1, supplier_id: 3, sku: 'ELE-GPS-01', barcode: '890123450014', name: 'Fleet Asset Magnetic GPS Tracker (4G LTE)', unit: 'PCS', cost: 3100.0, price: 4800.0, wholesale: 3900.0, min: 10, tax: 'STANDARD_16' },
+        { id: 15, category_id: 3, brand_id: 4, supplier_id: 3, sku: 'ELE-UPS-01', barcode: '890123450015', name: 'Line Interactive 1500VA Office Workstation UPS', unit: 'UNIT', cost: 11200.0, price: 14800.0, wholesale: 12800.0, min: 5, tax: 'STANDARD_16' },
+        { id: 16, category_id: 4, brand_id: 5, supplier_id: 4, sku: 'FMCG-WTR-01', barcode: '890123450016', name: 'Kilima Pure Natural Spring Water (Carton 24x500ml)', unit: 'CTN', cost: 480.0, price: 720.0, wholesale: 600.0, min: 40, tax: 'ZERO_RATED_0' },
+        { id: 17, category_id: 4, brand_id: 5, supplier_id: 4, sku: 'FMCG-WTR-02', barcode: '890123450017', name: 'Kilima Office Water Dispenser Bottle (18.9 Litre)', unit: 'BTL', cost: 250.0, price: 450.0, wholesale: 350.0, min: 30, tax: 'ZERO_RATED_0' },
+        { id: 18, category_id: 4, brand_id: 5, supplier_id: 4, sku: 'FMCG-RIC-01', barcode: '890123450018', name: 'Premium Mwea Pishori Grade A Rice (25kg Bag)', unit: 'BAG', cost: 3850.0, price: 4600.0, wholesale: 4150.0, min: 20, tax: 'ZERO_RATED_0' },
+        { id: 19, category_id: 4, brand_id: 5, supplier_id: 4, sku: 'FMCG-OIL-01', barcode: '890123450019', name: 'Pure Refined Vegetable Cooking Oil (Jerrycan 20L)', unit: 'CAN', cost: 3950.0, price: 4650.0, wholesale: 4250.0, min: 15, tax: 'STANDARD_16' },
+        { id: 20, category_id: 4, brand_id: 5, supplier_id: 4, sku: 'FMCG-TEA-01', barcode: '890123450020', name: 'Export Quality Granulated Black Tea (10kg Carton)', unit: 'CTN', cost: 3200.0, price: 4100.0, wholesale: 3650.0, min: 10, tax: 'ZERO_RATED_0' },
+        { id: 21, category_id: 5, brand_id: 6, supplier_id: 4, sku: 'AUT-OIL-01', barcode: '890123450021', name: 'Total Rubia Heavy Fleet Engine Oil 15W-40 (20L Drum)', unit: 'DRUM', cost: 8900.0, price: 11200.0, wholesale: 9900.0, min: 10, tax: 'STANDARD_16' },
+        { id: 22, category_id: 5, brand_id: 6, supplier_id: 4, sku: 'AUT-HYD-01', barcode: '890123450022', name: 'Hydraulic Oil ISO VG 68 Anti-Wear (20L Drum)', unit: 'DRUM', cost: 7400.0, price: 9500.0, wholesale: 8400.0, min: 8, tax: 'STANDARD_16' },
+        { id: 23, category_id: 5, brand_id: 7, supplier_id: 4, sku: 'AUT-FLT-01', barcode: '890123450023', name: 'Isuzu FRR / FSR Heavy Fleet Fuel Filter Cartridge', unit: 'PCS', cost: 1150.0, price: 1750.0, wholesale: 1450.0, min: 15, tax: 'STANDARD_16' },
+        { id: 24, category_id: 5, brand_id: 6, supplier_id: 4, sku: 'AUT-BRK-01', barcode: '890123450024', name: 'Commercial Vehicle Heavy Air Brake Fluid (5L Can)', unit: 'CAN', cost: 1850.0, price: 2650.0, wholesale: 2250.0, min: 12, tax: 'STANDARD_16' },
+        { id: 25, category_id: 5, brand_id: 7, supplier_id: 4, sku: 'AUT-TYR-01', barcode: '890123450025', name: 'Truck Heavy Radial Tyre 315/80R22.5 All-Position', unit: 'PCS', cost: 34000.0, price: 41500.0, wholesale: 37500.0, min: 6, tax: 'STANDARD_16' }
     ];
 
     for (const p of products) {
         const exist = db.prepare('SELECT id FROM products WHERE id = ?').get(p.id);
         if (!exist) {
             db.prepare(`
-                INSERT INTO products (id, category_id, sku, barcode, name, description, unit, cost_price, selling_price, min_stock_alert, max_stock_alert, is_active)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1000, 1)
-            `).run(p.id, p.category_id, p.sku, p.barcode, p.name, `${p.name} - Certified Supply`, p.unit, p.cost, p.price, p.min);
+                INSERT INTO products (
+                    id, category_id, brand_id, supplier_id, sku, barcode, name, description,
+                    unit, cost_price, selling_price, wholesale_price, tax_category, min_stock_alert,
+                    max_stock_alert, reorder_threshold, reorder_quantity, images, is_active, is_archived
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1000, ?, 50, '[]', 1, 0)
+            `).run(
+                p.id, p.category_id, p.brand_id, p.supplier_id, p.sku, p.barcode, p.name,
+                `${p.name} - Certified Supply`, p.unit, p.cost, p.price, p.wholesale, p.tax, p.min, p.min
+            );
+        } else {
+            // Update metadata for existing products
+            db.prepare(`
+                UPDATE products
+                SET brand_id = ?, supplier_id = ?, wholesale_price = ?, tax_category = ?,
+                    reorder_threshold = ?, reorder_quantity = 50
+                WHERE id = ?
+            `).run(p.brand_id, p.supplier_id, p.wholesale, p.tax, p.min, p.id);
+        }
+    }
+
+    console.log('[Bootstrap] Seeding product variants, bulk pricing & promotions...');
+    // Seed Sample Variants for Product 1 (Corrugated Box) and Product 10 (Helmet)
+    const variants = [
+        { id: 1, product_id: 1, sku: 'LOG-BX-01-SM', barcode: '890123450101', name: 'Corrugated Box Small 30x20x20cm', size: '30x20x20cm', color: 'Brown Kraft', model: 'Standard Wall', cost: 65.0, price: 95.0, wholesale: 80.0 },
+        { id: 2, product_id: 1, sku: 'LOG-BX-01-MD', barcode: '890123450102', name: 'Corrugated Box Medium 40x30x30cm', size: '40x30x30cm', color: 'Brown Kraft', model: 'Double Wall', cost: 90.0, price: 140.0, wholesale: 115.0 },
+        { id: 3, product_id: 1, sku: 'LOG-BX-01-LG', barcode: '890123450103', name: 'Corrugated Box Large 60x40x40cm', size: '60x40x40cm', color: 'Brown Kraft', model: 'Triple Heavy Wall', cost: 120.0, price: 180.0, wholesale: 150.0 },
+        { id: 4, product_id: 10, sku: 'BLD-SAF-01-YEL', barcode: '890123451001', name: 'Site Helmet Visor Yellow/M', size: 'M (54-58cm)', color: 'High-Vis Yellow', model: 'Pro-Guard V2', cost: 650.0, price: 950.0, wholesale: 800.0 },
+        { id: 5, product_id: 10, sku: 'BLD-SAF-01-WHT', barcode: '890123451002', name: 'Site Helmet Visor White/L', size: 'L (58-62cm)', color: 'Engineer White', model: 'Pro-Guard V2', cost: 680.0, price: 980.0, wholesale: 820.0 },
+        { id: 6, product_id: 10, sku: 'BLD-SAF-01-BLU', barcode: '890123451003', name: 'Site Helmet Visor Blue/L', size: 'L (58-62cm)', color: 'Safety Blue', model: 'Pro-Guard V2', cost: 680.0, price: 980.0, wholesale: 820.0 }
+    ];
+
+    for (const v of variants) {
+        const exist = db.prepare('SELECT id FROM product_variants WHERE id = ?').get(v.id);
+        if (!exist) {
+            db.prepare(`
+                INSERT INTO product_variants (
+                    id, product_id, variant_sku, variant_barcode, variant_name, size, color, model,
+                    cost_price_override, selling_price_override, wholesale_price_override, is_active
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+            `).run(v.id, v.product_id, v.sku, v.barcode, v.name, v.size, v.color, v.model, v.cost, v.price, v.wholesale);
+        }
+    }
+
+    // Seed Bulk Quantity Pricing Breaks
+    const bulkPricing = [
+        { product_id: 1, min_qty: 20, max_qty: 49, unit_price: 165.0, discount: 8.3 },
+        { product_id: 1, min_qty: 50, max_qty: 99, unit_price: 150.0, discount: 16.6 },
+        { product_id: 1, min_qty: 100, max_qty: null, unit_price: 135.0, discount: 25.0 },
+        { product_id: 6, min_qty: 50, max_qty: 99, unit_price: 810.0, discount: 4.7 },
+        { product_id: 6, min_qty: 100, max_qty: null, unit_price: 780.0, discount: 8.2 }
+    ];
+
+    for (const bp of bulkPricing) {
+        const exist = db.prepare('SELECT id FROM product_bulk_pricing WHERE product_id = ? AND min_quantity = ?').get(bp.product_id, bp.min_qty);
+        if (!exist) {
+            db.prepare(`
+                INSERT INTO product_bulk_pricing (product_id, min_quantity, max_quantity, unit_price, discount_percent)
+                VALUES (?, ?, ?, ?, ?)
+            `).run(bp.product_id, bp.min_qty, bp.max_qty, bp.unit_price, bp.discount);
+        }
+    }
+
+    // Seed Branch-Specific Pricing (e.g. Mombasa logistics freight difference)
+    const branchPrices = [
+        { branch_id: 2, product_id: 6, selling_price: 820.0, wholesale_price: 760.0 }, // Cement cheaper near port
+        { branch_id: 3, product_id: 6, selling_price: 890.0, wholesale_price: 820.0 }  // Inland Kisumu freight adjustment
+    ];
+
+    for (const bp of branchPrices) {
+        const exist = db.prepare('SELECT id FROM branch_product_prices WHERE branch_id = ? AND product_id = ?').get(bp.branch_id, bp.product_id);
+        if (!exist) {
+            db.prepare(`
+                INSERT INTO branch_product_prices (branch_id, product_id, selling_price, wholesale_price)
+                VALUES (?, ?, ?, ?)
+            `).run(bp.branch_id, bp.product_id, bp.selling_price, bp.wholesale_price);
+        }
+    }
+
+    // Seed Active & Scheduled Promotions
+    const now = new Date();
+    const nextMonth = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+    const promotions = [
+        {
+            promo_code: 'LOGISTICS10',
+            name: 'Packaging & Supplies Starter 10%',
+            description: '10% discount on all corrugated packaging cartons and rolls',
+            discount_type: 'PERCENTAGE',
+            discount_value: 10.0,
+            scope: 'CATEGORY',
+            target_id: 1,
+            min_spend: 1000.0,
+            start_date: now.toISOString(),
+            end_date: nextMonth.toISOString(),
+            is_active: 1
+        },
+        {
+            promo_code: 'FLASHSALE500',
+            name: 'Mega Order KES 500 Voucher',
+            description: 'KES 500 flat discount on orders exceeding KES 10,000',
+            discount_type: 'FIXED_AMOUNT',
+            discount_value: 500.0,
+            scope: 'ALL',
+            target_id: null,
+            min_spend: 10000.0,
+            start_date: now.toISOString(),
+            end_date: nextMonth.toISOString(),
+            is_active: 1
+        }
+    ];
+
+    for (const pr of promotions) {
+        const exist = db.prepare('SELECT id FROM promotions WHERE promo_code = ?').get(pr.promo_code);
+        if (!exist) {
+            db.prepare(`
+                INSERT INTO promotions (
+                    promo_code, name, description, discount_type, discount_value, scope,
+                    target_id, min_spend, start_date, end_date, is_active
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            `).run(
+                pr.promo_code, pr.name, pr.description, pr.discount_type, pr.discount_value,
+                pr.scope, pr.target_id, pr.min_spend, pr.start_date, pr.end_date, pr.is_active
+            );
         }
     }
 

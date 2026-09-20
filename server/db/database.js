@@ -63,12 +63,39 @@ function migrateAuthSchema() {
     }
 }
 
+function migrateCommerceSchema() {
+    try {
+        const productCols = db.prepare("PRAGMA table_info(products)").all().map(c => c.name);
+
+        const newProductCols = [
+            { name: 'brand_id', def: 'INTEGER REFERENCES brands(id) ON DELETE SET NULL' },
+            { name: 'supplier_id', def: 'INTEGER REFERENCES suppliers(id) ON DELETE SET NULL' },
+            { name: 'wholesale_price', def: 'REAL NOT NULL DEFAULT 0.0' },
+            { name: 'tax_category', def: "TEXT NOT NULL DEFAULT 'STANDARD_16'" },
+            { name: 'reorder_threshold', def: 'INTEGER NOT NULL DEFAULT 10' },
+            { name: 'reorder_quantity', def: 'INTEGER NOT NULL DEFAULT 50' },
+            { name: 'images', def: "TEXT NOT NULL DEFAULT '[]'" },
+            { name: 'is_archived', def: 'INTEGER NOT NULL DEFAULT 0' },
+            { name: 'archived_at', def: 'DATETIME' }
+        ];
+
+        for (const col of newProductCols) {
+            if (!productCols.includes(col.name)) {
+                db.exec(`ALTER TABLE products ADD COLUMN ${col.name} ${col.def};`);
+            }
+        }
+    } catch (err) {
+        console.warn('Commerce schema migration notice:', err.message);
+    }
+}
+
 // Initialize schema
 function initSchema() {
     const schemaPath = path.resolve(__dirname, 'schema.sql');
     const schemaSql = fs.readFileSync(schemaPath, 'utf8');
     db.exec(schemaSql);
     migrateAuthSchema();
+    migrateCommerceSchema();
 }
 
 module.exports = {

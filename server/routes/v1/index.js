@@ -51,5 +51,8 @@ router.use('/reports', require('../reports.js'));
 router.use('/notifications', require('../notifications.js'));
 router.use('/audit', require('../audit.js'));
 router.use('/kenya', require('../kenya.js'));
+router.use('/brands', require('../brands.js'));
+router.use('/suppliers', require('../suppliers.js'));
+router.use('/promotions', require('../promotions.js'));
 
 module.exports = router;

@@ -112,10 +112,41 @@ CREATE TABLE IF NOT EXISTS categories (
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
+-- 8a. BRANDS
+CREATE TABLE IF NOT EXISTS brands (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    code TEXT NOT NULL UNIQUE,
+    name TEXT NOT NULL,
+    description TEXT,
+    logo_url TEXT,
+    is_active INTEGER NOT NULL DEFAULT 1,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 8b. SUPPLIERS
+CREATE TABLE IF NOT EXISTS suppliers (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    code TEXT NOT NULL UNIQUE,
+    name TEXT NOT NULL,
+    contact_person TEXT,
+    email TEXT,
+    phone TEXT NOT NULL,
+    address TEXT,
+    city TEXT DEFAULT 'Nairobi',
+    country TEXT DEFAULT 'Kenya',
+    lead_time_days INTEGER DEFAULT 3,
+    payment_terms TEXT DEFAULT 'NET30',
+    is_active INTEGER NOT NULL DEFAULT 1,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
 -- 9. PRODUCTS
 CREATE TABLE IF NOT EXISTS products (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     category_id INTEGER NOT NULL REFERENCES categories(id) ON DELETE RESTRICT,
+    brand_id INTEGER REFERENCES brands(id) ON DELETE SET NULL,
+    supplier_id INTEGER REFERENCES suppliers(id) ON DELETE SET NULL,
     sku TEXT NOT NULL UNIQUE,
     barcode TEXT NOT NULL UNIQUE,
     name TEXT NOT NULL,
@@ -123,11 +154,79 @@ CREATE TABLE IF NOT EXISTS products (
     unit TEXT NOT NULL DEFAULT 'PCS',
     cost_price REAL NOT NULL DEFAULT 0.0,
     selling_price REAL NOT NULL DEFAULT 0.0,
+    wholesale_price REAL NOT NULL DEFAULT 0.0,
+    tax_category TEXT NOT NULL DEFAULT 'STANDARD_16', -- STANDARD_16, ZERO_RATED_0, EXEMPT
     min_stock_alert INTEGER NOT NULL DEFAULT 10,
     max_stock_alert INTEGER NOT NULL DEFAULT 500,
+    reorder_threshold INTEGER NOT NULL DEFAULT 10,
+    reorder_quantity INTEGER NOT NULL DEFAULT 50,
+    images TEXT NOT NULL DEFAULT '[]',
+    is_active INTEGER NOT NULL DEFAULT 1,
+    is_archived INTEGER NOT NULL DEFAULT 0,
+    archived_at DATETIME,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 9a. PRODUCT VARIANTS
+CREATE TABLE IF NOT EXISTS product_variants (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    product_id INTEGER NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+    variant_sku TEXT NOT NULL UNIQUE,
+    variant_barcode TEXT UNIQUE,
+    variant_name TEXT NOT NULL,
+    size TEXT,
+    color TEXT,
+    model TEXT,
+    attributes_json TEXT NOT NULL DEFAULT '{}',
+    cost_price_override REAL,
+    selling_price_override REAL,
+    wholesale_price_override REAL,
     is_active INTEGER NOT NULL DEFAULT 1,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 9b. VARIANT INVENTORY (Warehouse stock balance per variant)
+CREATE TABLE IF NOT EXISTS variant_inventory (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    branch_id INTEGER NOT NULL REFERENCES branches(id) ON DELETE RESTRICT,
+    warehouse_id INTEGER NOT NULL REFERENCES warehouses(id) ON DELETE RESTRICT,
+    product_id INTEGER NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+    variant_id INTEGER NOT NULL REFERENCES product_variants(id) ON DELETE CASCADE,
+    quantity_on_hand INTEGER NOT NULL DEFAULT 0,
+    quantity_reserved INTEGER NOT NULL DEFAULT 0,
+    quantity_available INTEGER NOT NULL DEFAULT 0,
+    last_recounted_at DATETIME,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(warehouse_id, variant_id)
+);
+
+-- 9c. BRANCH-SPECIFIC PRICING
+CREATE TABLE IF NOT EXISTS branch_product_prices (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    branch_id INTEGER NOT NULL REFERENCES branches(id) ON DELETE CASCADE,
+    product_id INTEGER NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+    variant_id INTEGER REFERENCES product_variants(id) ON DELETE CASCADE,
+    cost_price REAL,
+    selling_price REAL NOT NULL,
+    wholesale_price REAL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(branch_id, product_id, variant_id)
+);
+
+-- 9d. BULK & QUANTITY BREAK PRICING
+CREATE TABLE IF NOT EXISTS product_bulk_pricing (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    product_id INTEGER NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+    variant_id INTEGER REFERENCES product_variants(id) ON DELETE CASCADE,
+    min_quantity INTEGER NOT NULL,
+    max_quantity INTEGER,
+    unit_price REAL NOT NULL,
+    discount_percent REAL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(product_id, variant_id, min_quantity)
 );
 
 -- 10. INVENTORY (Warehouse stock balance)
@@ -218,6 +317,44 @@ CREATE TABLE IF NOT EXISTS customers (
     city TEXT DEFAULT 'Nairobi',
     kra_pin TEXT,
     notes TEXT,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 15a. CUSTOMER SPECIFIC PRICING & TIER AGREEMENTS
+CREATE TABLE IF NOT EXISTS customer_product_prices (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    customer_id INTEGER REFERENCES customers(id) ON DELETE CASCADE,
+    customer_tier TEXT, -- 'RETAIL', 'WHOLESALE', 'VIP', 'CORPORATE'
+    product_id INTEGER NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+    variant_id INTEGER REFERENCES product_variants(id) ON DELETE CASCADE,
+    special_price REAL NOT NULL,
+    discount_percent REAL,
+    min_quantity INTEGER DEFAULT 1,
+    start_date DATETIME,
+    end_date DATETIME,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(customer_id, customer_tier, product_id, variant_id)
+);
+
+-- 15b. PROMOTIONS & SCHEDULED DISCOUNTS
+CREATE TABLE IF NOT EXISTS promotions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    promo_code TEXT UNIQUE,
+    name TEXT NOT NULL,
+    description TEXT,
+    discount_type TEXT NOT NULL, -- 'PERCENTAGE', 'FIXED_AMOUNT', 'BOGO', 'BUNDLE'
+    discount_value REAL NOT NULL,
+    scope TEXT NOT NULL DEFAULT 'ALL', -- 'ALL', 'CATEGORY', 'PRODUCT', 'VARIANT'
+    target_id INTEGER,
+    branch_id INTEGER REFERENCES branches(id) ON DELETE CASCADE,
+    min_spend REAL DEFAULT 0.0,
+    min_quantity INTEGER DEFAULT 1,
+    usage_limit INTEGER,
+    times_used INTEGER NOT NULL DEFAULT 0,
+    start_date DATETIME NOT NULL,
+    end_date DATETIME NOT NULL,
+    is_active INTEGER NOT NULL DEFAULT 1,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 );

@@ -21,6 +21,7 @@ import { ReportsView } from './views/ReportsView.jsx';
 import { BranchesView } from './views/BranchesView.jsx';
 import { UsersView } from './views/UsersView.jsx';
 import { AuditView } from './views/AuditView.jsx';
+import { ProductsView } from './views/ProductsView.jsx';
 import { LoginView } from './views/LoginView.jsx';
 
 function MainApp() {
@@ -142,6 +143,8 @@ function MainApp() {
         return <DispatchView />;
       case 'driver':
         return <DriverView />;
+      case 'products':
+        return <ProductsView />;
       case 'inventory':
         return <InventoryView />;
       case 'orders':

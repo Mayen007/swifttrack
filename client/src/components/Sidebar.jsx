@@ -14,6 +14,7 @@ import {
   Building2,
   Users,
   ShieldCheck,
+  Tag,
   X,
   Sparkles,
   MapPin,
@@ -65,6 +66,12 @@ export function Sidebar({
     {
       title: 'Warehouse & Sales',
       items: [
+        {
+          id: 'products',
+          label: 'Product Catalog & Pricing',
+          icon: Tag,
+          roles: ['SUPER_ADMIN', 'BRANCH_MANAGER'],
+        },
         {
           id: 'inventory',
           label: 'Multi-Branch Inventory',

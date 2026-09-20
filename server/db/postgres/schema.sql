@@ -118,10 +118,45 @@ CREATE TABLE IF NOT EXISTS categories (
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
+-- 8a. BRANDS
+CREATE TABLE IF NOT EXISTS brands (
+    id SERIAL PRIMARY KEY,
+    code VARCHAR(50) NOT NULL UNIQUE,
+    name VARCHAR(255) NOT NULL,
+    description TEXT,
+    logo_url TEXT,
+    is_active BOOLEAN NOT NULL DEFAULT true,
+    deleted_at TIMESTAMPTZ DEFAULT NULL,
+    deleted_by_user_id INTEGER REFERENCES users(id) DEFAULT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 8b. SUPPLIERS
+CREATE TABLE IF NOT EXISTS suppliers (
+    id SERIAL PRIMARY KEY,
+    code VARCHAR(50) NOT NULL UNIQUE,
+    name VARCHAR(255) NOT NULL,
+    contact_person VARCHAR(255),
+    email VARCHAR(255),
+    phone VARCHAR(50) NOT NULL,
+    address TEXT,
+    city VARCHAR(100) DEFAULT 'Nairobi',
+    country VARCHAR(100) DEFAULT 'Kenya',
+    lead_time_days INTEGER DEFAULT 3,
+    payment_terms VARCHAR(50) DEFAULT 'NET30',
+    is_active BOOLEAN NOT NULL DEFAULT true,
+    deleted_at TIMESTAMPTZ DEFAULT NULL,
+    deleted_by_user_id INTEGER REFERENCES users(id) DEFAULT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
 -- 9. PRODUCTS
 CREATE TABLE IF NOT EXISTS products (
     id SERIAL PRIMARY KEY,
     category_id INTEGER NOT NULL REFERENCES categories(id) ON DELETE RESTRICT,
+    brand_id INTEGER REFERENCES brands(id) ON DELETE SET NULL,
+    supplier_id INTEGER REFERENCES suppliers(id) ON DELETE SET NULL,
     sku VARCHAR(100) NOT NULL UNIQUE,
     barcode VARCHAR(100) NOT NULL UNIQUE,
     name VARCHAR(255) NOT NULL,
@@ -129,13 +164,83 @@ CREATE TABLE IF NOT EXISTS products (
     unit VARCHAR(50) NOT NULL DEFAULT 'PCS',
     cost_price NUMERIC(12, 2) NOT NULL DEFAULT 0.00,
     selling_price NUMERIC(12, 2) NOT NULL DEFAULT 0.00,
+    wholesale_price NUMERIC(12, 2) NOT NULL DEFAULT 0.00,
+    tax_category VARCHAR(50) NOT NULL DEFAULT 'STANDARD_16',
     min_stock_alert INTEGER NOT NULL DEFAULT 10,
     max_stock_alert INTEGER NOT NULL DEFAULT 500,
+    reorder_threshold INTEGER NOT NULL DEFAULT 10,
+    reorder_quantity INTEGER NOT NULL DEFAULT 50,
+    images JSONB NOT NULL DEFAULT '[]'::jsonb,
+    is_active BOOLEAN NOT NULL DEFAULT true,
+    is_archived BOOLEAN NOT NULL DEFAULT false,
+    archived_at TIMESTAMPTZ DEFAULT NULL,
+    deleted_at TIMESTAMPTZ DEFAULT NULL,
+    deleted_by_user_id INTEGER REFERENCES users(id) DEFAULT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 9a. PRODUCT VARIANTS
+CREATE TABLE IF NOT EXISTS product_variants (
+    id SERIAL PRIMARY KEY,
+    product_id INTEGER NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+    variant_sku VARCHAR(100) NOT NULL UNIQUE,
+    variant_barcode VARCHAR(100) UNIQUE,
+    variant_name VARCHAR(255) NOT NULL,
+    size VARCHAR(50),
+    color VARCHAR(50),
+    model VARCHAR(100),
+    attributes_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+    cost_price_override NUMERIC(12, 2),
+    selling_price_override NUMERIC(12, 2),
+    wholesale_price_override NUMERIC(12, 2),
     is_active BOOLEAN NOT NULL DEFAULT true,
     deleted_at TIMESTAMPTZ DEFAULT NULL,
     deleted_by_user_id INTEGER REFERENCES users(id) DEFAULT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 9b. VARIANT INVENTORY
+CREATE TABLE IF NOT EXISTS variant_inventory (
+    id SERIAL PRIMARY KEY,
+    branch_id INTEGER NOT NULL REFERENCES branches(id) ON DELETE RESTRICT,
+    warehouse_id INTEGER NOT NULL REFERENCES warehouses(id) ON DELETE RESTRICT,
+    product_id INTEGER NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+    variant_id INTEGER NOT NULL REFERENCES product_variants(id) ON DELETE CASCADE,
+    quantity_on_hand INTEGER NOT NULL DEFAULT 0,
+    quantity_reserved INTEGER NOT NULL DEFAULT 0,
+    quantity_available INTEGER NOT NULL DEFAULT 0,
+    last_recounted_at TIMESTAMPTZ,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(warehouse_id, variant_id)
+);
+
+-- 9c. BRANCH-SPECIFIC PRICING
+CREATE TABLE IF NOT EXISTS branch_product_prices (
+    id SERIAL PRIMARY KEY,
+    branch_id INTEGER NOT NULL REFERENCES branches(id) ON DELETE CASCADE,
+    product_id INTEGER NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+    variant_id INTEGER REFERENCES product_variants(id) ON DELETE CASCADE,
+    cost_price NUMERIC(12, 2),
+    selling_price NUMERIC(12, 2) NOT NULL,
+    wholesale_price NUMERIC(12, 2),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(branch_id, product_id, variant_id)
+);
+
+-- 9d. BULK & QUANTITY BREAK PRICING
+CREATE TABLE IF NOT EXISTS product_bulk_pricing (
+    id SERIAL PRIMARY KEY,
+    product_id INTEGER NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+    variant_id INTEGER REFERENCES product_variants(id) ON DELETE CASCADE,
+    min_quantity INTEGER NOT NULL,
+    max_quantity INTEGER,
+    unit_price NUMERIC(12, 2) NOT NULL,
+    discount_percent NUMERIC(5, 2),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(product_id, variant_id, min_quantity)
 );
 
 -- 10. INVENTORY (Warehouse stock balance)
@@ -228,6 +333,44 @@ CREATE TABLE IF NOT EXISTS customers (
     notes TEXT,
     deleted_at TIMESTAMPTZ DEFAULT NULL,
     deleted_by_user_id INTEGER REFERENCES users(id) DEFAULT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 15a. CUSTOMER SPECIFIC PRICING & TIER AGREEMENTS
+CREATE TABLE IF NOT EXISTS customer_product_prices (
+    id SERIAL PRIMARY KEY,
+    customer_id INTEGER REFERENCES customers(id) ON DELETE CASCADE,
+    customer_tier VARCHAR(50),
+    product_id INTEGER NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+    variant_id INTEGER REFERENCES product_variants(id) ON DELETE CASCADE,
+    special_price NUMERIC(12, 2) NOT NULL,
+    discount_percent NUMERIC(5, 2),
+    min_quantity INTEGER DEFAULT 1,
+    start_date TIMESTAMPTZ,
+    end_date TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(customer_id, customer_tier, product_id, variant_id)
+);
+
+-- 15b. PROMOTIONS & SCHEDULED DISCOUNTS
+CREATE TABLE IF NOT EXISTS promotions (
+    id SERIAL PRIMARY KEY,
+    promo_code VARCHAR(50) UNIQUE,
+    name VARCHAR(255) NOT NULL,
+    description TEXT,
+    discount_type VARCHAR(50) NOT NULL,
+    discount_value NUMERIC(12, 2) NOT NULL,
+    scope VARCHAR(50) NOT NULL DEFAULT 'ALL',
+    target_id INTEGER,
+    branch_id INTEGER REFERENCES branches(id) ON DELETE CASCADE,
+    min_spend NUMERIC(12, 2) DEFAULT 0.00,
+    min_quantity INTEGER DEFAULT 1,
+    usage_limit INTEGER,
+    times_used INTEGER NOT NULL DEFAULT 0,
+    start_date TIMESTAMPTZ NOT NULL,
+    end_date TIMESTAMPTZ NOT NULL,
+    is_active BOOLEAN NOT NULL DEFAULT true,
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
