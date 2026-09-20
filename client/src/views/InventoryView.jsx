@@ -18,6 +18,10 @@ import { InventoryReceivingModal } from '../components/inventory/InventoryReceiv
 import { InventoryStocktakeModal } from '../components/inventory/InventoryStocktakeModal.jsx';
 import { InventoryWriteOffModal } from '../components/inventory/InventoryWriteOffModal.jsx';
 import { InventoryAdjustmentModal } from '../components/inventory/InventoryAdjustmentModal.jsx';
+import { InventoryBatchesModal } from '../components/inventory/InventoryBatchesModal.jsx';
+import { InventorySerialsModal } from '../components/inventory/InventorySerialsModal.jsx';
+import { InventoryValuationView } from '../components/inventory/InventoryValuationView.jsx';
+import { InventoryReorderAlertsView } from '../components/inventory/InventoryReorderAlertsView.jsx';
 
 export function InventoryView() {
   const { selectedBranch } = useAuth();
@@ -48,6 +52,8 @@ export function InventoryView() {
   const [stocktakeModalOpen, setStocktakeModalOpen] = useState(false);
   const [writeOffModalOpen, setWriteOffModalOpen] = useState(false);
   const [adjustmentModalOpen, setAdjustmentModalOpen] = useState(false);
+  const [batchesModalOpen, setBatchesModalOpen] = useState(false);
+  const [serialsModalOpen, setSerialsModalOpen] = useState(false);
   const [selectedItemForAction, setSelectedItemForAction] = useState(null);
 
   const fetchInventoryData = useCallback(async () => {
@@ -255,6 +261,14 @@ export function InventoryView() {
             setSelectedItemForAction(it);
             setAdjustmentModalOpen(true);
           }}
+          onInspectBatches={(it) => {
+            setSelectedItemForAction(it);
+            setBatchesModalOpen(true);
+          }}
+          onInspectSerials={(it) => {
+            setSelectedItemForAction(it);
+            setSerialsModalOpen(true);
+          }}
         />
       )}
 
@@ -272,6 +286,18 @@ export function InventoryView() {
 
       {activeTab === 'movements' && (
         <InventoryLedgerTable loading={loading} movements={filteredMovements} />
+      )}
+
+      {activeTab === 'valuation' && (
+        <InventoryValuationView branchId={selectedBranch?.id} warehouseId={selectedWarehouseId} />
+      )}
+
+      {activeTab === 'reorder' && (
+        <InventoryReorderAlertsView
+          branchId={selectedBranch?.id}
+          warehouseId={selectedWarehouseId}
+          onInitiateReceiving={() => setReceivingModalOpen(true)}
+        />
       )}
 
       <InventoryStateTransitionModal
@@ -320,6 +346,20 @@ export function InventoryView() {
         onClose={() => setAdjustmentModalOpen(false)}
         item={selectedItemForAction}
         onSuccess={fetchInventoryData}
+      />
+
+      <InventoryBatchesModal
+        isOpen={batchesModalOpen}
+        onClose={() => setBatchesModalOpen(false)}
+        item={selectedItemForAction}
+        onBatchUpdated={fetchInventoryData}
+      />
+
+      <InventorySerialsModal
+        isOpen={serialsModalOpen}
+        onClose={() => setSerialsModalOpen(false)}
+        item={selectedItemForAction}
+        onSerialsUpdated={fetchInventoryData}
       />
     </div>
   );

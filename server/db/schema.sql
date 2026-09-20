@@ -160,6 +160,8 @@ CREATE TABLE IF NOT EXISTS products (
     max_stock_alert INTEGER NOT NULL DEFAULT 500,
     reorder_threshold INTEGER NOT NULL DEFAULT 10,
     reorder_quantity INTEGER NOT NULL DEFAULT 50,
+    costing_method TEXT NOT NULL DEFAULT 'FIFO', -- FIFO, WEIGHTED_AVERAGE
+    is_serialized INTEGER NOT NULL DEFAULT 0,
     images TEXT NOT NULL DEFAULT '[]',
     is_active INTEGER NOT NULL DEFAULT 1,
     is_archived INTEGER NOT NULL DEFAULT 0,
@@ -200,6 +202,7 @@ CREATE TABLE IF NOT EXISTS variant_inventory (
     quantity_in_transit INTEGER NOT NULL DEFAULT 0,
     quantity_damaged INTEGER NOT NULL DEFAULT 0,
     quantity_expired INTEGER NOT NULL DEFAULT 0,
+    average_cost REAL NOT NULL DEFAULT 0.0,
     last_recounted_at DATETIME,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(warehouse_id, variant_id)
@@ -244,6 +247,7 @@ CREATE TABLE IF NOT EXISTS inventory (
     quantity_in_transit INTEGER NOT NULL DEFAULT 0,
     quantity_damaged INTEGER NOT NULL DEFAULT 0,
     quantity_expired INTEGER NOT NULL DEFAULT 0,
+    average_cost REAL NOT NULL DEFAULT 0.0,
     last_recounted_at DATETIME,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(warehouse_id, product_id)
@@ -408,6 +412,47 @@ CREATE TABLE IF NOT EXISTS stock_write_offs (
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
+-- 14f. BATCH & LOT TRACKING
+CREATE TABLE IF NOT EXISTS inventory_batches (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    batch_number TEXT NOT NULL,
+    product_id INTEGER NOT NULL REFERENCES products(id) ON DELETE RESTRICT,
+    variant_id INTEGER REFERENCES product_variants(id) ON DELETE SET NULL,
+    warehouse_id INTEGER NOT NULL REFERENCES warehouses(id) ON DELETE RESTRICT,
+    branch_id INTEGER NOT NULL REFERENCES branches(id) ON DELETE RESTRICT,
+    supplier_id INTEGER REFERENCES suppliers(id) ON DELETE SET NULL,
+    receipt_item_id INTEGER REFERENCES stock_receipt_items(id) ON DELETE SET NULL,
+    initial_quantity INTEGER NOT NULL,
+    quantity_available INTEGER NOT NULL,
+    quantity_reserved INTEGER NOT NULL DEFAULT 0,
+    unit_cost REAL NOT NULL DEFAULT 0.0,
+    manufacturing_date DATE,
+    expiry_date DATE,
+    status TEXT NOT NULL DEFAULT 'ACTIVE', -- 'ACTIVE', 'DEPLETED', 'EXPIRED', 'QUARANTINED', 'RECALLED'
+    notes TEXT,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(warehouse_id, product_id, batch_number)
+);
+
+-- 14g. SERIAL NUMBERS
+CREATE TABLE IF NOT EXISTS inventory_serials (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    serial_number TEXT NOT NULL UNIQUE,
+    product_id INTEGER NOT NULL REFERENCES products(id) ON DELETE RESTRICT,
+    variant_id INTEGER REFERENCES product_variants(id) ON DELETE SET NULL,
+    warehouse_id INTEGER NOT NULL REFERENCES warehouses(id) ON DELETE RESTRICT,
+    branch_id INTEGER NOT NULL REFERENCES branches(id) ON DELETE RESTRICT,
+    batch_id INTEGER REFERENCES inventory_batches(id) ON DELETE SET NULL,
+    status TEXT NOT NULL DEFAULT 'AVAILABLE', -- 'AVAILABLE', 'RESERVED', 'SOLD', 'DEFECTIVE', 'IN_TRANSIT'
+    unit_cost REAL NOT NULL DEFAULT 0.0,
+    allocated_order_id INTEGER REFERENCES orders(id) ON DELETE SET NULL,
+    allocated_sale_id INTEGER REFERENCES sales(id) ON DELETE SET NULL,
+    notes TEXT,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
 -- 15. CUSTOMERS
 CREATE TABLE IF NOT EXISTS customers (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -512,6 +557,9 @@ CREATE TABLE IF NOT EXISTS sales (
     discount_approved_by INTEGER REFERENCES users(id) ON DELETE RESTRICT,
     tax_amount REAL NOT NULL,
     total_amount REAL NOT NULL,
+    total_cogs REAL NOT NULL DEFAULT 0.0,
+    gross_profit REAL NOT NULL DEFAULT 0.0,
+    gross_margin_pct REAL NOT NULL DEFAULT 0.0,
     payment_status TEXT NOT NULL DEFAULT 'PAID', -- PAID, PARTIALLY_REFUNDED, REFUNDED
     receipt_printed_at DATETIME,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -527,7 +575,10 @@ CREATE TABLE IF NOT EXISTS sale_items (
     unit_price REAL NOT NULL,
     discount_amount REAL NOT NULL DEFAULT 0.0,
     tax_amount REAL NOT NULL,
-    total_price REAL NOT NULL
+    total_price REAL NOT NULL,
+    cogs_amount REAL NOT NULL DEFAULT 0.0,
+    batch_id INTEGER REFERENCES inventory_batches(id) ON DELETE SET NULL,
+    serial_number TEXT
 );
 
 -- 20. HELD SALES (POS Hold/Resume functionality)

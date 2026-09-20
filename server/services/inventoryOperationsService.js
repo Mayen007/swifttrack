@@ -7,6 +7,11 @@ const {
   logMovement,
   writeOffStock
 } = require('./inventoryStateService.js');
+const {
+  createBatch,
+  updateMovingAverageCost,
+  registerSerials
+} = require('./advancedInventoryService.js');
 
 /**
  * 1. INBOUND STOCK RECEIVING (Goods Received Note / GRN)
@@ -53,7 +58,8 @@ function receiveStock({
       totalItems += qty;
       totalCost += qty * cost;
 
-      insertItemStmt.run(receiptId, productId, variantId, qty, cost, batchNumber, expiryDate, condition);
+      const itemRes = insertItemStmt.run(receiptId, productId, variantId, qty, cost, batchNumber, expiryDate, condition);
+      const receiptItemId = itemRes.lastInsertRowid;
 
       const inv = getOrInitInventory(warehouseId, productId, effectiveBranchId);
       const prevOnHand = inv.quantity_on_hand;
@@ -76,6 +82,47 @@ function receiveStock({
         referenceType: 'GRN', referenceId: receiptNo,
         reason: `Inbound PO/GRN receipt (${condition})`, userId
       });
+
+      // Phase 3.3 Advanced Inventory integrations
+      if (condition === 'GOOD') {
+        // 1. Update moving weighted-average cost
+        updateMovingAverageCost({ warehouseId, productId, receivedQty: qty, unitCost: cost });
+
+        // 2. Track batch/lot if provided
+        let createdBatchId = null;
+        if (batchNumber || expiryDate) {
+          const bNum = batchNumber || `LOT-${Date.now().toString().slice(-6)}`;
+          const batch = createBatch({
+            branchId: effectiveBranchId,
+            warehouseId,
+            productId,
+            variantId,
+            batchNumber: bNum,
+            initialQuantity: qty,
+            unitCost: cost,
+            expiryDate,
+            supplierId: supplierId || null,
+            receiptItemId,
+            notes: `Auto-recorded from GRN ${receiptNo}`
+          });
+          createdBatchId = batch ? batch.id : null;
+        }
+
+        // 3. Register serial numbers if provided
+        const serials = it.serialNumbers || it.serial_numbers || it.serials;
+        if (Array.isArray(serials) && serials.length > 0) {
+          registerSerials({
+            productId,
+            variantId,
+            warehouseId,
+            branchId: effectiveBranchId,
+            batchId: createdBatchId,
+            serialNumbers: serials,
+            unitCost: cost,
+            notes: `Inbound from GRN ${receiptNo}`
+          });
+        }
+      }
     }
 
     db.prepare('UPDATE stock_receipts SET total_items = ?, total_cost = ? WHERE id = ?').run(totalItems, totalCost, receiptId);

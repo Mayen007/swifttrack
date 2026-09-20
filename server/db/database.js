@@ -263,6 +263,114 @@ function migrateInventoryOperationsSchema() {
     }
 }
 
+/**
+ * Non-destructive runtime migration for Phase 3: 3.3 Advanced Inventory
+ * Batches, Expiries, Serial Numbers, Valuation, COGS, and Concurrency Guards.
+ */
+function migrateAdvancedInventorySchema() {
+    try {
+        // 1. Products: costing_method, is_serialized
+        const pInfo = db.prepare('PRAGMA table_info(products)').all();
+        const pCols = pInfo.map(c => c.name);
+        if (!pCols.includes('costing_method')) {
+            db.exec("ALTER TABLE products ADD COLUMN costing_method TEXT NOT NULL DEFAULT 'FIFO';");
+        }
+        if (!pCols.includes('is_serialized')) {
+            db.exec("ALTER TABLE products ADD COLUMN is_serialized INTEGER NOT NULL DEFAULT 0;");
+        }
+
+        // 2. Inventory: average_cost
+        const invInfo = db.prepare('PRAGMA table_info(inventory)').all();
+        const invCols = invInfo.map(c => c.name);
+        if (!invCols.includes('average_cost')) {
+            db.exec('ALTER TABLE inventory ADD COLUMN average_cost REAL NOT NULL DEFAULT 0.0;');
+        }
+
+        // 3. Variant inventory: average_cost
+        const hasVariantInv = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='variant_inventory'").get();
+        if (hasVariantInv) {
+            const viInfo = db.prepare('PRAGMA table_info(variant_inventory)').all();
+            const viCols = viInfo.map(c => c.name);
+            if (!viCols.includes('average_cost')) {
+                db.exec('ALTER TABLE variant_inventory ADD COLUMN average_cost REAL NOT NULL DEFAULT 0.0;');
+            }
+        }
+
+        // 4. Sale items: cogs_amount, batch_id, serial_number
+        const siInfo = db.prepare('PRAGMA table_info(sale_items)').all();
+        const siCols = siInfo.map(c => c.name);
+        if (!siCols.includes('cogs_amount')) {
+            db.exec('ALTER TABLE sale_items ADD COLUMN cogs_amount REAL NOT NULL DEFAULT 0.0;');
+        }
+        if (!siCols.includes('batch_id')) {
+            db.exec('ALTER TABLE sale_items ADD COLUMN batch_id INTEGER REFERENCES inventory_batches(id);');
+        }
+        if (!siCols.includes('serial_number')) {
+            db.exec('ALTER TABLE sale_items ADD COLUMN serial_number TEXT;');
+        }
+
+        // 5. Sales: total_cogs, gross_profit, gross_margin_pct
+        const sInfo = db.prepare('PRAGMA table_info(sales)').all();
+        const sCols = sInfo.map(c => c.name);
+        if (!sCols.includes('total_cogs')) {
+            db.exec('ALTER TABLE sales ADD COLUMN total_cogs REAL NOT NULL DEFAULT 0.0;');
+        }
+        if (!sCols.includes('gross_profit')) {
+            db.exec('ALTER TABLE sales ADD COLUMN gross_profit REAL NOT NULL DEFAULT 0.0;');
+        }
+        if (!sCols.includes('gross_margin_pct')) {
+            db.exec('ALTER TABLE sales ADD COLUMN gross_margin_pct REAL NOT NULL DEFAULT 0.0;');
+        }
+
+        // 6. Ensure inventory_batches table
+        db.exec(`
+            CREATE TABLE IF NOT EXISTS inventory_batches (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                batch_number TEXT NOT NULL,
+                product_id INTEGER NOT NULL REFERENCES products(id) ON DELETE RESTRICT,
+                variant_id INTEGER REFERENCES product_variants(id) ON DELETE SET NULL,
+                warehouse_id INTEGER NOT NULL REFERENCES warehouses(id) ON DELETE RESTRICT,
+                branch_id INTEGER NOT NULL REFERENCES branches(id) ON DELETE RESTRICT,
+                supplier_id INTEGER REFERENCES suppliers(id) ON DELETE SET NULL,
+                receipt_item_id INTEGER REFERENCES stock_receipt_items(id) ON DELETE SET NULL,
+                initial_quantity INTEGER NOT NULL,
+                quantity_available INTEGER NOT NULL,
+                quantity_reserved INTEGER NOT NULL DEFAULT 0,
+                unit_cost REAL NOT NULL DEFAULT 0.0,
+                manufacturing_date DATE,
+                expiry_date DATE,
+                status TEXT NOT NULL DEFAULT 'ACTIVE',
+                notes TEXT,
+                created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(warehouse_id, product_id, batch_number)
+            );
+        `);
+
+        // 7. Ensure inventory_serials table
+        db.exec(`
+            CREATE TABLE IF NOT EXISTS inventory_serials (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                serial_number TEXT NOT NULL UNIQUE,
+                product_id INTEGER NOT NULL REFERENCES products(id) ON DELETE RESTRICT,
+                variant_id INTEGER REFERENCES product_variants(id) ON DELETE SET NULL,
+                warehouse_id INTEGER NOT NULL REFERENCES warehouses(id) ON DELETE RESTRICT,
+                branch_id INTEGER NOT NULL REFERENCES branches(id) ON DELETE RESTRICT,
+                batch_id INTEGER REFERENCES inventory_batches(id) ON DELETE SET NULL,
+                status TEXT NOT NULL DEFAULT 'AVAILABLE',
+                unit_cost REAL NOT NULL DEFAULT 0.0,
+                allocated_order_id INTEGER REFERENCES orders(id) ON DELETE SET NULL,
+                allocated_sale_id INTEGER REFERENCES sales(id) ON DELETE SET NULL,
+                notes TEXT,
+                created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+        `);
+    } catch (err) {
+        console.warn('Advanced inventory schema migration notice:', err.message);
+    }
+}
+
 // Initialize schema
 function initSchema() {
     const schemaPath = path.resolve(__dirname, 'schema.sql');
@@ -272,10 +380,19 @@ function initSchema() {
     migrateCommerceSchema();
     migrateInventoryStatesSchema();
     migrateInventoryOperationsSchema();
+    migrateAdvancedInventorySchema();
 }
+
+// Run non-destructive migrations on load
+migrateAuthSchema();
+migrateCommerceSchema();
+migrateInventoryStatesSchema();
+migrateInventoryOperationsSchema();
+migrateAdvancedInventorySchema();
 
 module.exports = {
     db,
     initSchema,
     DB_PATH
 };
+

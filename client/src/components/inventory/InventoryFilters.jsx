@@ -1,6 +1,6 @@
 // client/src/components/inventory/InventoryFilters.jsx
 import React from 'react';
-import { Search, X, Layers, ArrowRightLeft, FileText, Filter } from 'lucide-react';
+import { Search, X, Layers, ArrowRightLeft, FileText, Filter, DollarSign, AlertCircle } from 'lucide-react';
 
 export function InventoryFilters({
   searchQuery,
@@ -73,6 +73,24 @@ export function InventoryFilters({
           >
             <FileText className="w-3.5 h-3.5" />
             MOVEMENT HISTORY
+          </button>
+          <button
+            onClick={() => setActiveTab('valuation')}
+            className={`px-3 py-1.5 rounded text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer ${
+              activeTab === 'valuation' ? 'bg-emerald-500 text-slate-950' : 'text-slate-400 hover:text-white'
+            }`}
+          >
+            <DollarSign className="w-3.5 h-3.5" />
+            VALUATION & COGS
+          </button>
+          <button
+            onClick={() => setActiveTab('reorder')}
+            className={`px-3 py-1.5 rounded text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer ${
+              activeTab === 'reorder' ? 'bg-emerald-500 text-slate-950' : 'text-slate-400 hover:text-white'
+            }`}
+          >
+            <AlertCircle className="w-3.5 h-3.5" />
+            REORDER ALERTS
           </button>
         </div>
 

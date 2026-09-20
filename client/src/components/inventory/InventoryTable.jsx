@@ -1,6 +1,6 @@
 // client/src/components/inventory/InventoryTable.jsx
 import React from 'react';
-import { ShieldAlert, AlertTriangle, ArrowRightLeft, Sliders, Barcode } from 'lucide-react';
+import { ShieldAlert, AlertTriangle, ArrowRightLeft, Sliders, Barcode, Boxes, Hash } from 'lucide-react';
 
 export function InventoryTable({
   loading,
@@ -9,6 +9,8 @@ export function InventoryTable({
   onExpireItem,
   onTransferItem,
   onAdjustItem,
+  onInspectBatches,
+  onInspectSerials,
 }) {
   if (loading) {
     return (
@@ -151,6 +153,22 @@ export function InventoryTable({
                   {/* Actions */}
                   <td className="py-2.5 px-3 text-right whitespace-nowrap">
                     <div className="inline-flex items-center gap-1">
+                      <button
+                        onClick={() => onInspectBatches && onInspectBatches(it)}
+                        title="View & Manage Batch Lots"
+                        className="p-1 rounded border border-[#222834] bg-[#181d28] hover:bg-purple-950/50 text-purple-400 hover:text-purple-300 transition-colors cursor-pointer"
+                      >
+                        <Boxes className="w-3.5 h-3.5" />
+                      </button>
+
+                      <button
+                        onClick={() => onInspectSerials && onInspectSerials(it)}
+                        title="View & Register Serial Numbers"
+                        className="p-1 rounded border border-[#222834] bg-[#181d28] hover:bg-cyan-950/50 text-cyan-400 hover:text-cyan-300 transition-colors cursor-pointer"
+                      >
+                        <Hash className="w-3.5 h-3.5" />
+                      </button>
+
                       <button
                         onClick={() => onQuarantineItem(it)}
                         title="Quarantine Damaged Stock"
