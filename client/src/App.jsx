@@ -22,6 +22,7 @@ import { BranchesView } from './views/BranchesView.jsx';
 import { UsersView } from './views/UsersView.jsx';
 import { AuditView } from './views/AuditView.jsx';
 import { ProductsView } from './views/ProductsView.jsx';
+import { CustomersView } from './views/CustomersView.jsx';
 import { LoginView } from './views/LoginView.jsx';
 
 function MainApp() {
@@ -149,6 +150,8 @@ function MainApp() {
         return <InventoryView />;
       case 'orders':
         return <OrdersView />;
+      case 'customers':
+        return <CustomersView />;
       case 'approvals':
         return <ApprovalsView />;
       case 'expenses':

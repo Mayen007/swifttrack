@@ -371,6 +371,53 @@ function migrateAdvancedInventorySchema() {
     }
 }
 
+/**
+ * Non-destructive runtime migration for Phase 4: 4.1 Customer Management
+ * Adds status column to customers if missing, and ensures customer_addresses
+ * and customer_notes tables exist.
+ */
+function migrateCustomerSchema() {
+    try {
+        const custInfo = db.prepare('PRAGMA table_info(customers)').all();
+        const custCols = custInfo.map(c => c.name);
+        if (!custCols.includes('status')) {
+            db.exec("ALTER TABLE customers ADD COLUMN status TEXT NOT NULL DEFAULT 'ACTIVE';");
+        }
+
+        db.exec(`
+            CREATE TABLE IF NOT EXISTS customer_addresses (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                customer_id INTEGER NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
+                address_label TEXT NOT NULL DEFAULT 'Primary',
+                address_line TEXT NOT NULL,
+                city TEXT NOT NULL DEFAULT 'Nairobi',
+                contact_name TEXT,
+                contact_phone TEXT,
+                is_default INTEGER NOT NULL DEFAULT 0,
+                delivery_notes TEXT,
+                created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+        `);
+
+        db.exec(`
+            CREATE TABLE IF NOT EXISTS customer_notes (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                customer_id INTEGER NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
+                user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+                note_text TEXT NOT NULL,
+                note_type TEXT NOT NULL DEFAULT 'GENERAL',
+                created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+        `);
+
+        db.exec('CREATE INDEX IF NOT EXISTS idx_customer_addresses_customer_id ON customer_addresses(customer_id);');
+        db.exec('CREATE INDEX IF NOT EXISTS idx_customer_notes_customer_id ON customer_notes(customer_id);');
+    } catch (err) {
+        console.warn('Customer schema migration notice:', err.message);
+    }
+}
+
 // Initialize schema
 function initSchema() {
     const schemaPath = path.resolve(__dirname, 'schema.sql');
@@ -381,6 +428,7 @@ function initSchema() {
     migrateInventoryStatesSchema();
     migrateInventoryOperationsSchema();
     migrateAdvancedInventorySchema();
+    migrateCustomerSchema();
 }
 
 // Run non-destructive migrations on load
@@ -389,6 +437,7 @@ migrateCommerceSchema();
 migrateInventoryStatesSchema();
 migrateInventoryOperationsSchema();
 migrateAdvancedInventorySchema();
+migrateCustomerSchema();
 
 module.exports = {
     db,

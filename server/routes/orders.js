@@ -116,6 +116,38 @@ router.post('/', authenticateToken, (req, res) => {
         return res.status(400).json({ error: 'Customer and items are required.' });
     }
 
+    // Customer status check & branch access check
+    const customer = db.prepare('SELECT * FROM customers WHERE id = ?').get(Number(customer_id));
+    if (!customer) {
+        return res.status(404).json({ error: `Customer ID ${customer_id} not found.` });
+    }
+
+    if (customer.status === 'BLOCKED' || customer.status === 'SUSPENDED') {
+        return res.status(403).json({
+            error: `Order rejected: Customer '${customer.full_name}' is currently ${customer.status}. Cannot place new orders.`,
+            code: 'CUSTOMER_STATUS_BLOCKED'
+        });
+    }
+
+    // Resolve delivery address and recipient from customer_addresses if not provided
+    let finalDeliveryAddress = delivery_address;
+    let finalDeliveryCity = delivery_city;
+    let finalRecipientName = recipient_name || customer.full_name;
+    let finalRecipientPhone = recipient_phone || customer.phone;
+
+    if (!finalDeliveryAddress) {
+        const defaultAddr = db.prepare('SELECT * FROM customer_addresses WHERE customer_id = ? ORDER BY is_default DESC, id ASC LIMIT 1').get(customer.id);
+        if (defaultAddr) {
+            finalDeliveryAddress = defaultAddr.address_line;
+            finalDeliveryCity = finalDeliveryCity || defaultAddr.city;
+            finalRecipientName = recipient_name || defaultAddr.contact_name || customer.full_name;
+            finalRecipientPhone = recipient_phone || defaultAddr.contact_phone || customer.phone;
+        } else {
+            finalDeliveryAddress = customer.address || 'Customer Delivery Address';
+            finalDeliveryCity = finalDeliveryCity || customer.city || 'Nairobi';
+        }
+    }
+
     const company = db.prepare('SELECT vat_rate FROM company_settings WHERE id = 1').get();
     const vatRate = company ? company.vat_rate : 16.0;
 
@@ -157,10 +189,10 @@ router.post('/', authenticateToken, (req, res) => {
         `).run(
             branchId, orderNumber, customer_id, req.user.id,
             subtotal, taxAmount, totalAmount,
-            delivery_address || 'Customer Delivery Address',
-            delivery_city || 'Nairobi',
-            recipient_name || 'Recipient',
-            recipient_phone || '+254 700 000 000',
+            finalDeliveryAddress,
+            finalDeliveryCity || 'Nairobi',
+            finalRecipientName,
+            finalRecipientPhone,
             special_instructions || ''
         );
         orderId = ordRes.lastInsertRowid;

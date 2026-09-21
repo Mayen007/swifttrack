@@ -19,6 +19,8 @@ import {
   X,
   CreditCard,
   Percent,
+  User,
+  UserCheck,
 } from 'lucide-react';
 
 export function PosView() {
@@ -44,6 +46,36 @@ export function PosView() {
   const [selectedCategory, setSelectedCategory] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(false);
+
+  // Customer Selection State (Phase 4.1 CRM Integration)
+  const [selectedCustomer, setSelectedCustomer] = useState(null);
+  const [customerSearch, setCustomerSearch] = useState('');
+  const [customerOptions, setCustomerOptions] = useState([]);
+  const [customerDropdownOpen, setCustomerDropdownOpen] = useState(false);
+
+  // Search customers debounced
+  useEffect(() => {
+    let isMounted = true;
+    async function searchCustomers() {
+      if (!customerSearch.trim()) {
+        setCustomerOptions([]);
+        return;
+      }
+      try {
+        const res = await api.get(`/api/customers?search=${encodeURIComponent(customerSearch.trim())}&limit=5`);
+        if (isMounted && res.customers) {
+          setCustomerOptions(res.customers);
+        }
+      } catch (err) {
+        // Ignore network errors in autocomplete
+      }
+    }
+    const timer = setTimeout(searchCustomers, 250);
+    return () => {
+      isMounted = false;
+      clearTimeout(timer);
+    };
+  }, [customerSearch]);
 
   // M-Pesa Modal State
   const [mpesaModalOpen, setMpesaModalOpen] = useState(false);
@@ -118,11 +150,18 @@ export function PosView() {
       return;
     }
 
+    if (selectedCustomer && (selectedCustomer.status === 'BLOCKED' || selectedCustomer.status === 'SUSPENDED')) {
+      sound.playError();
+      api.toast(`Checkout blocked: Customer '${selectedCustomer.full_name}' is ${selectedCustomer.status}.`, 'error');
+      return;
+    }
+
     try {
       const payload = {
         branch_id: selectedBranch?.id || user?.branch_id || 1,
-        customer_name: customerName || 'Walk-in Customer',
-        customer_phone: customerPhone || (paymentMethod === 'MPESA' ? mpesaPhone : ''),
+        customer_id: selectedCustomer ? selectedCustomer.id : undefined,
+        customer_name: selectedCustomer ? selectedCustomer.full_name : (customerName || 'Walk-in Customer'),
+        customer_phone: selectedCustomer ? selectedCustomer.phone : (customerPhone || (paymentMethod === 'MPESA' ? mpesaPhone : '')),
         payment_method: paymentMethod,
         payment_reference: paymentRef || (paymentMethod === 'MPESA' ? `MP-${Date.now()}` : `CASH-${Date.now()}`),
         discount_amount: totals.discountAmount,
@@ -142,7 +181,7 @@ export function PosView() {
         branchName: selectedBranch?.name || 'Nairobi Central Hub',
         cashier: user?.full_name || user?.username,
         date: new Date().toLocaleString('en-KE'),
-        customerName: customerName || 'Walk-in Customer',
+        customerName: selectedCustomer ? selectedCustomer.full_name : (customerName || 'Walk-in Customer'),
         items: [...items],
         subtotal: totals.rawSubtotal,
         discount: totals.discountAmount,
@@ -153,6 +192,8 @@ export function PosView() {
       });
 
       clearCart();
+      setSelectedCustomer(null);
+      setCustomerSearch('');
       setMpesaModalOpen(false);
       setReceiptModalOpen(true);
     } catch (err) {
@@ -323,22 +364,115 @@ export function PosView() {
           </div>
         </div>
 
-        {/* Customer Data Instrument */}
-        <div className="py-2.5 border-b border-[#222834] grid grid-cols-2 gap-2 text-xs font-sans">
-          <input
-            type="text"
-            placeholder="Customer Name"
-            value={customerName}
-            onChange={(e) => setCustomerName(e.target.value)}
-            className="px-2.5 py-1.5 rounded bg-[#0c0e12] border border-[#222834] text-white placeholder-slate-400 text-xs focus:outline-none focus:border-amber-400 font-sans"
-          />
-          <input
-            type="text"
-            placeholder="Phone Number"
-            value={customerPhone}
-            onChange={(e) => setCustomerPhone(e.target.value)}
-            className="px-2.5 py-1.5 rounded bg-[#0c0e12] border border-[#222834] text-white placeholder-slate-400 text-xs font-mono focus:outline-none focus:border-amber-400"
-          />
+        {/* Customer Data Instrument (CRM Phase 4.1) */}
+        <div className="py-2.5 border-b border-[#222834] space-y-2 text-xs font-sans relative">
+          {selectedCustomer ? (
+            <div className={`p-2 rounded border ${
+              selectedCustomer.status === 'BLOCKED' || selectedCustomer.status === 'SUSPENDED'
+                ? 'bg-rose-500/10 border-rose-500/30 text-rose-300'
+                : 'bg-blue-500/10 border-blue-500/30 text-blue-200'
+            }`}>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5">
+                  <UserCheck className="w-3.5 h-3.5 text-blue-400" />
+                  <span className="font-bold text-white text-xs truncate max-w-[150px]">{selectedCustomer.full_name}</span>
+                  <span className="text-[10px] px-1.5 py-0.2 rounded font-mono bg-black/40 text-gray-300 border border-gray-700">
+                    {selectedCustomer.customer_number}
+                  </span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className={`text-[10px] px-2 py-0.2 rounded-full font-bold uppercase ${
+                    selectedCustomer.status === 'ACTIVE'
+                      ? 'bg-emerald-500/20 text-emerald-400'
+                      : 'bg-rose-500/20 text-rose-400'
+                  }`}>
+                    {selectedCustomer.status}
+                  </span>
+                  <button
+                    onClick={() => {
+                      setSelectedCustomer(null);
+                      setCustomerName('');
+                      setCustomerPhone('');
+                    }}
+                    className="p-0.5 text-gray-400 hover:text-white rounded"
+                    title="Unlink Customer"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
+              <div className="flex items-center justify-between text-[11px] text-gray-400 mt-1">
+                <span>{selectedCustomer.phone}</span>
+                <span>{selectedCustomer.city || 'Nairobi'}</span>
+              </div>
+              {(selectedCustomer.status === 'BLOCKED' || selectedCustomer.status === 'SUSPENDED') && (
+                <div className="mt-1.5 text-[10px] text-rose-400 font-bold flex items-center gap-1">
+                  <span>⚠️ Checkout Blocked: Customer is {selectedCustomer.status}</span>
+                </div>
+              )}
+            </div>
+          ) : (
+            <>
+              <div className="relative">
+                <input
+                  type="text"
+                  placeholder="Search existing customer or enter name..."
+                  value={customerSearch || customerName}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setCustomerSearch(val);
+                    setCustomerName(val);
+                    setCustomerDropdownOpen(true);
+                  }}
+                  onFocus={() => setCustomerDropdownOpen(true)}
+                  className="w-full px-2.5 py-1.5 rounded bg-[#0c0e12] border border-[#222834] text-white placeholder-slate-500 text-xs focus:outline-none focus:border-amber-400 font-sans"
+                />
+
+                {/* Autocomplete Dropdown */}
+                {customerDropdownOpen && customerOptions.length > 0 && (
+                  <div className="absolute top-full left-0 right-0 z-30 mt-1 bg-gray-900 border border-gray-700 rounded-lg shadow-2xl overflow-hidden max-h-48 overflow-y-auto">
+                    {customerOptions.map((cust) => (
+                      <div
+                        key={cust.id}
+                        onClick={() => {
+                          setSelectedCustomer(cust);
+                          setCustomerName(cust.full_name);
+                          setCustomerPhone(cust.phone);
+                          if (cust.phone) setMpesaPhone(cust.phone.replace(/[^0-9]/g, ''));
+                          setCustomerDropdownOpen(false);
+                          setCustomerSearch('');
+                        }}
+                        className="px-3 py-2 hover:bg-gray-800 cursor-pointer border-b border-gray-800/60 last:border-0 flex items-center justify-between"
+                      >
+                        <div>
+                          <p className="font-semibold text-white text-xs">{cust.full_name}</p>
+                          <p className="text-[10px] text-gray-400 font-mono">{cust.phone} • {cust.customer_number}</p>
+                        </div>
+                        <span className={`text-[9px] px-1.5 py-0.5 rounded font-bold ${
+                          cust.status === 'ACTIVE' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-rose-500/10 text-rose-400'
+                        }`}>
+                          {cust.status}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <input
+                  type="text"
+                  placeholder="Phone Number (e.g. +254...)"
+                  value={customerPhone}
+                  onChange={(e) => setCustomerPhone(e.target.value)}
+                  className="px-2.5 py-1.5 rounded bg-[#0c0e12] border border-[#222834] text-white placeholder-slate-500 text-xs font-mono focus:outline-none focus:border-amber-400"
+                />
+                <div className="flex items-center text-[10px] text-gray-400 px-1 font-mono">
+                  <span>{customerName ? 'Manual Customer' : 'Walk-in (Default)'}</span>
+                </div>
+              </div>
+            </>
+          )}
         </div>
 
         {/* Cart Item Matrix */}

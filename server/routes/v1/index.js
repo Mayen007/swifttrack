@@ -54,5 +54,6 @@ router.use('/kenya', require('../kenya.js'));
 router.use('/brands', require('../brands.js'));
 router.use('/suppliers', require('../suppliers.js'));
 router.use('/promotions', require('../promotions.js'));
+router.use('/customers', require('../customers.js'));
 
 module.exports = router;

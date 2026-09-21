@@ -71,8 +71,18 @@ router.post('/checkout', authenticateToken, authorize('pos', 'create'), (req, re
             return res.status(400).json({ error: 'Payment method is required.' });
         }
 
-        // Default to Walk-in customer (id: 1) if not provided
-        const targetCustomerId = customer_id || 1;
+        // Default to Walk-in customer (id: 1) if not provided, and validate status
+        const targetCustomerId = customer_id ? Number(customer_id) : 1;
+        const customer = db.prepare('SELECT * FROM customers WHERE id = ?').get(targetCustomerId);
+        if (!customer) {
+            return res.status(404).json({ error: `Customer ID ${targetCustomerId} not found.` });
+        }
+        if (customer.status === 'BLOCKED' || customer.status === 'SUSPENDED') {
+            return res.status(403).json({
+                error: `Checkout rejected: Customer '${customer.full_name}' is currently ${customer.status}. POS transactions are prohibited.`,
+                code: 'CUSTOMER_STATUS_BLOCKED'
+            });
+        }
 
         // Pick first available active warehouse for this branch
         const warehouse = db.prepare('SELECT id FROM warehouses WHERE branch_id = ? AND is_active = 1 ORDER BY id ASC').get(branchId);
@@ -306,8 +316,7 @@ router.post('/checkout', authenticateToken, authorize('pos', 'create'), (req, re
             });
         })();
 
-        // Fetch customer & branch details
-        const customer = db.prepare('SELECT * FROM customers WHERE id = ?').get(targetCustomerId);
+        // Fetch branch details (customer is already resolved above)
         const branch = db.prepare('SELECT * FROM branches WHERE id = ?').get(branchId);
 
         // Return complete receipt data for instant printing & screen display

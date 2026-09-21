@@ -464,9 +464,35 @@ CREATE TABLE IF NOT EXISTS customers (
     address TEXT,
     city TEXT DEFAULT 'Nairobi',
     kra_pin TEXT,
+    status TEXT NOT NULL DEFAULT 'ACTIVE' CHECK(status IN ('ACTIVE', 'INACTIVE', 'SUSPENDED', 'BLOCKED')),
     notes TEXT,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 15b. CUSTOMER DELIVERY ADDRESSES
+CREATE TABLE IF NOT EXISTS customer_addresses (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    customer_id INTEGER NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
+    address_label TEXT NOT NULL DEFAULT 'Primary', -- 'Home', 'Office', 'Warehouse', 'Site A'
+    address_line TEXT NOT NULL,
+    city TEXT NOT NULL DEFAULT 'Nairobi',
+    contact_name TEXT,
+    contact_phone TEXT,
+    is_default INTEGER NOT NULL DEFAULT 0,
+    delivery_notes TEXT,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 15c. CUSTOMER NOTES (Structured Timestamped Interaction Logs)
+CREATE TABLE IF NOT EXISTS customer_notes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    customer_id INTEGER NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
+    user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    note_text TEXT NOT NULL,
+    note_type TEXT NOT NULL DEFAULT 'GENERAL' CHECK(note_type IN ('GENERAL', 'PREFERENCE', 'ISSUE', 'CALL_LOG', 'ACCOUNT')),
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 -- 15a. CUSTOMER SPECIFIC PRICING & TIER AGREEMENTS

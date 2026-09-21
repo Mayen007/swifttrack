@@ -75,6 +75,12 @@ const AUTHORIZATION_MATRIX = {
             view_all: SCOPES.GLOBAL,
             view_own: SCOPES.GLOBAL,
             failed_logins: SCOPES.GLOBAL
+        },
+        customers: {
+            view: SCOPES.GLOBAL,
+            create: SCOPES.GLOBAL,
+            edit: SCOPES.GLOBAL,
+            manage: SCOPES.GLOBAL
         }
     },
 
@@ -136,6 +142,12 @@ const AUTHORIZATION_MATRIX = {
             view_all: SCOPES.DENIED,
             view_own: SCOPES.OWN_BRANCH,
             failed_logins: SCOPES.OWN_BRANCH
+        },
+        customers: {
+            view: SCOPES.OWN_BRANCH,
+            create: SCOPES.OWN_BRANCH,
+            edit: SCOPES.OWN_BRANCH,
+            manage: SCOPES.OWN_BRANCH
         }
     },
 
@@ -193,6 +205,12 @@ const AUTHORIZATION_MATRIX = {
             view_all: SCOPES.DENIED,
             view_own: SCOPES.DENIED,
             failed_logins: SCOPES.DENIED
+        },
+        customers: {
+            view: SCOPES.OWN_BRANCH,
+            create: SCOPES.OWN_BRANCH,
+            edit: SCOPES.OWN_BRANCH,
+            manage: SCOPES.DENIED
         }
     },
 
@@ -250,6 +268,12 @@ const AUTHORIZATION_MATRIX = {
             view_all: SCOPES.DENIED,
             view_own: SCOPES.DENIED,
             failed_logins: SCOPES.DENIED
+        },
+        customers: {
+            view: SCOPES.OWN_BRANCH,
+            create: SCOPES.OWN_BRANCH,
+            edit: SCOPES.OWN_BRANCH,
+            manage: SCOPES.DENIED
         }
     },
 
@@ -307,6 +331,12 @@ const AUTHORIZATION_MATRIX = {
             view_all: SCOPES.DENIED,
             view_own: SCOPES.DENIED,
             failed_logins: SCOPES.DENIED
+        },
+        customers: {
+            view: SCOPES.DENIED,
+            create: SCOPES.DENIED,
+            edit: SCOPES.DENIED,
+            manage: SCOPES.DENIED
         }
     }
 };

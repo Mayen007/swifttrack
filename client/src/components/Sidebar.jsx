@@ -13,6 +13,7 @@ import {
   TrendingUp,
   Building2,
   Users,
+  UserCheck,
   ShieldCheck,
   Tag,
   X,
@@ -82,6 +83,12 @@ export function Sidebar({
           id: 'orders',
           label: 'Orders & Receipts',
           icon: Receipt,
+          roles: ['SUPER_ADMIN', 'BRANCH_MANAGER', 'CASHIER', 'DISPATCHER'],
+        },
+        {
+          id: 'customers',
+          label: 'Customer Directory',
+          icon: UserCheck,
           roles: ['SUPER_ADMIN', 'BRANCH_MANAGER', 'CASHIER', 'DISPATCHER'],
         },
         {
