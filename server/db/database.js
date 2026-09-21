@@ -19,14 +19,23 @@ db.exec('PRAGMA journal_mode = WAL;');
 db.exec('PRAGMA synchronous = NORMAL;');
 
 // Helper method for executing transactions
+let transactionDepth = 0;
 db.transaction = (fn) => {
     return (...args) => {
+        if (transactionDepth > 0) {
+            return fn(...args);
+        }
+        transactionDepth++;
         db.exec('BEGIN IMMEDIATE;');
         try {
             const result = fn(...args);
-            db.exec('COMMIT;');
+            transactionDepth--;
+            if (transactionDepth === 0) {
+                db.exec('COMMIT;');
+            }
             return result;
         } catch (error) {
+            transactionDepth = 0;
             try {
                 db.exec('ROLLBACK;');
             } catch (rbError) {
@@ -418,6 +427,68 @@ function migrateCustomerSchema() {
     }
 }
 
+/**
+ * Non-destructive runtime migration for Phase 5: 5.1 POS Shifts & Cash Drawer Control
+ * Adds shift_id to sales if missing, and ensures pos_shifts and cash_drawer_movements exist.
+ */
+function migratePosShiftSchema() {
+    try {
+        const salesCols = db.prepare('PRAGMA table_info(sales)').all().map(c => c.name);
+        if (!salesCols.includes('shift_id')) {
+            db.exec('ALTER TABLE sales ADD COLUMN shift_id INTEGER REFERENCES pos_shifts(id) ON DELETE SET NULL;');
+        }
+
+        db.exec(`
+            CREATE TABLE IF NOT EXISTS pos_shifts (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                branch_id INTEGER NOT NULL REFERENCES branches(id) ON DELETE RESTRICT,
+                cashier_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+                shift_number TEXT NOT NULL UNIQUE,
+                status TEXT NOT NULL DEFAULT 'OPEN',
+                opened_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                closed_at DATETIME,
+                reconciled_at DATETIME,
+                reconciled_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+                opening_cash REAL NOT NULL DEFAULT 0.0,
+                closing_cash REAL,
+                expected_cash REAL NOT NULL DEFAULT 0.0,
+                cash_variance REAL DEFAULT 0.0,
+                total_sales_amount REAL NOT NULL DEFAULT 0.0,
+                total_sales_count INTEGER NOT NULL DEFAULT 0,
+                total_cash_amount REAL NOT NULL DEFAULT 0.0,
+                total_mpesa_amount REAL NOT NULL DEFAULT 0.0,
+                total_card_amount REAL NOT NULL DEFAULT 0.0,
+                total_bank_amount REAL NOT NULL DEFAULT 0.0,
+                total_refunds_amount REAL NOT NULL DEFAULT 0.0,
+                notes TEXT,
+                reconciliation_notes TEXT,
+                created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+        `);
+
+        db.exec(`
+            CREATE TABLE IF NOT EXISTS cash_drawer_movements (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                shift_id INTEGER NOT NULL REFERENCES pos_shifts(id) ON DELETE CASCADE,
+                branch_id INTEGER NOT NULL REFERENCES branches(id) ON DELETE RESTRICT,
+                cashier_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+                movement_type TEXT NOT NULL,
+                amount REAL NOT NULL,
+                reference_id TEXT,
+                reason TEXT,
+                created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+        `);
+
+        db.exec('CREATE INDEX IF NOT EXISTS idx_pos_shifts_cashier ON pos_shifts(cashier_user_id, status);');
+        db.exec('CREATE INDEX IF NOT EXISTS idx_pos_shifts_branch ON pos_shifts(branch_id);');
+        db.exec('CREATE INDEX IF NOT EXISTS idx_cash_drawer_movements_shift ON cash_drawer_movements(shift_id);');
+    } catch (err) {
+        console.warn('POS shift schema migration notice:', err.message);
+    }
+}
+
 // Initialize schema
 function initSchema() {
     const schemaPath = path.resolve(__dirname, 'schema.sql');
@@ -429,6 +500,7 @@ function initSchema() {
     migrateInventoryOperationsSchema();
     migrateAdvancedInventorySchema();
     migrateCustomerSchema();
+    migratePosShiftSchema();
 }
 
 // Run non-destructive migrations on load
@@ -438,6 +510,7 @@ migrateInventoryStatesSchema();
 migrateInventoryOperationsSchema();
 migrateAdvancedInventorySchema();
 migrateCustomerSchema();
+migratePosShiftSchema();
 
 module.exports = {
     db,

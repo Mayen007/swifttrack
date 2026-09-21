@@ -570,10 +570,52 @@ CREATE TABLE IF NOT EXISTS order_items (
     total_price REAL NOT NULL
 );
 
+-- 17b. POS CASHIER SHIFTS & CASH DRAWER CONTROL
+CREATE TABLE IF NOT EXISTS pos_shifts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    branch_id INTEGER NOT NULL REFERENCES branches(id) ON DELETE RESTRICT,
+    cashier_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+    shift_number TEXT NOT NULL UNIQUE,
+    status TEXT NOT NULL DEFAULT 'OPEN' CHECK(status IN ('OPEN', 'CLOSED', 'RECONCILED')),
+    opened_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    closed_at DATETIME,
+    reconciled_at DATETIME,
+    reconciled_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    opening_cash REAL NOT NULL DEFAULT 0.0,
+    closing_cash REAL,
+    expected_cash REAL NOT NULL DEFAULT 0.0,
+    cash_variance REAL DEFAULT 0.0,
+    total_sales_amount REAL NOT NULL DEFAULT 0.0,
+    total_sales_count INTEGER NOT NULL DEFAULT 0,
+    total_cash_amount REAL NOT NULL DEFAULT 0.0,
+    total_mpesa_amount REAL NOT NULL DEFAULT 0.0,
+    total_card_amount REAL NOT NULL DEFAULT 0.0,
+    total_bank_amount REAL NOT NULL DEFAULT 0.0,
+    total_refunds_amount REAL NOT NULL DEFAULT 0.0,
+    notes TEXT,
+    reconciliation_notes TEXT,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 17c. CASH DRAWER MOVEMENTS (Real-time physical float audit trail)
+CREATE TABLE IF NOT EXISTS cash_drawer_movements (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    shift_id INTEGER NOT NULL REFERENCES pos_shifts(id) ON DELETE CASCADE,
+    branch_id INTEGER NOT NULL REFERENCES branches(id) ON DELETE RESTRICT,
+    cashier_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+    movement_type TEXT NOT NULL CHECK(movement_type IN ('FLOAT_IN', 'SALE_CASH', 'PAYOUT', 'REFUND_CASH', 'DROP_OUT')),
+    amount REAL NOT NULL,
+    reference_id TEXT,
+    reason TEXT,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
 -- 18. SALES (Completed POS checkouts)
 CREATE TABLE IF NOT EXISTS sales (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     branch_id INTEGER NOT NULL REFERENCES branches(id) ON DELETE RESTRICT,
+    shift_id INTEGER REFERENCES pos_shifts(id) ON DELETE SET NULL,
     order_id INTEGER REFERENCES orders(id) ON DELETE RESTRICT,
     sale_number TEXT NOT NULL UNIQUE,
     cashier_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE RESTRICT,

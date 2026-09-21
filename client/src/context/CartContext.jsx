@@ -81,6 +81,11 @@ export function CartProvider({ children }) {
     api.toast('Held cart recalled', 'success');
   };
 
+  const discardHeldCart = (cartId) => {
+    setHeldCarts((prev) => prev.filter((c) => c.id !== cartId));
+    api.toast('Held cart discarded', 'info');
+  };
+
   const totals = useMemo(() => {
     const rawSubtotal = items.reduce(
       (sum, item) => sum + Number(item.product.price ?? item.product.selling_price ?? 0) * item.quantity,
@@ -119,6 +124,7 @@ export function CartProvider({ children }) {
         clearCart,
         holdCart,
         recallCart,
+        discardHeldCart,
         totals,
       }}
     >

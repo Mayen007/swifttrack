@@ -174,6 +174,18 @@ async function runTests() {
         // Check stock of Product 1 (Heavy Duty Box) before checkout
         const stockBefore = db.prepare('SELECT quantity_on_hand FROM inventory WHERE warehouse_id = 1 AND product_id = 1').get().quantity_on_hand;
 
+        // Ensure cashier has an active shift for POS transactions
+        const currentShift = await request('/api/pos/shift/current', {
+            headers: { Authorization: `Bearer ${cashierToken}` }
+        });
+        if (!currentShift.data?.shift) {
+            await request('/api/pos/shift/open', {
+                method: 'POST',
+                headers: { Authorization: `Bearer ${cashierToken}` },
+                body: JSON.stringify({ opening_float: 5000, notes: 'Verification test shift' })
+            });
+        }
+
         const posSale = await request('/api/pos/checkout', {
             method: 'POST',
             headers: { Authorization: `Bearer ${cashierToken}` },
