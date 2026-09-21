@@ -195,43 +195,41 @@ function evaluateBatchExpiries({ warehouseId = null, branchId = null, currentDat
   const segregated = [];
   let totalUnitsExpired = 0;
 
-  db.transaction(() => {
-    for (const b of expiredBatches) {
-      const qty = b.quantity_available;
-      if (qty <= 0) continue;
+  for (const b of expiredBatches) {
+    const qty = b.quantity_available;
+    if (qty <= 0) continue;
 
-      // Segregate stock in multi-state inventory from AVAILABLE to EXPIRED
-      markExpired({
-        branchId: b.branch_id,
-        warehouseId: b.warehouse_id,
-        productId: b.product_id,
-        quantity: qty,
-        referenceId: b.batch_number,
-        userId,
-        reason: `Auto-segregation: Batch ${b.batch_number} expired on ${b.expiry_date}`
-      });
+    // Segregate stock in multi-state inventory from AVAILABLE to EXPIRED
+    markExpired({
+      branchId: b.branch_id,
+      warehouseId: b.warehouse_id,
+      productId: b.product_id,
+      quantity: qty,
+      referenceId: b.batch_number,
+      userId,
+      reason: `Auto-segregation: Batch ${b.batch_number} expired on ${b.expiry_date}`
+    });
 
-      // Mark batch as EXPIRED and zero available
-      db.prepare(`
-        UPDATE inventory_batches
-        SET quantity_available = 0, status = 'EXPIRED', updated_at = CURRENT_TIMESTAMP
-        WHERE id = ?
-      `).run(b.id);
+    // Mark batch as EXPIRED and zero available
+    db.prepare(`
+      UPDATE inventory_batches
+      SET quantity_available = 0, status = 'EXPIRED', updated_at = CURRENT_TIMESTAMP
+      WHERE id = ?
+    `).run(b.id);
 
-      segregated.push({
-        batchId: b.id,
-        batchNumber: b.batch_number,
-        productId: b.product_id,
-        warehouseId: b.warehouse_id,
-        quantity: qty,
-        unitCost: b.unit_cost,
-        lossValue: Number((qty * b.unit_cost).toFixed(2)),
-        expiryDate: b.expiry_date
-      });
+    segregated.push({
+      batchId: b.id,
+      batchNumber: b.batch_number,
+      productId: b.product_id,
+      warehouseId: b.warehouse_id,
+      quantity: qty,
+      unitCost: b.unit_cost,
+      lossValue: Number((qty * b.unit_cost).toFixed(2)),
+      expiryDate: b.expiry_date
+    });
 
-      totalUnitsExpired += qty;
-    }
-  })();
+    totalUnitsExpired += qty;
+  }
 
   return {
     evaluatedAt: targetDate,

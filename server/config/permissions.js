@@ -27,13 +27,17 @@ const AUTHORIZATION_MATRIX = {
         },
         inventory: {
             view: SCOPES.GLOBAL,
+            create: SCOPES.GLOBAL,
+            adjust: SCOPES.GLOBAL,
             adjust_request: SCOPES.GLOBAL,
             adjust_approve: SCOPES.GLOBAL,
             transfer_request: SCOPES.GLOBAL,
             transfer_status: SCOPES.GLOBAL,
             receive_stock: SCOPES.GLOBAL,
             stocktake: SCOPES.GLOBAL,
-            write_off: SCOPES.GLOBAL
+            write_off: SCOPES.GLOBAL,
+            batch_manage: SCOPES.GLOBAL,
+            serial_manage: SCOPES.GLOBAL
         },
         dispatch: {
             view: SCOPES.GLOBAL,
@@ -84,13 +88,17 @@ const AUTHORIZATION_MATRIX = {
         },
         inventory: {
             view: SCOPES.OWN_BRANCH,
+            create: SCOPES.OWN_BRANCH,
+            adjust: SCOPES.OWN_BRANCH,
             adjust_request: SCOPES.OWN_BRANCH,
             adjust_approve: SCOPES.OWN_BRANCH,
             transfer_request: SCOPES.OWN_BRANCH,
             transfer_status: SCOPES.OWN_BRANCH,
             receive_stock: SCOPES.OWN_BRANCH,
             stocktake: SCOPES.OWN_BRANCH,
-            write_off: SCOPES.OWN_BRANCH
+            write_off: SCOPES.OWN_BRANCH,
+            batch_manage: SCOPES.OWN_BRANCH,
+            serial_manage: SCOPES.OWN_BRANCH
         },
         dispatch: {
             view: SCOPES.OWN_BRANCH,
