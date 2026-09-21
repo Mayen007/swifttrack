@@ -692,22 +692,90 @@ CREATE TABLE IF NOT EXISTS held_sales (
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
--- 21. PAYMENTS
+-- 21a. PAYMENT INTENTS (Decoupled Payment Engine)
+CREATE TABLE IF NOT EXISTS payment_intents (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    intent_number TEXT NOT NULL UNIQUE,
+    branch_id INTEGER NOT NULL REFERENCES branches(id) ON DELETE RESTRICT,
+    order_id INTEGER REFERENCES orders(id) ON DELETE SET NULL,
+    sale_id INTEGER REFERENCES sales(id) ON DELETE SET NULL,
+    customer_id INTEGER REFERENCES customers(id) ON DELETE SET NULL,
+    payment_method TEXT NOT NULL, -- MPESA, CARD, CASH, BANK
+    amount REAL NOT NULL,
+    currency TEXT NOT NULL DEFAULT 'KES',
+    status TEXT NOT NULL DEFAULT 'PENDING', -- PENDING, PROCESSING, SUCCESS, FAILED, TIMEOUT, CANCELLED, REFUNDED
+    idempotency_key TEXT UNIQUE,
+    provider_reference TEXT, -- e.g. CheckoutRequestID or Card Auth Code
+    external_reference TEXT, -- e.g. M-Pesa Receipt Number or Bank Slip No
+    phone_number TEXT,
+    metadata TEXT, -- JSON string
+    failure_reason TEXT,
+    timeout_at DATETIME,
+    created_by_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    completed_at DATETIME
+);
+
+-- 21b. PAYMENTS (Completed Transaction Ledger)
 CREATE TABLE IF NOT EXISTS payments (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     branch_id INTEGER NOT NULL REFERENCES branches(id) ON DELETE RESTRICT,
+    payment_intent_id INTEGER REFERENCES payment_intents(id) ON DELETE SET NULL,
     sale_id INTEGER REFERENCES sales(id) ON DELETE RESTRICT,
     order_id INTEGER REFERENCES orders(id) ON DELETE RESTRICT,
     payment_number TEXT NOT NULL UNIQUE,
-    payment_method TEXT NOT NULL, -- CASH, MPESA, CARD, BANK_TRANSFER
+    payment_method TEXT NOT NULL, -- CASH, MPESA, CARD, BANK
     amount REAL NOT NULL,
     currency TEXT NOT NULL DEFAULT 'KES',
     reference_code TEXT,
+    provider_reference TEXT,
     mpesa_receipt_number TEXT,
     mpesa_phone_number TEXT,
     status TEXT NOT NULL DEFAULT 'COMPLETED', -- COMPLETED, PENDING, FAILED, REFUNDED
     cashier_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
     notes TEXT,
+    reconciled_at DATETIME,
+    reconciled_by_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 21c. PAYMENT CALLBACKS (Webhook Audit & Duplicate Callback Protection)
+CREATE TABLE IF NOT EXISTS payment_callbacks (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    payment_intent_id INTEGER REFERENCES payment_intents(id) ON DELETE SET NULL,
+    provider TEXT NOT NULL, -- MPESA, CARD, BANK
+    provider_reference TEXT NOT NULL, -- e.g. CheckoutRequestID
+    result_code INTEGER,
+    result_description TEXT,
+    raw_payload TEXT NOT NULL,
+    is_processed INTEGER NOT NULL DEFAULT 0,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(provider, provider_reference)
+);
+
+-- 21d. PAYMENT AUDIT TRAIL (Immutable State Transition History)
+CREATE TABLE IF NOT EXISTS payment_audit_trail (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    payment_intent_id INTEGER NOT NULL REFERENCES payment_intents(id) ON DELETE CASCADE,
+    from_status TEXT,
+    to_status TEXT NOT NULL,
+    actor_type TEXT NOT NULL, -- SYSTEM, USER, PROVIDER_CALLBACK
+    actor_id TEXT,
+    details TEXT,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 21e. PAYMENT REFUNDS (Direct Payment Reversals)
+CREATE TABLE IF NOT EXISTS payment_refunds (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    refund_number TEXT NOT NULL UNIQUE,
+    payment_id INTEGER NOT NULL REFERENCES payments(id) ON DELETE RESTRICT,
+    payment_intent_id INTEGER REFERENCES payment_intents(id) ON DELETE SET NULL,
+    amount REAL NOT NULL,
+    reason TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'COMPLETED',
+    processed_by_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 

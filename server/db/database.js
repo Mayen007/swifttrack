@@ -546,6 +546,111 @@ function migrateOrdersEngineSchema() {
     }
 }
 
+// Non-destructive runtime migration: Phase 7 Payments Engine
+function migratePaymentsEngineSchema() {
+    try {
+        // 1. Check and add new columns to payments table
+        const paymentCols = db.prepare("PRAGMA table_info(payments)").all().map(c => c.name);
+        const newCols = [
+            { name: 'payment_intent_id', def: 'INTEGER REFERENCES payment_intents(id)' },
+            { name: 'provider_reference', def: 'TEXT' },
+            { name: 'reconciled_at', def: 'DATETIME' },
+            { name: 'reconciled_by_user_id', def: 'INTEGER REFERENCES users(id)' }
+        ];
+
+        for (const col of newCols) {
+            if (!paymentCols.includes(col.name)) {
+                db.exec(`ALTER TABLE payments ADD COLUMN ${col.name} ${col.def};`);
+            }
+        }
+
+        // 2. payment_intents table
+        db.exec(`
+            CREATE TABLE IF NOT EXISTS payment_intents (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                intent_number TEXT NOT NULL UNIQUE,
+                branch_id INTEGER NOT NULL REFERENCES branches(id) ON DELETE RESTRICT,
+                order_id INTEGER REFERENCES orders(id) ON DELETE SET NULL,
+                sale_id INTEGER REFERENCES sales(id) ON DELETE SET NULL,
+                customer_id INTEGER REFERENCES customers(id) ON DELETE SET NULL,
+                payment_method TEXT NOT NULL,
+                amount REAL NOT NULL,
+                currency TEXT NOT NULL DEFAULT 'KES',
+                status TEXT NOT NULL DEFAULT 'PENDING',
+                idempotency_key TEXT UNIQUE,
+                provider_reference TEXT,
+                external_reference TEXT,
+                phone_number TEXT,
+                metadata TEXT,
+                failure_reason TEXT,
+                timeout_at DATETIME,
+                created_by_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+                created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                completed_at DATETIME
+            );
+        `);
+
+        // 3. payment_callbacks table (Duplicate callback protection)
+        db.exec(`
+            CREATE TABLE IF NOT EXISTS payment_callbacks (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                payment_intent_id INTEGER REFERENCES payment_intents(id) ON DELETE SET NULL,
+                provider TEXT NOT NULL,
+                provider_reference TEXT NOT NULL,
+                result_code INTEGER,
+                result_description TEXT,
+                raw_payload TEXT NOT NULL,
+                is_processed INTEGER NOT NULL DEFAULT 0,
+                created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(provider, provider_reference)
+            );
+        `);
+
+        // 4. payment_audit_trail table
+        db.exec(`
+            CREATE TABLE IF NOT EXISTS payment_audit_trail (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                payment_intent_id INTEGER NOT NULL REFERENCES payment_intents(id) ON DELETE CASCADE,
+                from_status TEXT,
+                to_status TEXT NOT NULL,
+                actor_type TEXT NOT NULL,
+                actor_id TEXT,
+                details TEXT,
+                created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+        `);
+
+        // 5. payment_refunds table
+        db.exec(`
+            CREATE TABLE IF NOT EXISTS payment_refunds (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                refund_number TEXT NOT NULL UNIQUE,
+                payment_id INTEGER NOT NULL REFERENCES payments(id) ON DELETE RESTRICT,
+                payment_intent_id INTEGER REFERENCES payment_intents(id) ON DELETE SET NULL,
+                amount REAL NOT NULL,
+                reason TEXT NOT NULL,
+                status TEXT NOT NULL DEFAULT 'COMPLETED',
+                processed_by_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+                created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+        `);
+
+        // 6. Indexes
+        db.exec('CREATE INDEX IF NOT EXISTS idx_payment_intents_number ON payment_intents(intent_number);');
+        db.exec('CREATE INDEX IF NOT EXISTS idx_payment_intents_status ON payment_intents(status);');
+        db.exec('CREATE INDEX IF NOT EXISTS idx_payment_intents_branch ON payment_intents(branch_id);');
+        db.exec('CREATE INDEX IF NOT EXISTS idx_payment_intents_order ON payment_intents(order_id);');
+        db.exec('CREATE INDEX IF NOT EXISTS idx_payment_intents_sale ON payment_intents(sale_id);');
+        db.exec('CREATE INDEX IF NOT EXISTS idx_payment_intents_provider_ref ON payment_intents(provider_reference);');
+        db.exec('CREATE INDEX IF NOT EXISTS idx_payment_callbacks_ref ON payment_callbacks(provider, provider_reference);');
+        db.exec('CREATE INDEX IF NOT EXISTS idx_payment_audit_intent ON payment_audit_trail(payment_intent_id);');
+        db.exec('CREATE INDEX IF NOT EXISTS idx_payments_intent ON payments(payment_intent_id);');
+    } catch (err) {
+        console.warn('Payments Engine schema migration notice:', err.message);
+    }
+}
+
 // Initialize schema
 function initSchema() {
     const schemaPath = path.resolve(__dirname, 'schema.sql');
@@ -559,6 +664,7 @@ function initSchema() {
     migrateCustomerSchema();
     migratePosShiftSchema();
     migrateOrdersEngineSchema();
+    migratePaymentsEngineSchema();
 }
 
 // Run non-destructive migrations on load
@@ -570,6 +676,7 @@ migrateAdvancedInventorySchema();
 migrateCustomerSchema();
 migratePosShiftSchema();
 migrateOrdersEngineSchema();
+migratePaymentsEngineSchema();
 
 module.exports = {
     db,

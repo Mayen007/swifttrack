@@ -16,6 +16,7 @@ import {
   UserCheck,
   ShieldCheck,
   Tag,
+  CreditCard,
   X,
   Sparkles,
   MapPin,
@@ -84,6 +85,12 @@ export function Sidebar({
           label: 'Orders & Receipts',
           icon: Receipt,
           roles: ['SUPER_ADMIN', 'BRANCH_MANAGER', 'CASHIER', 'DISPATCHER'],
+        },
+        {
+          id: 'payments',
+          label: 'Payments & Gateway',
+          icon: CreditCard,
+          roles: ['SUPER_ADMIN', 'BRANCH_MANAGER', 'CASHIER'],
         },
         {
           id: 'customers',

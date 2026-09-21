@@ -7,7 +7,9 @@ const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
 // Webhook endpoints that receive external server-to-server callbacks
 const EXEMPT_WEBHOOK_PATHS = [
     '/api/v1/kenya/mpesa/callback',
-    '/api/kenya/mpesa/callback'
+    '/api/kenya/mpesa/callback',
+    '/api/v1/payments/callbacks/mpesa',
+    '/api/payments/callbacks/mpesa'
 ];
 
 /**
