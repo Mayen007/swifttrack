@@ -489,6 +489,63 @@ function migratePosShiftSchema() {
     }
 }
 
+/**
+ * Non-destructive runtime migration for Phase 6: Orders Engine
+ * Adds delivery_fee, inventory_allocated, and lifecycle timestamps to orders if missing,
+ * and ensures order_status_history and order_internal_notes tables exist.
+ */
+function migrateOrdersEngineSchema() {
+    try {
+        const orderCols = db.prepare('PRAGMA table_info(orders)').all().map(c => c.name);
+
+        const newCols = [
+            { name: 'delivery_fee', def: 'REAL NOT NULL DEFAULT 0.0' },
+            { name: 'inventory_allocated', def: 'INTEGER NOT NULL DEFAULT 0' },
+            { name: 'allocated_at', def: 'DATETIME' },
+            { name: 'dispatched_at', def: 'DATETIME' },
+            { name: 'delivered_at', def: 'DATETIME' },
+            { name: 'cancelled_at', def: 'DATETIME' },
+            { name: 'cancellation_reason', def: 'TEXT' },
+            { name: 'internal_notes', def: 'TEXT' }
+        ];
+
+        for (const col of newCols) {
+            if (!orderCols.includes(col.name)) {
+                db.exec(`ALTER TABLE orders ADD COLUMN ${col.name} ${col.def};`);
+            }
+        }
+
+        db.exec(`
+            CREATE TABLE IF NOT EXISTS order_status_history (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                order_id INTEGER NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+                from_status TEXT,
+                to_status TEXT NOT NULL,
+                user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+                notes TEXT,
+                created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+        `);
+
+        db.exec(`
+            CREATE TABLE IF NOT EXISTS order_internal_notes (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                order_id INTEGER NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+                user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+                note TEXT NOT NULL,
+                created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+        `);
+
+        db.exec('CREATE INDEX IF NOT EXISTS idx_order_status_history_order ON order_status_history(order_id);');
+        db.exec('CREATE INDEX IF NOT EXISTS idx_order_internal_notes_order ON order_internal_notes(order_id);');
+        db.exec('CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(status);');
+        db.exec('CREATE INDEX IF NOT EXISTS idx_orders_allocated ON orders(inventory_allocated);');
+    } catch (err) {
+        console.warn('Orders Engine schema migration notice:', err.message);
+    }
+}
+
 // Initialize schema
 function initSchema() {
     const schemaPath = path.resolve(__dirname, 'schema.sql');
@@ -501,6 +558,7 @@ function initSchema() {
     migrateAdvancedInventorySchema();
     migrateCustomerSchema();
     migratePosShiftSchema();
+    migrateOrdersEngineSchema();
 }
 
 // Run non-destructive migrations on load
@@ -511,10 +569,12 @@ migrateInventoryOperationsSchema();
 migrateAdvancedInventorySchema();
 migrateCustomerSchema();
 migratePosShiftSchema();
+migrateOrdersEngineSchema();
 
 module.exports = {
     db,
     initSchema,
     DB_PATH
 };
+
 

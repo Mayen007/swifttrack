@@ -212,8 +212,8 @@ runTest('5. Split / Mixed Payment: Splits tender across Cash and M-Pesa', () => 
     const cashPortion = 2000;
     const mpesaPortion = 3000;
 
-    const saleNumber = `SALE-1-${Date.now().toString().slice(-6)}`;
-    const orderNumber = `ORD-POS-1-${Date.now().toString().slice(-6)}`;
+    const saleNumber = `SALE-1-${Date.now().toString().slice(-6)}-${Math.floor(Math.random() * 10000)}`;
+    const orderNumber = `ORD-POS-1-${Date.now().toString().slice(-6)}-${Math.floor(Math.random() * 10000)}`;
 
     db.transaction(() => {
         const ordRes = db.prepare(`

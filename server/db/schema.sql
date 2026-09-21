@@ -548,11 +548,19 @@ CREATE TABLE IF NOT EXISTS orders (
     total_amount REAL NOT NULL DEFAULT 0.0,
     payment_status TEXT NOT NULL DEFAULT 'UNPAID', -- UNPAID, PARTIALLY_PAID, PAID, REFUNDED
     delivery_required INTEGER NOT NULL DEFAULT 0,
+    delivery_fee REAL NOT NULL DEFAULT 0.0,
     delivery_address TEXT,
     delivery_city TEXT,
     recipient_name TEXT,
     recipient_phone TEXT,
     special_instructions TEXT,
+    inventory_allocated INTEGER NOT NULL DEFAULT 0,
+    allocated_at DATETIME,
+    dispatched_at DATETIME,
+    delivered_at DATETIME,
+    cancelled_at DATETIME,
+    cancellation_reason TEXT,
+    internal_notes TEXT,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
@@ -568,6 +576,26 @@ CREATE TABLE IF NOT EXISTS order_items (
     tax_rate REAL NOT NULL DEFAULT 16.0,
     tax_amount REAL NOT NULL DEFAULT 0.0,
     total_price REAL NOT NULL
+);
+
+-- 17a. ORDER STATUS TIMELINE & HISTORY
+CREATE TABLE IF NOT EXISTS order_status_history (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    order_id INTEGER NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+    from_status TEXT,
+    to_status TEXT NOT NULL,
+    user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    notes TEXT,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 17a2. ORDER INTERNAL NOTES
+CREATE TABLE IF NOT EXISTS order_internal_notes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    order_id INTEGER NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+    user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    note TEXT NOT NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 -- 17b. POS CASHIER SHIFTS & CASH DRAWER CONTROL
