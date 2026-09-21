@@ -11,7 +11,7 @@ const { authenticateToken, authorize } = require('../../middleware/auth.js');
  */
 router.get('/', authenticateToken, authorize('inventory', 'view'), (req, res) => {
   let query = `
-    SELECT i.*, p.sku, p.barcode, p.name as product_name, p.unit, p.unit_of_measure,
+    SELECT i.*, p.sku, p.barcode, p.name as product_name, p.unit, p.unit as unit_of_measure,
            p.selling_price, p.cost_price, p.wholesale_price, p.tax_category,
            p.min_stock_alert, p.reorder_threshold, c.name as category_name,
            w.name as warehouse_name, w.code as warehouse_code,

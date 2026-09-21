@@ -138,12 +138,13 @@ router.post('/', authenticateToken, requireRole('SUPER_ADMIN', 'BRANCH_MANAGER')
     }
 
     try {
+        const uom = (req.body.unit_of_measure || req.body.unit || 'PCS').trim();
         const result = db.prepare(`
             INSERT INTO products (
                 category_id, brand_id, supplier_id, sku, barcode, name, description,
-                unit, cost_price, selling_price, wholesale_price, tax_category,
+                unit, unit_of_measure, cost_price, selling_price, wholesale_price, tax_category,
                 min_stock_alert, reorder_threshold, reorder_quantity, images, is_active, is_archived
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 0)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 0)
         `).run(
             Number(category_id),
             brand_id ? Number(brand_id) : null,
@@ -152,7 +153,8 @@ router.post('/', authenticateToken, requireRole('SUPER_ADMIN', 'BRANCH_MANAGER')
             barcode.trim(),
             name.trim(),
             description || '',
-            unit || 'PCS',
+            uom,
+            uom,
             Number(cost_price) || 0.0,
             Number(selling_price),
             wholesale_price !== undefined ? Number(wholesale_price) : Number(selling_price) * 0.85,
@@ -202,14 +204,17 @@ router.put('/:id', authenticateToken, requireRole('SUPER_ADMIN', 'BRANCH_MANAGER
     if (!prev) return res.status(404).json({ error: 'Product not found' });
 
     const {
-        name, description, category_id, brand_id, supplier_id, unit,
+        name, description, category_id, brand_id, supplier_id, unit, unit_of_measure,
         cost_price, selling_price, wholesale_price, tax_category,
         min_stock_alert, reorder_quantity, images, is_active
     } = req.body;
 
+    const uom = unit_of_measure || unit || prev.unit_of_measure || prev.unit || 'PCS';
+
     db.prepare(`
         UPDATE products
-        SET name = ?, description = ?, category_id = ?, brand_id = ?, supplier_id = ?, unit = ?,
+        SET name = ?, description = ?, category_id = ?, brand_id = ?, supplier_id = ?,
+            unit = ?, unit_of_measure = ?,
             cost_price = ?, selling_price = ?, wholesale_price = ?, tax_category = ?,
             min_stock_alert = ?, reorder_threshold = ?, reorder_quantity = ?,
             images = ?, is_active = ?, updated_at = CURRENT_TIMESTAMP
@@ -220,7 +225,8 @@ router.put('/:id', authenticateToken, requireRole('SUPER_ADMIN', 'BRANCH_MANAGER
         category_id ? Number(category_id) : prev.category_id,
         brand_id !== undefined ? (brand_id ? Number(brand_id) : null) : prev.brand_id,
         supplier_id !== undefined ? (supplier_id ? Number(supplier_id) : null) : prev.supplier_id,
-        unit || prev.unit,
+        uom,
+        uom,
         cost_price !== undefined ? Number(cost_price) : prev.cost_price,
         selling_price !== undefined ? Number(selling_price) : prev.selling_price,
         wholesale_price !== undefined ? Number(wholesale_price) : prev.wholesale_price,

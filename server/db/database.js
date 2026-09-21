@@ -85,7 +85,8 @@ function migrateCommerceSchema() {
             { name: 'reorder_quantity', def: 'INTEGER NOT NULL DEFAULT 50' },
             { name: 'images', def: "TEXT NOT NULL DEFAULT '[]'" },
             { name: 'is_archived', def: 'INTEGER NOT NULL DEFAULT 0' },
-            { name: 'archived_at', def: 'DATETIME' }
+            { name: 'archived_at', def: 'DATETIME' },
+            { name: 'unit_of_measure', def: "TEXT NOT NULL DEFAULT 'PCS'" }
         ];
 
         for (const col of newProductCols) {
@@ -93,6 +94,9 @@ function migrateCommerceSchema() {
                 db.exec(`ALTER TABLE products ADD COLUMN ${col.name} ${col.def};`);
             }
         }
+
+        // Sync unit_of_measure with unit column
+        db.exec("UPDATE products SET unit_of_measure = unit WHERE unit IS NOT NULL AND (unit_of_measure IS NULL OR unit_of_measure = 'PCS');");
     } catch (err) {
         console.warn('Commerce schema migration notice:', err.message);
     }

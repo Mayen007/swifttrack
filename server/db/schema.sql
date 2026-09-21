@@ -152,6 +152,7 @@ CREATE TABLE IF NOT EXISTS products (
     name TEXT NOT NULL,
     description TEXT,
     unit TEXT NOT NULL DEFAULT 'PCS',
+    unit_of_measure TEXT NOT NULL DEFAULT 'PCS',
     cost_price REAL NOT NULL DEFAULT 0.0,
     selling_price REAL NOT NULL DEFAULT 0.0,
     wholesale_price REAL NOT NULL DEFAULT 0.0,

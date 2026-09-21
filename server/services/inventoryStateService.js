@@ -379,11 +379,12 @@ function restoreToAvailable({ branchId, warehouseId, productId, quantity, fromSt
  */
 function getInventoryStateSummary({ branchId, warehouseId, productId } = {}) {
   let query = `
-    SELECT i.*, p.sku, p.name as product_name, p.barcode, p.category, p.unit_of_measure,
+    SELECT i.*, p.sku, p.name as product_name, p.barcode, c.name as category, p.unit, p.unit as unit_of_measure,
            p.reorder_threshold, b.name as branch_name, b.code as branch_code,
            w.name as warehouse_name, w.code as warehouse_code
     FROM inventory i
     JOIN products p ON i.product_id = p.id
+    LEFT JOIN categories c ON p.category_id = c.id
     JOIN warehouses w ON i.warehouse_id = w.id
     JOIN branches b ON i.branch_id = b.id
     WHERE 1=1
