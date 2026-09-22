@@ -17,6 +17,7 @@ import {
   ShieldCheck,
   Tag,
   CreditCard,
+  ShoppingBag,
   X,
   Sparkles,
   MapPin,
@@ -91,6 +92,12 @@ export function Sidebar({
           label: 'Payments & Gateway',
           icon: CreditCard,
           roles: ['SUPER_ADMIN', 'BRANCH_MANAGER', 'CASHIER'],
+        },
+        {
+          id: 'procurement',
+          label: 'Procurement & Suppliers',
+          icon: ShoppingBag,
+          roles: ['SUPER_ADMIN', 'BRANCH_MANAGER'],
         },
         {
           id: 'customers',

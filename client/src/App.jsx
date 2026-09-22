@@ -24,6 +24,7 @@ import { AuditView } from './views/AuditView.jsx';
 import { ProductsView } from './views/ProductsView.jsx';
 import { CustomersView } from './views/CustomersView.jsx';
 import { PaymentsView } from './views/PaymentsView.jsx';
+import { ProcurementView } from './views/ProcurementView.jsx';
 import { LoginView } from './views/LoginView.jsx';
 
 function MainApp() {
@@ -153,6 +154,8 @@ function MainApp() {
         return <OrdersView />;
       case 'payments':
         return <PaymentsView />;
+      case 'procurement':
+        return <ProcurementView />;
       case 'customers':
         return <CustomersView />;
       case 'approvals':

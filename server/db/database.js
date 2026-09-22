@@ -655,6 +655,232 @@ function migratePaymentsEngineSchema() {
     }
 }
 
+/**
+ * Non-destructive runtime migration for Phase 8: Suppliers & Procurement Lifecycle
+ */
+function migrateProcurementSchema() {
+    try {
+        // 1. suppliers table evolution
+        const supInfo = db.prepare('PRAGMA table_info(suppliers)').all();
+        const supCols = supInfo.map(c => c.name);
+        const newSupCols = [
+            { name: 'tax_pin', def: 'TEXT' },
+            { name: 'vat_registered', def: 'INTEGER NOT NULL DEFAULT 1' },
+            { name: 'withholding_tax_rate', def: 'REAL NOT NULL DEFAULT 0.0' },
+            { name: 'bank_name', def: 'TEXT' },
+            { name: 'bank_account_no', def: 'TEXT' },
+            { name: 'bank_branch', def: 'TEXT' },
+            { name: 'mpesa_paybill', def: 'TEXT' },
+            { name: 'mpesa_account_no', def: 'TEXT' },
+            { name: 'rating', def: 'REAL NOT NULL DEFAULT 5.0' },
+            { name: 'notes', def: 'TEXT' }
+        ];
+        for (const col of newSupCols) {
+            if (!supCols.includes(col.name)) {
+                db.exec(`ALTER TABLE suppliers ADD COLUMN ${col.name} ${col.def};`);
+            }
+        }
+
+        // 2. stock_receipts & stock_receipt_items evolution
+        const srInfo = db.prepare('PRAGMA table_info(stock_receipts)').all();
+        const srCols = srInfo.map(c => c.name);
+        if (!srCols.includes('purchase_order_id')) {
+            db.exec('ALTER TABLE stock_receipts ADD COLUMN purchase_order_id INTEGER REFERENCES purchase_orders(id) ON DELETE SET NULL;');
+        }
+
+        const sriInfo = db.prepare('PRAGMA table_info(stock_receipt_items)').all();
+        const sriCols = sriInfo.map(c => c.name);
+        if (!sriCols.includes('purchase_order_item_id')) {
+            db.exec('ALTER TABLE stock_receipt_items ADD COLUMN purchase_order_item_id INTEGER REFERENCES purchase_order_items(id) ON DELETE SET NULL;');
+        }
+
+        // 3. Create Procurement Lifecycle tables
+        db.exec(`
+            CREATE TABLE IF NOT EXISTS supplier_contacts (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                supplier_id INTEGER NOT NULL REFERENCES suppliers(id) ON DELETE CASCADE,
+                name TEXT NOT NULL,
+                role TEXT,
+                email TEXT,
+                phone TEXT NOT NULL,
+                is_primary INTEGER NOT NULL DEFAULT 0,
+                created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE TABLE IF NOT EXISTS supplier_products (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                supplier_id INTEGER NOT NULL REFERENCES suppliers(id) ON DELETE CASCADE,
+                product_id INTEGER NOT NULL REFERENCES products(id) ON DELETE RESTRICT,
+                supplier_sku TEXT,
+                agreed_cost REAL NOT NULL,
+                min_order_quantity INTEGER NOT NULL DEFAULT 1,
+                lead_time_days INTEGER DEFAULT 3,
+                is_preferred INTEGER NOT NULL DEFAULT 0,
+                created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(supplier_id, product_id)
+            );
+
+            CREATE TABLE IF NOT EXISTS purchase_requisitions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                pr_number TEXT NOT NULL UNIQUE,
+                branch_id INTEGER NOT NULL REFERENCES branches(id) ON DELETE RESTRICT,
+                requested_by_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+                urgency TEXT NOT NULL DEFAULT 'MEDIUM',
+                needed_by_date DATE,
+                status TEXT NOT NULL DEFAULT 'DRAFT',
+                approved_by_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+                approved_at DATETIME,
+                rejection_reason TEXT,
+                notes TEXT,
+                total_estimated_cost REAL NOT NULL DEFAULT 0.0,
+                created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE TABLE IF NOT EXISTS purchase_requisition_items (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                requisition_id INTEGER NOT NULL REFERENCES purchase_requisitions(id) ON DELETE CASCADE,
+                product_id INTEGER NOT NULL REFERENCES products(id) ON DELETE RESTRICT,
+                requested_quantity INTEGER NOT NULL,
+                estimated_unit_cost REAL NOT NULL DEFAULT 0.0,
+                notes TEXT
+            );
+
+            CREATE TABLE IF NOT EXISTS purchase_orders (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                po_number TEXT NOT NULL UNIQUE,
+                purchase_requisition_id INTEGER REFERENCES purchase_requisitions(id) ON DELETE SET NULL,
+                supplier_id INTEGER NOT NULL REFERENCES suppliers(id) ON DELETE RESTRICT,
+                branch_id INTEGER NOT NULL REFERENCES branches(id) ON DELETE RESTRICT,
+                warehouse_id INTEGER NOT NULL REFERENCES warehouses(id) ON DELETE RESTRICT,
+                created_by_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+                approved_by_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+                status TEXT NOT NULL DEFAULT 'DRAFT',
+                payment_terms TEXT NOT NULL DEFAULT 'NET30',
+                currency TEXT NOT NULL DEFAULT 'KES',
+                subtotal REAL NOT NULL DEFAULT 0.0,
+                tax_amount REAL NOT NULL DEFAULT 0.0,
+                shipping_fee REAL NOT NULL DEFAULT 0.0,
+                total_amount REAL NOT NULL DEFAULT 0.0,
+                expected_delivery_date DATE,
+                approved_at DATETIME,
+                sent_at DATETIME,
+                notes TEXT,
+                created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE TABLE IF NOT EXISTS purchase_order_items (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                purchase_order_id INTEGER NOT NULL REFERENCES purchase_orders(id) ON DELETE CASCADE,
+                product_id INTEGER NOT NULL REFERENCES products(id) ON DELETE RESTRICT,
+                variant_id INTEGER REFERENCES product_variants(id) ON DELETE SET NULL,
+                ordered_quantity INTEGER NOT NULL,
+                received_quantity INTEGER NOT NULL DEFAULT 0,
+                unit_cost REAL NOT NULL DEFAULT 0.0,
+                tax_rate REAL NOT NULL DEFAULT 16.0,
+                tax_amount REAL NOT NULL DEFAULT 0.0,
+                total_cost REAL NOT NULL DEFAULT 0.0
+            );
+
+            CREATE TABLE IF NOT EXISTS supplier_invoices (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                invoice_number TEXT NOT NULL UNIQUE,
+                supplier_invoice_no TEXT NOT NULL,
+                supplier_id INTEGER NOT NULL REFERENCES suppliers(id) ON DELETE RESTRICT,
+                purchase_order_id INTEGER REFERENCES purchase_orders(id) ON DELETE SET NULL,
+                stock_receipt_id INTEGER REFERENCES stock_receipts(id) ON DELETE SET NULL,
+                branch_id INTEGER NOT NULL REFERENCES branches(id) ON DELETE RESTRICT,
+                invoice_date DATE NOT NULL,
+                due_date DATE NOT NULL,
+                subtotal REAL NOT NULL DEFAULT 0.0,
+                tax_amount REAL NOT NULL DEFAULT 0.0,
+                total_amount REAL NOT NULL DEFAULT 0.0,
+                amount_paid REAL NOT NULL DEFAULT 0.0,
+                status TEXT NOT NULL DEFAULT 'PENDING',
+                notes TEXT,
+                created_by_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+                created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE TABLE IF NOT EXISTS supplier_payments (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                payment_number TEXT NOT NULL UNIQUE,
+                supplier_invoice_id INTEGER NOT NULL REFERENCES supplier_invoices(id) ON DELETE RESTRICT,
+                supplier_id INTEGER NOT NULL REFERENCES suppliers(id) ON DELETE RESTRICT,
+                amount REAL NOT NULL,
+                payment_method TEXT NOT NULL DEFAULT 'BANK',
+                reference_number TEXT NOT NULL,
+                payment_date DATE NOT NULL,
+                notes TEXT,
+                processed_by_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+                created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE TABLE IF NOT EXISTS supplier_returns (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                return_number TEXT NOT NULL UNIQUE,
+                supplier_id INTEGER NOT NULL REFERENCES suppliers(id) ON DELETE RESTRICT,
+                purchase_order_id INTEGER REFERENCES purchase_orders(id) ON DELETE SET NULL,
+                stock_receipt_id INTEGER REFERENCES stock_receipts(id) ON DELETE SET NULL,
+                branch_id INTEGER NOT NULL REFERENCES branches(id) ON DELETE RESTRICT,
+                warehouse_id INTEGER NOT NULL REFERENCES warehouses(id) ON DELETE RESTRICT,
+                reason TEXT NOT NULL,
+                status TEXT NOT NULL DEFAULT 'DRAFT',
+                total_amount REAL NOT NULL DEFAULT 0.0,
+                notes TEXT,
+                created_by_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+                approved_by_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+                created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE TABLE IF NOT EXISTS supplier_return_items (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                supplier_return_id INTEGER NOT NULL REFERENCES supplier_returns(id) ON DELETE CASCADE,
+                product_id INTEGER NOT NULL REFERENCES products(id) ON DELETE RESTRICT,
+                quantity INTEGER NOT NULL,
+                unit_cost REAL NOT NULL DEFAULT 0.0,
+                total_cost REAL NOT NULL DEFAULT 0.0,
+                from_inventory_state TEXT NOT NULL DEFAULT 'DAMAGED',
+                reason TEXT
+            );
+
+            CREATE TABLE IF NOT EXISTS procurement_audit_trail (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                entity_type TEXT NOT NULL,
+                entity_id INTEGER NOT NULL,
+                entity_number TEXT NOT NULL,
+                action TEXT NOT NULL,
+                from_status TEXT,
+                to_status TEXT,
+                user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+                details TEXT,
+                created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+        `);
+
+        // 4. Indexes
+        db.exec('CREATE INDEX IF NOT EXISTS idx_pr_branch ON purchase_requisitions(branch_id);');
+        db.exec('CREATE INDEX IF NOT EXISTS idx_pr_status ON purchase_requisitions(status);');
+        db.exec('CREATE INDEX IF NOT EXISTS idx_po_supplier ON purchase_orders(supplier_id);');
+        db.exec('CREATE INDEX IF NOT EXISTS idx_po_branch ON purchase_orders(branch_id);');
+        db.exec('CREATE INDEX IF NOT EXISTS idx_po_status ON purchase_orders(status);');
+        db.exec('CREATE INDEX IF NOT EXISTS idx_po_number ON purchase_orders(po_number);');
+        db.exec('CREATE INDEX IF NOT EXISTS idx_po_items_po ON purchase_order_items(purchase_order_id);');
+        db.exec('CREATE INDEX IF NOT EXISTS idx_stock_receipts_po ON stock_receipts(purchase_order_id);');
+        db.exec('CREATE INDEX IF NOT EXISTS idx_supplier_invoices_supplier ON supplier_invoices(supplier_id);');
+        db.exec('CREATE INDEX IF NOT EXISTS idx_supplier_invoices_po ON supplier_invoices(purchase_order_id);');
+        db.exec('CREATE INDEX IF NOT EXISTS idx_supplier_invoices_status ON supplier_invoices(status);');
+        db.exec('CREATE INDEX IF NOT EXISTS idx_supplier_payments_invoice ON supplier_payments(supplier_invoice_id);');
+        db.exec('CREATE INDEX IF NOT EXISTS idx_supplier_returns_supplier ON supplier_returns(supplier_id);');
+        db.exec('CREATE INDEX IF NOT EXISTS idx_proc_audit_entity ON procurement_audit_trail(entity_type, entity_id);');
+    } catch (err) {
+        console.warn('Procurement schema migration notice:', err.message);
+    }
+}
+
 // Initialize schema
 function initSchema() {
     const schemaPath = path.resolve(__dirname, 'schema.sql');
@@ -669,6 +895,7 @@ function initSchema() {
     migratePosShiftSchema();
     migrateOrdersEngineSchema();
     migratePaymentsEngineSchema();
+    migrateProcurementSchema();
 }
 
 // Run non-destructive migrations on load
@@ -681,6 +908,7 @@ migrateCustomerSchema();
 migratePosShiftSchema();
 migrateOrdersEngineSchema();
 migratePaymentsEngineSchema();
+migrateProcurementSchema();
 
 module.exports = {
     db,

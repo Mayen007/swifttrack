@@ -136,9 +136,45 @@ CREATE TABLE IF NOT EXISTS suppliers (
     country TEXT DEFAULT 'Kenya',
     lead_time_days INTEGER DEFAULT 3,
     payment_terms TEXT DEFAULT 'NET30',
+    tax_pin TEXT,
+    vat_registered INTEGER NOT NULL DEFAULT 1,
+    withholding_tax_rate REAL NOT NULL DEFAULT 0.0,
+    bank_name TEXT,
+    bank_account_no TEXT,
+    bank_branch TEXT,
+    mpesa_paybill TEXT,
+    mpesa_account_no TEXT,
+    rating REAL NOT NULL DEFAULT 5.0,
+    notes TEXT,
     is_active INTEGER NOT NULL DEFAULT 1,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 8c. SUPPLIER CONTACTS
+CREATE TABLE IF NOT EXISTS supplier_contacts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    supplier_id INTEGER NOT NULL REFERENCES suppliers(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    role TEXT,
+    email TEXT,
+    phone TEXT NOT NULL,
+    is_primary INTEGER NOT NULL DEFAULT 0,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 8d. SUPPLIER PRODUCTS CATALOG & CONTRACTED PRICING
+CREATE TABLE IF NOT EXISTS supplier_products (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    supplier_id INTEGER NOT NULL REFERENCES suppliers(id) ON DELETE CASCADE,
+    product_id INTEGER NOT NULL REFERENCES products(id) ON DELETE RESTRICT,
+    supplier_sku TEXT,
+    agreed_cost REAL NOT NULL,
+    min_order_quantity INTEGER NOT NULL DEFAULT 1,
+    lead_time_days INTEGER DEFAULT 3,
+    is_preferred INTEGER NOT NULL DEFAULT 0,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(supplier_id, product_id)
 );
 
 -- 9. PRODUCTS
@@ -327,6 +363,7 @@ CREATE TABLE IF NOT EXISTS stock_receipts (
     branch_id INTEGER NOT NULL REFERENCES branches(id) ON DELETE RESTRICT,
     warehouse_id INTEGER NOT NULL REFERENCES warehouses(id) ON DELETE RESTRICT,
     supplier_id INTEGER REFERENCES suppliers(id) ON DELETE SET NULL,
+    purchase_order_id INTEGER REFERENCES purchase_orders(id) ON DELETE SET NULL,
     supplier_invoice_no TEXT,
     delivery_note_no TEXT,
     received_by_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
@@ -344,6 +381,7 @@ CREATE TABLE IF NOT EXISTS stock_receipt_items (
     stock_receipt_id INTEGER NOT NULL REFERENCES stock_receipts(id) ON DELETE CASCADE,
     product_id INTEGER NOT NULL REFERENCES products(id) ON DELETE RESTRICT,
     variant_id INTEGER REFERENCES product_variants(id) ON DELETE SET NULL,
+    purchase_order_item_id INTEGER REFERENCES purchase_order_items(id) ON DELETE SET NULL,
     quantity_received INTEGER NOT NULL,
     unit_cost REAL NOT NULL DEFAULT 0.0,
     batch_number TEXT,
@@ -1023,4 +1061,171 @@ CREATE TABLE IF NOT EXISTS login_history (
 CREATE INDEX IF NOT EXISTS idx_login_history_user ON login_history(user_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_login_history_status ON login_history(status, created_at);
 CREATE INDEX IF NOT EXISTS idx_login_history_ip ON login_history(ip_address, created_at);
+
+-- ============================================================================
+-- PHASE 8: COMPLETE PROCUREMENT LIFECYCLE
+-- ============================================================================
+
+-- 1. PURCHASE REQUISITIONS (PR)
+CREATE TABLE IF NOT EXISTS purchase_requisitions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    pr_number TEXT NOT NULL UNIQUE,
+    branch_id INTEGER NOT NULL REFERENCES branches(id) ON DELETE RESTRICT,
+    requested_by_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+    urgency TEXT NOT NULL DEFAULT 'MEDIUM', -- 'LOW', 'MEDIUM', 'HIGH', 'CRITICAL'
+    needed_by_date DATE,
+    status TEXT NOT NULL DEFAULT 'DRAFT', -- 'DRAFT', 'SUBMITTED', 'APPROVED', 'REJECTED', 'CONVERTED_TO_PO', 'CANCELLED'
+    approved_by_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    approved_at DATETIME,
+    rejection_reason TEXT,
+    notes TEXT,
+    total_estimated_cost REAL NOT NULL DEFAULT 0.0,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS purchase_requisition_items (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    requisition_id INTEGER NOT NULL REFERENCES purchase_requisitions(id) ON DELETE CASCADE,
+    product_id INTEGER NOT NULL REFERENCES products(id) ON DELETE RESTRICT,
+    requested_quantity INTEGER NOT NULL,
+    estimated_unit_cost REAL NOT NULL DEFAULT 0.0,
+    notes TEXT
+);
+
+-- 2. PURCHASE ORDERS (PO)
+CREATE TABLE IF NOT EXISTS purchase_orders (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    po_number TEXT NOT NULL UNIQUE,
+    purchase_requisition_id INTEGER REFERENCES purchase_requisitions(id) ON DELETE SET NULL,
+    supplier_id INTEGER NOT NULL REFERENCES suppliers(id) ON DELETE RESTRICT,
+    branch_id INTEGER NOT NULL REFERENCES branches(id) ON DELETE RESTRICT,
+    warehouse_id INTEGER NOT NULL REFERENCES warehouses(id) ON DELETE RESTRICT,
+    created_by_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+    approved_by_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    status TEXT NOT NULL DEFAULT 'DRAFT', -- 'DRAFT', 'PENDING_APPROVAL', 'APPROVED', 'SENT_TO_SUPPLIER', 'PARTIALLY_RECEIVED', 'FULLY_RECEIVED', 'CANCELLED', 'CLOSED'
+    payment_terms TEXT NOT NULL DEFAULT 'NET30',
+    currency TEXT NOT NULL DEFAULT 'KES',
+    subtotal REAL NOT NULL DEFAULT 0.0,
+    tax_amount REAL NOT NULL DEFAULT 0.0,
+    shipping_fee REAL NOT NULL DEFAULT 0.0,
+    total_amount REAL NOT NULL DEFAULT 0.0,
+    expected_delivery_date DATE,
+    approved_at DATETIME,
+    sent_at DATETIME,
+    notes TEXT,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS purchase_order_items (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    purchase_order_id INTEGER NOT NULL REFERENCES purchase_orders(id) ON DELETE CASCADE,
+    product_id INTEGER NOT NULL REFERENCES products(id) ON DELETE RESTRICT,
+    variant_id INTEGER REFERENCES product_variants(id) ON DELETE SET NULL,
+    ordered_quantity INTEGER NOT NULL,
+    received_quantity INTEGER NOT NULL DEFAULT 0,
+    unit_cost REAL NOT NULL DEFAULT 0.0,
+    tax_rate REAL NOT NULL DEFAULT 16.0,
+    tax_amount REAL NOT NULL DEFAULT 0.0,
+    total_cost REAL NOT NULL DEFAULT 0.0
+);
+
+-- 3. SUPPLIER INVOICES (BILLS)
+CREATE TABLE IF NOT EXISTS supplier_invoices (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    invoice_number TEXT NOT NULL UNIQUE,
+    supplier_invoice_no TEXT NOT NULL,
+    supplier_id INTEGER NOT NULL REFERENCES suppliers(id) ON DELETE RESTRICT,
+    purchase_order_id INTEGER REFERENCES purchase_orders(id) ON DELETE SET NULL,
+    stock_receipt_id INTEGER REFERENCES stock_receipts(id) ON DELETE SET NULL,
+    branch_id INTEGER NOT NULL REFERENCES branches(id) ON DELETE RESTRICT,
+    invoice_date DATE NOT NULL,
+    due_date DATE NOT NULL,
+    subtotal REAL NOT NULL DEFAULT 0.0,
+    tax_amount REAL NOT NULL DEFAULT 0.0,
+    total_amount REAL NOT NULL DEFAULT 0.0,
+    amount_paid REAL NOT NULL DEFAULT 0.0,
+    status TEXT NOT NULL DEFAULT 'PENDING', -- 'PENDING', 'PARTIALLY_PAID', 'PAID', 'OVERDUE', 'CANCELLED'
+    notes TEXT,
+    created_by_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 4. SUPPLIER PAYMENTS (OUTBOUND DISBURSEMENTS)
+CREATE TABLE IF NOT EXISTS supplier_payments (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    payment_number TEXT NOT NULL UNIQUE,
+    supplier_invoice_id INTEGER NOT NULL REFERENCES supplier_invoices(id) ON DELETE RESTRICT,
+    supplier_id INTEGER NOT NULL REFERENCES suppliers(id) ON DELETE RESTRICT,
+    amount REAL NOT NULL,
+    payment_method TEXT NOT NULL DEFAULT 'BANK', -- 'BANK', 'MPESA', 'CASH', 'CARD'
+    reference_number TEXT NOT NULL,
+    payment_date DATE NOT NULL,
+    notes TEXT,
+    processed_by_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 5. SUPPLIER RETURNS (DEBIT NOTES)
+CREATE TABLE IF NOT EXISTS supplier_returns (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    return_number TEXT NOT NULL UNIQUE,
+    supplier_id INTEGER NOT NULL REFERENCES suppliers(id) ON DELETE RESTRICT,
+    purchase_order_id INTEGER REFERENCES purchase_orders(id) ON DELETE SET NULL,
+    stock_receipt_id INTEGER REFERENCES stock_receipts(id) ON DELETE SET NULL,
+    branch_id INTEGER NOT NULL REFERENCES branches(id) ON DELETE RESTRICT,
+    warehouse_id INTEGER NOT NULL REFERENCES warehouses(id) ON DELETE RESTRICT,
+    reason TEXT NOT NULL, -- 'DAMAGED_ON_ARRIVAL', 'DEFECTIVE', 'OVER_DELIVERY', 'WRONG_ITEM', 'EXPIRED'
+    status TEXT NOT NULL DEFAULT 'DRAFT', -- 'DRAFT', 'APPROVED', 'DISPATCHED', 'CREDITED_OR_REFUNDED'
+    total_amount REAL NOT NULL DEFAULT 0.0,
+    notes TEXT,
+    created_by_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+    approved_by_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS supplier_return_items (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    supplier_return_id INTEGER NOT NULL REFERENCES supplier_returns(id) ON DELETE CASCADE,
+    product_id INTEGER NOT NULL REFERENCES products(id) ON DELETE RESTRICT,
+    quantity INTEGER NOT NULL,
+    unit_cost REAL NOT NULL DEFAULT 0.0,
+    total_cost REAL NOT NULL DEFAULT 0.0,
+    from_inventory_state TEXT NOT NULL DEFAULT 'DAMAGED', -- 'DAMAGED', 'AVAILABLE'
+    reason TEXT
+);
+
+-- 6. IMMUTABLE PROCUREMENT AUDIT TRAIL
+CREATE TABLE IF NOT EXISTS procurement_audit_trail (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    entity_type TEXT NOT NULL, -- 'REQUISITION', 'PURCHASE_ORDER', 'GRN', 'INVOICE', 'PAYMENT', 'RETURN'
+    entity_id INTEGER NOT NULL,
+    entity_number TEXT NOT NULL,
+    action TEXT NOT NULL, -- 'CREATED', 'SUBMITTED', 'APPROVED', 'REJECTED', 'SENT', 'PARTIALLY_RECEIVED', 'FULLY_RECEIVED', 'INVOICED', 'PAID', 'RETURNED', 'CANCELLED'
+    from_status TEXT,
+    to_status TEXT,
+    user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    details TEXT, -- JSON payload
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 7. PROCUREMENT INDEXES
+CREATE INDEX IF NOT EXISTS idx_pr_branch ON purchase_requisitions(branch_id);
+CREATE INDEX IF NOT EXISTS idx_pr_status ON purchase_requisitions(status);
+CREATE INDEX IF NOT EXISTS idx_po_supplier ON purchase_orders(supplier_id);
+CREATE INDEX IF NOT EXISTS idx_po_branch ON purchase_orders(branch_id);
+CREATE INDEX IF NOT EXISTS idx_po_status ON purchase_orders(status);
+CREATE INDEX IF NOT EXISTS idx_po_number ON purchase_orders(po_number);
+CREATE INDEX IF NOT EXISTS idx_po_items_po ON purchase_order_items(purchase_order_id);
+CREATE INDEX IF NOT EXISTS idx_stock_receipts_po ON stock_receipts(purchase_order_id);
+CREATE INDEX IF NOT EXISTS idx_supplier_invoices_supplier ON supplier_invoices(supplier_id);
+CREATE INDEX IF NOT EXISTS idx_supplier_invoices_po ON supplier_invoices(purchase_order_id);
+CREATE INDEX IF NOT EXISTS idx_supplier_invoices_status ON supplier_invoices(status);
+CREATE INDEX IF NOT EXISTS idx_supplier_payments_invoice ON supplier_payments(supplier_invoice_id);
+CREATE INDEX IF NOT EXISTS idx_supplier_returns_supplier ON supplier_returns(supplier_id);
+CREATE INDEX IF NOT EXISTS idx_proc_audit_entity ON procurement_audit_trail(entity_type, entity_id);
+
 
