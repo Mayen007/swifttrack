@@ -59,6 +59,18 @@ export function Sidebar({
           roles: ['DISPATCHER', 'SUPER_ADMIN', 'BRANCH_MANAGER'],
         },
         {
+          id: 'drivers',
+          label: 'Fleet Drivers',
+          icon: UserCheck,
+          roles: ['SUPER_ADMIN', 'BRANCH_MANAGER', 'DISPATCHER'],
+        },
+        {
+          id: 'vehicles',
+          label: 'Fleet Vehicles',
+          icon: Truck,
+          roles: ['SUPER_ADMIN', 'BRANCH_MANAGER', 'DISPATCHER'],
+        },
+        {
           id: 'driver',
           label: 'Courier Driver Portal',
           icon: Bike,

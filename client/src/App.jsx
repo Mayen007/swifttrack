@@ -25,6 +25,8 @@ import { ProductsView } from './views/ProductsView.jsx';
 import { CustomersView } from './views/CustomersView.jsx';
 import { PaymentsView } from './views/PaymentsView.jsx';
 import { ProcurementView } from './views/ProcurementView.jsx';
+import { DriversView } from './views/DriversView.jsx';
+import { VehiclesView } from './views/VehiclesView.jsx';
 import { LoginView } from './views/LoginView.jsx';
 
 function MainApp() {
@@ -144,6 +146,10 @@ function MainApp() {
         return <PosView />;
       case 'dispatch':
         return <DispatchView />;
+      case 'drivers':
+        return <DriversView />;
+      case 'vehicles':
+        return <VehiclesView />;
       case 'driver':
         return <DriverView />;
       case 'products':

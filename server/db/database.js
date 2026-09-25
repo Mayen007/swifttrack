@@ -881,6 +881,284 @@ function migrateProcurementSchema() {
     }
 }
 
+/**
+ * Non-destructive runtime migration for Phase 9: Logistics & Fleet (9.1 Drivers)
+ */
+function migrateDriversSchema() {
+    try {
+        // 1. Extend drivers table
+        const drvInfo = db.prepare('PRAGMA table_info(drivers)').all();
+        const drvCols = drvInfo.map(c => c.name);
+        const newDrvCols = [
+            { name: 'employee_code', def: 'TEXT' },
+            { name: 'employment_type', def: "TEXT NOT NULL DEFAULT 'FULL_TIME'" },
+            { name: 'hire_date', def: 'DATE' },
+            { name: 'avatar_url', def: 'TEXT' },
+            { name: 'blood_group', def: 'TEXT' },
+            { name: 'alt_phone', def: 'TEXT' },
+            { name: 'email', def: 'TEXT' },
+            { name: 'residential_address', def: 'TEXT' },
+            { name: 'city', def: "TEXT DEFAULT 'Nairobi'" },
+            { name: 'emergency_contact_name', def: 'TEXT' },
+            { name: 'emergency_contact_phone', def: 'TEXT' },
+            { name: 'emergency_contact_relation', def: 'TEXT' },
+            { name: 'national_id', def: 'TEXT' },
+            { name: 'kra_pin', def: 'TEXT' },
+            { name: 'nssf_number', def: 'TEXT' },
+            { name: 'nhif_number', def: 'TEXT' },
+            { name: 'license_classes', def: "TEXT NOT NULL DEFAULT 'B, C1'" },
+            { name: 'license_issue_date', def: 'DATE' },
+            { name: 'license_expiry_date', def: 'DATE' },
+            { name: 'ntsa_verified', def: 'INTEGER NOT NULL DEFAULT 1' },
+            { name: 'ntsa_verification_date', def: 'DATE' },
+            { name: 'status_reason', def: 'TEXT' },
+            { name: 'status_updated_at', def: 'DATETIME' },
+            { name: 'rating', def: 'REAL NOT NULL DEFAULT 5.0' },
+            { name: 'notes', def: 'TEXT' },
+            { name: 'updated_at', def: 'DATETIME' }
+        ];
+
+        for (const col of newDrvCols) {
+            if (!drvCols.includes(col.name)) {
+                db.exec(`ALTER TABLE drivers ADD COLUMN ${col.name} ${col.def};`);
+            }
+        }
+
+        // 2. driver_status_history table
+        db.exec(`
+            CREATE TABLE IF NOT EXISTS driver_status_history (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                driver_id INTEGER NOT NULL REFERENCES drivers(id) ON DELETE CASCADE,
+                from_status TEXT,
+                to_status TEXT NOT NULL,
+                reason TEXT,
+                changed_by_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+                created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+        `);
+
+        // 3. driver_incident_logs table
+        db.exec(`
+            CREATE TABLE IF NOT EXISTS driver_incident_logs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                driver_id INTEGER NOT NULL REFERENCES drivers(id) ON DELETE CASCADE,
+                incident_type TEXT NOT NULL,
+                severity TEXT NOT NULL DEFAULT 'LOW',
+                incident_date DATETIME NOT NULL,
+                description TEXT NOT NULL,
+                action_taken TEXT,
+                logged_by_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+                created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+        `);
+
+        // 4. Indexes
+        db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_drivers_employee_code ON drivers(employee_code);');
+        db.exec('CREATE INDEX IF NOT EXISTS idx_drivers_branch ON drivers(branch_id);');
+        db.exec('CREATE INDEX IF NOT EXISTS idx_drivers_status ON drivers(status);');
+        db.exec('CREATE INDEX IF NOT EXISTS idx_drivers_license ON drivers(license_number);');
+        db.exec('CREATE INDEX IF NOT EXISTS idx_drivers_national_id ON drivers(national_id);');
+        db.exec('CREATE INDEX IF NOT EXISTS idx_driver_status_hist ON driver_status_history(driver_id);');
+        db.exec('CREATE INDEX IF NOT EXISTS idx_driver_incidents ON driver_incident_logs(driver_id);');
+
+        // 5. Backfill default fields for existing drivers
+        const existingDrivers = db.prepare('SELECT id, user_id FROM drivers WHERE employee_code IS NULL').all();
+        for (const drv of existingDrivers) {
+            const code = `DRV-${String(drv.id).padStart(4, '0')}`;
+            const user = db.prepare('SELECT full_name, email, phone FROM users WHERE id = ?').get(drv.user_id);
+            db.prepare(`
+                UPDATE drivers
+                SET employee_code = ?,
+                    email = COALESCE(email, ?),
+                    phone = COALESCE(phone, ?),
+                    national_id = COALESCE(national_id, ?),
+                    kra_pin = COALESCE(kra_pin, ?),
+                    license_classes = COALESCE(license_classes, 'B, C1'),
+                    license_issue_date = COALESCE(license_issue_date, '2023-01-15'),
+                    license_expiry_date = COALESCE(license_expiry_date, '2027-01-15'),
+                    ntsa_verified = COALESCE(ntsa_verified, 1),
+                    ntsa_verification_date = COALESCE(ntsa_verification_date, '2023-01-16'),
+                    rating = COALESCE(rating, 5.0),
+                    status_updated_at = COALESCE(status_updated_at, CURRENT_TIMESTAMP)
+                WHERE id = ?
+            `).run(
+                code,
+                user ? user.email : `driver${drv.id}@swifttrack.co.ke`,
+                user ? user.phone : '+254 722 000 000',
+                `ID-${10000000 + drv.id * 12345}`,
+                `A00${drv.id}98234K`,
+                drv.id
+            );
+        }
+    } catch (err) {
+        console.warn('Drivers schema migration notice:', err.message);
+    }
+}
+
+/**
+ * Non-destructive runtime migration for Phase 9: Logistics & Fleet (9.2 Vehicles)
+ */
+function migrateVehiclesSchema() {
+    try {
+        // 1. Extend vehicles table
+        const vehInfo = db.prepare('PRAGMA table_info(vehicles)').all();
+        const vehCols = vehInfo.map(c => c.name);
+        const newVehCols = [
+            { name: 'make', def: "TEXT NOT NULL DEFAULT 'Toyota'" },
+            { name: 'year_of_manufacture', def: 'INTEGER' },
+            { name: 'chassis_number', def: 'TEXT' },
+            { name: 'engine_number', def: 'TEXT' },
+            { name: 'color', def: "TEXT DEFAULT 'White'" },
+            { name: 'fuel_type', def: "TEXT NOT NULL DEFAULT 'DIESEL'" },
+            { name: 'fuel_tank_capacity_liters', def: 'REAL DEFAULT 70.0' },
+            { name: 'ownership_type', def: "TEXT NOT NULL DEFAULT 'COMPANY_OWNED'" },
+            { name: 'cargo_volume_cbm', def: 'REAL DEFAULT 6.0' },
+            { name: 'current_odometer_km', def: 'REAL NOT NULL DEFAULT 0.0' },
+            { name: 'initial_odometer_km', def: 'REAL NOT NULL DEFAULT 0.0' },
+            { name: 'last_service_odometer_km', def: 'REAL DEFAULT 0.0' },
+            { name: 'next_service_odometer_km', def: 'REAL DEFAULT 5000.0' },
+            { name: 'last_service_date', def: 'DATE' },
+            { name: 'next_service_date', def: 'DATE' },
+            { name: 'status', def: "TEXT NOT NULL DEFAULT 'AVAILABLE'" },
+            { name: 'status_reason', def: 'TEXT' },
+            { name: 'status_updated_at', def: 'DATETIME' },
+            { name: 'assigned_driver_id', def: 'INTEGER REFERENCES drivers(id) ON DELETE SET NULL' },
+            { name: 'notes', def: 'TEXT' },
+            { name: 'updated_at', def: 'DATETIME' }
+        ];
+
+        for (const col of newVehCols) {
+            if (!vehCols.includes(col.name)) {
+                db.exec(`ALTER TABLE vehicles ADD COLUMN ${col.name} ${col.def};`);
+            }
+        }
+
+        // 2. vehicle_fuel_logs table
+        db.exec(`
+            CREATE TABLE IF NOT EXISTS vehicle_fuel_logs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                vehicle_id INTEGER NOT NULL REFERENCES vehicles(id) ON DELETE CASCADE,
+                driver_id INTEGER REFERENCES drivers(id) ON DELETE SET NULL,
+                fuel_date DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                fuel_type TEXT NOT NULL DEFAULT 'DIESEL',
+                quantity_liters REAL NOT NULL,
+                cost_per_liter REAL NOT NULL,
+                total_cost REAL NOT NULL,
+                odometer_km REAL NOT NULL,
+                fuel_station TEXT,
+                receipt_voucher_no TEXT,
+                payment_method TEXT NOT NULL DEFAULT 'CORPORATE_CARD',
+                full_tank_flag INTEGER NOT NULL DEFAULT 1,
+                calculated_consumption_kml REAL,
+                logged_by_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+                notes TEXT,
+                created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+        `);
+
+        // 3. vehicle_maintenance_records table
+        db.exec(`
+            CREATE TABLE IF NOT EXISTS vehicle_maintenance_records (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                vehicle_id INTEGER NOT NULL REFERENCES vehicles(id) ON DELETE CASCADE,
+                service_number TEXT NOT NULL UNIQUE,
+                service_type TEXT NOT NULL,
+                severity TEXT NOT NULL DEFAULT 'ROUTINE',
+                service_date DATE NOT NULL,
+                odometer_km REAL NOT NULL,
+                service_provider TEXT NOT NULL,
+                invoice_reference TEXT,
+                parts_cost REAL NOT NULL DEFAULT 0.0,
+                labor_cost REAL NOT NULL DEFAULT 0.0,
+                total_cost REAL NOT NULL DEFAULT 0.0,
+                status TEXT NOT NULL DEFAULT 'COMPLETED',
+                description TEXT NOT NULL,
+                parts_replaced TEXT,
+                next_service_due_date DATE,
+                next_service_due_km REAL,
+                logged_by_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+                approved_by_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+                created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+        `);
+
+        // 4. vehicle_mileage_logs table
+        db.exec(`
+            CREATE TABLE IF NOT EXISTS vehicle_mileage_logs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                vehicle_id INTEGER NOT NULL REFERENCES vehicles(id) ON DELETE CASCADE,
+                driver_id INTEGER REFERENCES drivers(id) ON DELETE SET NULL,
+                delivery_id INTEGER REFERENCES deliveries(id) ON DELETE SET NULL,
+                trip_type TEXT NOT NULL DEFAULT 'DELIVERY_RUN',
+                start_odometer_km REAL NOT NULL,
+                end_odometer_km REAL NOT NULL,
+                distance_km REAL NOT NULL,
+                recorded_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                logged_by_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+                notes TEXT,
+                created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+        `);
+
+        // 5. vehicle_status_history table
+        db.exec(`
+            CREATE TABLE IF NOT EXISTS vehicle_status_history (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                vehicle_id INTEGER NOT NULL REFERENCES vehicles(id) ON DELETE CASCADE,
+                from_status TEXT,
+                to_status TEXT NOT NULL,
+                reason TEXT,
+                changed_by_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+                created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+        `);
+
+        // 6. Indexes
+        db.exec('CREATE INDEX IF NOT EXISTS idx_vehicles_branch ON vehicles(branch_id);');
+        db.exec('CREATE INDEX IF NOT EXISTS idx_vehicles_status ON vehicles(status);');
+        db.exec('CREATE INDEX IF NOT EXISTS idx_vehicles_type ON vehicles(vehicle_type);');
+        db.exec('CREATE INDEX IF NOT EXISTS idx_vehicles_reg ON vehicles(registration_number);');
+        db.exec('CREATE INDEX IF NOT EXISTS idx_vehicle_fuel_vehicle ON vehicle_fuel_logs(vehicle_id);');
+        db.exec('CREATE INDEX IF NOT EXISTS idx_vehicle_maint_vehicle ON vehicle_maintenance_records(vehicle_id);');
+        db.exec('CREATE INDEX IF NOT EXISTS idx_vehicle_mileage_vehicle ON vehicle_mileage_logs(vehicle_id);');
+        db.exec('CREATE INDEX IF NOT EXISTS idx_vehicle_status_hist ON vehicle_status_history(vehicle_id);');
+
+        // 7. Backfill existing vehicles with baseline specs & pairing
+        const pairedDrivers = db.prepare('SELECT id, vehicle_id FROM drivers WHERE vehicle_id IS NOT NULL').all();
+        for (const p of pairedDrivers) {
+            db.prepare('UPDATE vehicles SET assigned_driver_id = ? WHERE id = ?').run(p.id, p.vehicle_id);
+        }
+
+        db.exec(`
+            UPDATE vehicles
+            SET make = CASE 
+                    WHEN vehicle_type = 'MOTORCYCLE' THEN 'Bajaj Boxer'
+                    WHEN vehicle_type = 'VAN' THEN 'Toyota HiAce'
+                    WHEN vehicle_type = 'TRUCK' THEN 'Isuzu'
+                    WHEN vehicle_type = 'PICKUP' THEN 'Toyota Hilux'
+                    ELSE 'Toyota'
+                END,
+                current_odometer_km = CASE WHEN current_odometer_km = 0 THEN 28500.0 ELSE current_odometer_km END,
+                initial_odometer_km = CASE WHEN initial_odometer_km = 0 THEN 1200.0 ELSE initial_odometer_km END,
+                cargo_volume_cbm = CASE
+                    WHEN vehicle_type = 'MOTORCYCLE' THEN 0.5
+                    WHEN vehicle_type = 'VAN' THEN 6.5
+                    WHEN vehicle_type = 'TRUCK' THEN 18.0
+                    WHEN vehicle_type = 'PICKUP' THEN 3.0
+                    ELSE 6.0
+                END,
+                chassis_number = COALESCE(chassis_number, 'VIN-' || UPPER(SUBSTR(HEX(RANDOMBLOB(6)), 1, 12))),
+                status = COALESCE(status, 'AVAILABLE'),
+                status_updated_at = COALESCE(status_updated_at, CURRENT_TIMESTAMP),
+                updated_at = COALESCE(updated_at, CURRENT_TIMESTAMP)
+            WHERE chassis_number IS NULL OR chassis_number = '';
+        `);
+    } catch (err) {
+        console.warn('Vehicles schema migration notice:', err.message);
+    }
+}
+
 // Initialize schema
 function initSchema() {
     const schemaPath = path.resolve(__dirname, 'schema.sql');
@@ -896,6 +1174,8 @@ function initSchema() {
     migrateOrdersEngineSchema();
     migratePaymentsEngineSchema();
     migrateProcurementSchema();
+    migrateDriversSchema();
+    migrateVehiclesSchema();
 }
 
 // Run non-destructive migrations on load
@@ -909,11 +1189,14 @@ migratePosShiftSchema();
 migrateOrdersEngineSchema();
 migratePaymentsEngineSchema();
 migrateProcurementSchema();
+migrateDriversSchema();
+migrateVehiclesSchema();
 
 module.exports = {
     db,
     initSchema,
     DB_PATH
 };
+
 
 

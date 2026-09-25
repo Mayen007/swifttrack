@@ -870,10 +870,104 @@ CREATE TABLE IF NOT EXISTS vehicles (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     branch_id INTEGER NOT NULL REFERENCES branches(id) ON DELETE RESTRICT,
     registration_number TEXT NOT NULL UNIQUE,
-    vehicle_type TEXT NOT NULL, -- MOTORCYCLE, VAN, TRUCK, PICKUP
+    vehicle_type TEXT NOT NULL, -- MOTORCYCLE, VAN, TRUCK, PICKUP, TUKTUK, LORRY
+    make TEXT NOT NULL DEFAULT 'Toyota',
     model TEXT NOT NULL,
+    year_of_manufacture INTEGER,
+    chassis_number TEXT,
+    engine_number TEXT,
+    color TEXT DEFAULT 'White',
+    fuel_type TEXT NOT NULL DEFAULT 'DIESEL', -- DIESEL, PETROL, ELECTRIC, HYBRID
+    fuel_tank_capacity_liters REAL DEFAULT 70.0,
+    ownership_type TEXT NOT NULL DEFAULT 'COMPANY_OWNED', -- COMPANY_OWNED, LEASED, THIRD_PARTY
     max_capacity_kg INTEGER NOT NULL DEFAULT 500,
+    cargo_volume_cbm REAL DEFAULT 6.0,
+    current_odometer_km REAL NOT NULL DEFAULT 0.0,
+    initial_odometer_km REAL NOT NULL DEFAULT 0.0,
+    last_service_odometer_km REAL DEFAULT 0.0,
+    next_service_odometer_km REAL DEFAULT 5000.0,
+    last_service_date DATE,
+    next_service_date DATE,
+    status TEXT NOT NULL DEFAULT 'AVAILABLE', -- AVAILABLE, IN_TRANSIT, UNDER_MAINTENANCE, OUT_OF_SERVICE, RESERVED
+    status_reason TEXT,
+    status_updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    assigned_driver_id INTEGER REFERENCES drivers(id) ON DELETE SET NULL,
     is_active INTEGER NOT NULL DEFAULT 1,
+    notes TEXT,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 25a. VEHICLE FUEL LOGS
+CREATE TABLE IF NOT EXISTS vehicle_fuel_logs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    vehicle_id INTEGER NOT NULL REFERENCES vehicles(id) ON DELETE CASCADE,
+    driver_id INTEGER REFERENCES drivers(id) ON DELETE SET NULL,
+    fuel_date DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    fuel_type TEXT NOT NULL DEFAULT 'DIESEL',
+    quantity_liters REAL NOT NULL,
+    cost_per_liter REAL NOT NULL,
+    total_cost REAL NOT NULL,
+    odometer_km REAL NOT NULL,
+    fuel_station TEXT,
+    receipt_voucher_no TEXT,
+    payment_method TEXT NOT NULL DEFAULT 'CORPORATE_CARD', -- CORPORATE_CARD, MPESA_B2B, PETTY_CASH, INVOICE
+    full_tank_flag INTEGER NOT NULL DEFAULT 1,
+    calculated_consumption_kml REAL,
+    logged_by_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+    notes TEXT,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 25b. VEHICLE MAINTENANCE & GARAGE RECORDS
+CREATE TABLE IF NOT EXISTS vehicle_maintenance_records (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    vehicle_id INTEGER NOT NULL REFERENCES vehicles(id) ON DELETE CASCADE,
+    service_number TEXT NOT NULL UNIQUE,
+    service_type TEXT NOT NULL, -- PREVENTIVE_SCHEDULED, REPAIR_CORRECTIVE, TIRE_REPLACEMENT, OIL_CHANGE, INSPECTION_NTSA, BRAKE_OVERHAUL, ACCIDENT_REPAIR
+    severity TEXT NOT NULL DEFAULT 'ROUTINE', -- ROUTINE, MEDIUM, URGENT, CRITICAL
+    service_date DATE NOT NULL,
+    odometer_km REAL NOT NULL,
+    service_provider TEXT NOT NULL,
+    invoice_reference TEXT,
+    parts_cost REAL NOT NULL DEFAULT 0.0,
+    labor_cost REAL NOT NULL DEFAULT 0.0,
+    total_cost REAL NOT NULL DEFAULT 0.0,
+    status TEXT NOT NULL DEFAULT 'COMPLETED', -- SCHEDULED, IN_PROGRESS, COMPLETED, CANCELLED
+    description TEXT NOT NULL,
+    parts_replaced TEXT,
+    next_service_due_date DATE,
+    next_service_due_km REAL,
+    logged_by_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+    approved_by_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 25c. VEHICLE MILEAGE & TRIP LOGS
+CREATE TABLE IF NOT EXISTS vehicle_mileage_logs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    vehicle_id INTEGER NOT NULL REFERENCES vehicles(id) ON DELETE CASCADE,
+    driver_id INTEGER REFERENCES drivers(id) ON DELETE SET NULL,
+    delivery_id INTEGER REFERENCES deliveries(id) ON DELETE SET NULL,
+    trip_type TEXT NOT NULL DEFAULT 'DELIVERY_RUN', -- DELIVERY_RUN, RELOCATION, MAINTENANCE, TEST_DRIVE
+    start_odometer_km REAL NOT NULL,
+    end_odometer_km REAL NOT NULL,
+    distance_km REAL NOT NULL,
+    recorded_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    logged_by_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+    notes TEXT,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 25d. VEHICLE STATUS TRANSITION HISTORY
+CREATE TABLE IF NOT EXISTS vehicle_status_history (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    vehicle_id INTEGER NOT NULL REFERENCES vehicles(id) ON DELETE CASCADE,
+    from_status TEXT,
+    to_status TEXT NOT NULL,
+    reason TEXT,
+    changed_by_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -882,13 +976,63 @@ CREATE TABLE IF NOT EXISTS drivers (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id INTEGER NOT NULL UNIQUE REFERENCES users(id) ON DELETE RESTRICT,
     branch_id INTEGER NOT NULL REFERENCES branches(id) ON DELETE RESTRICT,
-    license_number TEXT NOT NULL,
-    vehicle_id INTEGER REFERENCES vehicles(id) ON DELETE SET NULL,
+    employee_code TEXT UNIQUE,
+    employment_type TEXT NOT NULL DEFAULT 'FULL_TIME', -- FULL_TIME, CONTRACTOR, CASUAL
+    hire_date DATE,
+    avatar_url TEXT,
+    blood_group TEXT,
     phone TEXT NOT NULL,
-    status TEXT NOT NULL DEFAULT 'AVAILABLE', -- AVAILABLE, ON_DELIVERY, OFF_DUTY
+    alt_phone TEXT,
+    email TEXT,
+    residential_address TEXT,
+    city TEXT DEFAULT 'Nairobi',
+    emergency_contact_name TEXT,
+    emergency_contact_phone TEXT,
+    emergency_contact_relation TEXT,
+    national_id TEXT,
+    kra_pin TEXT,
+    nssf_number TEXT,
+    nhif_number TEXT,
+    license_number TEXT NOT NULL,
+    license_classes TEXT NOT NULL DEFAULT 'B, C1', -- A2, B, C1, C, CE
+    license_issue_date DATE,
+    license_expiry_date DATE,
+    ntsa_verified INTEGER NOT NULL DEFAULT 1,
+    ntsa_verification_date DATE,
+    vehicle_id INTEGER REFERENCES vehicles(id) ON DELETE SET NULL,
+    status TEXT NOT NULL DEFAULT 'AVAILABLE', -- AVAILABLE, ON_DELIVERY, OFF_DUTY, ON_LEAVE, SUSPENDED
+    status_reason TEXT,
+    status_updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    rating REAL NOT NULL DEFAULT 5.0,
     current_latitude REAL,
     current_longitude REAL,
     last_ping_at DATETIME,
+    notes TEXT,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 26a. DRIVER STATUS TRANSITION HISTORY
+CREATE TABLE IF NOT EXISTS driver_status_history (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    driver_id INTEGER NOT NULL REFERENCES drivers(id) ON DELETE CASCADE,
+    from_status TEXT,
+    to_status TEXT NOT NULL,
+    reason TEXT,
+    changed_by_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 26b. DRIVER SAFETY & INCIDENT LOGS
+CREATE TABLE IF NOT EXISTS driver_incident_logs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    driver_id INTEGER NOT NULL REFERENCES drivers(id) ON DELETE CASCADE,
+    incident_type TEXT NOT NULL, -- ACCIDENT, TRAFFIC_VIOLATION, CUSTOMER_COMPLAINT, VEHICLE_BREAKDOWN, DELAY
+    severity TEXT NOT NULL DEFAULT 'LOW', -- LOW, MEDIUM, HIGH, CRITICAL
+    incident_date DATETIME NOT NULL,
+    description TEXT NOT NULL,
+    action_taken TEXT,
+    logged_by_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -1227,5 +1371,28 @@ CREATE INDEX IF NOT EXISTS idx_supplier_invoices_status ON supplier_invoices(sta
 CREATE INDEX IF NOT EXISTS idx_supplier_payments_invoice ON supplier_payments(supplier_invoice_id);
 CREATE INDEX IF NOT EXISTS idx_supplier_returns_supplier ON supplier_returns(supplier_id);
 CREATE INDEX IF NOT EXISTS idx_proc_audit_entity ON procurement_audit_trail(entity_type, entity_id);
+
+-- ============================================================================
+-- PHASE 9: LOGISTICS & FLEET (9.1 DRIVERS)
+-- ============================================================================
+CREATE INDEX IF NOT EXISTS idx_drivers_branch ON drivers(branch_id);
+CREATE INDEX IF NOT EXISTS idx_drivers_status ON drivers(status);
+CREATE INDEX IF NOT EXISTS idx_drivers_license ON drivers(license_number);
+CREATE INDEX IF NOT EXISTS idx_drivers_national_id ON drivers(national_id);
+CREATE INDEX IF NOT EXISTS idx_driver_status_hist ON driver_status_history(driver_id);
+CREATE INDEX IF NOT EXISTS idx_driver_incidents ON driver_incident_logs(driver_id);
+
+-- ============================================================================
+-- PHASE 9: LOGISTICS & FLEET (9.2 VEHICLES)
+-- ============================================================================
+CREATE INDEX IF NOT EXISTS idx_vehicles_branch ON vehicles(branch_id);
+CREATE INDEX IF NOT EXISTS idx_vehicles_status ON vehicles(status);
+CREATE INDEX IF NOT EXISTS idx_vehicles_type ON vehicles(vehicle_type);
+CREATE INDEX IF NOT EXISTS idx_vehicles_reg ON vehicles(registration_number);
+CREATE INDEX IF NOT EXISTS idx_vehicle_fuel_vehicle ON vehicle_fuel_logs(vehicle_id);
+CREATE INDEX IF NOT EXISTS idx_vehicle_maint_vehicle ON vehicle_maintenance_records(vehicle_id);
+CREATE INDEX IF NOT EXISTS idx_vehicle_mileage_vehicle ON vehicle_mileage_logs(vehicle_id);
+CREATE INDEX IF NOT EXISTS idx_vehicle_status_hist ON vehicle_status_history(vehicle_id);
+
 
 

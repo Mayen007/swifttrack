@@ -958,8 +958,8 @@ function recordSupplierPayment({
   }
 
   return db.transaction(() => {
-    const timestamp = Date.now().toString().slice(-6);
-    const paymentNumber = `SPAY-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${timestamp}`;
+    const rand = Math.floor(1000 + Math.random() * 9000);
+    const paymentNumber = `SPAY-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${Date.now().toString().slice(-4)}${rand}`;
 
     const res = db.prepare(`
       INSERT INTO supplier_payments (
