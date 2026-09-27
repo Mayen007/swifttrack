@@ -1393,6 +1393,177 @@ CREATE INDEX IF NOT EXISTS idx_vehicle_fuel_vehicle ON vehicle_fuel_logs(vehicle
 CREATE INDEX IF NOT EXISTS idx_vehicle_maint_vehicle ON vehicle_maintenance_records(vehicle_id);
 CREATE INDEX IF NOT EXISTS idx_vehicle_mileage_vehicle ON vehicle_mileage_logs(vehicle_id);
 CREATE INDEX IF NOT EXISTS idx_vehicle_status_hist ON vehicle_status_history(vehicle_id);
+-- ============================================================================
+-- PHASE 10: LOGISTICS PLATFORM (STAGE 1 & STAGE 2 SHIPMENT CORE)
+-- ============================================================================
 
+-- 1. IDEMPOTENCY KEYS
+CREATE TABLE IF NOT EXISTS idempotency_keys (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    idempotency_key TEXT NOT NULL,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    branch_id INTEGER REFERENCES branches(id) ON DELETE CASCADE,
+    resource_type TEXT NOT NULL,
+    request_hash TEXT NOT NULL,
+    response_code INTEGER NOT NULL,
+    response_body TEXT NOT NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    expires_at DATETIME NOT NULL,
+    UNIQUE(user_id, idempotency_key)
+);
+CREATE INDEX IF NOT EXISTS idx_idempotency_lookup ON idempotency_keys(user_id, idempotency_key);
+CREATE INDEX IF NOT EXISTS idx_idempotency_expiry ON idempotency_keys(expires_at);
 
+-- 2. LOGISTICS PRICING TARIFFS
+CREATE TABLE IF NOT EXISTS logistics_pricing_tariffs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    origin_hub_id INTEGER REFERENCES branches(id) ON DELETE CASCADE,
+    destination_hub_id INTEGER REFERENCES branches(id) ON DELETE CASCADE,
+    service_type TEXT NOT NULL DEFAULT 'STANDARD',
+    base_weight_kg REAL NOT NULL DEFAULT 5.0,
+    base_price REAL NOT NULL DEFAULT 350.0,
+    per_kg_above_base REAL NOT NULL DEFAULT 50.0,
+    cod_fee_percent REAL DEFAULT 2.0,
+    min_cod_fee REAL DEFAULT 100.0,
+    insurance_rate_percent REAL DEFAULT 1.0,
+    remote_area_surcharge REAL DEFAULT 0.0,
+    currency TEXT NOT NULL DEFAULT 'KES',
+    is_active INTEGER NOT NULL DEFAULT 1,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(origin_hub_id, destination_hub_id, service_type)
+);
+CREATE INDEX IF NOT EXISTS idx_tariffs_route ON logistics_pricing_tariffs(origin_hub_id, destination_hub_id, service_type);
+
+-- 3. SHIPMENTS
+CREATE TABLE IF NOT EXISTS shipments (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    tracking_number TEXT NOT NULL UNIQUE,
+    waybill_number TEXT UNIQUE,
+    origin_hub_id INTEGER NOT NULL REFERENCES branches(id) ON DELETE RESTRICT,
+    destination_hub_id INTEGER NOT NULL REFERENCES branches(id) ON DELETE RESTRICT,
+    current_hub_id INTEGER REFERENCES branches(id) ON DELETE SET NULL,
+    current_location_desc TEXT,
+    sender_customer_id INTEGER REFERENCES customers(id) ON DELETE SET NULL,
+    sender_name TEXT NOT NULL,
+    sender_phone TEXT NOT NULL,
+    sender_email TEXT,
+    sender_address TEXT NOT NULL,
+    sender_city TEXT NOT NULL,
+    recipient_customer_id INTEGER REFERENCES customers(id) ON DELETE SET NULL,
+    recipient_name TEXT NOT NULL,
+    recipient_phone TEXT NOT NULL,
+    recipient_email TEXT,
+    recipient_address TEXT NOT NULL,
+    recipient_city TEXT NOT NULL,
+    service_type TEXT NOT NULL DEFAULT 'STANDARD',
+    delivery_type TEXT NOT NULL DEFAULT 'LAST_MILE',
+    status TEXT NOT NULL DEFAULT 'BOOKED',
+    total_parcels INTEGER NOT NULL DEFAULT 1,
+    actual_weight_kg REAL NOT NULL DEFAULT 0.0,
+    volumetric_weight_kg REAL NOT NULL DEFAULT 0.0,
+    chargeable_weight_kg REAL NOT NULL DEFAULT 0.0,
+    declared_value REAL NOT NULL DEFAULT 0.0,
+    currency TEXT NOT NULL DEFAULT 'KES',
+    base_rate REAL NOT NULL DEFAULT 0.0,
+    weight_charge REAL NOT NULL DEFAULT 0.0,
+    surcharges REAL NOT NULL DEFAULT 0.0,
+    discount_amount REAL NOT NULL DEFAULT 0.0,
+    tax_amount REAL NOT NULL DEFAULT 0.0,
+    total_amount REAL NOT NULL DEFAULT 0.0,
+    payment_terms TEXT NOT NULL DEFAULT 'PREPAID',
+    payment_status TEXT NOT NULL DEFAULT 'PENDING',
+    cod_amount REAL NOT NULL DEFAULT 0.0,
+    cod_fee REAL NOT NULL DEFAULT 0.0,
+    special_instructions TEXT,
+    created_by_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_shipments_tracking ON shipments(tracking_number);
+CREATE INDEX IF NOT EXISTS idx_shipments_origin ON shipments(origin_hub_id);
+CREATE INDEX IF NOT EXISTS idx_shipments_destination ON shipments(destination_hub_id);
+CREATE INDEX IF NOT EXISTS idx_shipments_current_hub ON shipments(current_hub_id);
+CREATE INDEX IF NOT EXISTS idx_shipments_status ON shipments(status);
+CREATE INDEX IF NOT EXISTS idx_shipments_created_at ON shipments(created_at);
+
+-- 4. PARCELS
+CREATE TABLE IF NOT EXISTS parcels (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    shipment_id INTEGER NOT NULL REFERENCES shipments(id) ON DELETE CASCADE,
+    parcel_number TEXT NOT NULL UNIQUE,
+    parcel_index INTEGER NOT NULL DEFAULT 1,
+    weight_kg REAL NOT NULL,
+    length_cm REAL NOT NULL DEFAULT 0.0,
+    width_cm REAL NOT NULL DEFAULT 0.0,
+    height_cm REAL NOT NULL DEFAULT 0.0,
+    volumetric_weight_kg REAL NOT NULL DEFAULT 0.0,
+    package_type TEXT NOT NULL DEFAULT 'BOX',
+    description TEXT,
+    condition_at_intake TEXT NOT NULL DEFAULT 'INTACT',
+    intake_notes TEXT,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_parcels_shipment ON parcels(shipment_id);
+CREATE INDEX IF NOT EXISTS idx_parcels_number ON parcels(parcel_number);
+
+-- 5. SHIPMENT LEGS
+CREATE TABLE IF NOT EXISTS shipment_legs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    shipment_id INTEGER NOT NULL REFERENCES shipments(id) ON DELETE CASCADE,
+    leg_sequence INTEGER NOT NULL,
+    origin_hub_id INTEGER NOT NULL REFERENCES branches(id) ON DELETE RESTRICT,
+    destination_hub_id INTEGER NOT NULL REFERENCES branches(id) ON DELETE RESTRICT,
+    status TEXT NOT NULL DEFAULT 'PENDING',
+    transport_run_id INTEGER,
+    manifest_id INTEGER,
+    is_cross_border INTEGER NOT NULL DEFAULT 0,
+    border_post_name TEXT,
+    customs_status TEXT DEFAULT 'NOT_APPLICABLE',
+    customs_hold_reason TEXT,
+    scheduled_departure DATETIME,
+    actual_departure DATETIME,
+    scheduled_arrival DATETIME,
+    actual_arrival DATETIME,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(shipment_id, leg_sequence)
+);
+CREATE INDEX IF NOT EXISTS idx_shipment_legs_shipment ON shipment_legs(shipment_id);
+CREATE INDEX IF NOT EXISTS idx_shipment_legs_status ON shipment_legs(status);
+
+-- 6. TRACKING EVENTS
+CREATE TABLE IF NOT EXISTS tracking_events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    shipment_id INTEGER NOT NULL REFERENCES shipments(id) ON DELETE CASCADE,
+    parcel_id INTEGER REFERENCES parcels(id) ON DELETE SET NULL,
+    leg_id INTEGER REFERENCES shipment_legs(id) ON DELETE SET NULL,
+    event_code TEXT NOT NULL,
+    event_name TEXT NOT NULL,
+    hub_id INTEGER REFERENCES branches(id) ON DELETE SET NULL,
+    location_desc TEXT,
+    latitude REAL,
+    longitude REAL,
+    actor_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    actor_type TEXT NOT NULL DEFAULT 'STAFF',
+    actor_name TEXT,
+    description TEXT NOT NULL,
+    is_customer_visible INTEGER NOT NULL DEFAULT 1,
+    metadata TEXT DEFAULT '{}',
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_tracking_events_shipment ON tracking_events(shipment_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_tracking_events_code ON tracking_events(event_code);
+
+-- TRACKING EVENTS IMMUTABILITY TRIGGERS
+CREATE TRIGGER IF NOT EXISTS prevent_tracking_events_update
+BEFORE UPDATE ON tracking_events
+BEGIN
+    SELECT RAISE(FAIL, 'CRITICAL SECURITY VIOLATION: tracking_events is append-only and cannot be modified.');
+END;
+
+CREATE TRIGGER IF NOT EXISTS prevent_tracking_events_delete
+BEFORE DELETE ON tracking_events
+BEGIN
+    SELECT RAISE(FAIL, 'CRITICAL SECURITY VIOLATION: tracking_events is append-only and records cannot be deleted.');
+END;
 

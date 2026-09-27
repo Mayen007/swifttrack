@@ -81,6 +81,14 @@ const AUTHORIZATION_MATRIX = {
             create: SCOPES.GLOBAL,
             edit: SCOPES.GLOBAL,
             manage: SCOPES.GLOBAL
+        },
+        shipments: {
+            view_all: SCOPES.GLOBAL,
+            view_own: SCOPES.GLOBAL,
+            create: SCOPES.GLOBAL,
+            update: SCOPES.GLOBAL,
+            cancel: SCOPES.GLOBAL,
+            price_override: SCOPES.GLOBAL
         }
     },
 
@@ -148,6 +156,14 @@ const AUTHORIZATION_MATRIX = {
             create: SCOPES.OWN_BRANCH,
             edit: SCOPES.OWN_BRANCH,
             manage: SCOPES.OWN_BRANCH
+        },
+        shipments: {
+            view_all: SCOPES.GLOBAL,
+            view_own: SCOPES.OWN_BRANCH,
+            create: SCOPES.OWN_BRANCH,
+            update: SCOPES.OWN_BRANCH,
+            cancel: SCOPES.OWN_BRANCH,
+            price_override: SCOPES.OWN_BRANCH
         }
     },
 
@@ -211,6 +227,14 @@ const AUTHORIZATION_MATRIX = {
             create: SCOPES.OWN_BRANCH,
             edit: SCOPES.OWN_BRANCH,
             manage: SCOPES.DENIED
+        },
+        shipments: {
+            view_all: SCOPES.GLOBAL,
+            view_own: SCOPES.OWN_BRANCH,
+            create: SCOPES.OWN_BRANCH,
+            update: SCOPES.OWN_BRANCH,
+            cancel: SCOPES.DENIED,
+            price_override: SCOPES.DENIED
         }
     },
 
@@ -274,6 +298,14 @@ const AUTHORIZATION_MATRIX = {
             create: SCOPES.OWN_BRANCH,
             edit: SCOPES.OWN_BRANCH,
             manage: SCOPES.DENIED
+        },
+        shipments: {
+            view_all: SCOPES.DENIED,
+            view_own: SCOPES.OWN_BRANCH,
+            create: SCOPES.OWN_BRANCH,
+            update: SCOPES.DENIED,
+            cancel: SCOPES.DENIED,
+            price_override: SCOPES.DENIED
         }
     },
 
@@ -337,6 +369,14 @@ const AUTHORIZATION_MATRIX = {
             create: SCOPES.DENIED,
             edit: SCOPES.DENIED,
             manage: SCOPES.DENIED
+        },
+        shipments: {
+            view_all: SCOPES.DENIED,
+            view_own: SCOPES.OWN_RECORD,
+            create: SCOPES.DENIED,
+            update: SCOPES.OWN_RECORD,
+            cancel: SCOPES.DENIED,
+            price_override: SCOPES.DENIED
         }
     }
 };

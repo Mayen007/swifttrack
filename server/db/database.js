@@ -1159,6 +1159,235 @@ function migrateVehiclesSchema() {
     }
 }
 
+/**
+ * PHASE 10: LOGISTICS PLATFORM (STAGE 1 & STAGE 2 SHIPMENT CORE)
+ * Initializes hubs, tariffs, shipments, parcels, shipment_legs, tracking_events, and idempotency tables.
+ */
+function migrateShipmentCoreSchema() {
+    try {
+        // 1. Extend branches with logistics hub capabilities
+        const branchInfo = db.prepare('PRAGMA table_info(branches)').all();
+        const branchCols = branchInfo.map(c => c.name);
+        const newBranchCols = [
+            { name: 'is_hub', def: 'INTEGER NOT NULL DEFAULT 1' },
+            { name: 'hub_type', def: "TEXT NOT NULL DEFAULT 'REGIONAL_HUB'" },
+            { name: 'latitude', def: 'REAL' },
+            { name: 'longitude', def: 'REAL' },
+            { name: 'operating_hours', def: `TEXT DEFAULT '{"mon_fri": "08:00-18:00", "sat": "08:00-14:00", "sun": "closed"}'` },
+            { name: 'max_parcels_capacity', def: 'INTEGER DEFAULT 5000' },
+            { name: 'contact_person', def: 'TEXT' }
+        ];
+
+        for (const col of newBranchCols) {
+            if (!branchCols.includes(col.name)) {
+                db.exec(`ALTER TABLE branches ADD COLUMN ${col.name} ${col.def};`);
+            }
+        }
+
+        // 2. Default branch coordinates & hub attributes
+        db.exec(`
+            UPDATE branches SET 
+                is_hub = 1,
+                hub_type = CASE WHEN id = 1 THEN 'HEADQUARTERS' ELSE 'REGIONAL_HUB' END,
+                latitude = CASE 
+                    WHEN id = 1 THEN -1.286389
+                    WHEN id = 2 THEN -4.043477
+                    WHEN id = 3 THEN 0.514277
+                    WHEN id = 4 THEN -0.091702
+                    WHEN id = 5 THEN -0.303099
+                    ELSE -1.286389 
+                END,
+                longitude = CASE 
+                    WHEN id = 1 THEN 36.817223
+                    WHEN id = 2 THEN 39.668206
+                    WHEN id = 3 THEN 35.269780
+                    WHEN id = 4 THEN 34.767956
+                    WHEN id = 5 THEN 36.080026
+                    ELSE 36.817223
+                END
+            WHERE latitude IS NULL;
+        `);
+
+        // 3. Ensure logistics tables exist
+        db.exec(`
+            CREATE TABLE IF NOT EXISTS idempotency_keys (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                idempotency_key TEXT NOT NULL,
+                user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                branch_id INTEGER REFERENCES branches(id) ON DELETE CASCADE,
+                resource_type TEXT NOT NULL,
+                request_hash TEXT NOT NULL,
+                response_code INTEGER NOT NULL,
+                response_body TEXT NOT NULL,
+                created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                expires_at DATETIME NOT NULL,
+                UNIQUE(user_id, idempotency_key)
+            );
+
+            CREATE TABLE IF NOT EXISTS logistics_pricing_tariffs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                origin_hub_id INTEGER REFERENCES branches(id) ON DELETE CASCADE,
+                destination_hub_id INTEGER REFERENCES branches(id) ON DELETE CASCADE,
+                service_type TEXT NOT NULL DEFAULT 'STANDARD',
+                base_weight_kg REAL NOT NULL DEFAULT 5.0,
+                base_price REAL NOT NULL DEFAULT 350.0,
+                per_kg_above_base REAL NOT NULL DEFAULT 50.0,
+                cod_fee_percent REAL DEFAULT 2.0,
+                min_cod_fee REAL DEFAULT 100.0,
+                insurance_rate_percent REAL DEFAULT 1.0,
+                remote_area_surcharge REAL DEFAULT 0.0,
+                currency TEXT NOT NULL DEFAULT 'KES',
+                is_active INTEGER NOT NULL DEFAULT 1,
+                created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(origin_hub_id, destination_hub_id, service_type)
+            );
+
+            CREATE TABLE IF NOT EXISTS shipments (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                tracking_number TEXT NOT NULL UNIQUE,
+                waybill_number TEXT UNIQUE,
+                origin_hub_id INTEGER NOT NULL REFERENCES branches(id) ON DELETE RESTRICT,
+                destination_hub_id INTEGER NOT NULL REFERENCES branches(id) ON DELETE RESTRICT,
+                current_hub_id INTEGER REFERENCES branches(id) ON DELETE SET NULL,
+                current_location_desc TEXT,
+                sender_customer_id INTEGER REFERENCES customers(id) ON DELETE SET NULL,
+                sender_name TEXT NOT NULL,
+                sender_phone TEXT NOT NULL,
+                sender_email TEXT,
+                sender_address TEXT NOT NULL,
+                sender_city TEXT NOT NULL,
+                recipient_customer_id INTEGER REFERENCES customers(id) ON DELETE SET NULL,
+                recipient_name TEXT NOT NULL,
+                recipient_phone TEXT NOT NULL,
+                recipient_email TEXT,
+                recipient_address TEXT NOT NULL,
+                recipient_city TEXT NOT NULL,
+                service_type TEXT NOT NULL DEFAULT 'STANDARD',
+                delivery_type TEXT NOT NULL DEFAULT 'LAST_MILE',
+                status TEXT NOT NULL DEFAULT 'BOOKED',
+                total_parcels INTEGER NOT NULL DEFAULT 1,
+                actual_weight_kg REAL NOT NULL DEFAULT 0.0,
+                volumetric_weight_kg REAL NOT NULL DEFAULT 0.0,
+                chargeable_weight_kg REAL NOT NULL DEFAULT 0.0,
+                declared_value REAL NOT NULL DEFAULT 0.0,
+                currency TEXT NOT NULL DEFAULT 'KES',
+                base_rate REAL NOT NULL DEFAULT 0.0,
+                weight_charge REAL NOT NULL DEFAULT 0.0,
+                surcharges REAL NOT NULL DEFAULT 0.0,
+                discount_amount REAL NOT NULL DEFAULT 0.0,
+                tax_amount REAL NOT NULL DEFAULT 0.0,
+                total_amount REAL NOT NULL DEFAULT 0.0,
+                payment_terms TEXT NOT NULL DEFAULT 'PREPAID',
+                payment_status TEXT NOT NULL DEFAULT 'PENDING',
+                cod_amount REAL NOT NULL DEFAULT 0.0,
+                cod_fee REAL NOT NULL DEFAULT 0.0,
+                special_instructions TEXT,
+                created_by_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+                created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE TABLE IF NOT EXISTS parcels (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                shipment_id INTEGER NOT NULL REFERENCES shipments(id) ON DELETE CASCADE,
+                parcel_number TEXT NOT NULL UNIQUE,
+                parcel_index INTEGER NOT NULL DEFAULT 1,
+                weight_kg REAL NOT NULL,
+                length_cm REAL NOT NULL DEFAULT 0.0,
+                width_cm REAL NOT NULL DEFAULT 0.0,
+                height_cm REAL NOT NULL DEFAULT 0.0,
+                volumetric_weight_kg REAL NOT NULL DEFAULT 0.0,
+                package_type TEXT NOT NULL DEFAULT 'BOX',
+                description TEXT,
+                condition_at_intake TEXT NOT NULL DEFAULT 'INTACT',
+                intake_notes TEXT,
+                created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE TABLE IF NOT EXISTS shipment_legs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                shipment_id INTEGER NOT NULL REFERENCES shipments(id) ON DELETE CASCADE,
+                leg_sequence INTEGER NOT NULL,
+                origin_hub_id INTEGER NOT NULL REFERENCES branches(id) ON DELETE RESTRICT,
+                destination_hub_id INTEGER NOT NULL REFERENCES branches(id) ON DELETE RESTRICT,
+                status TEXT NOT NULL DEFAULT 'PENDING',
+                transport_run_id INTEGER,
+                manifest_id INTEGER,
+                is_cross_border INTEGER NOT NULL DEFAULT 0,
+                border_post_name TEXT,
+                customs_status TEXT DEFAULT 'NOT_APPLICABLE',
+                customs_hold_reason TEXT,
+                scheduled_departure DATETIME,
+                actual_departure DATETIME,
+                scheduled_arrival DATETIME,
+                actual_arrival DATETIME,
+                created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(shipment_id, leg_sequence)
+            );
+
+            CREATE TABLE IF NOT EXISTS tracking_events (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                shipment_id INTEGER NOT NULL REFERENCES shipments(id) ON DELETE CASCADE,
+                parcel_id INTEGER REFERENCES parcels(id) ON DELETE SET NULL,
+                leg_id INTEGER REFERENCES shipment_legs(id) ON DELETE SET NULL,
+                event_code TEXT NOT NULL,
+                event_name TEXT NOT NULL,
+                hub_id INTEGER REFERENCES branches(id) ON DELETE SET NULL,
+                location_desc TEXT,
+                latitude REAL,
+                longitude REAL,
+                actor_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+                actor_type TEXT NOT NULL DEFAULT 'STAFF',
+                actor_name TEXT,
+                description TEXT NOT NULL,
+                is_customer_visible INTEGER NOT NULL DEFAULT 1,
+                metadata TEXT DEFAULT '{}',
+                created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+        `);
+
+        // 4. Seed default tariffs if none exist
+        const tariffRow = db.prepare('SELECT count(*) as count FROM logistics_pricing_tariffs').get();
+        if (!tariffRow || tariffRow.count === 0) {
+            db.exec(`
+                INSERT INTO logistics_pricing_tariffs 
+                (origin_hub_id, destination_hub_id, service_type, base_weight_kg, base_price, per_kg_above_base, cod_fee_percent, min_cod_fee, insurance_rate_percent, currency, is_active)
+                VALUES 
+                (NULL, NULL, 'STANDARD', 5.0, 350.0, 50.0, 2.0, 100.0, 1.0, 'KES', 1),
+                (NULL, NULL, 'EXPRESS', 5.0, 600.0, 80.0, 2.0, 100.0, 1.0, 'KES', 1),
+                (NULL, NULL, 'SAME_DAY', 5.0, 850.0, 120.0, 2.0, 100.0, 1.0, 'KES', 1);
+            `);
+        }
+
+        // 5. Seed shipments permissions
+        const shipmentPerms = [
+            { code: 'shipments:create', module: 'Shipments', description: 'Create new parcel shipment booking' },
+            { code: 'shipments:view:all', module: 'Shipments', description: 'View shipments organization-wide' },
+            { code: 'shipments:view:own', module: 'Shipments', description: 'View shipments within assigned hub' },
+            { code: 'shipments:cancel', module: 'Shipments', description: 'Cancel un-dispatched shipments' },
+            { code: 'shipments:status:update', module: 'Shipments', description: 'Perform lifecycle state transitions' },
+            { code: 'shipments:price:override', module: 'Shipments', description: 'Apply discount or custom rating override' }
+        ];
+
+        for (const p of shipmentPerms) {
+            const exists = db.prepare('SELECT id FROM permissions WHERE code = ?').get(p.code);
+            if (!exists) {
+                const info = db.prepare('INSERT INTO permissions (code, module, description) VALUES (?, ?, ?)').run(p.code, p.module, p.description);
+                const permId = info.lastInsertRowid;
+                db.prepare('INSERT OR IGNORE INTO role_permissions (role_id, permission_id) VALUES (1, ?)').run(permId);
+                db.prepare('INSERT OR IGNORE INTO role_permissions (role_id, permission_id) VALUES (2, ?)').run(permId);
+                db.prepare('INSERT OR IGNORE INTO role_permissions (role_id, permission_id) VALUES (3, ?)').run(permId);
+                if (['shipments:create', 'shipments:view:own'].includes(p.code)) {
+                    db.prepare('INSERT OR IGNORE INTO role_permissions (role_id, permission_id) VALUES (4, ?)').run(permId);
+                }
+            }
+        }
+    } catch (err) {
+        console.warn('Shipment core schema migration notice:', err.message);
+    }
+}
+
 // Initialize schema
 function initSchema() {
     const schemaPath = path.resolve(__dirname, 'schema.sql');
@@ -1176,6 +1405,7 @@ function initSchema() {
     migrateProcurementSchema();
     migrateDriversSchema();
     migrateVehiclesSchema();
+    migrateShipmentCoreSchema();
 }
 
 // Run non-destructive migrations on load
@@ -1191,12 +1421,14 @@ migratePaymentsEngineSchema();
 migrateProcurementSchema();
 migrateDriversSchema();
 migrateVehiclesSchema();
+migrateShipmentCoreSchema();
 
 module.exports = {
     db,
     initSchema,
     DB_PATH
 };
+
 
 
 
