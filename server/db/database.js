@@ -1538,6 +1538,346 @@ function migrateTransportSchema() {
     }
 }
 
+function migratePhysicalCustodySchema() {
+    try {
+        db.exec(`
+            CREATE TABLE IF NOT EXISTS scan_events (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                scan_uuid TEXT UNIQUE NOT NULL,
+                barcode TEXT NOT NULL,
+                shipment_id INTEGER REFERENCES shipments(id) ON DELETE SET NULL,
+                parcel_id INTEGER REFERENCES parcels(id) ON DELETE SET NULL,
+                scan_type TEXT NOT NULL,
+                hub_id INTEGER REFERENCES branches(id) ON DELETE SET NULL,
+                transport_run_id INTEGER REFERENCES transport_runs(id) ON DELETE SET NULL,
+                location_desc TEXT,
+                latitude REAL,
+                longitude REAL,
+                device_id TEXT,
+                app_version TEXT,
+                scanned_by_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+                scanned_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                is_offline_sync INTEGER NOT NULL DEFAULT 0,
+                synced_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                metadata TEXT
+            );
+            CREATE INDEX IF NOT EXISTS idx_scan_events_barcode ON scan_events(barcode);
+            CREATE INDEX IF NOT EXISTS idx_scan_events_shipment_id ON scan_events(shipment_id);
+            CREATE INDEX IF NOT EXISTS idx_scan_events_hub_id ON scan_events(hub_id);
+            CREATE INDEX IF NOT EXISTS idx_scan_events_type ON scan_events(scan_type);
+            CREATE INDEX IF NOT EXISTS idx_scan_events_scanned_at ON scan_events(scanned_at);
+
+            CREATE TRIGGER IF NOT EXISTS trg_prevent_scan_events_update
+            BEFORE UPDATE ON scan_events
+            BEGIN
+                SELECT RAISE(ABORT, 'Audit Violation: scan_events is an immutable chain-of-custody ledger. Updates are strictly prohibited.');
+            END;
+
+            CREATE TRIGGER IF NOT EXISTS trg_prevent_scan_events_delete
+            BEFORE DELETE ON scan_events
+            BEGIN
+                SELECT RAISE(ABORT, 'Audit Violation: scan_events is an immutable chain-of-custody ledger. Deletions are strictly prohibited.');
+            END;
+
+            CREATE TABLE IF NOT EXISTS handoffs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                handoff_number TEXT UNIQUE NOT NULL,
+                shipment_id INTEGER NOT NULL REFERENCES shipments(id) ON DELETE CASCADE,
+                transport_run_id INTEGER REFERENCES transport_runs(id) ON DELETE SET NULL,
+                manifest_id INTEGER REFERENCES manifests(id) ON DELETE SET NULL,
+                hub_id INTEGER REFERENCES branches(id) ON DELETE SET NULL,
+                handoff_type TEXT NOT NULL,
+                releasing_actor_type TEXT NOT NULL,
+                releasing_actor_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+                releasing_actor_name TEXT NOT NULL,
+                receiving_actor_type TEXT NOT NULL,
+                receiving_actor_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+                receiving_actor_name TEXT NOT NULL,
+                package_condition TEXT NOT NULL DEFAULT 'GOOD',
+                seal_number TEXT,
+                verification_method TEXT NOT NULL DEFAULT 'BARCODE_SCAN',
+                signature_data TEXT,
+                notes TEXT,
+                transferred_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+            CREATE INDEX IF NOT EXISTS idx_handoffs_shipment_id ON handoffs(shipment_id);
+            CREATE INDEX IF NOT EXISTS idx_handoffs_hub_id ON handoffs(hub_id);
+            CREATE INDEX IF NOT EXISTS idx_handoffs_number ON handoffs(handoff_number);
+
+            CREATE TABLE IF NOT EXISTS hub_receiving_sessions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                session_number TEXT UNIQUE NOT NULL,
+                hub_id INTEGER NOT NULL REFERENCES branches(id) ON DELETE CASCADE,
+                transport_run_id INTEGER REFERENCES transport_runs(id) ON DELETE SET NULL,
+                manifest_id INTEGER REFERENCES manifests(id) ON DELETE SET NULL,
+                station_bay TEXT,
+                operator_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                status TEXT NOT NULL DEFAULT 'IN_PROGRESS',
+                expected_packages_count INTEGER NOT NULL DEFAULT 0,
+                scanned_packages_count INTEGER NOT NULL DEFAULT 0,
+                intact_count INTEGER NOT NULL DEFAULT 0,
+                damaged_count INTEGER NOT NULL DEFAULT 0,
+                unexpected_count INTEGER NOT NULL DEFAULT 0,
+                started_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                completed_at DATETIME,
+                notes TEXT,
+                created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+            CREATE INDEX IF NOT EXISTS idx_receiving_sessions_hub ON hub_receiving_sessions(hub_id);
+            CREATE INDEX IF NOT EXISTS idx_receiving_sessions_run ON hub_receiving_sessions(transport_run_id);
+            CREATE INDEX IF NOT EXISTS idx_receiving_sessions_status ON hub_receiving_sessions(status);
+
+            CREATE TABLE IF NOT EXISTS hub_receiving_items (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                session_id INTEGER NOT NULL REFERENCES hub_receiving_sessions(id) ON DELETE CASCADE,
+                shipment_id INTEGER NOT NULL REFERENCES shipments(id) ON DELETE CASCADE,
+                parcel_id INTEGER REFERENCES parcels(id) ON DELETE SET NULL,
+                barcode TEXT NOT NULL,
+                is_expected INTEGER NOT NULL DEFAULT 1,
+                condition TEXT NOT NULL DEFAULT 'GOOD',
+                condition_notes TEXT,
+                scanned_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+            CREATE INDEX IF NOT EXISTS idx_receiving_items_session ON hub_receiving_items(session_id);
+            CREATE INDEX IF NOT EXISTS idx_receiving_items_shipment ON hub_receiving_items(shipment_id);
+
+            CREATE TABLE IF NOT EXISTS discrepancies (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                discrepancy_number TEXT UNIQUE NOT NULL,
+                discrepancy_type TEXT NOT NULL,
+                severity TEXT NOT NULL DEFAULT 'MEDIUM',
+                shipment_id INTEGER REFERENCES shipments(id) ON DELETE SET NULL,
+                parcel_id INTEGER REFERENCES parcels(id) ON DELETE SET NULL,
+                hub_id INTEGER REFERENCES branches(id) ON DELETE SET NULL,
+                transport_run_id INTEGER REFERENCES transport_runs(id) ON DELETE SET NULL,
+                manifest_id INTEGER REFERENCES manifests(id) ON DELETE SET NULL,
+                receiving_session_id INTEGER REFERENCES hub_receiving_sessions(id) ON DELETE SET NULL,
+                status TEXT NOT NULL DEFAULT 'OPEN',
+                description TEXT NOT NULL,
+                reported_by_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                investigator_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+                resolution_action TEXT,
+                resolution_notes TEXT,
+                resolved_at DATETIME,
+                created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+            CREATE INDEX IF NOT EXISTS idx_discrepancies_hub ON discrepancies(hub_id);
+            CREATE INDEX IF NOT EXISTS idx_discrepancies_shipment ON discrepancies(shipment_id);
+            CREATE INDEX IF NOT EXISTS idx_discrepancies_status ON discrepancies(status);
+            CREATE INDEX IF NOT EXISTS idx_discrepancies_type ON discrepancies(discrepancy_type);
+        `);
+
+        // Seed custody permissions
+        const custodyPerms = [
+            { code: 'custody:scan', module: 'Custody', description: 'Scan barcodes for packages and shipments' },
+            { code: 'custody:handoff', module: 'Custody', description: 'Execute chain of custody handoffs' },
+            { code: 'hub:receive', module: 'Custody', description: 'Open receiving session and intake parcels' },
+            { code: 'discrepancy:view', module: 'Custody', description: 'View discrepancies and exceptions' },
+            { code: 'discrepancy:manage', module: 'Custody', description: 'Investigate and resolve discrepancies' }
+        ];
+
+        for (const p of custodyPerms) {
+            const exists = db.prepare('SELECT id FROM permissions WHERE code = ?').get(p.code);
+            if (!exists) {
+                const info = db.prepare('INSERT INTO permissions (code, module, description) VALUES (?, ?, ?)').run(p.code, p.module, p.description);
+                const permId = info.lastInsertRowid;
+                db.prepare('INSERT OR IGNORE INTO role_permissions (role_id, permission_id) VALUES (1, ?)').run(permId);
+                db.prepare('INSERT OR IGNORE INTO role_permissions (role_id, permission_id) VALUES (2, ?)').run(permId);
+                db.prepare('INSERT OR IGNORE INTO role_permissions (role_id, permission_id) VALUES (3, ?)').run(permId);
+                if (p.code === 'custody:scan' || p.code === 'custody:handoff') {
+                    db.prepare('INSERT OR IGNORE INTO role_permissions (role_id, permission_id) VALUES (4, ?)').run(permId);
+                    db.prepare('INSERT OR IGNORE INTO role_permissions (role_id, permission_id) VALUES (5, ?)').run(permId);
+                }
+            }
+        }
+    } catch (err) {
+        console.warn('Physical custody schema migration notice:', err.message);
+    }
+}
+
+function migrateLastMileSchema() {
+    try {
+        const delCols = db.prepare("PRAGMA table_info(deliveries)").all().map(c => c.name);
+        const newDelCols = [
+            { name: 'shipment_id', def: 'INTEGER REFERENCES shipments(id) ON DELETE CASCADE' },
+            { name: 'hub_id', def: 'INTEGER REFERENCES branches(id) ON DELETE SET NULL' },
+            { name: 'delivery_type', def: "TEXT DEFAULT 'LAST_MILE'" },
+            { name: 'attempt_count', def: 'INTEGER DEFAULT 0' },
+            { name: 'max_attempts', def: 'INTEGER DEFAULT 3' },
+            { name: 'pod_required_methods', def: "TEXT DEFAULT 'SIGNATURE,GPS'" },
+            { name: 'destination_address', def: 'TEXT' },
+            { name: 'destination_city', def: 'TEXT' },
+            { name: 'recipient_name', def: 'TEXT' },
+            { name: 'recipient_phone', def: 'TEXT' },
+            { name: 'cod_amount_expected', def: 'REAL DEFAULT 0.0' },
+            { name: 'cod_amount_collected', def: 'REAL DEFAULT 0.0' }
+        ];
+
+        for (const col of newDelCols) {
+            if (!delCols.includes(col.name)) {
+                db.exec(`ALTER TABLE deliveries ADD COLUMN ${col.name} ${col.def};`);
+            }
+        }
+
+        const orderIdCol = db.prepare("PRAGMA table_info(deliveries)").all().find(c => c.name === 'order_id');
+        if (orderIdCol && orderIdCol.notnull === 1) {
+            db.exec(`
+                PRAGMA foreign_keys = OFF;
+                CREATE TABLE deliveries_new (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    branch_id INTEGER NOT NULL REFERENCES branches(id) ON DELETE RESTRICT,
+                    delivery_number TEXT NOT NULL UNIQUE,
+                    order_id INTEGER REFERENCES orders(id) ON DELETE RESTRICT,
+                    shipment_id INTEGER REFERENCES shipments(id) ON DELETE CASCADE,
+                    hub_id INTEGER REFERENCES branches(id) ON DELETE SET NULL,
+                    delivery_type TEXT DEFAULT 'LAST_MILE',
+                    driver_id INTEGER REFERENCES drivers(id) ON DELETE SET NULL,
+                    vehicle_id INTEGER REFERENCES vehicles(id) ON DELETE SET NULL,
+                    dispatcher_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+                    status TEXT NOT NULL DEFAULT 'PENDING_ASSIGNMENT',
+                    priority TEXT NOT NULL DEFAULT 'NORMAL',
+                    attempt_count INTEGER DEFAULT 0,
+                    max_attempts INTEGER DEFAULT 3,
+                    pod_required_methods TEXT DEFAULT 'SIGNATURE,GPS',
+                    destination_address TEXT,
+                    destination_city TEXT,
+                    recipient_name TEXT,
+                    recipient_phone TEXT,
+                    cod_amount_expected REAL DEFAULT 0.0,
+                    cod_amount_collected REAL DEFAULT 0.0,
+                    scheduled_pickup_at DATETIME,
+                    estimated_delivery_at DATETIME,
+                    actual_delivery_at DATETIME,
+                    failure_reason TEXT,
+                    failure_notes TEXT,
+                    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+                );
+
+                INSERT INTO deliveries_new (
+                    id, branch_id, delivery_number, order_id, shipment_id, hub_id, delivery_type,
+                    driver_id, vehicle_id, dispatcher_user_id, status, priority, attempt_count,
+                    max_attempts, pod_required_methods, destination_address, destination_city,
+                    recipient_name, recipient_phone, cod_amount_expected, cod_amount_collected,
+                    scheduled_pickup_at, estimated_delivery_at, actual_delivery_at, failure_reason,
+                    failure_notes, created_at, updated_at
+                )
+                SELECT
+                    id, branch_id, delivery_number, order_id, shipment_id, hub_id, delivery_type,
+                    driver_id, vehicle_id, dispatcher_user_id, status, priority, attempt_count,
+                    max_attempts, pod_required_methods, destination_address, destination_city,
+                    recipient_name, recipient_phone, cod_amount_expected, cod_amount_collected,
+                    scheduled_pickup_at, estimated_delivery_at, actual_delivery_at, failure_reason,
+                    failure_notes, created_at, updated_at
+                FROM deliveries;
+
+                DROP TABLE deliveries;
+                ALTER TABLE deliveries_new RENAME TO deliveries;
+
+                CREATE INDEX IF NOT EXISTS idx_deliveries_branch_status ON deliveries(branch_id, status);
+                CREATE INDEX IF NOT EXISTS idx_deliveries_driver ON deliveries(driver_id, status);
+                CREATE INDEX IF NOT EXISTS idx_deliveries_shipment_id ON deliveries(shipment_id);
+                CREATE INDEX IF NOT EXISTS idx_deliveries_hub_id ON deliveries(hub_id);
+
+                PRAGMA foreign_keys = ON;
+            `);
+        }
+
+        const podCols = db.prepare("PRAGMA table_info(proof_of_delivery)").all().map(c => c.name);
+        const newPodCols = [
+            { name: 'shipment_id', def: 'INTEGER REFERENCES shipments(id) ON DELETE CASCADE' },
+            { name: 'device_id', def: 'TEXT' }
+        ];
+        for (const col of newPodCols) {
+            if (!podCols.includes(col.name)) {
+                db.exec(`ALTER TABLE proof_of_delivery ADD COLUMN ${col.name} ${col.def};`);
+            }
+        }
+
+        db.exec(`
+            CREATE TABLE IF NOT EXISTS delivery_attempts (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                delivery_id INTEGER NOT NULL REFERENCES deliveries(id) ON DELETE CASCADE,
+                shipment_id INTEGER REFERENCES shipments(id) ON DELETE CASCADE,
+                attempt_number INTEGER NOT NULL DEFAULT 1,
+                status TEXT NOT NULL,
+                failure_reason TEXT,
+                failure_notes TEXT,
+                driver_id INTEGER REFERENCES drivers(id) ON DELETE SET NULL,
+                latitude REAL,
+                longitude REAL,
+                rescheduled_for DATETIME,
+                attempted_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+            CREATE INDEX IF NOT EXISTS idx_delivery_attempts_delivery ON delivery_attempts(delivery_id);
+            CREATE INDEX IF NOT EXISTS idx_delivery_attempts_shipment ON delivery_attempts(shipment_id);
+
+            CREATE TRIGGER IF NOT EXISTS trg_prevent_pod_update
+            BEFORE UPDATE ON proof_of_delivery
+            BEGIN
+                SELECT RAISE(ABORT, 'Audit Violation: proof_of_delivery records are legally binding evidence and cannot be modified.');
+            END;
+
+            CREATE TRIGGER IF NOT EXISTS trg_prevent_pod_delete
+            BEFORE DELETE ON proof_of_delivery
+            BEGIN
+                SELECT RAISE(ABORT, 'Audit Violation: proof_of_delivery records are legally binding evidence and cannot be deleted.');
+            END;
+
+            CREATE TABLE IF NOT EXISTS exceptions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                exception_number TEXT UNIQUE NOT NULL,
+                exception_type TEXT NOT NULL,
+                severity TEXT NOT NULL DEFAULT 'MEDIUM',
+                shipment_id INTEGER REFERENCES shipments(id) ON DELETE CASCADE,
+                delivery_id INTEGER REFERENCES deliveries(id) ON DELETE SET NULL,
+                hub_id INTEGER REFERENCES branches(id) ON DELETE SET NULL,
+                status TEXT NOT NULL DEFAULT 'OPEN',
+                description TEXT NOT NULL,
+                root_cause TEXT,
+                resolution_notes TEXT,
+                reported_by_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+                assigned_to_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+                resolved_at DATETIME,
+                created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+            CREATE INDEX IF NOT EXISTS idx_exceptions_shipment ON exceptions(shipment_id);
+            CREATE INDEX IF NOT EXISTS idx_exceptions_delivery ON exceptions(delivery_id);
+            CREATE INDEX IF NOT EXISTS idx_exceptions_status ON exceptions(status);
+            CREATE INDEX IF NOT EXISTS idx_exceptions_type ON exceptions(exception_type);
+        `);
+
+        // Seed delivery task and exception permissions
+        const lastMilePerms = [
+            { code: 'delivery:tasks:create', module: 'Delivery', description: 'Create last-mile delivery tasks' },
+            { code: 'delivery:tasks:assign', module: 'Delivery', description: 'Assign drivers and vehicles to deliveries' },
+            { code: 'delivery:tasks:attempt', module: 'Delivery', description: 'Record delivery attempt with failure reasons' },
+            { code: 'delivery:tasks:complete', module: 'Delivery', description: 'Complete delivery with proof of delivery' },
+            { code: 'exceptions:view', module: 'Exceptions', description: 'View operational exceptions' },
+            { code: 'exceptions:manage', module: 'Exceptions', description: 'Create and resolve operational exceptions' }
+        ];
+
+        for (const p of lastMilePerms) {
+            const exists = db.prepare('SELECT id FROM permissions WHERE code = ?').get(p.code);
+            if (!exists) {
+                const info = db.prepare('INSERT INTO permissions (code, module, description) VALUES (?, ?, ?)').run(p.code, p.module, p.description);
+                const permId = info.lastInsertRowid;
+                db.prepare('INSERT OR IGNORE INTO role_permissions (role_id, permission_id) VALUES (1, ?)').run(permId);
+                db.prepare('INSERT OR IGNORE INTO role_permissions (role_id, permission_id) VALUES (2, ?)').run(permId);
+                db.prepare('INSERT OR IGNORE INTO role_permissions (role_id, permission_id) VALUES (3, ?)').run(permId);
+                if (p.code.includes('attempt') || p.code.includes('complete')) {
+                    db.prepare('INSERT OR IGNORE INTO role_permissions (role_id, permission_id) VALUES (5, ?)').run(permId);
+                }
+            }
+        }
+    } catch (err) {
+        console.warn('Last-mile delivery schema migration notice:', err.message);
+    }
+}
+
 // Initialize schema
 function initSchema() {
     const schemaPath = path.resolve(__dirname, 'schema.sql');
@@ -1557,6 +1897,8 @@ function initSchema() {
     migrateVehiclesSchema();
     migrateShipmentCoreSchema();
     migrateTransportSchema();
+    migratePhysicalCustodySchema();
+    migrateLastMileSchema();
 }
 
 // Run non-destructive migrations on load
@@ -1574,6 +1916,8 @@ migrateDriversSchema();
 migrateVehiclesSchema();
 migrateShipmentCoreSchema();
 migrateTransportSchema();
+migratePhysicalCustodySchema();
+migrateLastMileSchema();
 
 module.exports = {
     db,

@@ -62,5 +62,7 @@ router.use('/vehicles', require('../vehicles.js'));
 router.use('/shipments', require('../shipments.js'));
 router.use('/tracking', require('../tracking.js'));
 router.use('/transport', require('../transport.js'));
+router.use('/custody', require('../custody.js'));
+router.use('/delivery-tasks', require('../deliveryTasks.js'));
 
 module.exports = router;

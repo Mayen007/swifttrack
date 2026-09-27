@@ -96,6 +96,17 @@ const AUTHORIZATION_MATRIX = {
             create: SCOPES.GLOBAL,
             dispatch: SCOPES.GLOBAL,
             receive: SCOPES.GLOBAL
+        },
+        custody: {
+            scan: SCOPES.GLOBAL,
+            handoff: SCOPES.GLOBAL,
+            receive: SCOPES.GLOBAL,
+            view: SCOPES.GLOBAL
+        },
+        discrepancy: {
+            create: SCOPES.GLOBAL,
+            view: SCOPES.GLOBAL,
+            manage: SCOPES.GLOBAL
         }
     },
 
@@ -178,6 +189,17 @@ const AUTHORIZATION_MATRIX = {
             create: SCOPES.OWN_BRANCH,
             dispatch: SCOPES.OWN_BRANCH,
             receive: SCOPES.OWN_BRANCH
+        },
+        custody: {
+            scan: SCOPES.OWN_BRANCH,
+            handoff: SCOPES.OWN_BRANCH,
+            receive: SCOPES.OWN_BRANCH,
+            view: SCOPES.OWN_BRANCH
+        },
+        discrepancy: {
+            create: SCOPES.OWN_BRANCH,
+            view: SCOPES.OWN_BRANCH,
+            manage: SCOPES.OWN_BRANCH
         }
     },
 
@@ -256,6 +278,17 @@ const AUTHORIZATION_MATRIX = {
             create: SCOPES.OWN_BRANCH,
             dispatch: SCOPES.OWN_BRANCH,
             receive: SCOPES.OWN_BRANCH
+        },
+        custody: {
+            scan: SCOPES.OWN_BRANCH,
+            handoff: SCOPES.OWN_BRANCH,
+            receive: SCOPES.OWN_BRANCH,
+            view: SCOPES.OWN_BRANCH
+        },
+        discrepancy: {
+            create: SCOPES.OWN_BRANCH,
+            view: SCOPES.OWN_BRANCH,
+            manage: SCOPES.OWN_BRANCH
         }
     },
 
@@ -334,6 +367,17 @@ const AUTHORIZATION_MATRIX = {
             create: SCOPES.DENIED,
             dispatch: SCOPES.DENIED,
             receive: SCOPES.DENIED
+        },
+        custody: {
+            scan: SCOPES.OWN_BRANCH,
+            handoff: SCOPES.OWN_BRANCH,
+            receive: SCOPES.OWN_BRANCH,
+            view: SCOPES.OWN_BRANCH
+        },
+        discrepancy: {
+            create: SCOPES.OWN_BRANCH,
+            view: SCOPES.OWN_BRANCH,
+            manage: SCOPES.DENIED
         }
     },
 
@@ -412,6 +456,17 @@ const AUTHORIZATION_MATRIX = {
             create: SCOPES.DENIED,
             dispatch: SCOPES.DENIED,
             receive: SCOPES.DENIED
+        },
+        custody: {
+            scan: SCOPES.OWN_RECORD,
+            handoff: SCOPES.OWN_RECORD,
+            receive: SCOPES.DENIED,
+            view: SCOPES.OWN_RECORD
+        },
+        discrepancy: {
+            create: SCOPES.OWN_RECORD,
+            view: SCOPES.OWN_RECORD,
+            manage: SCOPES.DENIED
         }
     }
 };

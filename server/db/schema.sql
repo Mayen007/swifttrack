@@ -1041,12 +1041,24 @@ CREATE TABLE IF NOT EXISTS deliveries (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     branch_id INTEGER NOT NULL REFERENCES branches(id) ON DELETE RESTRICT,
     delivery_number TEXT NOT NULL UNIQUE,
-    order_id INTEGER NOT NULL REFERENCES orders(id) ON DELETE RESTRICT,
+    order_id INTEGER REFERENCES orders(id) ON DELETE RESTRICT,
+    shipment_id INTEGER REFERENCES shipments(id) ON DELETE CASCADE,
+    hub_id INTEGER REFERENCES branches(id) ON DELETE SET NULL,
+    delivery_type TEXT DEFAULT 'LAST_MILE',
     driver_id INTEGER REFERENCES drivers(id) ON DELETE SET NULL,
     vehicle_id INTEGER REFERENCES vehicles(id) ON DELETE SET NULL,
     dispatcher_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
-    status TEXT NOT NULL DEFAULT 'PENDING_ASSIGNMENT', -- PENDING_ASSIGNMENT, ASSIGNED, PICKED_UP, IN_TRANSIT, DELIVERED, FAILED, RETURN_TO_BRANCH, RETURN_RECEIVED
+    status TEXT NOT NULL DEFAULT 'PENDING_ASSIGNMENT', -- PENDING_ASSIGNMENT, ASSIGNED, PICKED_UP, IN_TRANSIT, DELIVERED, FAILED, RESCHEDULED, RETURN_TO_HUB, RETURN_TO_BRANCH, RETURN_RECEIVED
     priority TEXT NOT NULL DEFAULT 'NORMAL', -- NORMAL, HIGH, URGENT
+    attempt_count INTEGER DEFAULT 0,
+    max_attempts INTEGER DEFAULT 3,
+    pod_required_methods TEXT DEFAULT 'SIGNATURE,GPS',
+    destination_address TEXT,
+    destination_city TEXT,
+    recipient_name TEXT,
+    recipient_phone TEXT,
+    cod_amount_expected REAL DEFAULT 0.0,
+    cod_amount_collected REAL DEFAULT 0.0,
     scheduled_pickup_at DATETIME,
     estimated_delivery_at DATETIME,
     actual_delivery_at DATETIME,
@@ -1056,12 +1068,30 @@ CREATE TABLE IF NOT EXISTS deliveries (
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
+-- 27a. DELIVERY ATTEMPTS
+CREATE TABLE IF NOT EXISTS delivery_attempts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    delivery_id INTEGER NOT NULL REFERENCES deliveries(id) ON DELETE CASCADE,
+    shipment_id INTEGER REFERENCES shipments(id) ON DELETE CASCADE,
+    attempt_number INTEGER NOT NULL DEFAULT 1,
+    status TEXT NOT NULL, -- SUCCESS, FAILED, RESCHEDULED
+    failure_reason TEXT,
+    failure_notes TEXT,
+    driver_id INTEGER REFERENCES drivers(id) ON DELETE SET NULL,
+    latitude REAL,
+    longitude REAL,
+    rescheduled_for DATETIME,
+    attempted_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_delivery_attempts_delivery ON delivery_attempts(delivery_id);
+CREATE INDEX IF NOT EXISTS idx_delivery_attempts_shipment ON delivery_attempts(shipment_id);
+
 -- 28. DELIVERY ITEMS
 CREATE TABLE IF NOT EXISTS delivery_items (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     delivery_id INTEGER NOT NULL REFERENCES deliveries(id) ON DELETE CASCADE,
-    order_item_id INTEGER NOT NULL REFERENCES order_items(id) ON DELETE RESTRICT,
-    product_id INTEGER NOT NULL REFERENCES products(id) ON DELETE RESTRICT,
+    order_item_id INTEGER REFERENCES order_items(id) ON DELETE RESTRICT,
+    product_id INTEGER REFERENCES products(id) ON DELETE RESTRICT,
     quantity INTEGER NOT NULL
 );
 
@@ -1081,6 +1111,7 @@ CREATE TABLE IF NOT EXISTS delivery_status_history (
 CREATE TABLE IF NOT EXISTS proof_of_delivery (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     delivery_id INTEGER NOT NULL UNIQUE REFERENCES deliveries(id) ON DELETE CASCADE,
+    shipment_id INTEGER REFERENCES shipments(id) ON DELETE CASCADE,
     recipient_name TEXT NOT NULL,
     recipient_phone TEXT NOT NULL,
     otp_code TEXT,
@@ -1089,9 +1120,47 @@ CREATE TABLE IF NOT EXISTS proof_of_delivery (
     photo_data TEXT,     -- Base64 or local image URL
     latitude REAL,
     longitude REAL,
+    device_id TEXT,
     notes TEXT,
     verified_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+
+-- Immutability enforcement on proof_of_delivery (Rule POD-005)
+CREATE TRIGGER IF NOT EXISTS trg_prevent_pod_update
+BEFORE UPDATE ON proof_of_delivery
+BEGIN
+    SELECT RAISE(ABORT, 'Audit Violation: proof_of_delivery records are legally binding evidence and cannot be modified.');
+END;
+
+CREATE TRIGGER IF NOT EXISTS trg_prevent_pod_delete
+BEFORE DELETE ON proof_of_delivery
+BEGIN
+    SELECT RAISE(ABORT, 'Audit Violation: proof_of_delivery records are legally binding evidence and cannot be deleted.');
+END;
+
+-- 30a. EXCEPTIONS (Centralized Operational Exception Management)
+CREATE TABLE IF NOT EXISTS exceptions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    exception_number TEXT UNIQUE NOT NULL,
+    exception_type TEXT NOT NULL,
+    severity TEXT NOT NULL DEFAULT 'MEDIUM',
+    shipment_id INTEGER REFERENCES shipments(id) ON DELETE CASCADE,
+    delivery_id INTEGER REFERENCES deliveries(id) ON DELETE SET NULL,
+    hub_id INTEGER REFERENCES branches(id) ON DELETE SET NULL,
+    status TEXT NOT NULL DEFAULT 'OPEN',
+    description TEXT NOT NULL,
+    root_cause TEXT,
+    resolution_notes TEXT,
+    reported_by_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    assigned_to_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    resolved_at DATETIME,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_exceptions_shipment ON exceptions(shipment_id);
+CREATE INDEX IF NOT EXISTS idx_exceptions_delivery ON exceptions(delivery_id);
+CREATE INDEX IF NOT EXISTS idx_exceptions_status ON exceptions(status);
+CREATE INDEX IF NOT EXISTS idx_exceptions_type ON exceptions(exception_type);
 
 -- 31. NOTIFICATIONS
 CREATE TABLE IF NOT EXISTS notifications (
@@ -1684,4 +1753,142 @@ CREATE TABLE IF NOT EXISTS run_checkpoints (
     recorded_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 CREATE INDEX IF NOT EXISTS idx_checkpoints_run ON run_checkpoints(transport_run_id);
+
+-- ============================================================================
+-- PHASE 12: PHYSICAL CUSTODY & HUB OPERATIONS (Stage 4 Logistics PRD)
+-- ============================================================================
+
+-- 1. SCAN EVENTS (High-Throughput Chain of Custody Barcode Scans)
+CREATE TABLE IF NOT EXISTS scan_events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    scan_uuid TEXT UNIQUE NOT NULL,
+    barcode TEXT NOT NULL,
+    shipment_id INTEGER REFERENCES shipments(id) ON DELETE SET NULL,
+    parcel_id INTEGER REFERENCES parcels(id) ON DELETE SET NULL,
+    scan_type TEXT NOT NULL,
+    hub_id INTEGER REFERENCES branches(id) ON DELETE SET NULL,
+    transport_run_id INTEGER REFERENCES transport_runs(id) ON DELETE SET NULL,
+    location_desc TEXT,
+    latitude REAL,
+    longitude REAL,
+    device_id TEXT,
+    app_version TEXT,
+    scanned_by_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    scanned_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    is_offline_sync INTEGER NOT NULL DEFAULT 0,
+    synced_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    metadata TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_scan_events_barcode ON scan_events(barcode);
+CREATE INDEX IF NOT EXISTS idx_scan_events_shipment_id ON scan_events(shipment_id);
+CREATE INDEX IF NOT EXISTS idx_scan_events_hub_id ON scan_events(hub_id);
+CREATE INDEX IF NOT EXISTS idx_scan_events_type ON scan_events(scan_type);
+CREATE INDEX IF NOT EXISTS idx_scan_events_scanned_at ON scan_events(scanned_at);
+
+-- Immutability enforcement on scan_events
+CREATE TRIGGER IF NOT EXISTS trg_prevent_scan_events_update
+BEFORE UPDATE ON scan_events
+BEGIN
+    SELECT RAISE(ABORT, 'Audit Violation: scan_events is an immutable chain-of-custody ledger. Updates are strictly prohibited.');
+END;
+
+CREATE TRIGGER IF NOT EXISTS trg_prevent_scan_events_delete
+BEFORE DELETE ON scan_events
+BEGIN
+    SELECT RAISE(ABORT, 'Audit Violation: scan_events is an immutable chain-of-custody ledger. Deletions are strictly prohibited.');
+END;
+
+-- 2. CUSTODY HANDOFFS (Physical Custody Handovers between parties)
+CREATE TABLE IF NOT EXISTS handoffs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    handoff_number TEXT UNIQUE NOT NULL,
+    shipment_id INTEGER NOT NULL REFERENCES shipments(id) ON DELETE CASCADE,
+    transport_run_id INTEGER REFERENCES transport_runs(id) ON DELETE SET NULL,
+    manifest_id INTEGER REFERENCES manifests(id) ON DELETE SET NULL,
+    hub_id INTEGER REFERENCES branches(id) ON DELETE SET NULL,
+    handoff_type TEXT NOT NULL,
+    releasing_actor_type TEXT NOT NULL,
+    releasing_actor_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    releasing_actor_name TEXT NOT NULL,
+    receiving_actor_type TEXT NOT NULL,
+    receiving_actor_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    receiving_actor_name TEXT NOT NULL,
+    package_condition TEXT NOT NULL DEFAULT 'GOOD',
+    seal_number TEXT,
+    verification_method TEXT NOT NULL DEFAULT 'BARCODE_SCAN',
+    signature_data TEXT,
+    notes TEXT,
+    transferred_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_handoffs_shipment_id ON handoffs(shipment_id);
+CREATE INDEX IF NOT EXISTS idx_handoffs_hub_id ON handoffs(hub_id);
+CREATE INDEX IF NOT EXISTS idx_handoffs_number ON handoffs(handoff_number);
+
+-- 3. HUB RECEIVING SESSIONS (Intake and Unloading Bay Sessions)
+CREATE TABLE IF NOT EXISTS hub_receiving_sessions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    session_number TEXT UNIQUE NOT NULL,
+    hub_id INTEGER NOT NULL REFERENCES branches(id) ON DELETE CASCADE,
+    transport_run_id INTEGER REFERENCES transport_runs(id) ON DELETE SET NULL,
+    manifest_id INTEGER REFERENCES manifests(id) ON DELETE SET NULL,
+    station_bay TEXT,
+    operator_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    status TEXT NOT NULL DEFAULT 'IN_PROGRESS',
+    expected_packages_count INTEGER NOT NULL DEFAULT 0,
+    scanned_packages_count INTEGER NOT NULL DEFAULT 0,
+    intact_count INTEGER NOT NULL DEFAULT 0,
+    damaged_count INTEGER NOT NULL DEFAULT 0,
+    unexpected_count INTEGER NOT NULL DEFAULT 0,
+    started_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    completed_at DATETIME,
+    notes TEXT,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_receiving_sessions_hub ON hub_receiving_sessions(hub_id);
+CREATE INDEX IF NOT EXISTS idx_receiving_sessions_run ON hub_receiving_sessions(transport_run_id);
+CREATE INDEX IF NOT EXISTS idx_receiving_sessions_status ON hub_receiving_sessions(status);
+
+-- 4. HUB RECEIVING ITEMS (Individual scans within receiving session)
+CREATE TABLE IF NOT EXISTS hub_receiving_items (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    session_id INTEGER NOT NULL REFERENCES hub_receiving_sessions(id) ON DELETE CASCADE,
+    shipment_id INTEGER NOT NULL REFERENCES shipments(id) ON DELETE CASCADE,
+    parcel_id INTEGER REFERENCES parcels(id) ON DELETE SET NULL,
+    barcode TEXT NOT NULL,
+    is_expected INTEGER NOT NULL DEFAULT 1,
+    condition TEXT NOT NULL DEFAULT 'GOOD',
+    condition_notes TEXT,
+    scanned_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_receiving_items_session ON hub_receiving_items(session_id);
+CREATE INDEX IF NOT EXISTS idx_receiving_items_shipment ON hub_receiving_items(shipment_id);
+
+-- 5. DISCREPANCIES (Physical Inventory Exceptions & Investigations)
+CREATE TABLE IF NOT EXISTS discrepancies (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    discrepancy_number TEXT UNIQUE NOT NULL,
+    discrepancy_type TEXT NOT NULL,
+    severity TEXT NOT NULL DEFAULT 'MEDIUM',
+    shipment_id INTEGER REFERENCES shipments(id) ON DELETE SET NULL,
+    parcel_id INTEGER REFERENCES parcels(id) ON DELETE SET NULL,
+    hub_id INTEGER REFERENCES branches(id) ON DELETE SET NULL,
+    transport_run_id INTEGER REFERENCES transport_runs(id) ON DELETE SET NULL,
+    manifest_id INTEGER REFERENCES manifests(id) ON DELETE SET NULL,
+    receiving_session_id INTEGER REFERENCES hub_receiving_sessions(id) ON DELETE SET NULL,
+    status TEXT NOT NULL DEFAULT 'OPEN',
+    description TEXT NOT NULL,
+    reported_by_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    investigator_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    resolution_action TEXT,
+    resolution_notes TEXT,
+    resolved_at DATETIME,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_discrepancies_hub ON discrepancies(hub_id);
+CREATE INDEX IF NOT EXISTS idx_discrepancies_shipment ON discrepancies(shipment_id);
+CREATE INDEX IF NOT EXISTS idx_discrepancies_status ON discrepancies(status);
+CREATE INDEX IF NOT EXISTS idx_discrepancies_type ON discrepancies(discrepancy_type);
+
 
