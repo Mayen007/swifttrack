@@ -1388,6 +1388,156 @@ function migrateShipmentCoreSchema() {
     }
 }
 
+/**
+ * PHASE 11: TRANSPORT MANAGEMENT & MANIFESTS (STAGE 3)
+ * Initializes routes, route legs, transport runs, manifests, manifest items, and checkpoints.
+ */
+function migrateTransportSchema() {
+    try {
+        db.exec(`
+            CREATE TABLE IF NOT EXISTS routes (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                code TEXT NOT NULL UNIQUE,
+                name TEXT NOT NULL,
+                origin_hub_id INTEGER NOT NULL REFERENCES branches(id) ON DELETE RESTRICT,
+                destination_hub_id INTEGER NOT NULL REFERENCES branches(id) ON DELETE RESTRICT,
+                distance_km REAL NOT NULL DEFAULT 0.0,
+                estimated_duration_hours REAL NOT NULL DEFAULT 0.0,
+                is_active INTEGER NOT NULL DEFAULT 1,
+                created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE TABLE IF NOT EXISTS route_legs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                route_id INTEGER NOT NULL REFERENCES routes(id) ON DELETE CASCADE,
+                leg_sequence INTEGER NOT NULL DEFAULT 1,
+                origin_hub_id INTEGER NOT NULL REFERENCES branches(id) ON DELETE RESTRICT,
+                destination_hub_id INTEGER NOT NULL REFERENCES branches(id) ON DELETE RESTRICT,
+                distance_km REAL NOT NULL DEFAULT 0.0,
+                estimated_duration_hours REAL NOT NULL DEFAULT 0.0,
+                is_cross_border INTEGER NOT NULL DEFAULT 0,
+                border_post_name TEXT,
+                is_active INTEGER NOT NULL DEFAULT 1,
+                created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(route_id, leg_sequence)
+            );
+
+            CREATE TABLE IF NOT EXISTS transport_runs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                run_number TEXT NOT NULL UNIQUE,
+                route_leg_id INTEGER REFERENCES route_legs(id) ON DELETE RESTRICT,
+                origin_hub_id INTEGER NOT NULL REFERENCES branches(id) ON DELETE RESTRICT,
+                destination_hub_id INTEGER NOT NULL REFERENCES branches(id) ON DELETE RESTRICT,
+                driver_id INTEGER REFERENCES drivers(id) ON DELETE SET NULL,
+                vehicle_id INTEGER REFERENCES vehicles(id) ON DELETE SET NULL,
+                dispatcher_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+                status TEXT NOT NULL DEFAULT 'PLANNED',
+                scheduled_departure DATETIME,
+                actual_departure DATETIME,
+                scheduled_arrival DATETIME,
+                actual_arrival DATETIME,
+                current_odometer_km REAL DEFAULT 0.0,
+                departure_odometer_km REAL DEFAULT 0.0,
+                arrival_odometer_km REAL DEFAULT 0.0,
+                total_shipments_count INTEGER NOT NULL DEFAULT 0,
+                total_parcels_count INTEGER NOT NULL DEFAULT 0,
+                total_weight_kg REAL NOT NULL DEFAULT 0.0,
+                notes TEXT,
+                created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE TABLE IF NOT EXISTS manifests (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                manifest_number TEXT NOT NULL UNIQUE,
+                transport_run_id INTEGER NOT NULL REFERENCES transport_runs(id) ON DELETE CASCADE,
+                origin_hub_id INTEGER NOT NULL REFERENCES branches(id) ON DELETE RESTRICT,
+                destination_hub_id INTEGER NOT NULL REFERENCES branches(id) ON DELETE RESTRICT,
+                status TEXT NOT NULL DEFAULT 'DRAFT',
+                locked_at DATETIME,
+                locked_by_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+                total_shipments INTEGER NOT NULL DEFAULT 0,
+                total_parcels INTEGER NOT NULL DEFAULT 0,
+                total_weight_kg REAL NOT NULL DEFAULT 0.0,
+                notes TEXT,
+                created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE TABLE IF NOT EXISTS manifest_items (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                manifest_id INTEGER NOT NULL REFERENCES manifests(id) ON DELETE CASCADE,
+                shipment_id INTEGER NOT NULL REFERENCES shipments(id) ON DELETE RESTRICT,
+                shipment_leg_id INTEGER REFERENCES shipment_legs(id) ON DELETE SET NULL,
+                loaded_at DATETIME,
+                loaded_by_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+                received_at DATETIME,
+                received_by_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+                status TEXT NOT NULL DEFAULT 'ASSIGNED',
+                discrepancy_reason TEXT,
+                created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(manifest_id, shipment_id)
+            );
+
+            CREATE TABLE IF NOT EXISTS run_checkpoints (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                transport_run_id INTEGER NOT NULL REFERENCES transport_runs(id) ON DELETE CASCADE,
+                checkpoint_name TEXT NOT NULL,
+                location_desc TEXT,
+                latitude REAL,
+                longitude REAL,
+                recorded_by_driver_id INTEGER REFERENCES drivers(id) ON DELETE SET NULL,
+                notes TEXT,
+                recorded_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+        `);
+
+        // Seed default route (Nairobi to Mombasa) if none exist
+        const routeCount = db.prepare('SELECT count(*) as count FROM routes').get()?.count || 0;
+        if (routeCount === 0) {
+            const nrb = db.prepare('SELECT id FROM branches WHERE id = 1').get();
+            const msa = db.prepare('SELECT id FROM branches WHERE id = 2').get();
+            if (nrb && msa) {
+                const info = db.prepare(`
+                    INSERT INTO routes (code, name, origin_hub_id, destination_hub_id, distance_km, estimated_duration_hours, is_active)
+                    VALUES ('RT-NRB-MSA', 'Nairobi - Mombasa Highway Corridor', 1, 2, 485.0, 8.5, 1)
+                `).run();
+                const routeId = info.lastInsertRowid;
+                db.prepare(`
+                    INSERT INTO route_legs (route_id, leg_sequence, origin_hub_id, destination_hub_id, distance_km, estimated_duration_hours, is_cross_border, is_active)
+                    VALUES (?, 1, 1, 2, 485.0, 8.5, 0, 1)
+                `).run(routeId);
+            }
+        }
+
+        // Seed transport permissions
+        const transportPerms = [
+            { code: 'transport:view:all', module: 'Transport', description: 'View transport runs across all routes' },
+            { code: 'transport:view:own', module: 'Transport', description: 'View transport runs touching assigned hub' },
+            { code: 'transport:create', module: 'Transport', description: 'Create and plan transport runs' },
+            { code: 'transport:dispatch', module: 'Transport', description: 'Dispatch transport runs with manifest' },
+            { code: 'transport:receive', module: 'Transport', description: 'Receive and verify transport runs at destination hub' }
+        ];
+
+        for (const p of transportPerms) {
+            const exists = db.prepare('SELECT id FROM permissions WHERE code = ?').get(p.code);
+            if (!exists) {
+                const info = db.prepare('INSERT INTO permissions (code, module, description) VALUES (?, ?, ?)').run(p.code, p.module, p.description);
+                const permId = info.lastInsertRowid;
+                db.prepare('INSERT OR IGNORE INTO role_permissions (role_id, permission_id) VALUES (1, ?)').run(permId);
+                db.prepare('INSERT OR IGNORE INTO role_permissions (role_id, permission_id) VALUES (2, ?)').run(permId);
+                db.prepare('INSERT OR IGNORE INTO role_permissions (role_id, permission_id) VALUES (3, ?)').run(permId);
+                if (p.code === 'transport:view:own') {
+                    db.prepare('INSERT OR IGNORE INTO role_permissions (role_id, permission_id) VALUES (5, ?)').run(permId);
+                }
+            }
+        }
+    } catch (err) {
+        console.warn('Transport schema migration notice:', err.message);
+    }
+}
+
 // Initialize schema
 function initSchema() {
     const schemaPath = path.resolve(__dirname, 'schema.sql');
@@ -1406,6 +1556,7 @@ function initSchema() {
     migrateDriversSchema();
     migrateVehiclesSchema();
     migrateShipmentCoreSchema();
+    migrateTransportSchema();
 }
 
 // Run non-destructive migrations on load
@@ -1422,12 +1573,14 @@ migrateProcurementSchema();
 migrateDriversSchema();
 migrateVehiclesSchema();
 migrateShipmentCoreSchema();
+migrateTransportSchema();
 
 module.exports = {
     db,
     initSchema,
     DB_PATH
 };
+
 
 
 

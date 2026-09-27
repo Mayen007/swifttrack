@@ -89,6 +89,13 @@ const AUTHORIZATION_MATRIX = {
             update: SCOPES.GLOBAL,
             cancel: SCOPES.GLOBAL,
             price_override: SCOPES.GLOBAL
+        },
+        transport: {
+            view_all: SCOPES.GLOBAL,
+            view_own: SCOPES.GLOBAL,
+            create: SCOPES.GLOBAL,
+            dispatch: SCOPES.GLOBAL,
+            receive: SCOPES.GLOBAL
         }
     },
 
@@ -164,6 +171,13 @@ const AUTHORIZATION_MATRIX = {
             update: SCOPES.OWN_BRANCH,
             cancel: SCOPES.OWN_BRANCH,
             price_override: SCOPES.OWN_BRANCH
+        },
+        transport: {
+            view_all: SCOPES.GLOBAL,
+            view_own: SCOPES.OWN_BRANCH,
+            create: SCOPES.OWN_BRANCH,
+            dispatch: SCOPES.OWN_BRANCH,
+            receive: SCOPES.OWN_BRANCH
         }
     },
 
@@ -235,6 +249,13 @@ const AUTHORIZATION_MATRIX = {
             update: SCOPES.OWN_BRANCH,
             cancel: SCOPES.DENIED,
             price_override: SCOPES.DENIED
+        },
+        transport: {
+            view_all: SCOPES.GLOBAL,
+            view_own: SCOPES.OWN_BRANCH,
+            create: SCOPES.OWN_BRANCH,
+            dispatch: SCOPES.OWN_BRANCH,
+            receive: SCOPES.OWN_BRANCH
         }
     },
 
@@ -306,6 +327,13 @@ const AUTHORIZATION_MATRIX = {
             update: SCOPES.DENIED,
             cancel: SCOPES.DENIED,
             price_override: SCOPES.DENIED
+        },
+        transport: {
+            view_all: SCOPES.DENIED,
+            view_own: SCOPES.DENIED,
+            create: SCOPES.DENIED,
+            dispatch: SCOPES.DENIED,
+            receive: SCOPES.DENIED
         }
     },
 
@@ -377,6 +405,13 @@ const AUTHORIZATION_MATRIX = {
             update: SCOPES.OWN_RECORD,
             cancel: SCOPES.DENIED,
             price_override: SCOPES.DENIED
+        },
+        transport: {
+            view_all: SCOPES.DENIED,
+            view_own: SCOPES.OWN_RECORD,
+            create: SCOPES.DENIED,
+            dispatch: SCOPES.DENIED,
+            receive: SCOPES.DENIED
         }
     }
 };
