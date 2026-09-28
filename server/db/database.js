@@ -1924,6 +1924,71 @@ function migratePosCounterBookingSchema() {
     }
 }
 
+/**
+ * Non-destructive runtime migration for Phase 7: COD Settlement & Financial Reconciliation
+ */
+function migrateCODSchema() {
+    try {
+        db.exec(`
+            CREATE TABLE IF NOT EXISTS cod_settlements (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                settlement_number TEXT UNIQUE NOT NULL,
+                shipment_id INTEGER NOT NULL REFERENCES shipments(id) ON DELETE RESTRICT,
+                delivery_id INTEGER REFERENCES deliveries(id) ON DELETE SET NULL,
+                hub_id INTEGER NOT NULL REFERENCES branches(id) ON DELETE RESTRICT,
+                collector_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+                expected_amount REAL NOT NULL DEFAULT 0.0,
+                collected_amount REAL NOT NULL DEFAULT 0.0,
+                remitted_amount REAL NOT NULL DEFAULT 0.0,
+                variance_amount REAL NOT NULL DEFAULT 0.0,
+                currency TEXT NOT NULL DEFAULT 'KES',
+                status TEXT NOT NULL DEFAULT 'PENDING_COLLECTION',
+                collection_method TEXT,
+                collection_reference TEXT,
+                collected_at DATETIME,
+                remittance_method TEXT,
+                remittance_reference TEXT,
+                remitted_at DATETIME,
+                reconciled_by_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+                reconciled_at DATETIME,
+                reconciliation_notes TEXT,
+                variance_reason TEXT,
+                created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+            CREATE INDEX IF NOT EXISTS idx_cod_settlements_shipment ON cod_settlements(shipment_id);
+            CREATE INDEX IF NOT EXISTS idx_cod_settlements_delivery ON cod_settlements(delivery_id);
+            CREATE INDEX IF NOT EXISTS idx_cod_settlements_hub ON cod_settlements(hub_id);
+            CREATE INDEX IF NOT EXISTS idx_cod_settlements_collector ON cod_settlements(collector_id);
+            CREATE INDEX IF NOT EXISTS idx_cod_settlements_status ON cod_settlements(status);
+        `);
+
+        // Seed COD Permissions
+        const codPerms = [
+            { code: 'cod:view', module: 'COD', description: 'View COD settlements and reconciliation records' },
+            { code: 'cod:collect', module: 'COD', description: 'Record COD collection from recipient' },
+            { code: 'cod:remit', module: 'COD', description: 'Remit collected COD funds to finance/depot' },
+            { code: 'cod:reconcile', module: 'COD', description: 'Reconcile and sign off COD settlements and variances' }
+        ];
+
+        for (const p of codPerms) {
+            const exists = db.prepare('SELECT id FROM permissions WHERE code = ?').get(p.code);
+            if (!exists) {
+                const info = db.prepare('INSERT INTO permissions (code, module, description) VALUES (?, ?, ?)').run(p.code, p.module, p.description);
+                const permId = info.lastInsertRowid;
+                db.prepare('INSERT OR IGNORE INTO role_permissions (role_id, permission_id) VALUES (1, ?)').run(permId);
+                db.prepare('INSERT OR IGNORE INTO role_permissions (role_id, permission_id) VALUES (2, ?)').run(permId);
+                if (['cod:view', 'cod:collect', 'cod:remit'].includes(p.code)) {
+                    db.prepare('INSERT OR IGNORE INTO role_permissions (role_id, permission_id) VALUES (4, ?)').run(permId);
+                    db.prepare('INSERT OR IGNORE INTO role_permissions (role_id, permission_id) VALUES (5, ?)').run(permId);
+                }
+            }
+        }
+    } catch (err) {
+        console.warn('COD schema migration notice:', err.message);
+    }
+}
+
 // Initialize schema
 function initSchema() {
     const schemaPath = path.resolve(__dirname, 'schema.sql');
@@ -1946,6 +2011,7 @@ function initSchema() {
     migratePhysicalCustodySchema();
     migrateLastMileSchema();
     migratePosCounterBookingSchema();
+    migrateCODSchema();
 }
 
 // Run non-destructive migrations on load
@@ -1966,6 +2032,7 @@ migrateTransportSchema();
 migratePhysicalCustodySchema();
 migrateLastMileSchema();
 migratePosCounterBookingSchema();
+migrateCODSchema();
 
 module.exports = {
     db,

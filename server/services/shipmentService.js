@@ -238,6 +238,26 @@ function createShipment(data, user = {}) {
         `);
         const legRes = legStmt.run(shipmentId, 1, data.origin_hub_id, data.destination_hub_id, 'PENDING');
 
+        // Auto-initialize COD settlement record if positive COD obligation
+        if (pricing.cod_amount && pricing.cod_amount > 0) {
+            const today = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+            const rand = Math.floor(1000 + Math.random() * 9000);
+            const settlementNum = `COD-${today}-${rand}`;
+            db.prepare(`
+                INSERT INTO cod_settlements (
+                    settlement_number, shipment_id, hub_id,
+                    expected_amount, collected_amount, remitted_amount, variance_amount,
+                    currency, status, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, 0.0, 0.0, 0.0, ?, 'PENDING_COLLECTION', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+            `).run(
+                settlementNum,
+                shipmentId,
+                data.destination_hub_id,
+                pricing.cod_amount,
+                pricing.currency || 'KES'
+            );
+        }
+
         // 4. Insert Initial Booking Tracking Event
         const eventStmt = db.prepare(`
             INSERT INTO tracking_events (

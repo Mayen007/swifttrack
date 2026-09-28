@@ -1897,5 +1897,41 @@ CREATE INDEX IF NOT EXISTS idx_discrepancies_type ON discrepancies(discrepancy_t
 CREATE INDEX IF NOT EXISTS idx_payments_shipment ON payments(shipment_id);
 CREATE INDEX IF NOT EXISTS idx_payment_intents_shipment ON payment_intents(shipment_id);
 
+-- ============================================================================
+-- PHASE 15: CASH ON DELIVERY (COD) SETTLEMENT & RECONCILIATION
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS cod_settlements (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    settlement_number TEXT UNIQUE NOT NULL,
+    shipment_id INTEGER NOT NULL REFERENCES shipments(id) ON DELETE RESTRICT,
+    delivery_id INTEGER REFERENCES deliveries(id) ON DELETE SET NULL,
+    hub_id INTEGER NOT NULL REFERENCES branches(id) ON DELETE RESTRICT,
+    collector_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    expected_amount REAL NOT NULL DEFAULT 0.0,
+    collected_amount REAL NOT NULL DEFAULT 0.0,
+    remitted_amount REAL NOT NULL DEFAULT 0.0,
+    variance_amount REAL NOT NULL DEFAULT 0.0,
+    currency TEXT NOT NULL DEFAULT 'KES',
+    status TEXT NOT NULL DEFAULT 'PENDING_COLLECTION', -- PENDING_COLLECTION, COLLECTED, REMITTED, RECONCILED, DISCREPANT, CANCELLED
+    collection_method TEXT, -- CASH, MPESA, BANK
+    collection_reference TEXT,
+    collected_at DATETIME,
+    remittance_method TEXT, -- BANK_DEPOSIT, MPESA_PAYBILL, CASH_DROP
+    remittance_reference TEXT,
+    remitted_at DATETIME,
+    reconciled_by_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    reconciled_at DATETIME,
+    reconciliation_notes TEXT,
+    variance_reason TEXT,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_cod_settlements_shipment ON cod_settlements(shipment_id);
+CREATE INDEX IF NOT EXISTS idx_cod_settlements_delivery ON cod_settlements(delivery_id);
+CREATE INDEX IF NOT EXISTS idx_cod_settlements_hub ON cod_settlements(hub_id);
+CREATE INDEX IF NOT EXISTS idx_cod_settlements_collector ON cod_settlements(collector_id);
+CREATE INDEX IF NOT EXISTS idx_cod_settlements_status ON cod_settlements(status);
+
+
 
 

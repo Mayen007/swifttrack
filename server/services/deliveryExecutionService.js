@@ -102,6 +102,26 @@ function createDeliveryTask(data, user = {}) {
             JSON.stringify({ delivery_id: deliveryId, delivery_number: deliveryNumber })
         );
 
+        // Link or initialize COD Settlement if shipment has positive COD obligation
+        if (shipment.cod_amount && shipment.cod_amount > 0) {
+            const existingSettlement = db.prepare('SELECT id FROM cod_settlements WHERE shipment_id = ?').get(shipment.id);
+            if (existingSettlement) {
+                db.prepare('UPDATE cod_settlements SET delivery_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
+                    .run(deliveryId, existingSettlement.id);
+            } else {
+                const today = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+                const rand = Math.floor(1000 + Math.random() * 9000);
+                const settlementNum = `COD-${today}-${rand}`;
+                db.prepare(`
+                    INSERT INTO cod_settlements (
+                        settlement_number, shipment_id, delivery_id, hub_id,
+                        expected_amount, collected_amount, remitted_amount, variance_amount,
+                        currency, status, created_at, updated_at
+                    ) VALUES (?, ?, ?, ?, ?, 0.0, 0.0, 0.0, ?, 'PENDING_COLLECTION', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                `).run(settlementNum, shipment.id, deliveryId, branchId, shipment.cod_amount, shipment.currency || 'KES');
+            }
+        }
+
         return getDeliveryById(deliveryId);
     });
 
@@ -425,6 +445,82 @@ function completeDeliveryWithPOD(deliveryId, podData, user = {}) {
                 user.fullName || 'Courier Driver',
                 `Delivered to ${recipientName}. Proof of delivery confirmed.`,
                 JSON.stringify({ recipient: recipientName, pod_verified: true, cod_collected: codCollected })
+            );
+        }
+
+        // Automatic COD Settlement Synchronization on POD Completion
+        if (delivery.shipment_id && delivery.cod_amount_expected > 0) {
+            const codSettlement = db.prepare('SELECT * FROM cod_settlements WHERE shipment_id = ?').get(delivery.shipment_id);
+            const varAmt = Number((codCollected - delivery.cod_amount_expected).toFixed(2));
+            const settlementStatus = varAmt !== 0 ? 'DISCREPANT' : 'COLLECTED';
+            const collMethod = podData.collection_method || 'CASH';
+            const collRef = podData.collection_reference || null;
+
+            if (codSettlement) {
+                db.prepare(`
+                    UPDATE cod_settlements
+                    SET delivery_id = ?,
+                        collected_amount = ?,
+                        collection_method = ?,
+                        collection_reference = ?,
+                        variance_amount = ?,
+                        status = ?,
+                        collector_id = ?,
+                        collected_at = CURRENT_TIMESTAMP,
+                        updated_at = CURRENT_TIMESTAMP
+                    WHERE id = ?
+                `).run(
+                    deliveryId,
+                    codCollected,
+                    collMethod,
+                    collRef,
+                    varAmt,
+                    settlementStatus,
+                    user.id || delivery.driver_id || null,
+                    codSettlement.id
+                );
+            } else {
+                const today = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+                const rand = Math.floor(1000 + Math.random() * 9000);
+                const settlementNumber = `COD-${today}-${rand}`;
+                db.prepare(`
+                    INSERT INTO cod_settlements (
+                        settlement_number, shipment_id, delivery_id, hub_id, collector_id,
+                        expected_amount, collected_amount, remitted_amount, variance_amount,
+                        currency, status, collection_method, collection_reference,
+                        collected_at, created_at, updated_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, 0.0, ?, 'KES', ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                `).run(
+                    settlementNumber,
+                    delivery.shipment_id,
+                    deliveryId,
+                    delivery.hub_id,
+                    user.id || delivery.driver_id || null,
+                    delivery.cod_amount_expected,
+                    codCollected,
+                    varAmt,
+                    settlementStatus,
+                    collMethod,
+                    collRef
+                );
+            }
+
+            // Record COD_COLLECTED tracking event
+            db.prepare(`
+                INSERT INTO tracking_events (
+                    shipment_id, event_code, event_name,
+                    hub_id, location_desc, latitude, longitude,
+                    actor_type, actor_name, description, is_customer_visible, metadata
+                ) VALUES (?, 'COD_COLLECTED', 'Cash on Delivery Collected', ?, ?, ?, ?, 'DRIVER', ?, ?, 1, ?)
+            `).run(
+                delivery.shipment_id,
+                delivery.hub_id,
+                delivery.destination_city || 'Recipient Location',
+                podData.latitude || null,
+                podData.longitude || null,
+                user.fullName || 'Courier Driver',
+                `COD collected: KES ${codCollected.toFixed(2)} via ${collMethod}.${varAmt !== 0 ? ` Variance noted: KES ${varAmt.toFixed(2)}` : ''}`,
+                JSON.stringify({ cod_collected: codCollected, variance: varAmt, method: collMethod, reference: collRef })
             );
         }
 

@@ -107,6 +107,12 @@ const AUTHORIZATION_MATRIX = {
             create: SCOPES.GLOBAL,
             view: SCOPES.GLOBAL,
             manage: SCOPES.GLOBAL
+        },
+        cod: {
+            view: SCOPES.GLOBAL,
+            collect: SCOPES.GLOBAL,
+            remit: SCOPES.GLOBAL,
+            reconcile: SCOPES.GLOBAL
         }
     },
 
@@ -200,6 +206,12 @@ const AUTHORIZATION_MATRIX = {
             create: SCOPES.OWN_BRANCH,
             view: SCOPES.OWN_BRANCH,
             manage: SCOPES.OWN_BRANCH
+        },
+        cod: {
+            view: SCOPES.OWN_BRANCH,
+            collect: SCOPES.OWN_BRANCH,
+            remit: SCOPES.OWN_BRANCH,
+            reconcile: SCOPES.OWN_BRANCH
         }
     },
 
@@ -289,6 +301,12 @@ const AUTHORIZATION_MATRIX = {
             create: SCOPES.OWN_BRANCH,
             view: SCOPES.OWN_BRANCH,
             manage: SCOPES.OWN_BRANCH
+        },
+        cod: {
+            view: SCOPES.OWN_BRANCH,
+            collect: SCOPES.DENIED,
+            remit: SCOPES.DENIED,
+            reconcile: SCOPES.DENIED
         }
     },
 
@@ -378,6 +396,12 @@ const AUTHORIZATION_MATRIX = {
             create: SCOPES.OWN_BRANCH,
             view: SCOPES.OWN_BRANCH,
             manage: SCOPES.DENIED
+        },
+        cod: {
+            view: SCOPES.OWN_BRANCH,
+            collect: SCOPES.OWN_BRANCH,
+            remit: SCOPES.OWN_BRANCH,
+            reconcile: SCOPES.DENIED
         }
     },
 
@@ -467,6 +491,12 @@ const AUTHORIZATION_MATRIX = {
             create: SCOPES.OWN_RECORD,
             view: SCOPES.OWN_RECORD,
             manage: SCOPES.DENIED
+        },
+        cod: {
+            view: SCOPES.OWN_RECORD,
+            collect: SCOPES.OWN_RECORD,
+            remit: SCOPES.OWN_RECORD,
+            reconcile: SCOPES.DENIED
         }
     }
 };
