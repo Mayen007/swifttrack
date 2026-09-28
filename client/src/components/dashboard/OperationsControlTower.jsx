@@ -363,9 +363,9 @@ export function OperationsControlTower({ onNavigate }) {
           <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-3.5 hover:border-slate-700 transition-colors">
             <div className="flex items-center justify-between text-xs text-slate-400 mb-1">
               <span className="font-semibold uppercase tracking-wider">5. Last Mile</span>
-              <span className="w-2 h-2 rounded-full bg-purple-400" />
+              <span className="w-2 h-2 rounded-full bg-sky-400" />
             </div>
-            <div className="text-2xl font-black text-purple-400">
+            <div className="text-2xl font-black text-sky-400">
               {(lifecycle.ready_for_delivery || 0) + (lifecycle.out_for_delivery || 0)}
             </div>
             <div className="text-[11px] text-slate-400 mt-1">
@@ -685,7 +685,7 @@ export function OperationsControlTower({ onNavigate }) {
 
                 <div className="bg-slate-950/60 p-2 rounded-lg">
                   <span className="text-slate-400 block text-[10px]">Active Deliveries</span>
-                  <span className="text-sm font-bold text-purple-400">{hub.active_deliveries}</span>
+                  <span className="text-sm font-bold text-sky-400">{hub.active_deliveries}</span>
                 </div>
               </div>
             </div>

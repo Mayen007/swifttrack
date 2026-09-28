@@ -120,7 +120,7 @@ export function ProductTable({
                           ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30'
                           : p.tax_category === 'EXEMPT'
                           ? 'bg-slate-700/40 text-slate-300 border border-slate-600'
-                          : 'bg-purple-500/10 text-purple-300 border border-purple-500/30'
+                          : 'bg-blue-500/10 text-blue-300 border border-blue-500/30'
                       }`}
                     >
                       {p.tax_category === 'ZERO_RATED_0'

@@ -22,7 +22,8 @@ import {
   RotateCcw,
   Clock,
   Layers,
-  FileText
+  FileText,
+  X
 } from 'lucide-react';
 import { api } from '../../services/api.js';
 import { sound } from '../../services/sound.js';
@@ -1035,9 +1036,10 @@ export function ParcelCounterBooking({ user, activeShift, onRefreshShift, onOpen
               </div>
               <button
                 onClick={() => setPaymentModalOpen(false)}
-                className="p-1 rounded text-slate-400 hover:text-white"
+                className="p-1 rounded text-slate-400 hover:text-white cursor-pointer"
+                aria-label="Close"
               >
-                ✕
+                <X className="w-4 h-4" />
               </button>
             </div>
 
@@ -1221,7 +1223,13 @@ export function ParcelCounterBooking({ user, activeShift, onRefreshShift, onOpen
                 <Printer className="w-4 h-4 text-blue-400" />
                 <span>Reprint Consignment Waybill</span>
               </h3>
-              <button onClick={() => setReprintModalOpen(false)} className="text-slate-400 hover:text-white">✕</button>
+              <button
+                onClick={() => setReprintModalOpen(false)}
+                className="p-1 rounded text-slate-400 hover:text-white cursor-pointer"
+                aria-label="Close"
+              >
+                <X className="w-4 h-4" />
+              </button>
             </div>
 
             <div>

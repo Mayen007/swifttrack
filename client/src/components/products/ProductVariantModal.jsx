@@ -141,7 +141,7 @@ export function ProductVariantModal({ isOpen, onClose, product, onVariantUpdated
                       <td className="py-2.5 px-3">
                         <div className="flex items-center gap-1.5 flex-wrap">
                           {v.size && <span className="px-1.5 py-0.5 rounded bg-blue-500/10 border border-blue-500/20 text-blue-300 text-[10px]">Size: {v.size}</span>}
-                          {v.color && <span className="px-1.5 py-0.5 rounded bg-purple-500/10 border border-purple-500/20 text-purple-300 text-[10px]">Color: {v.color}</span>}
+                          {v.color && <span className="px-1.5 py-0.5 rounded bg-cyan-500/10 border border-cyan-500/20 text-cyan-300 text-[10px]">Color: {v.color}</span>}
                           {v.model && <span className="px-1.5 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 text-[10px]">Model: {v.model}</span>}
                         </div>
                       </td>

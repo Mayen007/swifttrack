@@ -12,7 +12,8 @@ import {
   Eye,
   EyeOff,
   ArrowRight,
-  ShieldAlert
+  ShieldAlert,
+  X
 } from 'lucide-react';
 
 export function PasswordChangeModal({ isOpen, onClose, isMandatory = false }) {
@@ -97,7 +98,7 @@ export function PasswordChangeModal({ isOpen, onClose, isMandatory = false }) {
                 className="text-slate-400 hover:text-white transition-colors cursor-pointer p-1"
                 aria-label="Close dialog"
               >
-                ✕
+                <X className="w-4 h-4" />
               </button>
             )}
           </div>

@@ -116,7 +116,7 @@ export function NotificationsDrawer({ isOpen, onClose, onRefreshCount }) {
               notifications.map((n) => {
                 const getIcon = () => {
                   if (n.type === 'LOW_STOCK') return <AlertTriangle className="w-4 h-4 text-amber-400" />;
-                  if (n.type === 'REFUND_REQUEST') return <RotateCcw className="w-4 h-4 text-purple-400" />;
+                  if (n.type === 'REFUND_REQUEST') return <RotateCcw className="w-4 h-4 text-rose-400" />;
                   if (n.type === 'DISPATCH_ASSIGNED') return <Truck className="w-4 h-4 text-blue-400" />;
                   return <Bell className="w-4 h-4 text-blue-400" />;
                 };

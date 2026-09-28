@@ -32,7 +32,8 @@ import {
   User,
   Package,
   Calendar,
-  Key
+  Key,
+  X
 } from 'lucide-react';
 
 export function CommunicationsView() {
@@ -289,7 +290,7 @@ export function CommunicationsView() {
       {/* Header Bar */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-slate-900/60 border border-slate-800/80 p-5 rounded-2xl backdrop-blur-xl">
         <div className="flex items-center gap-3">
-          <div className="p-3 rounded-xl bg-gradient-to-br from-indigo-500/20 to-purple-500/20 border border-indigo-500/30 text-indigo-400">
+          <div className="p-3 rounded-xl bg-blue-500/10 border border-blue-500/20 text-blue-400">
             <Radio className="w-6 h-6 animate-pulse" />
           </div>
           <div>
@@ -330,7 +331,7 @@ export function CommunicationsView() {
 
               <button
                 onClick={() => { sound.playClick(); setTestModalOpen(true); }}
-                className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-semibold text-sm shadow-lg shadow-indigo-600/30 hover:shadow-indigo-600/50 transition-all flex items-center gap-2"
+                className="px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-semibold text-sm shadow-sm transition-all flex items-center gap-2"
               >
                 <Send className="w-4 h-4" />
                 <span>Send Test Dispatch</span>
@@ -794,9 +795,10 @@ export function CommunicationsView() {
               </div>
               <button
                 onClick={() => setTestModalOpen(false)}
-                className="text-slate-400 hover:text-slate-200"
+                className="p-1 rounded text-slate-400 hover:text-white cursor-pointer"
+                aria-label="Close"
               >
-                ✕
+                <X className="w-4 h-4" />
               </button>
             </div>
 
@@ -881,7 +883,7 @@ export function CommunicationsView() {
                 <button
                   type="submit"
                   disabled={actionLoading}
-                  className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-semibold text-sm shadow-lg shadow-indigo-600/30 flex items-center gap-2"
+                  className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-semibold text-sm shadow-sm flex items-center gap-2"
                 >
                   <Send className={`w-4 h-4 ${actionLoading ? 'animate-spin' : ''}`} />
                   <span>Send Test Now</span>
@@ -906,9 +908,10 @@ export function CommunicationsView() {
               </div>
               <button
                 onClick={() => setEditTemplateModalOpen(false)}
-                className="text-slate-400 hover:text-slate-200"
+                className="p-1 rounded text-slate-400 hover:text-white cursor-pointer"
+                aria-label="Close"
               >
-                ✕
+                <X className="w-4 h-4" />
               </button>
             </div>
 
@@ -966,7 +969,7 @@ export function CommunicationsView() {
                 <button
                   type="submit"
                   disabled={actionLoading}
-                  className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-semibold text-sm shadow-lg shadow-indigo-600/30 flex items-center gap-2"
+                  className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-semibold text-sm shadow-sm flex items-center gap-2"
                 >
                   <CheckCircle2 className={`w-4 h-4 ${actionLoading ? 'animate-spin' : ''}`} />
                   <span>Save Template</span>

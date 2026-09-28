@@ -912,6 +912,74 @@ function receiveManifest(runId, receivedShipmentIds = [], user = {}) {
     return executeTx();
 }
 
+/**
+ * Lists linehaul manifests with hub details
+ */
+function listManifests(query = {}) {
+    let sql = `
+        SELECT m.*,
+               b1.name as origin_hub_name, b1.code as origin_hub_code,
+               b2.name as destination_hub_name, b2.code as destination_hub_code,
+               tr.run_number, tr.status as run_status
+        FROM manifests m
+        LEFT JOIN branches b1 ON m.origin_hub_id = b1.id
+        LEFT JOIN branches b2 ON m.destination_hub_id = b2.id
+        LEFT JOIN transport_runs tr ON m.transport_run_id = tr.id
+        WHERE 1=1
+    `;
+    const params = [];
+    if (query.origin_hub_id) {
+        sql += ` AND m.origin_hub_id = ?`;
+        params.push(query.origin_hub_id);
+    }
+    if (query.destination_hub_id) {
+        sql += ` AND m.destination_hub_id = ?`;
+        params.push(query.destination_hub_id);
+    }
+    if (query.status && query.status !== 'ALL') {
+        sql += ` AND m.status = ?`;
+        params.push(query.status);
+    }
+    sql += ` ORDER BY m.created_at DESC`;
+    const manifests = db.prepare(sql).all(...params);
+    return {
+        manifests,
+        total: manifests.length
+    };
+}
+
+/**
+ * Gets manifest details by ID with loaded items
+ */
+function getManifestById(id) {
+    const manifest = db.prepare(`
+        SELECT m.*,
+               b1.name as origin_hub_name, b1.code as origin_hub_code,
+               b2.name as destination_hub_name, b2.code as destination_hub_code,
+               tr.run_number, tr.status as run_status
+        FROM manifests m
+        LEFT JOIN branches b1 ON m.origin_hub_id = b1.id
+        LEFT JOIN branches b2 ON m.destination_hub_id = b2.id
+        LEFT JOIN transport_runs tr ON m.transport_run_id = tr.id
+        WHERE m.id = ? OR m.manifest_number = ?
+    `).get(id, id);
+
+    if (!manifest) return null;
+
+    const items = db.prepare(`
+        SELECT mi.*, s.tracking_number, s.waybill_number, s.status as shipment_status,
+               s.sender_name, s.recipient_name, s.actual_weight_kg, s.total_amount
+        FROM manifest_items mi
+        LEFT JOIN shipments s ON mi.shipment_id = s.id
+        WHERE mi.manifest_id = ?
+    `).all(manifest.id);
+
+    return {
+        ...manifest,
+        items
+    };
+}
+
 module.exports = {
     RUN_STATUSES,
     ALLOWED_RUN_TRANSITIONS,
@@ -929,5 +997,7 @@ module.exports = {
     dispatchTransportRun,
     recordCheckpoint,
     arriveTransportRun,
-    receiveManifest
+    receiveManifest,
+    listManifests,
+    getManifestById
 };

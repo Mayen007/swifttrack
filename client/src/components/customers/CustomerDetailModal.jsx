@@ -752,7 +752,7 @@ export function CustomerDetailModal({ customerId, isOpen, onClose, onCustomerUpd
                               <td className="p-3 text-gray-400">{new Date(ord.created_at).toLocaleDateString()}</td>
                               <td className="p-3">
                                 <span className={`text-[10px] px-2 py-0.5 rounded font-semibold ${
-                                  ord.order_type === 'DELIVERY_ORDER' ? 'bg-purple-500/10 text-purple-400' : 'bg-blue-500/10 text-blue-400'
+                                  ord.order_type === 'DELIVERY_ORDER' ? 'bg-amber-500/10 text-amber-400' : 'bg-blue-500/10 text-blue-400'
                                 }`}>
                                   {ord.order_type}
                                 </span>

@@ -502,7 +502,7 @@ export function UsersView() {
   const getRoleBadgeStyle = (roleName) => {
     switch (roleName) {
       case 'SUPER_ADMIN':
-        return 'bg-purple-950/70 text-purple-300 border-purple-800/60';
+        return 'bg-amber-950/70 text-amber-300 border-amber-800/60';
       case 'BRANCH_MANAGER':
         return 'bg-emerald-950/70 text-emerald-300 border-emerald-800/60';
       case 'DISPATCHER':
@@ -550,7 +550,7 @@ export function UsersView() {
             title="Inspect comprehensive RBAC capability privileges"
             className="px-3 py-1.5 rounded border border-[#222834] bg-[#181d28] hover:bg-[#202736] text-xs font-mono text-slate-300 hover:text-white flex items-center gap-1.5 transition-colors cursor-pointer"
           >
-            <Layers className="w-3.5 h-3.5 text-purple-400" />
+            <Layers className="w-3.5 h-3.5 text-blue-400" />
             <span>RBAC MATRIX</span>
           </button>
 
@@ -616,7 +616,7 @@ export function UsersView() {
             <span className="font-mono text-[10px] tracking-wider uppercase text-slate-400">
               RBAC TIERS
             </span>
-            <Shield className="w-4 h-4 text-purple-400" />
+            <Shield className="w-4 h-4 text-emerald-400" />
           </div>
           <div className="mt-2 flex items-baseline gap-2">
             <span className="font-mono text-2xl font-bold text-white tracking-tight tabular-nums">
@@ -626,7 +626,7 @@ export function UsersView() {
           </div>
           <div className="mt-2 pt-2 border-t border-[#222834] flex items-center justify-between font-mono text-[10px]">
             <span className="text-slate-400">31 CAPABILITIES</span>
-            <span className="text-purple-400 font-bold">STRICT ACCESS</span>
+            <span className="text-emerald-400 font-bold">STRICT ACCESS</span>
           </div>
         </div>
 
@@ -903,7 +903,7 @@ export function UsersView() {
                       <td className="p-3">
                         <div className="space-y-0.5 text-[11px]">
                           <div className="flex items-center gap-1 text-slate-300">
-                            <Mail className="w-3 h-3 text-purple-400 shrink-0" />
+                            <Mail className="w-3 h-3 text-slate-400 shrink-0" />
                             <span className="truncate max-w-[170px]">{u.email}</span>
                           </div>
                           <div className="flex items-center gap-1 text-slate-400">
@@ -1024,7 +1024,7 @@ export function UsersView() {
                               title={`Instant switch demo persona to ${roleName} (${u.full_name})`}
                               className="p-1.5 rounded bg-[#181d28] hover:bg-[#222938] text-slate-300 hover:text-white border border-[#222834] transition-colors cursor-pointer text-[10px] font-mono"
                             >
-                              <RotateCcw className="w-3.5 h-3.5 text-purple-400" />
+                              <RotateCcw className="w-3.5 h-3.5 text-blue-400" />
                             </button>
                           )}
                         </div>
@@ -1445,7 +1445,7 @@ export function UsersView() {
             {/* Header */}
             <div className="p-4 border-b border-[#222834] flex items-center justify-between bg-[#181d28] shrink-0">
               <div className="flex items-center gap-2">
-                <Layers className="w-4 h-4 text-purple-400" />
+                <Layers className="w-4 h-4 text-blue-400" />
                 <h3 className="font-bold text-sm text-white font-mono uppercase tracking-wider">
                   ROLE-BASED ACCESS CONTROL (RBAC) CAPABILITY MATRIX
                 </h3>
@@ -1616,7 +1616,7 @@ export function UsersView() {
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-slate-400">OFFICIAL EMAIL:</span>
-                  <span className="text-purple-300">{inspectingUser.email}</span>
+                  <span className="text-slate-200">{inspectingUser.email}</span>
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-slate-400">HOTLINE PHONE:</span>

@@ -171,7 +171,7 @@ export function ProcurementView() {
       case 'CANCELLED':
         return <span className="px-2.5 py-0.5 rounded-full text-xs font-mono font-medium bg-rose-500/10 text-rose-400 border border-rose-500/20">{status}</span>;
       case 'CONVERTED_TO_PO':
-        return <span className="px-2.5 py-0.5 rounded-full text-xs font-mono font-medium bg-purple-500/10 text-purple-400 border border-purple-500/20">PO CONVERTED</span>;
+        return <span className="px-2.5 py-0.5 rounded-full text-xs font-mono font-medium bg-blue-500/10 text-blue-400 border border-blue-500/20">PO CONVERTED</span>;
       default:
         return <span className="px-2.5 py-0.5 rounded-full text-xs font-mono font-medium bg-slate-800 text-slate-400 border border-slate-700">{status}</span>;
     }

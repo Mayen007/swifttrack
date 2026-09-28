@@ -34,7 +34,7 @@ export function AuditKpis({ kpis }) {
           <span className="font-mono text-[10px] tracking-wider uppercase text-slate-400">
             STATE MUTATIONS
           </span>
-          <Activity className="w-4 h-4 text-purple-400" />
+          <Activity className="w-4 h-4 text-cyan-400" />
         </div>
         <div className="mt-2 flex items-baseline gap-2">
           <span className="font-mono text-2xl font-bold text-white tracking-tight tabular-nums">
@@ -44,7 +44,7 @@ export function AuditKpis({ kpis }) {
         </div>
         <div className="mt-2 pt-2 border-t border-[#222834] flex items-center justify-between font-mono text-[10px]">
           <span className="text-slate-400">BEFORE / AFTER</span>
-          <span className="text-purple-400 font-bold">PRESERVED</span>
+          <span className="text-cyan-400 font-bold">PRESERVED</span>
         </div>
       </div>
 

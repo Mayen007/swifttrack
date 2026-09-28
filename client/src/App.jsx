@@ -221,9 +221,9 @@ function MainApp() {
 
         <main
           ref={mainScrollRef}
-          className="flex-1 overflow-y-auto p-3.5 sm:p-6 lg:p-8 [scrollbar-gutter:stable]"
+          className="flex-1 overflow-y-auto p-3 sm:p-4 lg:p-5 [scrollbar-gutter:stable]"
         >
-          <div className="max-w-7xl mx-auto">{renderView()}</div>
+          <div className="w-full max-w-[1760px] mx-auto">{renderView()}</div>
         </main>
       </div>
 

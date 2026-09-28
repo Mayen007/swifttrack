@@ -156,7 +156,7 @@ export function InventoryTable({
                       <button
                         onClick={() => onInspectBatches && onInspectBatches(it)}
                         title="View & Manage Batch Lots"
-                        className="p-1 rounded border border-[#222834] bg-[#181d28] hover:bg-purple-950/50 text-purple-400 hover:text-purple-300 transition-colors cursor-pointer"
+                        className="p-1 rounded border border-[#222834] bg-[#181d28] hover:bg-blue-950/50 text-blue-400 hover:text-blue-300 transition-colors cursor-pointer"
                       >
                         <Boxes className="w-3.5 h-3.5" />
                       </button>

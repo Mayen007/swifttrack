@@ -215,7 +215,7 @@ export function LoginView() {
     { label: 'Branch Manager', username: 'manager.nairobi', role: 'BRANCH_MANAGER', branch: 'Nairobi Hub', branchId: 1, color: 'text-blue-400' },
     { label: 'Dispatcher', username: 'dispatcher.nairobi', role: 'DISPATCHER', branch: 'Nairobi Logistics', branchId: 1, color: 'text-indigo-400' },
     { label: 'POS Cashier', username: 'cashier.nairobi', role: 'CASHIER', branch: 'Nairobi Retail', branchId: 1, color: 'text-emerald-400' },
-    { label: 'Delivery Driver', username: 'driver.nairobi', role: 'DRIVER', branch: 'Nairobi Fleet', branchId: 1, color: 'text-purple-400' },
+    { label: 'Delivery Driver', username: 'driver.nairobi', role: 'DRIVER', branch: 'Nairobi Fleet', branchId: 1, color: 'text-sky-400' },
     { label: 'Mombasa Manager', username: 'manager.mombasa', role: 'BRANCH_MANAGER', branch: 'Coast Port', branchId: 2, color: 'text-cyan-400' },
   ];
 

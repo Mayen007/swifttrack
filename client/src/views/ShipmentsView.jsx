@@ -174,7 +174,7 @@ export function ShipmentsView({ onNavigate }) {
       case 'AT_HUB':
       case 'AT_ORIGIN_HUB':
       case 'SORTED':
-        return 'bg-purple-500/10 text-purple-400 border-purple-500/20';
+        return 'bg-cyan-500/10 text-cyan-400 border-cyan-500/20';
       case 'BOOKED':
       case 'ACCEPTED':
         return 'bg-amber-500/10 text-amber-400 border-amber-500/20';
@@ -188,9 +188,9 @@ export function ShipmentsView({ onNavigate }) {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* View Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-[#12161f] border border-[#222834] p-5 rounded-2xl">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-[#12161f] border border-[#222834] p-3.5 sm:p-4 rounded-xl">
         <div>
           <div className="flex items-center gap-2">
             <span className="h-2.5 w-2.5 rounded-full bg-blue-500 animate-pulse" />
@@ -224,31 +224,31 @@ export function ShipmentsView({ onNavigate }) {
       </div>
 
       {/* Metrics Banner */}
-      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3.5">
-        <div className="bg-[#12161f] border border-[#222834] p-4 rounded-xl">
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5">
+        <div className="bg-[#12161f] border border-[#222834] p-3 rounded-xl">
           <p className="text-[11px] font-medium text-slate-400 uppercase tracking-wider">Total Consignments</p>
           <p className="text-2xl font-bold text-white mt-1">{metrics.total}</p>
         </div>
-        <div className="bg-[#12161f] border border-[#222834] p-4 rounded-xl">
+        <div className="bg-[#12161f] border border-[#222834] p-3 rounded-xl">
           <p className="text-[11px] font-medium text-blue-400 uppercase tracking-wider">In Transit Linehaul</p>
           <p className="text-2xl font-bold text-blue-400 mt-1">{metrics.inTransit}</p>
         </div>
-        <div className="bg-[#12161f] border border-[#222834] p-4 rounded-xl">
-          <p className="text-[11px] font-medium text-purple-400 uppercase tracking-wider">At Hubs / Staging</p>
-          <p className="text-2xl font-bold text-purple-400 mt-1">{metrics.atHub}</p>
+        <div className="bg-[#12161f] border border-[#222834] p-3 rounded-xl">
+          <p className="text-[11px] font-medium text-cyan-400 uppercase tracking-wider">At Hubs / Staging</p>
+          <p className="text-2xl font-bold text-cyan-400 mt-1">{metrics.atHub}</p>
         </div>
-        <div className="bg-[#12161f] border border-[#222834] p-4 rounded-xl">
+        <div className="bg-[#12161f] border border-[#222834] p-3 rounded-xl">
           <p className="text-[11px] font-medium text-emerald-400 uppercase tracking-wider">Delivered & POD</p>
           <p className="text-2xl font-bold text-emerald-400 mt-1">{metrics.delivered}</p>
         </div>
-        <div className="bg-[#12161f] border border-[#222834] p-4 rounded-xl col-span-2 sm:col-span-1">
+        <div className="bg-[#12161f] border border-[#222834] p-3 rounded-xl col-span-2 sm:col-span-1">
           <p className="text-[11px] font-medium text-rose-400 uppercase tracking-wider">Exceptions / On Hold</p>
           <p className="text-2xl font-bold text-rose-400 mt-1">{metrics.exceptions}</p>
         </div>
       </div>
 
       {/* Filter & Search Bar */}
-      <div className="bg-[#12161f] border border-[#222834] p-4 rounded-xl flex flex-col md:flex-row md:items-center justify-between gap-3">
+      <div className="bg-[#12161f] border border-[#222834] p-3 rounded-xl flex flex-col md:flex-row md:items-center justify-between gap-3">
         <div className="relative flex-1 max-w-md">
           <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
           <input
@@ -299,13 +299,13 @@ export function ShipmentsView({ onNavigate }) {
           <table className="w-full text-left text-xs">
             <thead className="bg-[#181d28] text-slate-400 font-semibold border-b border-[#222834]">
               <tr>
-                <th className="py-3 px-4">Tracking & Waybill</th>
-                <th className="py-3 px-4">Route & Corridors</th>
-                <th className="py-3 px-4">Shipper $\to$ Consignee</th>
-                <th className="py-3 px-4">Parcels & Weight</th>
-                <th className="py-3 px-4">Billing & COD</th>
-                <th className="py-3 px-4">Current Status</th>
-                <th className="py-3 px-4 text-right">Actions</th>
+                <th className="py-2 px-3">Tracking & Waybill</th>
+                <th className="py-2 px-3">Route & Corridors</th>
+                <th className="py-2 px-3">Shipper $\to$ Consignee</th>
+                <th className="py-2 px-3">Parcels & Weight</th>
+                <th className="py-2 px-3">Billing & COD</th>
+                <th className="py-2 px-3">Current Status</th>
+                <th className="py-2 px-3 text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[#222834] text-slate-300">
@@ -330,7 +330,7 @@ export function ShipmentsView({ onNavigate }) {
                     onClick={() => handleSelectShipment(s)}
                     className="hover:bg-white/[0.02] cursor-pointer transition"
                   >
-                    <td className="py-3.5 px-4">
+                    <td className="py-2 px-3">
                       <div className="flex items-center gap-1.5">
                         <span className="font-mono font-bold text-white tracking-wide">{s.tracking_number}</span>
                         <button
@@ -348,7 +348,7 @@ export function ShipmentsView({ onNavigate }) {
                       </div>
                     </td>
 
-                    <td className="py-3.5 px-4">
+                    <td className="py-2 px-3">
                       <div className="flex items-center gap-1.5 font-medium text-white">
                         <span>Hub #{s.origin_hub_id}</span>
                         <ArrowRight className="w-3 h-3 text-slate-500" />
@@ -359,14 +359,14 @@ export function ShipmentsView({ onNavigate }) {
                       </div>
                     </td>
 
-                    <td className="py-3.5 px-4">
+                    <td className="py-2 px-3">
                       <div className="font-medium text-white">{s.sender_name || 'Shipper'}</div>
                       <div className="text-[10px] text-slate-400 mt-0.5 flex items-center gap-1">
                         $\to$ {s.recipient_name || 'Consignee'} ({s.recipient_city || 'City'})
                       </div>
                     </td>
 
-                    <td className="py-3.5 px-4">
+                    <td className="py-2 px-3">
                       <div className="text-white font-medium">
                         {s.total_parcels || 1} pkg ({s.actual_weight_kg || 0} kg)
                       </div>
@@ -375,7 +375,7 @@ export function ShipmentsView({ onNavigate }) {
                       </div>
                     </td>
 
-                    <td className="py-3.5 px-4">
+                    <td className="py-2 px-3">
                       <div className="font-medium text-white">
                         {s.currency || 'KES'} {(s.total_amount || 0).toLocaleString()}
                       </div>
@@ -388,14 +388,14 @@ export function ShipmentsView({ onNavigate }) {
                       )}
                     </td>
 
-                    <td className="py-3.5 px-4">
+                    <td className="py-2 px-3">
                       <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold border ${getStatusColor(s.status)}`}>
                         <span className="w-1.5 h-1.5 rounded-full bg-current" />
                         {s.status}
                       </span>
                     </td>
 
-                    <td className="py-3.5 px-4 text-right" onClick={(e) => e.stopPropagation()}>
+                    <td className="py-2 px-3 text-right" onClick={(e) => e.stopPropagation()}>
                       <div className="flex items-center justify-end gap-1.5">
                         <button
                           onClick={() => handleOpenTransitionModal(s)}
@@ -462,7 +462,7 @@ export function ShipmentsView({ onNavigate }) {
             </div>
 
             {/* Route & Corridors */}
-            <div className="bg-[#12161f] border border-[#222834] p-4 rounded-xl space-y-3">
+            <div className="bg-[#12161f] border border-[#222834] p-3 rounded-xl space-y-3">
               <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Multi-Leg Route & Scope</h3>
               <div className="flex items-center justify-between text-xs text-white">
                 <div>
@@ -509,7 +509,7 @@ export function ShipmentsView({ onNavigate }) {
             </div>
 
             {/* Parcels List */}
-            <div className="bg-[#12161f] border border-[#222834] p-4 rounded-xl space-y-3">
+            <div className="bg-[#12161f] border border-[#222834] p-3 rounded-xl space-y-3">
               <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center justify-between">
                 <span>Parcels ({parcels.length})</span>
                 <span className="font-mono text-slate-300 font-normal">Actual: {selectedShipment.actual_weight_kg || 0} kg</span>
@@ -532,7 +532,7 @@ export function ShipmentsView({ onNavigate }) {
             </div>
 
             {/* Tracking History Timeline */}
-            <div className="bg-[#12161f] border border-[#222834] p-4 rounded-xl space-y-3 flex-1">
+            <div className="bg-[#12161f] border border-[#222834] p-3 rounded-xl space-y-3 flex-1">
               <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Custody & Tracking Events</h3>
               <div className="relative pl-4 border-l border-blue-500/20 space-y-4 my-2">
                 {trackingEvents.length === 0 ? (

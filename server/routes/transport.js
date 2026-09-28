@@ -160,4 +160,29 @@ router.post('/runs/:id/receive', authenticateToken, (req, res) => {
     }
 });
 
+// --- MANIFESTS DIRECT LEDGER ---
+
+// GET /api/v1/transport/manifests - List linehaul manifests
+router.get('/manifests', authenticateToken, (req, res) => {
+    try {
+        const result = transportService.listManifests(req.query);
+        res.json(result);
+    } catch (err) {
+        console.error('List manifests error:', err);
+        res.status(err.statusCode || 500).json({ error: err.message });
+    }
+});
+
+// GET /api/v1/transport/manifests/:id - Get manifest details with loaded items
+router.get('/manifests/:id', authenticateToken, (req, res) => {
+    try {
+        const manifest = transportService.getManifestById(req.params.id);
+        if (!manifest) return res.status(404).json({ error: 'Manifest not found' });
+        res.json(manifest);
+    } catch (err) {
+        console.error('Get manifest error:', err);
+        res.status(err.statusCode || 500).json({ error: err.message });
+    }
+});
+
 module.exports = router;

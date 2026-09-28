@@ -88,7 +88,7 @@ export function BranchInspectorModal({
                 <span>{hub.phone}</span>
               </div>
               <div className="flex items-center gap-1.5">
-                <Mail className="w-3.5 h-3.5 text-purple-400 shrink-0" />
+                <Mail className="w-3.5 h-3.5 text-slate-400 shrink-0" />
                 <span>{hub.email}</span>
               </div>
             </div>

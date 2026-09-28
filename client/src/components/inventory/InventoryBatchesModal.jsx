@@ -99,7 +99,7 @@ export function InventoryBatchesModal({ isOpen, onClose, item, onBatchUpdated })
         <div className="flex items-center justify-between px-5 py-4 border-b border-[#222834] bg-[#0e121a]">
           <div>
             <div className="flex items-center gap-2">
-              <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-purple-500/20 text-purple-400 border border-purple-500/30">
+              <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-500/20 text-blue-400 border border-blue-500/30">
                 BATCH / LOT TRACKING
               </span>
               <h2 className="text-sm font-bold text-white uppercase">{item.product_name}</h2>

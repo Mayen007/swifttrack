@@ -31,7 +31,8 @@ import {
   Undo2,
   ArrowUpRight,
   Hash,
-  X
+  X,
+  Zap
 } from 'lucide-react';
 
 export const PAYMENT_STATUS_STEPS = [
@@ -372,7 +373,7 @@ export function PaymentsView() {
       case 'CANCELLED':
         return 'bg-slate-600/20 text-slate-400 border-slate-600/40';
       case 'REFUNDED':
-        return 'bg-purple-500/20 text-purple-300 border-purple-500/40';
+        return 'bg-rose-500/20 text-rose-300 border-rose-500/40';
       default:
         return 'bg-gray-800 text-gray-300 border-gray-700';
     }
@@ -693,7 +694,7 @@ export function PaymentsView() {
                         {it.status === 'SUCCESS' && (
                           <button
                             onClick={() => openRefundModal(it)}
-                            className="p-1 rounded bg-[#161c28] hover:bg-[#202738] text-purple-400 hover:text-purple-300 border border-[#222834] cursor-pointer"
+                            className="p-1 rounded bg-[#161c28] hover:bg-[#202738] text-rose-400 hover:text-rose-300 border border-[#222834] cursor-pointer"
                             title="Refund Payment"
                           >
                             <Undo2 className="w-3.5 h-3.5" />
@@ -799,8 +800,9 @@ export function PaymentsView() {
                     onChange={(e) => setFormPhone(e.target.value)}
                     className="w-full p-2 rounded bg-[#0c0e12] border border-[#222834] text-white focus:border-amber-400 focus:outline-none"
                   />
-                  <span className="text-[10px] text-emerald-400 mt-1 block">
-                    ⚡ Lipa Na M-Pesa Online STK push will be triggered immediately.
+                  <span className="text-[10px] text-emerald-400 mt-1 flex items-center gap-1.5 font-medium">
+                    <Zap className="w-3 h-3 text-emerald-400 shrink-0" />
+                    <span>Lipa Na M-Pesa Online STK push will be triggered immediately.</span>
                   </span>
                 </div>
               )}
@@ -980,7 +982,7 @@ export function PaymentsView() {
                 {selectedIntent.status === 'SUCCESS' && (
                   <button
                     onClick={() => openRefundModal(selectedIntent)}
-                    className="px-2.5 py-1 rounded bg-purple-950/40 hover:bg-purple-900/60 border border-purple-800/60 text-purple-300 font-bold cursor-pointer"
+                    className="px-2.5 py-1 rounded bg-rose-950/40 hover:bg-rose-900/60 border border-rose-800/60 text-rose-300 font-bold cursor-pointer"
                   >
                     REFUND
                   </button>
@@ -1211,7 +1213,7 @@ export function PaymentsView() {
           <div className="bg-[#12161f] border border-[#222834] rounded-lg max-w-sm w-full shadow-2xl p-5 space-y-4 my-auto text-xs font-mono">
             <div className="flex items-center justify-between border-b border-[#222834] pb-3">
               <div className="flex items-center gap-2">
-                <Undo2 className="w-5 h-5 text-purple-400" />
+                <Undo2 className="w-5 h-5 text-rose-400" />
                 <h3 className="font-bold text-white text-sm">PROCESS REFUND</h3>
               </div>
               <button
@@ -1238,7 +1240,7 @@ export function PaymentsView() {
                   max={refundPaymentRecord.amount}
                   value={refundAmount}
                   onChange={(e) => setRefundAmount(e.target.value)}
-                  className="w-full p-2 rounded bg-[#0c0e12] border border-[#222834] text-purple-300 font-bold focus:border-amber-400 focus:outline-none"
+                  className="w-full p-2 rounded bg-[#0c0e12] border border-[#222834] text-rose-300 font-bold focus:border-amber-400 focus:outline-none"
                 />
               </div>
 
@@ -1266,7 +1268,7 @@ export function PaymentsView() {
                 type="button"
                 onClick={handleExecuteRefund}
                 disabled={refunding}
-                className="px-4 py-1.5 rounded bg-purple-600 hover:bg-purple-500 text-white font-bold cursor-pointer disabled:opacity-50"
+                className="px-4 py-1.5 rounded bg-rose-600 hover:bg-rose-500 text-white font-bold cursor-pointer disabled:opacity-50"
               >
                 {refunding ? 'PROCESSING...' : 'CONFIRM REFUND'}
               </button>

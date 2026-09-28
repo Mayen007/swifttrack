@@ -490,7 +490,7 @@ export function OrdersView() {
       case 'PACKED':
         return 'bg-indigo-500/20 text-indigo-400 border-indigo-500/40';
       case 'READY_FOR_DISPATCH':
-        return 'bg-purple-500/20 text-purple-300 border-purple-500/40';
+        return 'bg-blue-600/20 text-blue-300 border-blue-600/40';
       case 'DISPATCHED':
         return 'bg-cyan-500/20 text-cyan-400 border-cyan-500/40';
       case 'IN_TRANSIT':
@@ -506,7 +506,7 @@ export function OrdersView() {
       case 'PARTIALLY_RETURNED':
         return 'bg-orange-500/20 text-orange-300 border-orange-400/40';
       case 'REFUNDED':
-        return 'bg-purple-600/20 text-purple-300 border-purple-600/40';
+        return 'bg-rose-600/20 text-rose-300 border-rose-600/40';
       default:
         return 'bg-gray-800 text-gray-300 border-gray-700';
     }
@@ -677,8 +677,9 @@ export function OrdersView() {
                         {ord.order_number}
                       </span>
                       {ord.delivery_number && (
-                        <span className="text-[10px] text-indigo-400 block font-sans">
-                          🚚 {ord.delivery_number}
+                        <span className="text-[10px] text-indigo-400 flex items-center gap-1 font-sans mt-0.5">
+                          <Truck className="w-3 h-3 text-indigo-400 shrink-0" />
+                          <span>{ord.delivery_number}</span>
                         </span>
                       )}
                     </td>
@@ -901,7 +902,7 @@ export function OrdersView() {
                       {selectedOrder.status === 'PACKED' && (
                         <button
                           onClick={() => handleTransition('READY_FOR_DISPATCH', 'Staged at dispatch')}
-                          className="px-3 py-1 rounded bg-purple-600 hover:bg-purple-500 text-white font-bold cursor-pointer"
+                          className="px-3 py-1 rounded bg-blue-600 hover:bg-blue-500 text-white font-bold cursor-pointer"
                         >
                           READY FOR DISPATCH (GUARD)
                         </button>
@@ -964,7 +965,7 @@ export function OrdersView() {
                           </button>
                           <button
                             onClick={() => handleTransition('REFUNDED', 'Order refunded')}
-                            className="px-2.5 py-1 rounded bg-purple-900/50 hover:bg-purple-800/70 border border-purple-700/60 text-purple-300 font-bold cursor-pointer"
+                            className="px-2.5 py-1 rounded bg-rose-900/50 hover:bg-rose-800/70 border border-rose-700/60 text-rose-300 font-bold cursor-pointer"
                           >
                             REFUND
                           </button>
@@ -973,7 +974,7 @@ export function OrdersView() {
                       {selectedOrder.status === 'RETURNED' && (
                         <button
                           onClick={() => handleTransition('REFUNDED', 'Refund processed for returned items')}
-                          className="px-2.5 py-1 rounded bg-purple-900/50 hover:bg-purple-800/70 border border-purple-700/60 text-purple-300 font-bold cursor-pointer"
+                          className="px-2.5 py-1 rounded bg-rose-900/50 hover:bg-rose-800/70 border border-rose-700/60 text-rose-300 font-bold cursor-pointer"
                         >
                           PROCESS REFUND
                         </button>

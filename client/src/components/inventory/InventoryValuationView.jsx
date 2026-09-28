@@ -85,9 +85,9 @@ export function InventoryValuationView({ branchId, warehouseId }) {
         <div className="bg-[#12161f] border border-[#222834] rounded p-3 relative overflow-hidden">
           <div className="flex items-center justify-between text-slate-400 text-[10px] uppercase">
             <span>Potential Retail Value</span>
-            <TrendingUp className="w-3.5 h-3.5 text-purple-400" />
+            <TrendingUp className="w-3.5 h-3.5 text-cyan-400" />
           </div>
-          <div className="text-lg font-bold text-purple-300 mt-1">
+          <div className="text-lg font-bold text-cyan-300 mt-1">
             KES {(summary.totalPotentialRetailValue || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
           </div>
           <div className="text-[10px] text-emerald-400 mt-1">
@@ -146,7 +146,7 @@ export function InventoryValuationView({ branchId, warehouseId }) {
                 <th className="py-2.5 px-3 text-right">Selling Price</th>
                 <th className="py-2.5 px-3 text-right">Available Qty</th>
                 <th className="py-2.5 px-3 text-right text-blue-400">Available Value</th>
-                <th className="py-2.5 px-3 text-right text-purple-400">Retail Value</th>
+                <th className="py-2.5 px-3 text-right text-cyan-400">Retail Value</th>
                 <th className="py-2.5 px-3 text-right text-emerald-400">Gross Margin</th>
               </tr>
             </thead>
@@ -187,7 +187,7 @@ export function InventoryValuationView({ branchId, warehouseId }) {
                     <td className="py-2.5 px-3 text-right font-mono font-bold text-blue-300">
                       KES {it.valuations.available.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                     </td>
-                    <td className="py-2.5 px-3 text-right font-mono text-purple-300">
+                    <td className="py-2.5 px-3 text-right font-mono text-cyan-300">
                       KES {it.valuations.potentialRetail.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                     </td>
                     <td className="py-2.5 px-3 text-right font-mono font-bold text-emerald-400">

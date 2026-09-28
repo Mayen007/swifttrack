@@ -183,7 +183,7 @@ export function AuditView() {
       case 'CREATE':
         return 'bg-blue-950/80 text-blue-300 border-blue-800/60';
       case 'UPDATE':
-        return 'bg-purple-950/80 text-purple-300 border-purple-800/60';
+        return 'bg-sky-950/80 text-sky-300 border-sky-800/60';
       case 'REJECT_REFUND':
       case 'DELETE':
         return 'bg-rose-950/80 text-rose-300 border-rose-800/60';

@@ -71,9 +71,9 @@ export function PromotionsModal({ isOpen, onClose }) {
         {/* Header */}
         <div className="p-4 border-b border-[#222834] flex items-center justify-between bg-[#151a24]">
           <div>
-            <span className="text-[10px] text-purple-400 font-bold uppercase tracking-wider">Scheduled Discounts</span>
+            <span className="text-[10px] text-emerald-400 font-bold uppercase tracking-wider">Scheduled Discounts</span>
             <h2 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2 mt-0.5">
-              <Percent className="w-4 h-4 text-purple-400" />
+              <Percent className="w-4 h-4 text-emerald-400" />
               Campaigns & Promotional Rules
             </h2>
           </div>
@@ -96,7 +96,7 @@ export function PromotionsModal({ isOpen, onClose }) {
             {!creating && (
               <button
                 onClick={() => setCreating(true)}
-                className="px-2.5 py-1 rounded bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs flex items-center gap-1 cursor-pointer"
+                className="px-2.5 py-1 rounded bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center gap-1 cursor-pointer"
               >
                 <Plus className="w-3 h-3 stroke-[3]" />
                 NEW CAMPAIGN
@@ -106,46 +106,46 @@ export function PromotionsModal({ isOpen, onClose }) {
 
           {/* Creation Form */}
           {creating && (
-            <form onSubmit={handleCreate} className="bg-[#161b26] p-3 rounded border border-purple-500/30 space-y-3">
+            <form onSubmit={handleCreate} className="bg-[#161b26] p-3 rounded border border-emerald-500/30 space-y-3">
               <div className="flex items-center justify-between border-b border-[#222834] pb-1.5">
-                <span className="text-xs text-purple-300 font-bold uppercase">Launch Campaign</span>
+                <span className="text-xs text-emerald-300 font-bold uppercase">Launch Campaign</span>
                 <button type="button" onClick={() => setCreating(false)} className="text-slate-400 hover:text-white text-xs">Cancel</button>
               </div>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5 text-xs">
                 <div className="col-span-2">
                   <label className="block text-[10px] text-slate-400 mb-1">Campaign Name *</label>
-                  <input required type="text" value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} className="w-full bg-[#12161f] border border-[#2b3548] rounded px-2.5 py-1 text-white focus:outline-none focus:border-purple-500" />
+                  <input required type="text" value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} className="w-full bg-[#12161f] border border-[#2b3548] rounded px-2.5 py-1 text-white focus:outline-none focus:border-emerald-500" />
                 </div>
                 <div>
                   <label className="block text-[10px] text-slate-400 mb-1">Voucher Code (Optional)</label>
-                  <input type="text" placeholder="e.g. LOGISTICS10" value={formData.promo_code} onChange={(e) => setFormData({ ...formData, promo_code: e.target.value })} className="w-full bg-[#12161f] border border-[#2b3548] rounded px-2.5 py-1 text-amber-300 focus:outline-none focus:border-purple-500" />
+                  <input type="text" placeholder="e.g. LOGISTICS10" value={formData.promo_code} onChange={(e) => setFormData({ ...formData, promo_code: e.target.value })} className="w-full bg-[#12161f] border border-[#2b3548] rounded px-2.5 py-1 text-amber-300 focus:outline-none focus:border-emerald-500" />
                 </div>
                 <div>
                   <label className="block text-[10px] text-slate-400 mb-1">Discount Type</label>
-                  <select value={formData.discount_type} onChange={(e) => setFormData({ ...formData, discount_type: e.target.value })} className="w-full bg-[#12161f] border border-[#2b3548] rounded px-2.5 py-1 text-white focus:outline-none focus:border-purple-500">
+                  <select value={formData.discount_type} onChange={(e) => setFormData({ ...formData, discount_type: e.target.value })} className="w-full bg-[#12161f] border border-[#2b3548] rounded px-2.5 py-1 text-white focus:outline-none focus:border-emerald-500">
                     <option value="PERCENTAGE">Percentage (%)</option>
                     <option value="FIXED_AMOUNT">Fixed KES Amount</option>
                   </select>
                 </div>
                 <div>
                   <label className="block text-[10px] text-slate-400 mb-1">Value (% or KES)</label>
-                  <input type="number" step="0.01" required value={formData.discount_value} onChange={(e) => setFormData({ ...formData, discount_value: e.target.value })} className="w-full bg-[#12161f] border border-[#2b3548] rounded px-2.5 py-1 text-purple-300 font-bold focus:outline-none focus:border-purple-500" />
+                  <input type="number" step="0.01" required value={formData.discount_value} onChange={(e) => setFormData({ ...formData, discount_value: e.target.value })} className="w-full bg-[#12161f] border border-[#2b3548] rounded px-2.5 py-1 text-emerald-300 font-bold focus:outline-none focus:border-emerald-500" />
                 </div>
                 <div>
                   <label className="block text-[10px] text-slate-400 mb-1">Min Spend (KES)</label>
-                  <input type="number" step="0.01" value={formData.min_spend} onChange={(e) => setFormData({ ...formData, min_spend: e.target.value })} className="w-full bg-[#12161f] border border-[#2b3548] rounded px-2.5 py-1 text-white focus:outline-none focus:border-purple-500" />
+                  <input type="number" step="0.01" value={formData.min_spend} onChange={(e) => setFormData({ ...formData, min_spend: e.target.value })} className="w-full bg-[#12161f] border border-[#2b3548] rounded px-2.5 py-1 text-white focus:outline-none focus:border-emerald-500" />
                 </div>
                 <div>
                   <label className="block text-[10px] text-slate-400 mb-1">Start Date</label>
-                  <input type="date" required value={formData.start_date} onChange={(e) => setFormData({ ...formData, start_date: e.target.value })} className="w-full bg-[#12161f] border border-[#2b3548] rounded px-2.5 py-1 text-white focus:outline-none focus:border-purple-500" />
+                  <input type="date" required value={formData.start_date} onChange={(e) => setFormData({ ...formData, start_date: e.target.value })} className="w-full bg-[#12161f] border border-[#2b3548] rounded px-2.5 py-1 text-white focus:outline-none focus:border-emerald-500" />
                 </div>
                 <div>
                   <label className="block text-[10px] text-slate-400 mb-1">End Date</label>
-                  <input type="date" required value={formData.end_date} onChange={(e) => setFormData({ ...formData, end_date: e.target.value })} className="w-full bg-[#12161f] border border-[#2b3548] rounded px-2.5 py-1 text-white focus:outline-none focus:border-purple-500" />
+                  <input type="date" required value={formData.end_date} onChange={(e) => setFormData({ ...formData, end_date: e.target.value })} className="w-full bg-[#12161f] border border-[#2b3548] rounded px-2.5 py-1 text-white focus:outline-none focus:border-emerald-500" />
                 </div>
               </div>
               <div className="flex justify-end pt-1">
-                <button type="submit" className="px-3 py-1 rounded bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs cursor-pointer">
+                <button type="submit" className="px-3 py-1 rounded bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs cursor-pointer">
                   LAUNCH CAMPAIGN
                 </button>
               </div>
@@ -174,7 +174,7 @@ export function PromotionsModal({ isOpen, onClose }) {
                       </div>
                     </td>
                     <td className="py-2.5 px-3">
-                      <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-purple-500/10 text-purple-300 border border-purple-500/30">
+                      <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/10 text-emerald-300 border border-emerald-500/30">
                         {pr.discount_type === 'PERCENTAGE' ? `${pr.discount_value}% OFF` : `KES ${pr.discount_value} OFF`}
                       </span>
                     </td>

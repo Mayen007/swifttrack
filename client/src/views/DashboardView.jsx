@@ -644,7 +644,7 @@ export function DashboardView({ onNavigate }) {
                     onClick={() => setShippedView('products')}
                     className={`px-2 py-0.5 text-[10px] font-mono rounded cursor-pointer transition-colors ${
                       shippedView === 'products'
-                        ? 'bg-purple-600 text-white'
+                        ? 'bg-blue-600 text-white'
                         : 'text-slate-400 hover:text-slate-200'
                     }`}
                   >
@@ -654,7 +654,7 @@ export function DashboardView({ onNavigate }) {
                     onClick={() => setShippedView('categories')}
                     className={`px-2 py-0.5 text-[10px] font-mono rounded cursor-pointer transition-colors ${
                       shippedView === 'categories'
-                        ? 'bg-purple-600 text-white'
+                        ? 'bg-blue-600 text-white'
                         : 'text-slate-400 hover:text-slate-200'
                     }`}
                   >

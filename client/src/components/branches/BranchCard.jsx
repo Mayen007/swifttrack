@@ -85,7 +85,7 @@ export function BranchCard({
               <span className="truncate text-slate-400">{branch.phone || '+254 20 123 4567'}</span>
             </div>
             <div className="flex items-center gap-1.5">
-              <Mail className="w-3.5 h-3.5 text-purple-400 shrink-0" />
+              <Mail className="w-3.5 h-3.5 text-slate-400 shrink-0" />
               <span className="truncate text-slate-400">
                 {branch.email || `hub.${branch.code.toLowerCase()}@swifttrack.co.ke`}
               </span>

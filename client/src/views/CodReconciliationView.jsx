@@ -155,7 +155,7 @@ export function CodReconciliationView() {
       case 'REMITTED':
         return 'bg-blue-500/10 text-blue-400 border-blue-500/20';
       case 'COLLECTED':
-        return 'bg-purple-500/10 text-purple-400 border-purple-500/20';
+        return 'bg-cyan-500/10 text-cyan-400 border-cyan-500/20';
       case 'PENDING_COLLECTION':
         return 'bg-amber-500/10 text-amber-400 border-amber-500/20';
       case 'DISCREPANT':
@@ -166,9 +166,9 @@ export function CodReconciliationView() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* Header */}
-      <div className="bg-[#12161f] border border-[#222834] p-5 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="bg-[#12161f] border border-[#222834] p-3.5 sm:p-4 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2">
             <Banknote className="w-5 h-5 text-amber-500" />
@@ -198,8 +198,8 @@ export function CodReconciliationView() {
           </p>
         </div>
         <div className="bg-[#12161f] border border-[#222834] p-4 rounded-xl">
-          <p className="text-[11px] font-medium text-purple-400 uppercase tracking-wider">Collected In Field</p>
-          <p className="text-xl font-bold text-purple-400 mt-1">
+          <p className="text-[11px] font-medium text-cyan-400 uppercase tracking-wider">Collected In Field</p>
+          <p className="text-xl font-bold text-cyan-400 mt-1">
             KES {(summary?.total_collected || 0).toLocaleString()}
           </p>
         </div>
@@ -250,14 +250,14 @@ export function CodReconciliationView() {
           <table className="w-full text-left text-xs">
             <thead className="bg-[#181d28] text-slate-400 font-semibold border-b border-[#222834]">
               <tr>
-                <th className="py-3 px-4">Settlement Reference</th>
-                <th className="py-3 px-4">Linked Consignment</th>
-                <th className="py-3 px-4">Expected COD</th>
-                <th className="py-3 px-4">Collected</th>
-                <th className="py-3 px-4">Remitted</th>
-                <th className="py-3 px-4">Variance</th>
-                <th className="py-3 px-4">Financial Status</th>
-                <th className="py-3 px-4 text-right">Actions</th>
+                <th className="py-2 px-3">Settlement Reference</th>
+                <th className="py-2 px-3">Linked Consignment</th>
+                <th className="py-2 px-3">Expected COD</th>
+                <th className="py-2 px-3">Collected</th>
+                <th className="py-2 px-3">Remitted</th>
+                <th className="py-2 px-3">Variance</th>
+                <th className="py-2 px-3">Financial Status</th>
+                <th className="py-2 px-3 text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[#222834] text-slate-300">
@@ -278,27 +278,27 @@ export function CodReconciliationView() {
               ) : (
                 filteredSettlements.map((s) => (
                   <tr key={s.id} className="hover:bg-white/[0.02]">
-                    <td className="py-3.5 px-4 font-mono font-bold text-white">
+                    <td className="py-2 px-3 font-mono font-bold text-white">
                       {s.settlement_number}
                     </td>
 
-                    <td className="py-3.5 px-4 font-mono text-slate-400">
+                    <td className="py-2 px-3 font-mono text-slate-400">
                       {s.tracking_number || `Shipment #${s.shipment_id}`}
                     </td>
 
-                    <td className="py-3.5 px-4 font-bold text-white">
+                    <td className="py-2 px-3 font-bold text-white">
                       KES {(s.expected_amount || 0).toLocaleString()}
                     </td>
 
-                    <td className="py-3.5 px-4 text-purple-400 font-medium">
+                    <td className="py-2 px-3 text-cyan-400 font-medium">
                       KES {(s.collected_amount || 0).toLocaleString()}
                     </td>
 
-                    <td className="py-3.5 px-4 text-blue-400 font-medium">
+                    <td className="py-2 px-3 text-blue-400 font-medium">
                       KES {(s.remitted_amount || 0).toLocaleString()}
                     </td>
 
-                    <td className="py-3.5 px-4 font-mono">
+                    <td className="py-2 px-3 font-mono">
                       {Number(s.variance_amount) !== 0 ? (
                         <span className="text-rose-400 font-bold">
                           KES {Number(s.variance_amount).toLocaleString()}
@@ -308,13 +308,13 @@ export function CodReconciliationView() {
                       )}
                     </td>
 
-                    <td className="py-3.5 px-4">
+                    <td className="py-2 px-3">
                       <span className={`inline-block px-2.5 py-1 rounded-full text-[10px] font-bold border ${getStatusBadge(s.status)}`}>
                         {s.status}
                       </span>
                     </td>
 
-                    <td className="py-3.5 px-4 text-right">
+                    <td className="py-2 px-3 text-right">
                       <div className="flex items-center justify-end gap-1.5">
                         {s.status === 'COLLECTED' && (
                           <button
@@ -442,7 +442,7 @@ export function CodReconciliationView() {
                 </div>
                 <div className="p-3 bg-[#181d28] border border-[#222834] rounded-xl">
                   <p className="text-[10px] text-slate-500">Collected</p>
-                  <p className="font-bold text-purple-400 mt-0.5">KES {selectedSettlement.collected_amount}</p>
+                  <p className="font-bold text-cyan-400 mt-0.5">KES {selectedSettlement.collected_amount}</p>
                 </div>
               </div>
 

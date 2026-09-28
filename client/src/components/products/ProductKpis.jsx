@@ -45,9 +45,9 @@ export function ProductKpis({ stats }) {
       value: activePromotionsCount,
       sub: 'Scheduled Promotions',
       icon: Percent,
-      iconColor: 'text-purple-400',
-      borderColor: 'border-purple-500/20',
-      bgGlow: 'bg-purple-500/5',
+      iconColor: 'text-emerald-400',
+      borderColor: 'border-emerald-500/20',
+      bgGlow: 'bg-emerald-500/5',
     },
   ];
 

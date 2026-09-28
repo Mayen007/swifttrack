@@ -52,7 +52,7 @@ export function InventoryTransfersTable({
       case 'APPROVED':
         return 'bg-amber-500/15 border-amber-500/30 text-amber-300';
       case 'PENDING_APPROVAL':
-        return 'bg-purple-500/15 border-purple-500/30 text-purple-300';
+        return 'bg-yellow-500/15 border-yellow-500/30 text-yellow-300';
       default:
         return 'bg-slate-800 border-slate-700 text-slate-300';
     }

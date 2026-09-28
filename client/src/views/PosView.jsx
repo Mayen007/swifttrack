@@ -814,8 +814,9 @@ export function PosView() {
                   <span>{selectedCustomer.city || 'Nairobi'}</span>
                 </div>
                 {(selectedCustomer.status === 'BLOCKED' || selectedCustomer.status === 'SUSPENDED') && (
-                  <div className="mt-1.5 text-[10px] text-rose-400 font-bold flex items-center gap-1">
-                    <span>⚠️ Checkout Blocked: Customer is {selectedCustomer.status}</span>
+                  <div className="mt-1.5 text-[10px] text-rose-400 font-bold flex items-center gap-1.5">
+                    <AlertTriangle className="w-3.5 h-3.5 text-rose-400 shrink-0" />
+                    <span>Checkout Blocked: Customer is {selectedCustomer.status}</span>
                   </div>
                 )}
               </div>

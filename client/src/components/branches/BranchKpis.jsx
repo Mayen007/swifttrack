@@ -54,7 +54,7 @@ export function BranchKpis({ kpis }) {
           <span className="font-mono text-[10px] tracking-wider uppercase text-slate-400">
             STATION OPERATORS
           </span>
-          <Users className="w-4 h-4 text-purple-400" />
+          <Users className="w-4 h-4 text-blue-400" />
         </div>
         <div className="mt-2 flex items-baseline gap-2">
           <span className="font-mono text-2xl font-bold text-white tracking-tight tabular-nums">
@@ -64,7 +64,7 @@ export function BranchKpis({ kpis }) {
         </div>
         <div className="mt-2 pt-2 border-t border-[#222834] flex items-center justify-between font-mono text-[10px]">
           <span className="text-slate-400">RBAC ASSIGNED</span>
-          <span className="text-purple-400">ACTIVE ROSTER</span>
+          <span className="text-blue-400">ACTIVE ROSTER</span>
         </div>
       </div>
 

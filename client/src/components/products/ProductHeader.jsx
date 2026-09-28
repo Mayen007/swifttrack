@@ -50,9 +50,9 @@ export function ProductHeader({
         <button
           onClick={onOpenPromotions}
           title="Manage scheduled promotions, campaigns, and discount vouchers"
-          className="px-3 py-1.5 rounded border border-[#222834] bg-[#181d28] hover:bg-[#202736] text-xs font-mono text-purple-300 hover:text-purple-200 flex items-center gap-1.5 transition-colors cursor-pointer"
+          className="px-3 py-1.5 rounded border border-[#222834] bg-[#181d28] hover:bg-[#202736] text-xs font-mono text-emerald-300 hover:text-emerald-200 flex items-center gap-1.5 transition-colors cursor-pointer"
         >
-          <Percent className="w-3.5 h-3.5 text-purple-400" />
+          <Percent className="w-3.5 h-3.5 text-emerald-400" />
           <span>PROMOTIONS</span>
         </button>
 

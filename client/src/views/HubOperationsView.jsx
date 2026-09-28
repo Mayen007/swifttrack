@@ -170,9 +170,9 @@ export function HubOperationsView() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* Hub Station Banner */}
-      <div className="bg-[#12161f] border border-[#222834] p-5 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="bg-[#12161f] border border-[#222834] p-3.5 sm:p-4 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2">
             <Building2 className="w-5 h-5 text-blue-500" />
@@ -280,7 +280,7 @@ export function HubOperationsView() {
       {activeTab === 'RECEIVING' && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Scanner Console */}
-          <div className="lg:col-span-2 bg-[#12161f] border border-[#222834] p-5 rounded-2xl space-y-5">
+          <div className="lg:col-span-2 bg-[#12161f] border border-[#222834] p-3.5 sm:p-4 rounded-xl space-y-5">
             <div className="flex items-center justify-between pb-3 border-b border-[#222834]">
               <div>
                 <h3 className="font-bold text-white text-sm">Active Inbound Unloading Console</h3>
@@ -368,7 +368,7 @@ export function HubOperationsView() {
           </div>
 
           {/* Inbound Manifests & History */}
-          <div className="bg-[#12161f] border border-[#222834] p-5 rounded-2xl space-y-4">
+          <div className="bg-[#12161f] border border-[#222834] p-3.5 sm:p-4 rounded-xl space-y-4">
             <h3 className="font-bold text-white text-sm">Recent Receiving Sessions</h3>
             <div className="space-y-3">
               {sessions.map((sess) => (
@@ -394,7 +394,7 @@ export function HubOperationsView() {
       {/* TAB 2: INTAKE & SORTATION */}
       {activeTab === 'SORT' && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div className="bg-[#12161f] border border-[#222834] p-6 rounded-2xl space-y-5">
+          <div className="bg-[#12161f] border border-[#222834] p-3.5 sm:p-4 rounded-xl space-y-5">
             <div>
               <h3 className="font-bold text-white text-base">Origin Parcel Sortation Console</h3>
               <p className="text-xs text-slate-400 mt-1">
@@ -421,7 +421,7 @@ export function HubOperationsView() {
           </div>
 
           {/* Allocation Result Display */}
-          <div className="bg-[#12161f] border border-[#222834] p-6 rounded-2xl flex flex-col justify-center items-center text-center space-y-4">
+          <div className="bg-[#12161f] border border-[#222834] p-3.5 sm:p-4 rounded-xl flex flex-col justify-center items-center text-center space-y-4">
             {sortedItem ? (
               <div className="space-y-3 animate-fade-in">
                 <span className="inline-block p-4 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20">
@@ -448,7 +448,7 @@ export function HubOperationsView() {
 
       {/* TAB 3: CUSTODY HANDOFFS */}
       {activeTab === 'HANDOFFS' && (
-        <div className="bg-[#12161f] border border-[#222834] p-6 rounded-2xl space-y-5">
+        <div className="bg-[#12161f] border border-[#222834] p-3.5 sm:p-4 rounded-xl space-y-5">
           <div className="flex items-center justify-between pb-3 border-b border-[#222834]">
             <div>
               <h3 className="font-bold text-white text-base">Chain of Custody Transfers</h3>
@@ -467,26 +467,26 @@ export function HubOperationsView() {
             <table className="w-full text-left text-xs">
               <thead className="bg-[#181d28] text-slate-400 font-semibold border-b border-[#222834]">
                 <tr>
-                  <th className="py-3 px-4">Handoff ID</th>
-                  <th className="py-3 px-4">Transfer Type</th>
-                  <th className="py-3 px-4">Releasing Actor</th>
-                  <th className="py-3 px-4">Receiving Actor</th>
-                  <th className="py-3 px-4">Security Seal</th>
-                  <th className="py-3 px-4 text-right">Timestamp</th>
+                  <th className="py-2 px-3">Handoff ID</th>
+                  <th className="py-2 px-3">Transfer Type</th>
+                  <th className="py-2 px-3">Releasing Actor</th>
+                  <th className="py-2 px-3">Receiving Actor</th>
+                  <th className="py-2 px-3">Security Seal</th>
+                  <th className="py-2 px-3 text-right">Timestamp</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#222834] text-slate-300">
                 <tr className="hover:bg-white/[0.02]">
-                  <td className="py-3.5 px-4 font-mono font-bold text-white">HND-20260928-8812</td>
-                  <td className="py-3.5 px-4">
+                  <td className="py-2 px-3 font-mono font-bold text-white">HND-20260928-8812</td>
+                  <td className="py-2 px-3">
                     <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-500/10 text-blue-400">
                       HUB_TO_DRIVER
                     </span>
                   </td>
-                  <td className="py-3.5 px-4">Nairobi Hub Dispatcher</td>
-                  <td className="py-3.5 px-4">Driver: John Mwangi (KDA 123A)</td>
-                  <td className="py-3.5 px-4 font-mono text-emerald-400">#SEAL-NRB-9981</td>
-                  <td className="py-3.5 px-4 text-right text-slate-500 font-mono">14:20:15</td>
+                  <td className="py-2 px-3">Nairobi Hub Dispatcher</td>
+                  <td className="py-2 px-3">Driver: John Mwangi (KDA 123A)</td>
+                  <td className="py-2 px-3 font-mono text-emerald-400">#SEAL-NRB-9981</td>
+                  <td className="py-2 px-3 text-right text-slate-500 font-mono">14:20:15</td>
                 </tr>
               </tbody>
             </table>
@@ -496,7 +496,7 @@ export function HubOperationsView() {
 
       {/* TAB 4: LINEHAUL MANIFESTS */}
       {activeTab === 'MANIFESTS' && (
-        <div className="bg-[#12161f] border border-[#222834] p-6 rounded-2xl space-y-5">
+        <div className="bg-[#12161f] border border-[#222834] p-3.5 sm:p-4 rounded-xl space-y-5">
           <div className="flex items-center justify-between pb-3 border-b border-[#222834]">
             <div>
               <h3 className="font-bold text-white text-base">Linehaul Manifest Ledger</h3>
@@ -536,7 +536,7 @@ export function HubOperationsView() {
 
       {/* TAB 5: DISCREPANCIES */}
       {activeTab === 'DISCREPANCIES' && (
-        <div className="bg-[#12161f] border border-[#222834] p-6 rounded-2xl space-y-5">
+        <div className="bg-[#12161f] border border-[#222834] p-3.5 sm:p-4 rounded-xl space-y-5">
           <div className="flex items-center justify-between pb-3 border-b border-[#222834]">
             <div>
               <h3 className="font-bold text-white text-base">Operational Discrepancy Tickets</h3>
@@ -548,12 +548,12 @@ export function HubOperationsView() {
             <table className="w-full text-left text-xs">
               <thead className="bg-[#181d28] text-slate-400 font-semibold border-b border-[#222834]">
                 <tr>
-                  <th className="py-3 px-4">Ticket Number</th>
-                  <th className="py-3 px-4">Discrepancy Type</th>
-                  <th className="py-3 px-4">Severity</th>
-                  <th className="py-3 px-4">Shipment #</th>
-                  <th className="py-3 px-4">Status</th>
-                  <th className="py-3 px-4 text-right">Actions</th>
+                  <th className="py-2 px-3">Ticket Number</th>
+                  <th className="py-2 px-3">Discrepancy Type</th>
+                  <th className="py-2 px-3">Severity</th>
+                  <th className="py-2 px-3">Shipment #</th>
+                  <th className="py-2 px-3">Status</th>
+                  <th className="py-2 px-3 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#222834] text-slate-300">
@@ -566,18 +566,18 @@ export function HubOperationsView() {
                 ) : (
                   discrepancies.map((d) => (
                     <tr key={d.id} className="hover:bg-white/[0.02]">
-                      <td className="py-3.5 px-4 font-mono font-bold text-white">{d.discrepancy_number}</td>
-                      <td className="py-3.5 px-4">{d.discrepancy_type}</td>
-                      <td className="py-3.5 px-4">
+                      <td className="py-2 px-3 font-mono font-bold text-white">{d.discrepancy_number}</td>
+                      <td className="py-2 px-3">{d.discrepancy_type}</td>
+                      <td className="py-2 px-3">
                         <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
                           d.severity === 'CRITICAL' ? 'bg-rose-500/10 text-rose-400' : 'bg-amber-500/10 text-amber-400'
                         }`}>
                           {d.severity}
                         </span>
                       </td>
-                      <td className="py-3.5 px-4 font-mono text-slate-400">Shipment #{d.shipment_id || 'N/A'}</td>
-                      <td className="py-3.5 px-4 font-semibold text-blue-400">{d.status}</td>
-                      <td className="py-3.5 px-4 text-right">
+                      <td className="py-2 px-3 font-mono text-slate-400">Shipment #{d.shipment_id || 'N/A'}</td>
+                      <td className="py-2 px-3 font-semibold text-blue-400">{d.status}</td>
+                      <td className="py-2 px-3 text-right">
                         <button
                           onClick={() => {
                             setSelectedDiscrepancy(d);
