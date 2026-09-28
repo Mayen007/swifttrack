@@ -83,12 +83,12 @@ async function runTests() {
     // TEST 4: Outbox Batch Worker Processing & Status Progression
     console.log('\n▶ TEST 4: Outbox Batch Worker Processing (PENDING -> SENT)...');
     let processResult = { success_count: 0, failed_count: 0, processed_count: 0 };
-    while (true) {
+    for (let i = 0; i < 20; i++) {
         const batch = await notificationService.processOutboxBatch(50);
         processResult.success_count += batch.success_count;
         processResult.failed_count += batch.failed_count;
-        processResult.processed_count += batch.processed_count;
-        if (batch.processed_count === 0) break;
+        processResult.processed_count += (batch.processed_count || batch.total_selected || 0);
+        if (!batch.total_selected || batch.total_selected === 0) break;
     }
     assert(processResult.success_count > 0, 'Batch processing should successfully dispatch pending items');
 

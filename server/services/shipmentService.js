@@ -231,19 +231,38 @@ function createShipment(data, user = {}) {
             });
         });
 
-        // 3. Insert Initial Shipment Leg
+        // 3. Insert Shipment Routing Leg(s)
         const legStmt = db.prepare(`
             INSERT INTO shipment_legs (
                 shipment_id, leg_sequence, origin_hub_id, destination_hub_id, status
             ) VALUES (?, ?, ?, ?, ?)
         `);
-        const legRes = legStmt.run(shipmentId, 1, data.origin_hub_id, data.destination_hub_id, 'PENDING');
+        const routingLegs = Array.isArray(data.legs) && data.legs.length > 0 ? data.legs :
+                            Array.isArray(data.routing_legs) && data.routing_legs.length > 0 ? data.routing_legs :
+                            [{ origin_hub_id: data.origin_hub_id, destination_hub_id: data.destination_hub_id }];
+
+        let firstLegId = null;
+        routingLegs.forEach((leg, index) => {
+            const lRes = legStmt.run(shipmentId, index + 1, leg.origin_hub_id, leg.destination_hub_id, 'PENDING');
+            if (index === 0) firstLegId = lRes.lastInsertRowid;
+        });
 
         // Auto-initialize COD settlement record if positive COD obligation
         if (pricing.cod_amount && pricing.cod_amount > 0) {
             const today = new Date().toISOString().slice(0, 10).replace(/-/g, '');
-            const rand = Math.floor(1000 + Math.random() * 9000);
-            const settlementNum = `COD-${today}-${rand}`;
+            let settlementNum;
+            for (let attempts = 0; attempts < 10; attempts++) {
+                const rand = crypto.randomBytes(2).toString('hex').toUpperCase();
+                const candidate = `COD-${today}-${rand}`;
+                const existing = db.prepare('SELECT id FROM cod_settlements WHERE settlement_number = ?').get(candidate);
+                if (!existing) {
+                    settlementNum = candidate;
+                    break;
+                }
+            }
+            if (!settlementNum) {
+                settlementNum = `COD-${today}-${Date.now().toString(36).toUpperCase()}`;
+            }
             db.prepare(`
                 INSERT INTO cod_settlements (
                     settlement_number, shipment_id, hub_id,
@@ -270,7 +289,7 @@ function createShipment(data, user = {}) {
 
         eventStmt.run(
             shipmentId,
-            legRes.lastInsertRowid,
+            firstLegId,
             'BOOKED',
             'Shipment Booked',
             data.origin_hub_id,

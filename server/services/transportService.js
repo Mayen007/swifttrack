@@ -393,6 +393,18 @@ function addShipmentToManifest(runId, shipmentId, user = {}) {
             VALUES (?, ?, 'ASSIGNED')
         `).run(manifest.id, shipmentId);
 
+        // Link to active pending shipment leg matching this run's corridor
+        db.prepare(`
+            UPDATE shipment_legs SET
+                transport_run_id = ?,
+                manifest_id = ?,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE shipment_id = ?
+              AND origin_hub_id = ?
+              AND destination_hub_id = ?
+              AND status = 'PENDING'
+        `).run(runId, manifest.id, shipmentId, run.origin_hub_id, run.destination_hub_id);
+
         // Recalculate totals
         recalculateManifestTotals(manifest.id, runId);
 
@@ -600,6 +612,14 @@ function dispatchTransportRun(runId, payload = {}, user = {}) {
             itemUpdateStmt.run('IN_TRANSIT', run.manifest.id, item.shipment_id);
 
             db.prepare(`
+                UPDATE shipment_legs SET
+                    status = 'IN_TRANSIT',
+                    actual_departure = CURRENT_TIMESTAMP,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE manifest_id = ? AND shipment_id = ?
+            `).run(run.manifest.id, item.shipment_id);
+
+            db.prepare(`
                 UPDATE shipments SET
                     status = 'IN_TRANSIT',
                     current_location_desc = ?,
@@ -788,6 +808,15 @@ function receiveManifest(runId, receivedShipmentIds = [], user = {}) {
                         updated_at = CURRENT_TIMESTAMP
                     WHERE id = ?
                 `).run(run.destination_hub_id, destHubName, item.shipment_id);
+
+                // Mark matching shipment leg as COMPLETED
+                db.prepare(`
+                    UPDATE shipment_legs SET
+                        status = 'COMPLETED',
+                        actual_arrival = CURRENT_TIMESTAMP,
+                        updated_at = CURRENT_TIMESTAMP
+                    WHERE manifest_id = ? AND shipment_id = ?
+                `).run(manifest.id, item.shipment_id);
 
                 // Tracking event
                 db.prepare(`

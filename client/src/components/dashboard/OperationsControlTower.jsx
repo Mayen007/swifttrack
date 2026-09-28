@@ -23,7 +23,8 @@ import {
   FileText,
   AlertOctagon,
   Layers,
-  Check
+  Check,
+  Radio
 } from 'lucide-react';
 
 export function OperationsControlTower({ onNavigate }) {
@@ -213,6 +214,17 @@ export function OperationsControlTower({ onNavigate }) {
               <RefreshCw className={`w-4 h-4 text-amber-400 ${refreshing ? 'animate-spin' : ''}`} />
               <span>Refresh</span>
             </button>
+
+            {onNavigate && (
+              <button
+                onClick={() => onNavigate('communications')}
+                className="flex items-center justify-center space-x-2 px-3.5 py-2.5 bg-indigo-950/50 hover:bg-indigo-900/60 border border-indigo-700/60 text-indigo-300 text-sm font-semibold rounded-xl transition-all shadow-sm active:scale-95"
+                title="View Milestone Notifications Outbox & Communication Logs"
+              >
+                <Radio className="w-4 h-4 text-indigo-400 animate-pulse" />
+                <span className="hidden md:inline">Communications Outbox</span>
+              </button>
+            )}
           </div>
         </div>
       </div>

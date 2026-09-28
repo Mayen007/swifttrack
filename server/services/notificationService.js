@@ -302,6 +302,7 @@ class NotificationService {
 
         const results = {
             total_selected: pendingItems.length,
+            processed_count: pendingItems.length,
             success_count: 0,
             failed_count: 0,
             details: []

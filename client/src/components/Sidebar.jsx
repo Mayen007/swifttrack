@@ -24,6 +24,7 @@ import {
   MapPin,
   ChevronRight,
   ChevronLeft,
+  MessageSquare,
 } from 'lucide-react';
 
 export function Sidebar({
@@ -51,6 +52,12 @@ export function Sidebar({
           id: 'control-tower',
           label: 'Operations Control Tower',
           icon: Activity,
+          roles: ['SUPER_ADMIN', 'BRANCH_MANAGER', 'DISPATCHER'],
+        },
+        {
+          id: 'communications',
+          label: 'Communications Engine',
+          icon: MessageSquare,
           roles: ['SUPER_ADMIN', 'BRANCH_MANAGER', 'DISPATCHER'],
         },
         {

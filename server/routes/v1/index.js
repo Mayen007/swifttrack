@@ -67,5 +67,6 @@ router.use('/delivery-tasks', require('../deliveryTasks.js'));
 router.use('/cod', require('../cod.js'));
 router.use('/control-tower', require('../controlTower.js'));
 router.use('/notifications-engine', require('../notificationsLogistics.js'));
+router.use('/e2e', require('../e2eAcceptance.js'));
 
 module.exports = router;

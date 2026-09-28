@@ -28,6 +28,7 @@ import { PaymentsView } from './views/PaymentsView.jsx';
 import { ProcurementView } from './views/ProcurementView.jsx';
 import { DriversView } from './views/DriversView.jsx';
 import { VehiclesView } from './views/VehiclesView.jsx';
+import { CommunicationsView } from './views/CommunicationsView.jsx';
 import { LoginView } from './views/LoginView.jsx';
 
 function MainApp() {
@@ -145,6 +146,8 @@ function MainApp() {
         return <DashboardView onNavigate={setCurrentView} />;
       case 'control-tower':
         return <OperationsControlTower onNavigate={setCurrentView} />;
+      case 'communications':
+        return <CommunicationsView />;
       case 'pos':
         return <PosView />;
       case 'dispatch':
