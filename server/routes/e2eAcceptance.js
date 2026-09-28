@@ -3,8 +3,7 @@
 const express = require('express');
 const router = express.Router();
 const e2eAcceptanceService = require('../services/e2eAcceptanceService.js');
-const { authenticateToken } = require('../middleware/auth.js');
-const { requirePermission } = require('../config/permissions.js');
+const { authenticateToken, requirePermission } = require('../middleware/auth.js');
 
 /**
  * GET /api/v1/e2e/steps

@@ -38,6 +38,7 @@ const TABLE_PIPELINE = [
     { name: 'stock_transfer_items', pk: 'id' },
     { name: 'deliveries', pk: 'id' },
     { name: 'delivery_items', pk: 'id' },
+    { name: 'delivery_attempts', pk: 'id' },
     { name: 'delivery_status_history', pk: 'id' },
     { name: 'proof_of_delivery', pk: 'id', boolCols: ['otp_verified'] },
     { name: 'inventory_movements', pk: 'id' },
@@ -46,7 +47,28 @@ const TABLE_PIPELINE = [
     { name: 'user_sessions', pk: 'id', boolCols: ['is_active'], jsonCols: ['device_info'] },
     { name: 'revoked_tokens', pk: 'id' },
     { name: 'password_reset_tokens', pk: 'id' },
-    { name: 'login_history', pk: 'id' }
+    { name: 'login_history', pk: 'id' },
+    // Logistics Core & Operations Pipeline (Topological Order)
+    { name: 'logistics_pricing_tariffs', pk: 'id', boolCols: ['is_active'] },
+    { name: 'shipments', pk: 'id' },
+    { name: 'parcels', pk: 'id' },
+    { name: 'routes', pk: 'id', boolCols: ['is_active'] },
+    { name: 'route_legs', pk: 'id', boolCols: ['is_cross_border', 'is_active'] },
+    { name: 'transport_runs', pk: 'id' },
+    { name: 'manifests', pk: 'id' },
+    { name: 'shipment_legs', pk: 'id', boolCols: ['is_cross_border'] },
+    { name: 'manifest_items', pk: 'id' },
+    { name: 'run_checkpoints', pk: 'id' },
+    { name: 'scan_events', pk: 'id', jsonCols: ['metadata'] },
+    { name: 'handoffs', pk: 'id' },
+    { name: 'hub_receiving_sessions', pk: 'id' },
+    { name: 'hub_receiving_items', pk: 'id' },
+    { name: 'discrepancies', pk: 'id' },
+    { name: 'cod_settlements', pk: 'id' },
+    { name: 'notification_templates', pk: 'id', boolCols: ['is_active'], jsonCols: ['variables'] },
+    { name: 'notification_logs', pk: 'id', boolCols: ['is_customer_visible'], jsonCols: ['payload_snapshot', 'metadata'] },
+    { name: 'notification_outbox', pk: 'id', jsonCols: ['payload'] },
+    { name: 'tracking_events', pk: 'id', boolCols: ['is_customer_visible'], jsonCols: ['metadata'] }
 ];
 
 /**

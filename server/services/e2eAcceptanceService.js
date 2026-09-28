@@ -116,10 +116,24 @@ class E2EAcceptanceService {
             db.prepare(`
                 UPDATE shipments SET
                     payment_status = 'PAID',
-                    payment_method = 'MPESA',
                     updated_at = CURRENT_TIMESTAMP
                 WHERE id = ?
             `).run(shipment.id);
+
+            db.prepare(`
+                INSERT INTO payments (
+                    branch_id, shipment_id, payment_number, payment_method, amount, currency,
+                    reference_code, mpesa_receipt_number, status, cashier_user_id, created_at
+                ) VALUES (?, ?, ?, 'MPESA', ?, 'KES', ?, ?, 'COMPLETED', ?, CURRENT_TIMESTAMP)
+            `).run(
+                originHubId,
+                shipment.id,
+                `PAY-${Date.now().toString().slice(-6)}`,
+                shipment.total_charge || 1000,
+                paymentRef,
+                paymentRef,
+                admin.id
+            );
 
             logStep(4, 'Shipment Payment Recorded', {
                 payment_status: 'PAID',
@@ -130,7 +144,7 @@ class E2EAcceptanceService {
             // =========================================================================
             // STEP 5: Parcel Intake Acceptance
             // =========================================================================
-            shipmentService.updateShipmentStatus(shipment.id, 'ACCEPTED', {
+            shipmentService.transitionShipmentStatus(shipment.id, 'ACCEPTED', {
                 location_desc: 'Nairobi Central Hub Booking Counter',
                 description: 'Physical consignment accepted and verified by counter agent'
             }, admin);
@@ -143,7 +157,7 @@ class E2EAcceptanceService {
             // =========================================================================
             // STEP 6: Physical Custody Intake Scan
             // =========================================================================
-            const intakeScan = custodyService.recordScan({
+            const intakeScan = custodyService.recordScanEvent({
                 barcode: shipment.tracking_number,
                 scan_type: 'INTAKE',
                 hub_id: originHubId,
@@ -173,8 +187,19 @@ class E2EAcceptanceService {
                 }, admin);
             }
 
-            const driver1 = db.prepare('SELECT id, full_name FROM drivers WHERE status = ? LIMIT 1').get('AVAILABLE') ||
-                            db.prepare('SELECT id, full_name FROM drivers LIMIT 1').get();
+            const driver1 = db.prepare(`
+                SELECT d.id, u.full_name
+                FROM drivers d
+                JOIN users u ON d.user_id = u.id
+                WHERE d.status = 'AVAILABLE'
+                LIMIT 1
+            `).get() || db.prepare(`
+                SELECT d.id, u.full_name
+                FROM drivers d
+                JOIN users u ON d.user_id = u.id
+                LIMIT 1
+            `).get();
+
             const vehicle1 = db.prepare('SELECT id, registration_number FROM vehicles WHERE status = ? LIMIT 1').get('AVAILABLE') ||
                              db.prepare('SELECT id, registration_number FROM vehicles LIMIT 1').get();
 
@@ -273,7 +298,13 @@ class E2EAcceptanceService {
                 }, admin);
             }
 
-            const driver2 = db.prepare('SELECT id, full_name FROM drivers WHERE id != ? LIMIT 1').get(driver1.id) || driver1;
+            const driver2 = db.prepare(`
+                SELECT d.id, u.full_name
+                FROM drivers d
+                JOIN users u ON d.user_id = u.id
+                WHERE d.id != ?
+                LIMIT 1
+            `).get(driver1.id) || driver1;
             const vehicle2 = db.prepare('SELECT id, registration_number FROM vehicles WHERE id != ? LIMIT 1').get(vehicle1.id) || vehicle1;
 
             const run2 = transportService.createTransportRun({
@@ -361,9 +392,10 @@ class E2EAcceptanceService {
             // =========================================================================
             // STEP 19 & 20: Multi-Factor POD Verification & Final Delivery Completion
             // =========================================================================
-            const completedDelivery = deliveryExecutionService.completeDelivery(deliveryTask.id, {
+            const completedDelivery = deliveryExecutionService.completeDeliveryWithPOD(deliveryTask.id, {
                 otp_code: activeDelivery.pod_otp,
-                recipient_signature: 'data:image/svg+xml;utf8,<svg><path d="M10 10 L50 50"/></svg>',
+                otp_verified: true,
+                signature_data: 'data:image/svg+xml;utf8,<svg><path d="M10 10 L50 50"/></svg>',
                 recipient_name: 'Grace Auma',
                 recipient_id_type: 'NATIONAL_ID',
                 recipient_id_number: '28475920',

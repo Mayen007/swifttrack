@@ -372,7 +372,7 @@ function listTransportRuns(filters = {}, user = {}) {
  * Adds a shipment to the Transport Run's Manifest
  */
 function addShipmentToManifest(runId, shipmentId, user = {}) {
-    const run = db.prepare('SELECT id, status FROM transport_runs WHERE id = ?').get(runId);
+    const run = db.prepare('SELECT id, status, origin_hub_id, destination_hub_id FROM transport_runs WHERE id = ?').get(runId);
     if (!run) throw new Error(`Transport Run ${runId} not found`);
 
     if (['DISPATCHED', 'IN_TRANSIT', 'ARRIVED', 'COMPLETED', 'CANCELLED'].includes(run.status)) {
