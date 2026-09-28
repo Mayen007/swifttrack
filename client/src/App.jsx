@@ -10,6 +10,7 @@ import { ToastContainer } from './components/ToastContainer.jsx';
 import { api } from './services/api.js';
 
 import { DashboardView } from './views/DashboardView.jsx';
+import { OperationsControlTower } from './components/dashboard/OperationsControlTower.jsx';
 import { PosView } from './views/PosView.jsx';
 import { DispatchView } from './views/DispatchView.jsx';
 import { DriverView } from './views/DriverView.jsx';
@@ -142,6 +143,8 @@ function MainApp() {
     switch (currentView) {
       case 'dashboard':
         return <DashboardView onNavigate={setCurrentView} />;
+      case 'control-tower':
+        return <OperationsControlTower onNavigate={setCurrentView} />;
       case 'pos':
         return <PosView />;
       case 'dispatch':

@@ -26,9 +26,11 @@ import {
 import { SvgLineChart } from '../components/charts/SvgLineChart.jsx';
 import { SvgDonutChart } from '../components/charts/SvgDonutChart.jsx';
 import { SvgBarChart } from '../components/charts/SvgBarChart.jsx';
+import { OperationsControlTower } from '../components/dashboard/OperationsControlTower.jsx';
 
 export function DashboardView({ onNavigate }) {
   const { user, selectedBranch, isSuperAdmin } = useAuth();
+  const [activeTab, setActiveTab] = useState('control_tower'); // 'control_tower' | 'commercial_bi'
   const [stats, setStats] = useState(null);
   const [lowStock, setLowStock] = useState([]);
   const [branchPerformance, setBranchPerformance] = useState([]);
@@ -124,7 +126,46 @@ export function DashboardView({ onNavigate }) {
 
   return (
     <div className="space-y-6">
-      {/* 1. OPERATIONAL CONSOLE HEADER */}
+      {/* 0. CONSOLE MODE SELECTOR STRIP */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between bg-[#12161f] border border-[#222834] rounded-xl p-2 gap-3">
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setActiveTab('control_tower')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-mono font-bold flex items-center gap-2 transition-all cursor-pointer ${
+              activeTab === 'control_tower'
+                ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40 shadow-sm'
+                : 'text-slate-400 hover:text-slate-200 hover:bg-[#18202d] border border-transparent'
+            }`}
+          >
+            <Activity className="w-3.5 h-3.5 text-amber-400" />
+            <span>OPERATIONS CONTROL TOWER</span>
+            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse ml-0.5" />
+          </button>
+
+          <button
+            onClick={() => setActiveTab('commercial_bi')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-mono font-bold flex items-center gap-2 transition-all cursor-pointer ${
+              activeTab === 'commercial_bi'
+                ? 'bg-blue-500/20 text-blue-300 border border-blue-500/40 shadow-sm'
+                : 'text-slate-400 hover:text-slate-200 hover:bg-[#18202d] border border-transparent'
+            }`}
+          >
+            <BarChart2 className="w-3.5 h-3.5 text-blue-400" />
+            <span>FINANCIAL & RETAIL BI</span>
+          </button>
+        </div>
+
+        <div className="flex items-center gap-3 text-xs font-mono text-slate-400 px-2">
+          <span className="text-[10px] uppercase tracking-wider text-slate-400">HUB CONTEXT:</span>
+          <span className="text-amber-400 font-bold">{selectedBranch ? `${selectedBranch.code} (${selectedBranch.name})` : 'HQ MASTER NETWORK'}</span>
+        </div>
+      </div>
+
+      {activeTab === 'control_tower' ? (
+        <OperationsControlTower onNavigate={onNavigate} />
+      ) : (
+        <>
+          {/* 1. OPERATIONAL CONSOLE HEADER */}
       <div className="bg-[#12161f] border border-[#222834] rounded p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 select-none">
         <div className="space-y-1">
           <div className="flex items-center gap-2 text-[10px] font-mono uppercase tracking-widest text-slate-400">
@@ -938,6 +979,8 @@ export function DashboardView({ onNavigate }) {
           </div>
         </div>
       </div>
+        </>
+      )}
     </div>
   );
 }

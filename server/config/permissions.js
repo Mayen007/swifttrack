@@ -113,6 +113,10 @@ const AUTHORIZATION_MATRIX = {
             collect: SCOPES.GLOBAL,
             remit: SCOPES.GLOBAL,
             reconcile: SCOPES.GLOBAL
+        },
+        control_tower: {
+            view: SCOPES.GLOBAL,
+            resolve: SCOPES.GLOBAL
         }
     },
 
@@ -212,6 +216,10 @@ const AUTHORIZATION_MATRIX = {
             collect: SCOPES.OWN_BRANCH,
             remit: SCOPES.OWN_BRANCH,
             reconcile: SCOPES.OWN_BRANCH
+        },
+        control_tower: {
+            view: SCOPES.OWN_BRANCH,
+            resolve: SCOPES.OWN_BRANCH
         }
     },
 
@@ -307,6 +315,10 @@ const AUTHORIZATION_MATRIX = {
             collect: SCOPES.DENIED,
             remit: SCOPES.DENIED,
             reconcile: SCOPES.DENIED
+        },
+        control_tower: {
+            view: SCOPES.OWN_BRANCH,
+            resolve: SCOPES.OWN_BRANCH
         }
     },
 
@@ -402,6 +414,10 @@ const AUTHORIZATION_MATRIX = {
             collect: SCOPES.OWN_BRANCH,
             remit: SCOPES.OWN_BRANCH,
             reconcile: SCOPES.DENIED
+        },
+        control_tower: {
+            view: SCOPES.OWN_BRANCH,
+            resolve: SCOPES.DENIED
         }
     },
 
@@ -497,6 +513,10 @@ const AUTHORIZATION_MATRIX = {
             collect: SCOPES.OWN_RECORD,
             remit: SCOPES.OWN_RECORD,
             reconcile: SCOPES.DENIED
+        },
+        control_tower: {
+            view: SCOPES.OWN_RECORD,
+            resolve: SCOPES.DENIED
         }
     }
 };

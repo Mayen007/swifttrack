@@ -1989,6 +1989,32 @@ function migrateCODSchema() {
     }
 }
 
+function migrateControlTowerSchema() {
+    try {
+        const ctPerms = [
+            { code: 'control_tower:view', module: 'ControlTower', description: 'View operational control tower telemetry, corridor movement, and alert queues' },
+            { code: 'control_tower:resolve', module: 'ControlTower', description: 'Acknowledge, assign, and fast-resolve operational bottleneck alerts' }
+        ];
+
+        for (const p of ctPerms) {
+            const exists = db.prepare('SELECT id FROM permissions WHERE code = ?').get(p.code);
+            if (!exists) {
+                const info = db.prepare('INSERT INTO permissions (code, module, description) VALUES (?, ?, ?)').run(p.code, p.module, p.description);
+                const permId = info.lastInsertRowid;
+                db.prepare('INSERT OR IGNORE INTO role_permissions (role_id, permission_id) VALUES (1, ?)').run(permId);
+                db.prepare('INSERT OR IGNORE INTO role_permissions (role_id, permission_id) VALUES (2, ?)').run(permId);
+                db.prepare('INSERT OR IGNORE INTO role_permissions (role_id, permission_id) VALUES (3, ?)').run(permId);
+                if (p.code === 'control_tower:view') {
+                    db.prepare('INSERT OR IGNORE INTO role_permissions (role_id, permission_id) VALUES (4, ?)').run(permId);
+                    db.prepare('INSERT OR IGNORE INTO role_permissions (role_id, permission_id) VALUES (5, ?)').run(permId);
+                }
+            }
+        }
+    } catch (err) {
+        console.warn('Control Tower schema migration notice:', err.message);
+    }
+}
+
 // Initialize schema
 function initSchema() {
     const schemaPath = path.resolve(__dirname, 'schema.sql');
@@ -2012,6 +2038,7 @@ function initSchema() {
     migrateLastMileSchema();
     migratePosCounterBookingSchema();
     migrateCODSchema();
+    migrateControlTowerSchema();
 }
 
 // Run non-destructive migrations on load
@@ -2033,6 +2060,7 @@ migratePhysicalCustodySchema();
 migrateLastMileSchema();
 migratePosCounterBookingSchema();
 migrateCODSchema();
+migrateControlTowerSchema();
 
 module.exports = {
     db,

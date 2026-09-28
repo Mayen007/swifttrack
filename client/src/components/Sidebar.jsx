@@ -3,6 +3,7 @@ import { useAuth } from '../context/AuthContext.jsx';
 import { sound } from '../services/sound.js';
 import {
   LayoutDashboard,
+  Activity,
   ShoppingCart,
   Truck,
   Bike,
@@ -45,6 +46,12 @@ export function Sidebar({
           label: 'Command Center',
           icon: LayoutDashboard,
           roles: ['SUPER_ADMIN', 'BRANCH_MANAGER', 'DISPATCHER', 'CASHIER', 'DRIVER'],
+        },
+        {
+          id: 'control-tower',
+          label: 'Operations Control Tower',
+          icon: Activity,
+          roles: ['SUPER_ADMIN', 'BRANCH_MANAGER', 'DISPATCHER'],
         },
         {
           id: 'pos',
