@@ -117,6 +117,11 @@ const AUTHORIZATION_MATRIX = {
         control_tower: {
             view: SCOPES.GLOBAL,
             resolve: SCOPES.GLOBAL
+        },
+        notifications: {
+            view: SCOPES.GLOBAL,
+            manage: SCOPES.GLOBAL,
+            resend: SCOPES.GLOBAL
         }
     },
 
@@ -220,6 +225,11 @@ const AUTHORIZATION_MATRIX = {
         control_tower: {
             view: SCOPES.OWN_BRANCH,
             resolve: SCOPES.OWN_BRANCH
+        },
+        notifications: {
+            view: SCOPES.OWN_BRANCH,
+            manage: SCOPES.DENIED,
+            resend: SCOPES.OWN_BRANCH
         }
     },
 
@@ -319,6 +329,11 @@ const AUTHORIZATION_MATRIX = {
         control_tower: {
             view: SCOPES.OWN_BRANCH,
             resolve: SCOPES.OWN_BRANCH
+        },
+        notifications: {
+            view: SCOPES.OWN_BRANCH,
+            manage: SCOPES.DENIED,
+            resend: SCOPES.OWN_BRANCH
         }
     },
 
@@ -418,6 +433,11 @@ const AUTHORIZATION_MATRIX = {
         control_tower: {
             view: SCOPES.OWN_BRANCH,
             resolve: SCOPES.DENIED
+        },
+        notifications: {
+            view: SCOPES.OWN_BRANCH,
+            manage: SCOPES.DENIED,
+            resend: SCOPES.DENIED
         }
     },
 
@@ -517,6 +537,11 @@ const AUTHORIZATION_MATRIX = {
         control_tower: {
             view: SCOPES.OWN_RECORD,
             resolve: SCOPES.DENIED
+        },
+        notifications: {
+            view: SCOPES.OWN_RECORD,
+            manage: SCOPES.DENIED,
+            resend: SCOPES.DENIED
         }
     }
 };

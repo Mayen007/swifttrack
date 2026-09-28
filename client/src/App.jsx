@@ -48,7 +48,7 @@ function MainApp() {
   useEffect(() => {
     let isMounted = true;
     async function fetchUnreadCount() {
-      if (!user) {
+      if (!user || !api.token) {
         if (isMounted) setUnreadCount(0);
         return;
       }

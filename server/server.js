@@ -29,6 +29,7 @@ const v1Router = require('./routes/v1/index.js');
 
 const { tieredBodyParser, tieredUrlEncodedParser } = require('./middleware/bodyLimits.js');
 const { csrfProtection } = require('./middleware/csrf.js');
+const { startNotificationWorker, stopNotificationWorker } = require('./workers/notificationWorker.js');
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -109,6 +110,7 @@ if (require.main === module) {
         console.log(`👉 http://localhost:${PORT}`);
         console.log(`   Mode: ${process.env.DEMO_MODE === 'true' ? 'SANDBOX / EVALUATION' : 'ENTERPRISE PRODUCTION'}`);
         console.log(`========================================================`);
+        startNotificationWorker();
     });
 
     server.on('error', (err) => {
@@ -123,6 +125,7 @@ if (require.main === module) {
     // Graceful process termination
     const gracefulShutdown = (signal) => {
         console.log(`\nReceived ${signal}. Shutting down cleanly...`);
+        stopNotificationWorker();
         server.close(() => {
             console.log('HTTP connection pool drained.');
             try {

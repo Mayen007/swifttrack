@@ -2,6 +2,7 @@
 // SwiftTrack Logistics: Stage 5 Last-Mile Delivery, Multi-Attempt & Centralized Exceptions
 const { db } = require('../db/database.js');
 const { logAuditEvent } = require('../middleware/audit.js');
+const notificationService = require('./notificationService.js');
 
 /**
  * Generates human-readable sequential business identifiers
@@ -45,18 +46,21 @@ function createDeliveryTask(data, user = {}) {
     const branchId = shipment.destination_hub_id || user.branchId || 1;
     const priority = (data.priority || 'NORMAL').toUpperCase();
     const maxAttempts = data.max_attempts ? parseInt(data.max_attempts, 10) : 3;
-    const podRequired = data.pod_required_methods || 'SIGNATURE,GPS';
+    const podRequired = Array.isArray(data.pod_required_methods)
+        ? data.pod_required_methods.join(',')
+        : (data.pod_required_methods || 'SIGNATURE,GPS');
+    const podOtp = podRequired.toUpperCase().includes('OTP') ? String(Math.floor(100000 + Math.random() * 900000)) : null;
 
     const executeTx = db.transaction(() => {
         const info = db.prepare(`
             INSERT INTO deliveries (
                 branch_id, delivery_number, shipment_id, hub_id, delivery_type,
                 driver_id, vehicle_id, dispatcher_user_id, status, priority,
-                attempt_count, max_attempts, pod_required_methods,
+                attempt_count, max_attempts, pod_required_methods, pod_otp,
                 destination_address, destination_city, recipient_name, recipient_phone,
                 cod_amount_expected, cod_amount_collected, scheduled_pickup_at,
                 created_at, updated_at
-            ) VALUES (?, ?, ?, ?, 'LAST_MILE', ?, ?, ?, 'PENDING_ASSIGNMENT', ?, 0, ?, ?, ?, ?, ?, ?, ?, 0.0, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+            ) VALUES (?, ?, ?, ?, 'LAST_MILE', ?, ?, ?, 'PENDING_ASSIGNMENT', ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, 0.0, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
         `).run(
             branchId,
             deliveryNumber,
@@ -68,6 +72,7 @@ function createDeliveryTask(data, user = {}) {
             priority,
             maxAttempts,
             podRequired,
+            podOtp,
             data.destination_address || shipment.recipient_address,
             data.destination_city || shipment.destination_city,
             data.recipient_name || shipment.recipient_name,
@@ -178,12 +183,17 @@ function startDelivery(deliveryId, user = {}) {
     const delivery = db.prepare('SELECT * FROM deliveries WHERE id = ?').get(deliveryId);
     if (!delivery) throw new Error(`Delivery task ${deliveryId} not found`);
 
+    let currentOtp = delivery.pod_otp;
+    if (delivery.pod_required_methods && delivery.pod_required_methods.toUpperCase().includes('OTP') && !currentOtp) {
+        currentOtp = String(Math.floor(100000 + Math.random() * 900000));
+    }
+
     const executeTx = db.transaction(() => {
         db.prepare(`
             UPDATE deliveries
-            SET status = 'IN_TRANSIT', updated_at = CURRENT_TIMESTAMP
+            SET status = 'IN_TRANSIT', pod_otp = COALESCE(pod_otp, ?), updated_at = CURRENT_TIMESTAMP
             WHERE id = ?
-        `).run(deliveryId);
+        `).run(currentOtp || null, deliveryId);
 
         if (delivery.shipment_id) {
             db.prepare(`
@@ -211,7 +221,22 @@ function startDelivery(deliveryId, user = {}) {
         return getDeliveryById(deliveryId);
     });
 
-    return executeTx();
+    const res = executeTx();
+
+    if (delivery.shipment_id) {
+        try {
+            const shipment = db.prepare('SELECT * FROM shipments WHERE id = ?').get(delivery.shipment_id);
+            notificationService.queueMilestoneNotification('OUT_FOR_DELIVERY', {
+                shipment,
+                delivery: res,
+                otp_code: res.pod_otp || currentOtp || '123456'
+            });
+        } catch (e) {
+            // Non-blocking
+        }
+    }
+
+    return res;
 }
 
 // ============================================================================
@@ -339,7 +364,22 @@ function recordDeliveryAttempt(deliveryId, data, user = {}) {
         };
     });
 
-    return executeTx();
+    const res = executeTx();
+
+    if (status === 'FAILED' && delivery.shipment_id) {
+        try {
+            const shipment = db.prepare('SELECT * FROM shipments WHERE id = ?').get(delivery.shipment_id);
+            notificationService.queueMilestoneNotification('DELIVERY_FAILED', {
+                shipment,
+                delivery: res.delivery,
+                reason: data.failure_reason
+            });
+        } catch (e) {
+            // Non-blocking
+        }
+    }
+
+    return res;
 }
 
 // ============================================================================
@@ -542,7 +582,21 @@ function completeDeliveryWithPOD(deliveryId, podData, user = {}) {
         };
     });
 
-    return executeTx();
+    const res = executeTx();
+
+    if (delivery.shipment_id) {
+        try {
+            const shipment = db.prepare('SELECT * FROM shipments WHERE id = ?').get(delivery.shipment_id);
+            notificationService.queueMilestoneNotification('DELIVERED', {
+                shipment,
+                delivery: res.delivery
+            });
+        } catch (e) {
+            // Non-blocking
+        }
+    }
+
+    return res;
 }
 
 /**

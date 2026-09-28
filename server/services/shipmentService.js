@@ -4,6 +4,7 @@ const crypto = require('node:crypto');
 const { db } = require('../db/database.js');
 const shipmentPricingService = require('./shipmentPricingService.js');
 const { logAuditEvent } = require('../middleware/audit.js');
+const notificationService = require('./notificationService.js');
 
 const SHIPMENT_STATUSES = {
     DRAFT: 'DRAFT',
@@ -294,7 +295,7 @@ function createShipment(data, user = {}) {
             reason: 'Counter parcel booking intake'
         });
 
-        return {
+        const result = {
             id: shipmentId,
             tracking_number: trackingNumber,
             waybill_number: waybillNumber,
@@ -308,6 +309,24 @@ function createShipment(data, user = {}) {
             parcels: insertedParcels,
             legs: [{ sequence: 1, origin_hub: originHub.name, destination_hub: destHub.name, status: 'PENDING' }]
         };
+
+        // Asynchronous non-blocking milestone notification (Rule NTF-002)
+        notificationService.queueMilestoneNotification('BOOKED', {
+            shipment: {
+                id: shipmentId,
+                tracking_number: trackingNumber,
+                recipient_name: data.recipient.name,
+                recipient_phone: data.recipient.phone,
+                recipient_email: data.recipient.email,
+                sender_name: data.sender.name,
+                sender_phone: data.sender.phone,
+                sender_email: data.sender.email,
+                origin_city: originHub.city || originHub.name,
+                dest_city: destHub.city || destHub.name
+            }
+        });
+
+        return result;
     });
 
     return executeTransaction();
@@ -564,7 +583,22 @@ function transitionShipmentStatus(id, targetStatus, payload = {}, user = {}) {
         };
     });
 
-    return executeTransition();
+    const res = executeTransition();
+
+    // Trigger milestone notification on key transitions
+    try {
+        const fullShipment = db.prepare('SELECT * FROM shipments WHERE id = ?').get(id);
+        if (fullShipment && ['ACCEPTED', 'CANCELLED', 'EXCEPTION', 'DELIVERED'].includes(target)) {
+            notificationService.queueMilestoneNotification(target, {
+                shipment: fullShipment,
+                reason: payload.reason || payload.notes
+            });
+        }
+    } catch (e) {
+        // Non-blocking
+    }
+
+    return res;
 }
 
 /**

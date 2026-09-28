@@ -4,6 +4,7 @@ const crypto = require('node:crypto');
 const { db } = require('../db/database.js');
 const shipmentService = require('./shipmentService.js');
 const { logAuditEvent } = require('../middleware/audit.js');
+const notificationService = require('./notificationService.js');
 
 const RUN_STATUSES = {
     PLANNED: 'PLANNED',
@@ -642,7 +643,27 @@ function dispatchTransportRun(runId, payload = {}, user = {}) {
         return getTransportRunById(runId);
     });
 
-    return executeTx();
+    const runResult = executeTx();
+
+    // Trigger milestone notifications for shipments on manifest (Rule NTF-002)
+    if (run.manifest && run.manifest.items) {
+        for (const item of run.manifest.items) {
+            try {
+                const shipment = db.prepare('SELECT * FROM shipments WHERE id = ?').get(item.shipment_id);
+                if (shipment) {
+                    notificationService.queueMilestoneNotification('DISPATCHED', {
+                        shipment,
+                        run: runResult,
+                        eta: runResult.estimated_arrival ? new Date(runResult.estimated_arrival).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'In Transit'
+                    });
+                }
+            } catch (e) {
+                // Non-blocking
+            }
+        }
+    }
+
+    return runResult;
 }
 
 /**
