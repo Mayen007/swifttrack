@@ -1878,6 +1878,52 @@ function migrateLastMileSchema() {
     }
 }
 
+/**
+ * Non-destructive runtime migration for Stage 6: Reposition the POS
+ * Links payments to shipments and seeds counter booking permissions
+ */
+function migratePosCounterBookingSchema() {
+    try {
+        // 1. Add shipment_id column to payments if missing
+        const payCols = db.prepare('PRAGMA table_info(payments)').all().map(c => c.name);
+        if (!payCols.includes('shipment_id')) {
+            db.exec('ALTER TABLE payments ADD COLUMN shipment_id INTEGER REFERENCES shipments(id) ON DELETE SET NULL;');
+        }
+
+        // 2. Add shipment_id column to payment_intents if missing
+        const piCols = db.prepare('PRAGMA table_info(payment_intents)').all().map(c => c.name);
+        if (!piCols.includes('shipment_id')) {
+            db.exec('ALTER TABLE payment_intents ADD COLUMN shipment_id INTEGER REFERENCES shipments(id) ON DELETE SET NULL;');
+        }
+
+        // 3. Create indexes
+        db.exec(`
+            CREATE INDEX IF NOT EXISTS idx_payments_shipment ON payments(shipment_id);
+            CREATE INDEX IF NOT EXISTS idx_payment_intents_shipment ON payment_intents(shipment_id);
+        `);
+
+        // 4. Seed Stage 6 Permissions
+        const counterPerms = [
+            { code: 'pos:counter:book', module: 'POS', description: 'Book and accept parcel shipments at counter' },
+            { code: 'pos:counter:quote', module: 'POS', description: 'Calculate counter parcel quotes' },
+            { code: 'shipments:waybill:view', module: 'Shipments', description: 'Generate and view shipment waybills' }
+        ];
+
+        for (const p of counterPerms) {
+            const exists = db.prepare('SELECT id FROM permissions WHERE code = ?').get(p.code);
+            if (!exists) {
+                const info = db.prepare('INSERT INTO permissions (code, module, description) VALUES (?, ?, ?)').run(p.code, p.module, p.description);
+                const permId = info.lastInsertRowid;
+                db.prepare('INSERT OR IGNORE INTO role_permissions (role_id, permission_id) VALUES (1, ?)').run(permId);
+                db.prepare('INSERT OR IGNORE INTO role_permissions (role_id, permission_id) VALUES (2, ?)').run(permId);
+                db.prepare('INSERT OR IGNORE INTO role_permissions (role_id, permission_id) VALUES (4, ?)').run(permId);
+            }
+        }
+    } catch (err) {
+        console.warn('POS counter booking schema migration notice:', err.message);
+    }
+}
+
 // Initialize schema
 function initSchema() {
     const schemaPath = path.resolve(__dirname, 'schema.sql');
@@ -1899,6 +1945,7 @@ function initSchema() {
     migrateTransportSchema();
     migratePhysicalCustodySchema();
     migrateLastMileSchema();
+    migratePosCounterBookingSchema();
 }
 
 // Run non-destructive migrations on load
@@ -1918,6 +1965,7 @@ migrateShipmentCoreSchema();
 migrateTransportSchema();
 migratePhysicalCustodySchema();
 migrateLastMileSchema();
+migratePosCounterBookingSchema();
 
 module.exports = {
     db,

@@ -1891,4 +1891,11 @@ CREATE INDEX IF NOT EXISTS idx_discrepancies_shipment ON discrepancies(shipment_
 CREATE INDEX IF NOT EXISTS idx_discrepancies_status ON discrepancies(status);
 CREATE INDEX IF NOT EXISTS idx_discrepancies_type ON discrepancies(discrepancy_type);
 
+-- ============================================================================
+-- PHASE 14: POS COUNTER BOOKING, PAYMENTS LINKING & WAYBILL PERSISTENCE
+-- ============================================================================
+CREATE INDEX IF NOT EXISTS idx_payments_shipment ON payments(shipment_id);
+CREATE INDEX IF NOT EXISTS idx_payment_intents_shipment ON payment_intents(shipment_id);
+
+
 

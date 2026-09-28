@@ -753,4 +753,33 @@ dialog::backdrop {
 [data-theme="light"] .text-amber-100,
 .light .text-amber-100 {
   color: #78350f !important;
+}
+
+/* 15. Clean Waybill & Receipt Print Styles */
+@media print {
+  body {
+    background: #ffffff !important;
+    color: #000000 !important;
+    overflow: visible !important;
+  }
+
+  nav,
+  aside,
+  header,
+  .print\:hidden {
+    display: none !important;
+  }
+
+  .fixed.inset-0 {
+    position: static !important;
+    background: transparent !important;
+    padding: 0 !important;
+  }
+
+  .max-w-3xl {
+    max-width: 100% !important;
+    border: none !important;
+    box-shadow: none !important;
+    background: transparent !important;
+  }
 }

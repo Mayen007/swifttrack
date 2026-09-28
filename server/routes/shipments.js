@@ -94,4 +94,23 @@ router.post('/:id/transition', authenticateToken, (req, res, next) => {
     }
 });
 
+// GET /api/v1/shipments/:id/waybill - Retrieve printable official waybill
+router.get('/:id/waybill', authenticateToken, (req, res) => {
+    try {
+        const counterBookingService = require('../services/counterBookingService.js');
+        const waybill = counterBookingService.getWaybillByIdentifier(req.params.id, req.user);
+        if (!waybill) {
+            return res.status(404).json({ error: 'Waybill not found for shipment' });
+        }
+        res.json({
+            success: true,
+            waybill
+        });
+    } catch (err) {
+        console.error('Get shipment waybill error:', err);
+        res.status(err.statusCode || 500).json({ error: err.message });
+    }
+});
+
 module.exports = router;
+

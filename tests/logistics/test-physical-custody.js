@@ -232,11 +232,12 @@ try {
         is_cross_border: false
     }, adminUser);
 
+    const testDriver = db.prepare('SELECT id FROM drivers WHERE branch_id = 1 LIMIT 1').get() || db.prepare('SELECT id FROM drivers LIMIT 1').get();
     const run = transportService.createTransportRun({
         route_leg_id: route.legs[0].id,
         origin_hub_id: 1,
         destination_hub_id: 2,
-        driver_id: driverUser.id,
+        driver_id: testDriver ? testDriver.id : 1,
         vehicle_id: 1
     }, dispatcherUser);
 

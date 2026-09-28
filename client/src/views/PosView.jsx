@@ -32,10 +32,13 @@ import {
   Landmark,
   Split,
   ChevronDown,
+  Package,
 } from 'lucide-react';
+import { ParcelCounterBooking } from '../components/pos/ParcelCounterBooking.jsx';
 
 export function PosView() {
   const { user, selectedBranch } = useAuth();
+  const [posMode, setPosMode] = useState('PARCEL'); // 'PARCEL' | 'RETAIL'
   const {
     items,
     addItem,
@@ -599,10 +602,51 @@ export function PosView() {
         </div>
       </div>
 
-      {/* MAIN TWO-COLUMN REGISTER INTERFACE */}
-      <div className="flex-1 flex flex-col lg:flex-row gap-4 overflow-hidden">
-        {/* CATALOG REGISTER COLUMN (Left) */}
-        <div className="flex-1 flex flex-col bg-[#12161f] border border-[#222834] rounded p-4 overflow-hidden">
+      {/* Operating Mode Selector Tabs */}
+      <div className="flex items-center gap-2 border-b border-[#222834] pb-2 shrink-0">
+        <button
+          type="button"
+          onClick={() => setPosMode('PARCEL')}
+          className={`px-3.5 py-1.5 rounded-lg font-mono text-xs font-bold flex items-center gap-2 transition-all cursor-pointer ${
+            posMode === 'PARCEL'
+              ? 'bg-blue-600 text-white shadow-md shadow-blue-600/25 ring-1 ring-blue-500'
+              : 'bg-[#121622] text-slate-400 hover:text-white border border-[#222834]'
+          }`}
+        >
+          <Package className="w-4 h-4 text-blue-300" />
+          <span>PARCEL COUNTER INTAKE & WAYBILLS</span>
+          <span className="px-1.5 py-0.5 rounded text-[9px] bg-blue-500/20 text-blue-300 font-normal">LOGISTICS</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setPosMode('RETAIL')}
+          className={`px-3.5 py-1.5 rounded-lg font-mono text-xs font-bold flex items-center gap-2 transition-all cursor-pointer ${
+            posMode === 'RETAIL'
+              ? 'bg-amber-400 text-slate-950 shadow-md shadow-amber-400/25 font-black'
+              : 'bg-[#121622] text-slate-400 hover:text-white border border-[#222834]'
+          }`}
+        >
+          <ShoppingCart className="w-4 h-4 text-amber-500" />
+          <span>RETAIL POS & PACKAGING SUPPLIES</span>
+          <span className="px-1.5 py-0.5 rounded text-[9px] bg-amber-500/20 text-amber-900 font-normal">RETAIL</span>
+        </button>
+      </div>
+
+      {posMode === 'PARCEL' ? (
+        <div className="flex-1 overflow-y-auto">
+          <ParcelCounterBooking
+            user={user}
+            activeShift={activeShift}
+            onRefreshShift={loadActiveShift}
+            onOpenShiftRequest={() => setOpenShiftModalOpen(true)}
+          />
+        </div>
+      ) : (
+        /* MAIN TWO-COLUMN REGISTER INTERFACE */
+        <div className="flex-1 flex flex-col lg:flex-row gap-4 overflow-hidden">
+          {/* CATALOG REGISTER COLUMN (Left) */}
+          <div className="flex-1 flex flex-col bg-[#12161f] border border-[#222834] rounded p-4 overflow-hidden">
           {/* Top Control Bar: Search & Barcode Trigger */}
           <div className="flex flex-wrap items-center gap-2.5 pb-3 border-b border-[#222834]">
             <div className="flex-1 relative min-w-[240px]">
@@ -982,6 +1026,7 @@ export function PosView() {
           </div>
         </div>
       </div>
+      )}
 
       {/* ------------------------------------------------------------- */}
       {/* MODAL 1: OPEN REGISTER SHIFT */}

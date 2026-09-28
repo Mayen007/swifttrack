@@ -856,4 +856,67 @@ router.delete('/held/:id', authenticateToken, authorize('pos', 'hold', { entityT
     res.json({ message: 'Held sale cleared successfully' });
 });
 
+// =========================================================================
+// 8. LOGISTICS PARCEL COUNTER BOOKING, PAYMENTS & WAYBILL GENERATION
+// =========================================================================
+const counterBookingService = require('../services/counterBookingService.js');
+
+// POST /api/pos/counter/quote - Live volumetric rating quote for counter intake
+router.post('/counter/quote', authenticateToken, (req, res) => {
+    try {
+        const payload = {
+            ...req.body,
+            origin_hub_id: req.body.origin_hub_id || req.user.branchId || 1
+        };
+        const quote = counterBookingService.calculateCounterQuote(payload);
+        res.json(quote);
+    } catch (err) {
+        console.error('Counter quote error:', err);
+        res.status(err.statusCode || 400).json({
+            error: err.message,
+            code: err.code || 'QUOTE_CALCULATION_FAILED'
+        });
+    }
+});
+
+// POST /api/pos/counter/book - Complete atomic parcel intake booking, payment & waybill
+router.post('/counter/book', authenticateToken, authorize('pos', 'create'), (req, res) => {
+    try {
+        const payload = {
+            ...req.body,
+            origin_hub_id: req.body.origin_hub_id || req.user.branchId || 1
+        };
+        const result = counterBookingService.bookCounterShipment(payload, req.user);
+        res.status(201).json({
+            success: true,
+            message: 'Parcel shipment successfully booked, paid, and accepted into origin hub custody.',
+            data: result
+        });
+    } catch (err) {
+        console.error('Counter booking error:', err);
+        res.status(err.statusCode || 400).json({
+            error: err.message,
+            code: err.code || 'COUNTER_BOOKING_FAILED'
+        });
+    }
+});
+
+// GET /api/pos/counter/waybill/:identifier - Retrieve printable waybill for reprint / view
+router.get('/counter/waybill/:identifier', authenticateToken, (req, res) => {
+    try {
+        const waybill = counterBookingService.getWaybillByIdentifier(req.params.identifier, req.user);
+        if (!waybill) {
+            return res.status(404).json({ error: 'Waybill not found for the provided identifier' });
+        }
+        res.json({
+            success: true,
+            waybill
+        });
+    } catch (err) {
+        console.error('Get waybill error:', err);
+        res.status(err.statusCode || 500).json({ error: err.message });
+    }
+});
+
 module.exports = router;
+
