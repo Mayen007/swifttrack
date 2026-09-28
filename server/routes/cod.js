@@ -18,8 +18,8 @@ function mapErrorStatus(err) {
 // COD SETTLEMENTS & FINANCIAL RECONCILIATION
 // ============================================================================
 
-// GET /api/v1/cod/settlements/summary - Aggregated COD summary metrics for Control Tower / Finance
-router.get('/settlements/summary', authenticateToken, (req, res) => {
+// GET /api/v1/cod/settlements/summary (and aliases /summary, /metrics) - Aggregated COD summary metrics for Control Tower / Finance
+router.get(['/settlements/summary', '/summary', '/metrics'], authenticateToken, (req, res) => {
     try {
         const metrics = codService.getCODSummaryMetrics(req.query.hub_id, req.user);
         res.json(metrics);

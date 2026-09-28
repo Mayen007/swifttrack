@@ -25,6 +25,7 @@ import {
   ChevronRight,
   ChevronLeft,
   MessageSquare,
+  Layers,
 } from 'lucide-react';
 
 export function Sidebar({
@@ -40,18 +41,46 @@ export function Sidebar({
 
   const navSections = [
     {
-      title: 'Core Operations',
+      title: 'Control Tower & Command',
       items: [
+        {
+          id: 'control-tower',
+          label: 'Operations Control Tower',
+          icon: Activity,
+          roles: ['SUPER_ADMIN', 'BRANCH_MANAGER', 'DISPATCHER'],
+        },
         {
           id: 'dashboard',
           label: 'Command Center',
           icon: LayoutDashboard,
           roles: ['SUPER_ADMIN', 'BRANCH_MANAGER', 'DISPATCHER', 'CASHIER', 'DRIVER'],
         },
+      ],
+    },
+    {
+      title: 'Shipments & Counter',
+      items: [
         {
-          id: 'control-tower',
-          label: 'Operations Control Tower',
-          icon: Activity,
+          id: 'shipments',
+          label: 'Shipments & Waybills',
+          icon: Package,
+          roles: ['SUPER_ADMIN', 'BRANCH_MANAGER', 'DISPATCHER', 'CASHIER'],
+        },
+        {
+          id: 'pos',
+          label: 'Counter Parcel Booking',
+          icon: ShoppingCart,
+          roles: ['CASHIER', 'SUPER_ADMIN', 'BRANCH_MANAGER'],
+        },
+      ],
+    },
+    {
+      title: 'Hub Operations',
+      items: [
+        {
+          id: 'hub-operations',
+          label: 'Station Hub Operations',
+          icon: Layers,
           roles: ['SUPER_ADMIN', 'BRANCH_MANAGER', 'DISPATCHER'],
         },
         {
@@ -60,23 +89,16 @@ export function Sidebar({
           icon: MessageSquare,
           roles: ['SUPER_ADMIN', 'BRANCH_MANAGER', 'DISPATCHER'],
         },
-        {
-          id: 'pos',
-          label: 'POS Cashier Terminal',
-          icon: ShoppingCart,
-          roles: ['CASHIER', 'SUPER_ADMIN', 'BRANCH_MANAGER'],
-        },
+      ],
+    },
+    {
+      title: 'Transport & Fleet',
+      items: [
         {
           id: 'dispatch',
-          label: 'Logistics Dispatch',
+          label: 'Linehaul Dispatch & Runs',
           icon: Truck,
           roles: ['DISPATCHER', 'SUPER_ADMIN', 'BRANCH_MANAGER'],
-        },
-        {
-          id: 'drivers',
-          label: 'Fleet Drivers',
-          icon: UserCheck,
-          roles: ['SUPER_ADMIN', 'BRANCH_MANAGER', 'DISPATCHER'],
         },
         {
           id: 'vehicles',
@@ -84,6 +106,17 @@ export function Sidebar({
           icon: Truck,
           roles: ['SUPER_ADMIN', 'BRANCH_MANAGER', 'DISPATCHER'],
         },
+        {
+          id: 'drivers',
+          label: 'Fleet Drivers',
+          icon: UserCheck,
+          roles: ['SUPER_ADMIN', 'BRANCH_MANAGER', 'DISPATCHER'],
+        },
+      ],
+    },
+    {
+      title: 'Last-Mile Delivery',
+      items: [
         {
           id: 'driver',
           label: 'Courier Driver Portal',
@@ -93,25 +126,13 @@ export function Sidebar({
       ],
     },
     {
-      title: 'Warehouse & Sales',
+      title: 'Finance & Reconciliation',
       items: [
         {
-          id: 'products',
-          label: 'Product Catalog & Pricing',
-          icon: Tag,
-          roles: ['SUPER_ADMIN', 'BRANCH_MANAGER'],
-        },
-        {
-          id: 'inventory',
-          label: 'Multi-Branch Inventory',
-          icon: Package,
-          roles: ['SUPER_ADMIN', 'BRANCH_MANAGER', 'DISPATCHER'],
-        },
-        {
-          id: 'orders',
-          label: 'Orders & Receipts',
-          icon: Receipt,
-          roles: ['SUPER_ADMIN', 'BRANCH_MANAGER', 'CASHIER', 'DISPATCHER'],
+          id: 'cod-finance',
+          label: 'COD Settlement & Recon',
+          icon: Banknote,
+          roles: ['SUPER_ADMIN', 'BRANCH_MANAGER', 'CASHIER'],
         },
         {
           id: 'payments',
@@ -120,28 +141,16 @@ export function Sidebar({
           roles: ['SUPER_ADMIN', 'BRANCH_MANAGER', 'CASHIER'],
         },
         {
-          id: 'procurement',
-          label: 'Procurement & Suppliers',
-          icon: ShoppingBag,
-          roles: ['SUPER_ADMIN', 'BRANCH_MANAGER'],
-        },
-        {
-          id: 'customers',
-          label: 'Customer Directory',
-          icon: UserCheck,
-          roles: ['SUPER_ADMIN', 'BRANCH_MANAGER', 'CASHIER', 'DISPATCHER'],
+          id: 'expenses',
+          label: 'Petty Cash Ledger',
+          icon: Banknote,
+          roles: ['BRANCH_MANAGER', 'SUPER_ADMIN', 'CASHIER'],
         },
         {
           id: 'approvals',
           label: 'Refund Approvals',
           icon: RotateCcw,
           roles: ['BRANCH_MANAGER', 'SUPER_ADMIN'],
-        },
-        {
-          id: 'expenses',
-          label: 'Petty Cash Ledger',
-          icon: Banknote,
-          roles: ['BRANCH_MANAGER', 'SUPER_ADMIN', 'CASHIER'],
         },
       ],
     },

@@ -76,7 +76,10 @@ router.post('/:id/transition', authenticateToken, (req, res, next) => {
     next();
 }, (req, res) => {
     try {
-        const { target_status, ...payload } = req.body;
+        const target_status = req.body.target_status || req.body.status;
+        const payload = { ...req.body };
+        delete payload.target_status;
+        delete payload.status;
         if (!target_status) {
             return res.status(400).json({ error: 'target_status is required for status transition' });
         }

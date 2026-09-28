@@ -29,6 +29,9 @@ import { ProcurementView } from './views/ProcurementView.jsx';
 import { DriversView } from './views/DriversView.jsx';
 import { VehiclesView } from './views/VehiclesView.jsx';
 import { CommunicationsView } from './views/CommunicationsView.jsx';
+import { ShipmentsView } from './views/ShipmentsView.jsx';
+import { HubOperationsView } from './views/HubOperationsView.jsx';
+import { CodReconciliationView } from './views/CodReconciliationView.jsx';
 import { LoginView } from './views/LoginView.jsx';
 
 function MainApp() {
@@ -146,6 +149,12 @@ function MainApp() {
         return <DashboardView onNavigate={setCurrentView} />;
       case 'control-tower':
         return <OperationsControlTower onNavigate={setCurrentView} />;
+      case 'shipments':
+        return <ShipmentsView onNavigate={setCurrentView} />;
+      case 'hub-operations':
+        return <HubOperationsView />;
+      case 'cod-finance':
+        return <CodReconciliationView />;
       case 'communications':
         return <CommunicationsView />;
       case 'pos':
