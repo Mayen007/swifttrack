@@ -441,7 +441,7 @@ export function VehiclesView() {
     }[opt.color];
 
     return (
-      <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border ${colorClasses}`}>
+      <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded text-[11px] font-mono font-semibold border ${colorClasses}`}>
         <span className={`w-1.5 h-1.5 rounded-full ${opt.color === 'blue' || opt.color === 'emerald' ? 'animate-pulse' : ''} bg-current`} />
         {opt.label}
       </span>
@@ -468,143 +468,171 @@ export function VehiclesView() {
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 space-y-6 max-w-[1600px] mx-auto min-h-screen text-slate-100">
-      {/* Header & Fleet Controls */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-800/80 pb-6">
-        <div>
-          <div className="flex items-center gap-3">
-            <div className="p-2.5 rounded-xl bg-blue-500/10 border border-blue-500/20 text-blue-400 shadow-sm">
-              <Truck className="w-7 h-7" />
+      {/* 1. TOP FLEET OPERATIONS STATUS INSTRUMENT (STACKED BENTO GRID) */}
+      <div className="bg-[#12161f] border border-slate-800 rounded-2xl p-4 sm:p-5 shadow-xl relative overflow-hidden">
+        <div className="absolute top-0 right-0 w-96 h-96 bg-blue-500/5 rounded-full blur-3xl pointer-events-none" />
+
+        {/* Tier 1: Fleet Operations Identity & Action Toolbar */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start relative z-10">
+          {/* Identity & Status */}
+          <div className="lg:col-span-7 xl:col-span-8 space-y-1.5">
+            <div className="flex flex-wrap items-center gap-2.5">
+              <span className="flex h-2.5 w-2.5 relative">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500" />
+              </span>
+              <span className="text-[11px] font-mono font-bold uppercase tracking-wider text-emerald-400 bg-emerald-950/40 px-2 py-0.5 rounded border border-emerald-800/40">
+                Fleet Telemetry Active
+              </span>
+              <span className="text-xs text-slate-400 font-mono">
+                Real-Time Asset Health & Telemetry
+              </span>
             </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h1 className="text-2xl font-black tracking-tight text-white">Fleet Vehicles</h1>
-                <span className="px-2 py-0.5 text-[10px] font-bold tracking-wider uppercase bg-blue-500/20 text-blue-400 border border-blue-500/40 rounded-full">
-                  Phase 9.2
-                </span>
+
+            <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-white tracking-tight flex flex-wrap items-center gap-2.5 font-sans">
+              Fleet Vehicles Console
+              <span className="text-xs px-2.5 py-0.5 rounded bg-blue-500/10 border border-blue-500/30 text-blue-400 font-medium font-mono">
+                Phase 9.2 Registry
+              </span>
+            </h1>
+
+            <p className="text-xs sm:text-sm text-slate-400 max-w-2xl leading-relaxed">
+              Asset registry, registration plates, payload capacity, mileage tracking, fuel vouchers, and preventive workshop schedules.
+            </p>
+          </div>
+
+          {/* Action Toolbar (Stacked Without Squishing) */}
+          <div className="lg:col-span-5 xl:col-span-4 flex flex-col gap-2.5 bg-[#0e1219]/90 border border-[#222834] rounded-xl p-3">
+            <div className="flex items-center justify-between text-xs text-slate-400 font-mono pb-1 border-b border-[#222834]">
+              <span>FLEET CONTROLS</span>
+              <span className="text-emerald-400 font-semibold">{vehicles.length} Assets Registered</span>
+            </div>
+
+            <div className="flex flex-wrap sm:flex-nowrap items-center gap-2">
+              <button
+                onClick={() => {
+                  sound.playClick();
+                  fetchData();
+                }}
+                disabled={loading}
+                className="flex-1 flex items-center justify-center space-x-1.5 py-2 px-3 bg-[#181d28] hover:bg-[#222836] border border-[#263044] text-slate-200 text-xs font-medium rounded transition-all active:scale-95 disabled:opacity-50 cursor-pointer"
+                title="Refresh Fleet Data"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 text-blue-400 ${loading ? 'animate-spin' : ''}`} />
+                <span>Refresh</span>
+              </button>
+
+              {(user?.role === 'SUPER_ADMIN' || user?.role === 'BRANCH_MANAGER' || user?.role === 'DISPATCHER') && (
+                <button
+                  onClick={() => {
+                    sound.playClick();
+                    setRegisterModalOpen(true);
+                  }}
+                  className="flex-1 flex items-center justify-center space-x-1.5 py-2 px-3 bg-emerald-600 hover:bg-emerald-500 border border-emerald-500/60 text-slate-950 font-bold text-xs rounded transition-all active:scale-95 cursor-pointer shadow-sm group"
+                >
+                  <Plus className="w-3.5 h-3.5 text-slate-950 transition-transform group-hover:rotate-90" />
+                  <span>Register Vehicle</span>
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Tier 2: Stacked Operational Telemetry Bento KPI Tiles */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 pt-3.5 mt-3.5 border-t border-[#222834] relative z-10">
+          {/* Total Fleet */}
+          <div className="bg-[#0e1219]/80 border border-[#222834] rounded-xl p-3 flex items-center justify-between">
+            <div className="space-y-0.5">
+              <span className="text-[10px] text-slate-400 uppercase tracking-wider block font-mono">Total Fleet</span>
+              <div className="text-xl font-bold text-white font-mono">
+                {telemetry?.total_vehicles ?? vehicles.length}
               </div>
-              <p className="text-sm text-slate-400 mt-0.5">
-                Registry, registration numbers, types, capacity, mileage tracking, fuel logs, and maintenance
-              </p>
+              <span className="text-[10px] text-slate-400 block font-mono truncate max-w-[120px]">
+                {telemetry?.total_payload_capacity_kg ? `${telemetry.total_payload_capacity_kg.toLocaleString()} kg` : 'Payload capacity'}
+              </span>
+            </div>
+            <div className="w-9 h-9 rounded-lg bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400 shrink-0">
+              <Truck className="w-4 h-4" />
+            </div>
+          </div>
+
+          {/* Available in Depot */}
+          <div className="bg-[#0e1219]/80 border border-[#222834] rounded-xl p-3 flex items-center justify-between">
+            <div className="space-y-0.5">
+              <span className="text-[10px] text-slate-400 uppercase tracking-wider block font-mono">Available</span>
+              <div className="text-xl font-bold text-emerald-400 font-mono">
+                {telemetry?.available_vehicles ?? vehicles.filter(v => v.status === 'AVAILABLE').length}
+              </div>
+              <span className="text-[10px] text-emerald-500/80 block font-mono">Ready for dispatch</span>
+            </div>
+            <div className="w-9 h-9 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400 shrink-0">
+              <CheckCircle2 className="w-4 h-4" />
+            </div>
+          </div>
+
+          {/* In Transit */}
+          <div className="bg-[#0e1219]/80 border border-[#222834] rounded-xl p-3 flex items-center justify-between">
+            <div className="space-y-0.5">
+              <span className="text-[10px] text-slate-400 uppercase tracking-wider block font-mono">In Transit</span>
+              <div className="text-xl font-bold text-blue-400 font-mono">
+                {telemetry?.in_transit_vehicles ?? vehicles.filter(v => v.status === 'IN_TRANSIT').length}
+              </div>
+              <span className="text-[10px] text-blue-400/80 block font-mono">Active on runs</span>
+            </div>
+            <div className="w-9 h-9 rounded-lg bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400 shrink-0">
+              <Activity className="w-4 h-4" />
+            </div>
+          </div>
+
+          {/* Under Maintenance */}
+          <div className="bg-[#0e1219]/80 border border-[#222834] rounded-xl p-3 flex items-center justify-between">
+            <div className="space-y-0.5">
+              <span className="text-[10px] text-slate-400 uppercase tracking-wider block font-mono">Maintenance</span>
+              <div className="text-xl font-bold text-amber-400 font-mono">
+                {telemetry?.maintenance_vehicles ?? vehicles.filter(v => v.status === 'UNDER_MAINTENANCE').length}
+              </div>
+              <span className="text-[10px] text-amber-400/80 block font-mono">In workshop</span>
+            </div>
+            <div className="w-9 h-9 rounded-lg bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400 shrink-0">
+              <Wrench className="w-4 h-4" />
+            </div>
+          </div>
+
+          {/* Total Odometer */}
+          <div className="bg-[#0e1219]/80 border border-[#222834] rounded-xl p-3 flex items-center justify-between">
+            <div className="space-y-0.5">
+              <span className="text-[10px] text-slate-400 uppercase tracking-wider block font-mono">Total Odometer</span>
+              <div className="text-xl font-bold text-white font-mono truncate max-w-[120px]">
+                {telemetry?.total_fleet_distance_km ? `${Number(telemetry.total_fleet_distance_km).toLocaleString()}` : '0'} <span className="text-xs font-normal text-slate-400">km</span>
+              </div>
+              <span className="text-[10px] text-slate-400 block font-mono">Fleet logged</span>
+            </div>
+            <div className="w-9 h-9 rounded-lg bg-sky-500/10 border border-sky-500/20 flex items-center justify-center text-sky-400 shrink-0">
+              <Gauge className="w-4 h-4" />
+            </div>
+          </div>
+
+          {/* Fuel Economy & Spend */}
+          <div className="bg-[#0e1219]/80 border border-[#222834] rounded-xl p-3 flex items-center justify-between">
+            <div className="space-y-0.5">
+              <span className="text-[10px] text-slate-400 uppercase tracking-wider block font-mono">Fuel Spend</span>
+              <div className="text-xl font-bold text-emerald-400 font-mono truncate max-w-[120px]">
+                <span className="text-xs text-emerald-500/80 mr-1">KES</span>
+                {telemetry?.monthly_fuel_spend ? Number(telemetry.monthly_fuel_spend).toLocaleString() : '0'}
+              </div>
+              <span className="text-[10px] text-slate-400 block font-mono truncate">
+                Avg {telemetry?.fleet_avg_consumption_kml || '8.5'} km/L
+              </span>
+            </div>
+            <div className="w-9 h-9 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400 shrink-0">
+              <Fuel className="w-4 h-4" />
             </div>
           </div>
         </div>
-
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => {
-              sound.playClick();
-              fetchData();
-            }}
-            disabled={loading}
-            className="p-2.5 rounded-xl bg-slate-800/80 hover:bg-slate-700/80 text-slate-300 border border-slate-700/80 transition-all flex items-center gap-2 text-sm font-medium hover:text-white"
-            title="Refresh Fleet Data"
-          >
-            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-            <span className="hidden sm:inline">Refresh</span>
-          </button>
-
-          {(user?.role === 'SUPER_ADMIN' || user?.role === 'BRANCH_MANAGER' || user?.role === 'DISPATCHER') && (
-            <button
-              onClick={() => {
-                sound.playClick();
-                setRegisterModalOpen(true);
-              }}
-              className="px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-semibold text-sm shadow-sm transition-all flex items-center gap-2 group"
-            >
-              <Plus className="w-4 h-4 transition-transform group-hover:rotate-90" />
-              <span>Register Vehicle</span>
-            </button>
-          )}
-        </div>
       </div>
 
-      {/* Telemetry KPI Ribbon */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4">
-        {/* Total Fleet */}
-        <div className="bg-slate-900/60 backdrop-blur-md rounded-2xl p-4 border border-slate-800/80 shadow-sm relative overflow-hidden group">
-          <div className="absolute top-0 right-0 w-24 h-24 bg-blue-500/5 rounded-full blur-2xl group-hover:bg-blue-500/10 transition-all" />
-          <div className="flex items-center justify-between text-slate-400 mb-2">
-            <span className="text-xs font-semibold uppercase tracking-wider">Total Fleet</span>
-            <Truck className="w-4 h-4 text-blue-400" />
-          </div>
-          <div className="text-2xl font-black text-white">
-            {telemetry?.total_vehicles ?? vehicles.length}
-          </div>
-          <div className="text-[11px] text-slate-400 mt-1 flex items-center gap-1">
-            <span>{telemetry?.total_payload_capacity_kg ? `${telemetry.total_payload_capacity_kg.toLocaleString()} kg` : 'Payload capacity'}</span>
-          </div>
-        </div>
-
-        {/* Available in Depot */}
-        <div className="bg-slate-900/60 backdrop-blur-md rounded-2xl p-4 border border-slate-800/80 shadow-sm relative overflow-hidden group">
-          <div className="absolute top-0 right-0 w-24 h-24 bg-emerald-500/5 rounded-full blur-2xl group-hover:bg-emerald-500/10 transition-all" />
-          <div className="flex items-center justify-between text-slate-400 mb-2">
-            <span className="text-xs font-semibold uppercase tracking-wider">Available</span>
-            <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-          </div>
-          <div className="text-2xl font-black text-emerald-400">
-            {telemetry?.available_vehicles ?? vehicles.filter(v => v.status === 'AVAILABLE').length}
-          </div>
-          <div className="text-[11px] text-slate-400 mt-1">Ready for dispatch</div>
-        </div>
-
-        {/* In Transit */}
-        <div className="bg-slate-900/60 backdrop-blur-md rounded-2xl p-4 border border-slate-800/80 shadow-sm relative overflow-hidden group">
-          <div className="absolute top-0 right-0 w-24 h-24 bg-blue-500/5 rounded-full blur-2xl group-hover:bg-blue-500/10 transition-all" />
-          <div className="flex items-center justify-between text-slate-400 mb-2">
-            <span className="text-xs font-semibold uppercase tracking-wider">In Transit</span>
-            <Activity className="w-4 h-4 text-blue-400" />
-          </div>
-          <div className="text-2xl font-black text-blue-400">
-            {telemetry?.in_transit_vehicles ?? vehicles.filter(v => v.status === 'IN_TRANSIT').length}
-          </div>
-          <div className="text-[11px] text-slate-400 mt-1">Active on delivery runs</div>
-        </div>
-
-        {/* Under Maintenance */}
-        <div className="bg-slate-900/60 backdrop-blur-md rounded-2xl p-4 border border-slate-800/80 shadow-sm relative overflow-hidden group">
-          <div className="absolute top-0 right-0 w-24 h-24 bg-amber-500/5 rounded-full blur-2xl group-hover:bg-amber-500/10 transition-all" />
-          <div className="flex items-center justify-between text-slate-400 mb-2">
-            <span className="text-xs font-semibold uppercase tracking-wider">Maintenance</span>
-            <Wrench className="w-4 h-4 text-amber-400" />
-          </div>
-          <div className="text-2xl font-black text-amber-400">
-            {telemetry?.maintenance_vehicles ?? vehicles.filter(v => v.status === 'UNDER_MAINTENANCE').length}
-          </div>
-          <div className="text-[11px] text-slate-400 mt-1">In workshop & repairs</div>
-        </div>
-
-        {/* Total Odometer */}
-        <div className="bg-slate-900/60 backdrop-blur-md rounded-2xl p-4 border border-slate-800/80 shadow-sm relative overflow-hidden group">
-          <div className="absolute top-0 right-0 w-24 h-24 bg-sky-500/5 rounded-full blur-2xl group-hover:bg-sky-500/10 transition-all" />
-          <div className="flex items-center justify-between text-slate-400 mb-2">
-            <span className="text-xs font-semibold uppercase tracking-wider">Total Odometer</span>
-            <Gauge className="w-4 h-4 text-sky-400" />
-          </div>
-          <div className="text-2xl font-black text-white">
-            {telemetry?.total_fleet_distance_km ? `${Number(telemetry.total_fleet_distance_km).toLocaleString()} km` : '0 km'}
-          </div>
-          <div className="text-[11px] text-slate-400 mt-1">Fleet logged distance</div>
-        </div>
-
-        {/* Fuel Economy & Spend */}
-        <div className="bg-slate-900/60 backdrop-blur-md rounded-2xl p-4 border border-slate-800/80 shadow-sm relative overflow-hidden group">
-          <div className="absolute top-0 right-0 w-24 h-24 bg-emerald-500/5 rounded-full blur-2xl group-hover:bg-emerald-500/10 transition-all" />
-          <div className="flex items-center justify-between text-slate-400 mb-2">
-            <span className="text-xs font-semibold uppercase tracking-wider">Fuel Spend</span>
-            <Fuel className="w-4 h-4 text-emerald-400" />
-          </div>
-          <div className="text-2xl font-black text-emerald-400">
-            KES {telemetry?.monthly_fuel_spend ? Number(telemetry.monthly_fuel_spend).toLocaleString() : '0'}
-          </div>
-          <div className="text-[11px] text-slate-400 mt-1">
-            Avg {telemetry?.fleet_avg_consumption_kml || '8.5'} km/L
-          </div>
-        </div>
-      </div>
-
-      {/* Filter and Search Bar */}
-      <div className="bg-slate-900/70 backdrop-blur-md rounded-2xl p-4 border border-slate-800/80 shadow-sm space-y-3">
+      {/* 2. FLEET QUERY & FILTER BAR */}
+      <div className="bg-[#12161f] border border-slate-800 rounded-xl p-3.5 sm:p-4 shadow-md space-y-3">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
           {/* Search Form */}
           <form onSubmit={handleSearchSubmit} className="relative flex-1">
@@ -614,18 +642,18 @@ export function VehiclesView() {
               placeholder="Search by registration plate, make, model, chassis, or driver name..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full bg-slate-950/60 border border-slate-800 rounded-xl pl-10 pr-4 py-2 text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:border-blue-500/60 focus:ring-1 focus:ring-blue-500/60 transition-all"
+              className="w-full bg-[#0a0d14] border border-[#222834] rounded-lg pl-10 pr-4 py-2 text-xs sm:text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:border-blue-500/60 focus:ring-1 focus:ring-blue-500/60 transition-all font-mono"
             />
           </form>
 
           {/* Branch Dropdown for Multi-Branch Isolation */}
           {user?.role === 'SUPER_ADMIN' && (
             <div className="flex items-center gap-2">
-              <MapPin className="w-4 h-4 text-slate-400" />
+              <MapPin className="w-4 h-4 text-slate-400 shrink-0" />
               <select
                 value={branchFilter}
                 onChange={(e) => setBranchFilter(e.target.value)}
-                className="bg-slate-950/60 border border-slate-800 rounded-xl px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-blue-500/60"
+                className="bg-[#0a0d14] border border-[#222834] rounded-lg px-3 py-2 text-xs sm:text-sm text-slate-200 focus:outline-none focus:border-blue-500/60 font-mono"
               >
                 <option value="">All Branch Depots</option>
                 {branches.map(b => (
@@ -637,18 +665,18 @@ export function VehiclesView() {
         </div>
 
         {/* Filter Pills */}
-        <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-slate-800/60 text-xs">
+        <div className="flex flex-wrap items-center justify-between gap-3 pt-2.5 border-t border-[#222834] text-xs">
           {/* Status Pills */}
           <div className="flex flex-wrap items-center gap-1.5">
-            <span className="text-slate-400 font-medium mr-1 flex items-center gap-1">
-              <Filter className="w-3.5 h-3.5" /> Status:
+            <span className="text-slate-400 font-mono text-[11px] mr-1 flex items-center gap-1 uppercase tracking-wider">
+              <Filter className="w-3 h-3 text-slate-500" /> Status:
             </span>
             <button
               onClick={() => setStatusFilter('ALL')}
-              className={`px-2.5 py-1 rounded-lg font-medium transition-all ${
+              className={`px-2.5 py-1 rounded text-[11px] font-mono font-semibold transition-all ${
                 statusFilter === 'ALL'
                   ? 'bg-blue-600 text-white shadow-sm'
-                  : 'bg-slate-800/80 text-slate-400 hover:text-white'
+                  : 'bg-[#181d28] text-slate-400 hover:text-white border border-[#263044]'
               }`}
             >
               All ({vehicles.length})
@@ -657,10 +685,10 @@ export function VehiclesView() {
               <button
                 key={opt.key}
                 onClick={() => setStatusFilter(opt.key)}
-                className={`px-2.5 py-1 rounded-lg font-medium transition-all ${
+                className={`px-2.5 py-1 rounded text-[11px] font-mono font-semibold transition-all ${
                   statusFilter === opt.key
                     ? 'bg-blue-600 text-white shadow-sm'
-                    : 'bg-slate-800/80 text-slate-400 hover:text-white'
+                    : 'bg-[#181d28] text-slate-400 hover:text-white border border-[#263044]'
                 }`}
               >
                 {opt.label}
@@ -670,13 +698,13 @@ export function VehiclesView() {
 
           {/* Vehicle Type Pills */}
           <div className="flex flex-wrap items-center gap-1.5">
-            <span className="text-slate-400 font-medium mr-1">Type:</span>
+            <span className="text-slate-400 font-mono text-[11px] mr-1 uppercase tracking-wider">Type:</span>
             <button
               onClick={() => setTypeFilter('ALL')}
-              className={`px-2.5 py-1 rounded-lg font-medium transition-all ${
+              className={`px-2.5 py-1 rounded text-[11px] font-mono font-semibold transition-all ${
                 typeFilter === 'ALL'
                   ? 'bg-indigo-600 text-white shadow-sm'
-                  : 'bg-slate-800/80 text-slate-400 hover:text-white'
+                  : 'bg-[#181d28] text-slate-400 hover:text-white border border-[#263044]'
               }`}
             >
               All Types
@@ -685,10 +713,10 @@ export function VehiclesView() {
               <button
                 key={opt.key}
                 onClick={() => setTypeFilter(opt.key)}
-                className={`px-2.5 py-1 rounded-lg font-medium transition-all ${
+                className={`px-2.5 py-1 rounded text-[11px] font-mono font-semibold transition-all ${
                   typeFilter === opt.key
                     ? 'bg-indigo-600 text-white shadow-sm'
-                    : 'bg-slate-800/80 text-slate-400 hover:text-white'
+                    : 'bg-[#181d28] text-slate-400 hover:text-white border border-[#263044]'
                 }`}
               >
                 {opt.label}
@@ -698,14 +726,14 @@ export function VehiclesView() {
         </div>
       </div>
 
-      {/* Vehicle Registry Cards Grid */}
+      {/* 3. VEHICLE REGISTRY CARDS GRID */}
       {loading ? (
         <div className="flex flex-col items-center justify-center py-24 space-y-4">
           <div className="w-10 h-10 border-3 border-blue-500 border-t-transparent rounded-full animate-spin" />
-          <p className="text-sm text-slate-400">Loading fleet registry telemetry...</p>
+          <p className="text-sm text-slate-400 font-mono">Loading fleet registry telemetry...</p>
         </div>
       ) : vehicles.length === 0 ? (
-        <div className="bg-slate-900/40 rounded-2xl p-12 text-center border border-slate-800/80 max-w-lg mx-auto">
+        <div className="bg-[#12161f] rounded-xl p-12 text-center border border-slate-800 max-w-lg mx-auto">
           <Truck className="w-12 h-12 text-slate-600 mx-auto mb-3" />
           <h3 className="text-lg font-bold text-white">No fleet vehicles match query</h3>
           <p className="text-sm text-slate-400 mt-1">
@@ -713,7 +741,7 @@ export function VehiclesView() {
           </p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           {vehicles.map((veh) => {
             const isDue = veh.is_service_due;
             const currentOdo = Number(veh.current_odometer_km) || 0;
@@ -722,18 +750,18 @@ export function VehiclesView() {
             return (
               <div
                 key={veh.id}
-                className="bg-slate-900/60 backdrop-blur-md rounded-2xl p-5 border border-slate-800/80 hover:border-slate-700/80 transition-all shadow-sm flex flex-col justify-between group relative overflow-hidden"
+                className="bg-[#12161f] rounded-xl p-4 sm:p-5 border border-slate-800 hover:border-slate-700/80 transition-all shadow-md flex flex-col justify-between group relative overflow-hidden"
               >
                 {/* Top Badge Row */}
                 <div>
                   <div className="flex items-start justify-between gap-3 mb-3">
                     {/* Kenya Registration Plate Graphic */}
                     <div className="flex items-center gap-2">
-                      <div className="px-3 py-1.5 bg-amber-400 text-black font-black tracking-widest text-sm rounded-lg border-2 border-black shadow-sm font-mono flex items-center gap-1.5">
+                      <div className="px-3 py-1 bg-amber-400 text-black font-black tracking-widest text-sm rounded border-2 border-black shadow-sm font-mono flex items-center gap-1.5">
                         <span className="w-1.5 h-3 bg-black/40 rounded-xs" />
                         {veh.registration_number}
                       </div>
-                      <div className="p-1.5 bg-slate-800/80 rounded-lg text-slate-300" title={veh.vehicle_type}>
+                      <div className="p-1.5 bg-[#181d28] rounded border border-[#263044] text-slate-300" title={veh.vehicle_type}>
                         {renderVehicleTypeIcon(veh.vehicle_type)}
                       </div>
                     </div>
@@ -760,42 +788,42 @@ export function VehiclesView() {
                   </div>
 
                   {/* Specs & Capacity Grid */}
-                  <div className="grid grid-cols-2 gap-2 p-3 bg-slate-950/60 rounded-xl border border-slate-800/60 text-xs mb-4">
+                  <div className="grid grid-cols-2 gap-2 p-3 bg-[#0a0d14] rounded-lg border border-[#222834] text-xs mb-4">
                     <div>
-                      <span className="text-slate-500 block">Payload Capacity</span>
-                      <span className="font-semibold text-slate-200">
+                      <span className="text-slate-500 block font-mono text-[10px] uppercase">Payload Capacity</span>
+                      <span className="font-semibold text-slate-200 font-mono">
                         {veh.capacity_kg ? `${Number(veh.capacity_kg).toLocaleString()} kg` : 'N/A'}
                       </span>
                     </div>
                     <div>
-                      <span className="text-slate-500 block">Cargo Volume</span>
-                      <span className="font-semibold text-slate-200">
+                      <span className="text-slate-500 block font-mono text-[10px] uppercase">Cargo Volume</span>
+                      <span className="font-semibold text-slate-200 font-mono">
                         {veh.cargo_volume_cbm ? `${veh.cargo_volume_cbm} m³` : 'N/A'}
                       </span>
                     </div>
                     <div>
-                      <span className="text-slate-500 block">Current Odometer</span>
-                      <span className="font-semibold text-slate-200 flex items-center gap-1">
+                      <span className="text-slate-500 block font-mono text-[10px] uppercase">Current Odometer</span>
+                      <span className="font-semibold text-slate-200 flex items-center gap-1 font-mono">
                         <Gauge className="w-3.5 h-3.5 text-sky-400" />
                         {currentOdo.toLocaleString()} km
                       </span>
                     </div>
                     <div>
-                      <span className="text-slate-500 block">Active Deliveries</span>
-                      <span className="font-semibold text-blue-400">
+                      <span className="text-slate-500 block font-mono text-[10px] uppercase">Active Deliveries</span>
+                      <span className="font-semibold text-blue-400 font-mono">
                         {veh.active_deliveries_count || 0} active runs
                       </span>
                     </div>
                   </div>
 
                   {/* Assigned Driver Chip */}
-                  <div className="flex items-center justify-between p-2.5 rounded-xl bg-slate-800/40 border border-slate-800/60 mb-4 text-xs">
+                  <div className="flex items-center justify-between p-2.5 rounded-lg bg-[#0e1219] border border-[#222834] mb-4 text-xs">
                     <div className="flex items-center gap-2">
-                      <div className="w-7 h-7 rounded-full bg-blue-500/20 text-blue-400 flex items-center justify-center font-bold text-xs">
+                      <div className="w-7 h-7 rounded-md bg-blue-500/10 border border-blue-500/20 text-blue-400 flex items-center justify-center font-bold text-xs">
                         <User className="w-3.5 h-3.5" />
                       </div>
                       <div>
-                        <span className="text-[10px] text-slate-500 block leading-none">Designated Driver</span>
+                        <span className="text-[10px] text-slate-500 block leading-none font-mono uppercase">Designated Driver</span>
                         <span className="font-medium text-slate-200">
                           {veh.driver_name ? veh.driver_name : 'No Driver Assigned'}
                         </span>
@@ -810,7 +838,7 @@ export function VehiclesView() {
 
                   {/* Service Target Alert */}
                   {isDue && (
-                    <div className="flex items-center gap-2 p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-400 text-xs mb-4">
+                    <div className="flex items-center gap-2 p-2.5 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-400 text-xs mb-4">
                       <AlertTriangle className="w-4 h-4 shrink-0" />
                       <span className="font-medium">
                         Service Due in {veh.km_until_service} km (Next target: {nextOdo.toLocaleString()} km)
@@ -820,14 +848,14 @@ export function VehiclesView() {
                 </div>
 
                 {/* Card Actions Bottom Row */}
-                <div className="pt-3 border-t border-slate-800/80 flex items-center justify-between gap-1.5 text-xs">
+                <div className="pt-3 border-t border-[#222834] flex items-center justify-between gap-1.5 text-xs">
                   {/* Quick Refuel Button */}
                   <button
                     onClick={() => {
                       sound.playClick();
                       openRefuelModal(veh);
                     }}
-                    className="p-2 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 font-medium transition-all flex items-center gap-1.5"
+                    className="px-2.5 py-1.5 rounded bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 font-medium transition-all flex items-center gap-1.5"
                     title="Log Fuel Receipt"
                   >
                     <Fuel className="w-3.5 h-3.5" />
@@ -840,7 +868,7 @@ export function VehiclesView() {
                       sound.playClick();
                       openMaintenanceModal(veh);
                     }}
-                    className="p-2 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/30 font-medium transition-all flex items-center gap-1.5"
+                    className="px-2.5 py-1.5 rounded bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/30 font-medium transition-all flex items-center gap-1.5"
                     title="Log / Schedule Maintenance"
                   >
                     <Wrench className="w-3.5 h-3.5" />
@@ -853,7 +881,7 @@ export function VehiclesView() {
                       sound.playClick();
                       openMileageModal(veh);
                     }}
-                    className="p-2 rounded-lg bg-sky-500/10 hover:bg-sky-500/20 text-sky-400 border border-sky-500/30 font-medium transition-all flex items-center gap-1.5"
+                    className="px-2.5 py-1.5 rounded bg-sky-500/10 hover:bg-sky-500/20 text-sky-400 border border-sky-500/30 font-medium transition-all flex items-center gap-1.5"
                     title="Log Trip Mileage"
                   >
                     <Gauge className="w-3.5 h-3.5" />
@@ -866,7 +894,7 @@ export function VehiclesView() {
                       sound.playClick();
                       openStatusModal(veh);
                     }}
-                    className="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 transition-all"
+                    className="p-1.5 rounded bg-[#181d28] hover:bg-[#222836] border border-[#263044] text-slate-300 transition-all"
                     title="Change Status"
                   >
                     <RefreshCw className="w-3.5 h-3.5" />
@@ -878,7 +906,7 @@ export function VehiclesView() {
                       sound.playClick();
                       openVehicleDetail(veh);
                     }}
-                    className="px-2.5 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-semibold transition-all flex items-center gap-1 shadow-sm"
+                    className="px-2.5 py-1.5 rounded bg-blue-600 hover:bg-blue-500 text-white font-semibold transition-all flex items-center gap-1 shadow-sm"
                     title="Full Dossier & Telemetry"
                   >
                     <span>Dossier</span>
@@ -896,8 +924,8 @@ export function VehiclesView() {
       {/* MODAL 1: REGISTER VEHICLE */}
       {registerModalOpen && (
         <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
-          <div className="bg-slate-900 border border-slate-800 rounded-3xl w-full max-w-2xl overflow-hidden shadow-2xl my-8">
-            <div className="p-6 border-b border-slate-800 flex items-center justify-between bg-slate-900/90">
+          <div className="bg-[#12161f] border border-slate-800 rounded-2xl w-full max-w-2xl overflow-hidden shadow-2xl my-8">
+            <div className="p-6 border-b border-slate-800 flex items-center justify-between bg-[#12161f]">
               <div className="flex items-center gap-3">
                 <div className="p-2 rounded-xl bg-blue-500/20 text-blue-400 border border-blue-500/30">
                   <Truck className="w-6 h-6" />
@@ -1166,8 +1194,8 @@ export function VehiclesView() {
       {/* MODAL 2: REFUEL LOG ENTRY */}
       {refuelModalOpen && selectedVehicle && (
         <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-800 rounded-3xl w-full max-w-lg overflow-hidden shadow-2xl">
-            <div className="p-6 border-b border-slate-800 flex items-center justify-between bg-gradient-to-r from-emerald-900/30 to-teal-900/20">
+          <div className="bg-[#12161f] border border-slate-800 rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl">
+            <div className="p-6 border-b border-slate-800 flex items-center justify-between bg-[#12161f]">
               <div className="flex items-center gap-3">
                 <div className="p-2 rounded-xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
                   <Fuel className="w-6 h-6" />
@@ -1327,8 +1355,8 @@ export function VehiclesView() {
       {/* MODAL 3: MAINTENANCE RECORD & SCHEDULE */}
       {maintenanceModalOpen && selectedVehicle && (
         <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
-          <div className="bg-slate-900 border border-slate-800 rounded-3xl w-full max-w-xl overflow-hidden shadow-2xl my-6">
-            <div className="p-6 border-b border-slate-800 flex items-center justify-between bg-gradient-to-r from-amber-900/30 to-orange-900/20">
+          <div className="bg-[#12161f] border border-slate-800 rounded-2xl w-full max-w-xl overflow-hidden shadow-2xl my-6">
+            <div className="p-6 border-b border-slate-800 flex items-center justify-between bg-[#12161f]">
               <div className="flex items-center gap-3">
                 <div className="p-2 rounded-xl bg-amber-500/20 text-amber-400 border border-amber-500/30">
                   <Wrench className="w-6 h-6" />
@@ -1508,8 +1536,8 @@ export function VehiclesView() {
       {/* MODAL 4: OPERATIONAL STATUS CHANGER */}
       {statusModalOpen && selectedVehicle && (
         <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-800 rounded-3xl w-full max-w-md overflow-hidden shadow-2xl">
-            <div className="p-6 border-b border-slate-800 flex items-center justify-between">
+          <div className="bg-[#12161f] border border-slate-800 rounded-2xl w-full max-w-md overflow-hidden shadow-2xl">
+            <div className="p-6 border-b border-slate-800 flex items-center justify-between bg-[#12161f]">
               <div>
                 <h2 className="text-lg font-bold text-white">Update Vehicle Status</h2>
                 <p className="text-xs text-slate-400 font-mono">{selectedVehicle.registration_number}</p>
@@ -1584,8 +1612,8 @@ export function VehiclesView() {
       {/* MODAL 5: TRIP MILEAGE LOGGING */}
       {mileageModalOpen && selectedVehicle && (
         <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-800 rounded-3xl w-full max-w-lg overflow-hidden shadow-2xl">
-            <div className="p-6 border-b border-slate-800 flex items-center justify-between bg-slate-900/90">
+          <div className="bg-[#12161f] border border-slate-800 rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl">
+            <div className="p-6 border-b border-slate-800 flex items-center justify-between bg-[#12161f]">
               <div className="flex items-center gap-3">
                 <div className="p-2 rounded-xl bg-sky-500/10 text-sky-400 border border-sky-500/20">
                   <Gauge className="w-6 h-6" />
@@ -1716,11 +1744,11 @@ export function VehiclesView() {
       {/* DRAWER / MODAL 6: FULL VEHICLE DOSSIER WITH 4 TABS */}
       {detailModalOpen && selectedVehicle && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
-          <div className="bg-slate-900 border border-slate-800 rounded-3xl w-full max-w-4xl overflow-hidden shadow-2xl my-4 flex flex-col max-h-[90vh]">
+          <div className="bg-[#12161f] border border-slate-800 rounded-2xl w-full max-w-4xl overflow-hidden shadow-2xl my-4 flex flex-col max-h-[90vh]">
             {/* Header banner */}
-            <div className="p-6 border-b border-slate-800 flex items-center justify-between bg-slate-950/70">
+            <div className="p-6 border-b border-slate-800 flex items-center justify-between bg-[#0e1219]">
               <div className="flex items-center gap-4">
-                <div className="px-3.5 py-2 bg-amber-400 text-black font-black tracking-widest text-base rounded-xl border-2 border-black font-mono shadow-md">
+                <div className="px-3.5 py-1.5 bg-amber-400 text-black font-black tracking-widest text-base rounded border-2 border-black font-mono shadow-md">
                   {selectedVehicle.registration_number}
                 </div>
                 <div>
@@ -1883,7 +1911,7 @@ export function VehiclesView() {
                   </div>
 
                   {/* Service Target Countdown Card */}
-                  <div className="p-4 rounded-2xl bg-gradient-to-r from-blue-950/40 to-slate-950/70 border border-blue-900/40 flex items-center justify-between">
+                  <div className="p-4 rounded-xl bg-[#0e1219] border border-[#222834] flex items-center justify-between">
                     <div>
                       <span className="text-xs text-blue-400 font-semibold uppercase tracking-wider block">Preventive Service Target</span>
                       <div className="text-lg font-bold text-white mt-0.5">
@@ -1956,7 +1984,7 @@ export function VehiclesView() {
                               <td className="p-3 font-mono">{Number(log.odometer_km).toLocaleString()} km</td>
                               <td className="p-3">
                                 {log.calculated_consumption_kml ? (
-                                  <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 font-bold">
+                                  <span className="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 font-bold font-mono text-[11px]">
                                     {log.calculated_consumption_kml} km/L
                                   </span>
                                 ) : (
@@ -2006,7 +2034,7 @@ export function VehiclesView() {
                                 {rec.service_number}
                               </span>
                               <span className="font-bold text-white text-sm">{rec.service_type?.replace(/_/g, ' ')}</span>
-                              <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                              <span className={`px-2 py-0.5 rounded text-[10px] font-bold font-mono ${
                                 rec.status === 'COMPLETED' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-blue-500/20 text-blue-400 animate-pulse'
                               }`}>
                                 {rec.status}
