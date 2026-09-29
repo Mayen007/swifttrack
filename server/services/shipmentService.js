@@ -23,6 +23,7 @@ const SHIPMENT_STATUSES = {
     OUT_FOR_DELIVERY: 'OUT_FOR_DELIVERY',
     DELIVERED: 'DELIVERED',
     FAILED_DELIVERY: 'FAILED_DELIVERY',
+    DELIVERY_FAILED: 'DELIVERY_FAILED',
     RETURN_TO_HUB: 'RETURN_TO_HUB',
     RETURNED: 'RETURNED',
     ON_HOLD: 'ON_HOLD',
@@ -32,23 +33,24 @@ const SHIPMENT_STATUSES = {
 
 const ALLOWED_TRANSITIONS = {
     DRAFT: ['BOOKED', 'CANCELLED'],
-    BOOKED: ['PAID', 'PAYMENT_PENDING', 'ACCEPTED', 'CANCELLED'],
-    PAYMENT_PENDING: ['PAID', 'ACCEPTED', 'CANCELLED'],
-    PAID: ['ACCEPTED', 'CANCELLED'],
-    ACCEPTED: ['AT_ORIGIN_HUB', 'SORTED', 'CANCELLED'],
-    AT_ORIGIN_HUB: ['SORTED', 'ON_HOLD', 'EXCEPTION'],
-    SORTED: ['READY_FOR_DISPATCH', 'ON_HOLD', 'EXCEPTION'],
-    READY_FOR_DISPATCH: ['LOADED', 'ON_HOLD'],
-    LOADED: ['IN_TRANSIT', 'READY_FOR_DISPATCH'],
+    BOOKED: ['PAID', 'PAYMENT_PENDING', 'ACCEPTED', 'AT_ORIGIN_HUB', 'SORTED', 'READY_FOR_DISPATCH', 'LOADED', 'READY_FOR_DELIVERY', 'CANCELLED'],
+    PAYMENT_PENDING: ['PAID', 'ACCEPTED', 'AT_ORIGIN_HUB', 'CANCELLED'],
+    PAID: ['ACCEPTED', 'AT_ORIGIN_HUB', 'CANCELLED'],
+    ACCEPTED: ['AT_ORIGIN_HUB', 'SORTED', 'READY_FOR_DISPATCH', 'LOADED', 'READY_FOR_DELIVERY', 'CANCELLED'],
+    AT_ORIGIN_HUB: ['SORTED', 'READY_FOR_DISPATCH', 'LOADED', 'READY_FOR_DELIVERY', 'ON_HOLD', 'EXCEPTION'],
+    SORTED: ['READY_FOR_DISPATCH', 'LOADED', 'READY_FOR_DELIVERY', 'ON_HOLD', 'EXCEPTION'],
+    READY_FOR_DISPATCH: ['LOADED', 'ON_HOLD', 'EXCEPTION'],
+    LOADED: ['IN_TRANSIT', 'READY_FOR_DISPATCH', 'EXCEPTION'],
     IN_TRANSIT: ['AT_HUB', 'EXCEPTION'],
-    AT_HUB: ['SORTED', 'READY_FOR_DELIVERY', 'READY_FOR_PICKUP', 'EXCEPTION'],
-    READY_FOR_DELIVERY: ['OUT_FOR_DELIVERY', 'ON_HOLD'],
-    OUT_FOR_DELIVERY: ['DELIVERED', 'FAILED_DELIVERY'],
-    FAILED_DELIVERY: ['READY_FOR_DELIVERY', 'RETURN_TO_HUB'],
-    READY_FOR_PICKUP: ['DELIVERED', 'RETURN_TO_HUB'],
-    RETURN_TO_HUB: ['RETURNED'],
-    ON_HOLD: ['BOOKED', 'ACCEPTED', 'AT_ORIGIN_HUB', 'SORTED', 'READY_FOR_DISPATCH', 'READY_FOR_DELIVERY', 'CANCELLED'],
-    EXCEPTION: ['AT_ORIGIN_HUB', 'AT_HUB', 'IN_TRANSIT', 'RETURN_TO_HUB', 'CANCELLED'],
+    AT_HUB: ['SORTED', 'READY_FOR_DISPATCH', 'LOADED', 'READY_FOR_DELIVERY', 'READY_FOR_PICKUP', 'ON_HOLD', 'EXCEPTION'],
+    READY_FOR_DELIVERY: ['OUT_FOR_DELIVERY', 'FAILED_DELIVERY', 'DELIVERY_FAILED', 'RETURN_TO_HUB', 'ON_HOLD', 'EXCEPTION', 'CANCELLED'],
+    OUT_FOR_DELIVERY: ['DELIVERED', 'FAILED_DELIVERY', 'DELIVERY_FAILED', 'RETURN_TO_HUB', 'EXCEPTION'],
+    FAILED_DELIVERY: ['READY_FOR_DELIVERY', 'OUT_FOR_DELIVERY', 'RETURN_TO_HUB', 'RETURNED', 'EXCEPTION'],
+    DELIVERY_FAILED: ['READY_FOR_DELIVERY', 'OUT_FOR_DELIVERY', 'RETURN_TO_HUB', 'RETURNED', 'EXCEPTION'],
+    READY_FOR_PICKUP: ['DELIVERED', 'RETURN_TO_HUB', 'EXCEPTION'],
+    RETURN_TO_HUB: ['RETURNED', 'READY_FOR_DELIVERY', 'AT_HUB', 'EXCEPTION'],
+    ON_HOLD: ['BOOKED', 'ACCEPTED', 'AT_ORIGIN_HUB', 'SORTED', 'READY_FOR_DISPATCH', 'LOADED', 'IN_TRANSIT', 'READY_FOR_DELIVERY', 'CANCELLED'],
+    EXCEPTION: ['AT_ORIGIN_HUB', 'AT_HUB', 'SORTED', 'READY_FOR_DISPATCH', 'LOADED', 'IN_TRANSIT', 'READY_FOR_DELIVERY', 'RETURN_TO_HUB', 'CANCELLED'],
     DELIVERED: [],
     RETURNED: [],
     CANCELLED: []
@@ -234,8 +236,9 @@ function createShipment(data, user = {}) {
         // 3. Insert Shipment Routing Leg(s)
         const legStmt = db.prepare(`
             INSERT INTO shipment_legs (
-                shipment_id, leg_sequence, origin_hub_id, destination_hub_id, status
-            ) VALUES (?, ?, ?, ?, ?)
+                shipment_id, leg_sequence, origin_hub_id, destination_hub_id, status,
+                is_cross_border, border_post_name, customs_status
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         `);
         const routingLegs = Array.isArray(data.legs) && data.legs.length > 0 ? data.legs :
                             Array.isArray(data.routing_legs) && data.routing_legs.length > 0 ? data.routing_legs :
@@ -243,7 +246,19 @@ function createShipment(data, user = {}) {
 
         let firstLegId = null;
         routingLegs.forEach((leg, index) => {
-            const lRes = legStmt.run(shipmentId, index + 1, leg.origin_hub_id, leg.destination_hub_id, 'PENDING');
+            const isCrossBorder = leg.is_cross_border ? 1 : 0;
+            const borderPost = leg.border_post_name || null;
+            const customsStatus = leg.customs_status || (isCrossBorder ? 'PENDING_DOCS' : 'NOT_APPLICABLE');
+            const lRes = legStmt.run(
+                shipmentId,
+                index + 1,
+                leg.origin_hub_id,
+                leg.destination_hub_id,
+                'PENDING',
+                isCrossBorder,
+                borderPost,
+                customsStatus
+            );
             if (index === 0) firstLegId = lRes.lastInsertRowid;
         });
 
@@ -539,6 +554,7 @@ function transitionShipmentStatus(id, targetStatus, payload = {}, user = {}) {
         const hub = db.prepare('SELECT name FROM branches WHERE id = ?').get(payload.hub_id);
         if (hub) hubName = hub.name;
     }
+    const locationDesc = payload.location_desc || hubName;
 
     const executeTransition = db.transaction(() => {
         // Update shipment status
@@ -549,11 +565,11 @@ function transitionShipmentStatus(id, targetStatus, payload = {}, user = {}) {
                 current_location_desc = ?,
                 updated_at = CURRENT_TIMESTAMP
             WHERE id = ?
-        `).run(target, hubId, hubName, id);
+        `).run(target, hubId, locationDesc, id);
 
         // Record tracking event
-        const eventCode = target;
-        const eventName = target.replace(/_/g, ' ');
+        const eventCode = payload.event_code || target;
+        const eventName = payload.event_name || (payload.event_code ? payload.event_code.replace(/_/g, ' ') : target.replace(/_/g, ' '));
         const desc = payload.notes || payload.reason || `Status updated from ${currentStatus} to ${target}`;
 
         const eventRes = db.prepare(`
@@ -568,7 +584,7 @@ function transitionShipmentStatus(id, targetStatus, payload = {}, user = {}) {
             eventCode,
             eventName,
             hubId,
-            hubName,
+            locationDesc,
             payload.latitude || null,
             payload.longitude || null,
             user.id || null,
@@ -670,6 +686,184 @@ function getPublicTracking(trackingNumber) {
     };
 }
 
+/**
+ * Retrieves all legs for a shipment ordered by sequence
+ */
+function getShipmentLegs(shipmentId) {
+    return db.prepare(`
+        SELECT sl.*,
+               o.name as origin_hub_name, o.code as origin_hub_code, o.city as origin_hub_city,
+               d.name as destination_hub_name, d.code as destination_hub_code, d.city as destination_hub_city,
+               tr.run_number, m.manifest_number
+        FROM shipment_legs sl
+        JOIN branches o ON sl.origin_hub_id = o.id
+        JOIN branches d ON sl.destination_hub_id = d.id
+        LEFT JOIN transport_runs tr ON sl.transport_run_id = tr.id
+        LEFT JOIN manifests m ON sl.manifest_id = m.id
+        WHERE sl.shipment_id = ?
+        ORDER BY sl.leg_sequence ASC
+    `).all(shipmentId);
+}
+
+/**
+ * Returns the currently active or pending leg for a shipment
+ */
+function getActiveLeg(shipmentId) {
+    const legs = getShipmentLegs(shipmentId);
+    if (!legs || legs.length === 0) return null;
+    const inTransit = legs.find(l => l.status === 'IN_TRANSIT');
+    if (inTransit) return inTransit;
+    const pending = legs.find(l => l.status === 'PENDING' || l.status === 'ACTIVE');
+    if (pending) return pending;
+    return legs[legs.length - 1] || null;
+}
+
+/**
+ * Completes a shipment leg and automatically activates the next sequential leg if present.
+ * If this was the final leg, the shipment is now at its final destination hub!
+ */
+function completeLegAndActivateNext(shipmentId, manifestIdOrLegId, arrivalHubId, arrivalHubName, user = {}, metadata = {}) {
+    const shipment = db.prepare('SELECT * FROM shipments WHERE id = ?').get(shipmentId);
+    if (!shipment) throw new Error(`Shipment ${shipmentId} not found`);
+
+    const legs = db.prepare('SELECT * FROM shipment_legs WHERE shipment_id = ? ORDER BY leg_sequence ASC').all(shipmentId);
+    if (legs.length === 0) {
+        throw new Error(`No routing legs defined for shipment ${shipmentId}`);
+    }
+
+    let completedLeg = legs.find(l => l.manifest_id === manifestIdOrLegId || l.id === manifestIdOrLegId);
+    if (!completedLeg) {
+        completedLeg = legs.find(l => l.destination_hub_id === arrivalHubId && l.status !== 'COMPLETED');
+    }
+    if (!completedLeg) {
+        completedLeg = legs.find(l => l.status !== 'COMPLETED') || legs[0];
+    }
+
+    const executeTx = db.transaction(() => {
+        // 1. Mark completed leg as COMPLETED
+        db.prepare(`
+            UPDATE shipment_legs SET
+                status = 'COMPLETED',
+                actual_arrival = CURRENT_TIMESTAMP,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+        `).run(completedLeg.id);
+
+        // 2. Check for next leg
+        const nextLeg = legs.find(l => l.leg_sequence === completedLeg.leg_sequence + 1);
+        const isFinalLeg = !nextLeg;
+
+        if (nextLeg) {
+            // Activate next leg (mark status PENDING/ACTIVE, ready for next corridor transport assignment)
+            db.prepare(`
+                UPDATE shipment_legs SET
+                    status = 'PENDING',
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE id = ?
+            `).run(nextLeg.id);
+
+            // Shipment arrived at an intermediate transit hub
+            transitionShipmentStatus(shipmentId, 'AT_HUB', {
+                hub_id: arrivalHubId,
+                location_desc: arrivalHubName,
+                event_code: 'ARRIVED_AT_HUB',
+                event_name: 'Arrived at Hub',
+                notes: `Arrived at transit hub ${arrivalHubName} (Leg ${completedLeg.leg_sequence} completed). Next leg #${nextLeg.leg_sequence} to Hub #${nextLeg.destination_hub_id} is active.`
+            }, user);
+
+            db.prepare(`
+                INSERT INTO tracking_events (
+                    shipment_id, leg_id, event_code, event_name,
+                    hub_id, location_desc, actor_id, actor_type, actor_name,
+                    description, is_customer_visible, metadata
+                ) VALUES (?, ?, 'TRANSIT_HUB_ARRIVAL', 'Arrived at Transit Hub', ?, ?, ?, 'STAFF', ?, ?, 1, ?)
+            `).run(
+                shipmentId,
+                completedLeg.id,
+                arrivalHubId,
+                arrivalHubName,
+                user.id || 1,
+                user.fullName || 'Hub Receiving Staff',
+                `Package processed through intermediate transit hub ${arrivalHubName}. Ready for outbound connection.`,
+                JSON.stringify({
+                    completed_leg_sequence: completedLeg.leg_sequence,
+                    next_leg_sequence: nextLeg.leg_sequence,
+                    next_destination_hub_id: nextLeg.destination_hub_id,
+                    ...metadata
+                })
+            );
+
+            return {
+                shipment_id: shipmentId,
+                is_final_leg: false,
+                completed_leg: completedLeg,
+                next_leg: nextLeg
+            };
+        } else {
+            // Final leg completed! Shipment reached final destination hub
+            transitionShipmentStatus(shipmentId, 'AT_HUB', {
+                hub_id: arrivalHubId,
+                location_desc: arrivalHubName,
+                event_code: 'ARRIVED_AT_HUB',
+                event_name: 'Arrived at Hub',
+                notes: `Arrived at final destination hub ${arrivalHubName}. Ready for last-mile delivery or customer pickup.`
+            }, user);
+
+            db.prepare(`
+                INSERT INTO tracking_events (
+                    shipment_id, leg_id, event_code, event_name,
+                    hub_id, location_desc, actor_id, actor_type, actor_name,
+                    description, is_customer_visible, metadata
+                ) VALUES (?, ?, 'ARRIVED_AT_DESTINATION_HUB', 'Arrived at Destination Hub', ?, ?, ?, 'STAFF', ?, ?, 1, ?)
+            `).run(
+                shipmentId,
+                completedLeg.id,
+                arrivalHubId,
+                arrivalHubName,
+                user.id || 1,
+                user.fullName || 'Hub Receiving Staff',
+                `Package arrived at final destination hub ${arrivalHubName}. Scheduled for final dispatch.`,
+                JSON.stringify({
+                    completed_leg_sequence: completedLeg.leg_sequence,
+                    final_destination: true,
+                    ...metadata
+                })
+            );
+
+            return {
+                shipment_id: shipmentId,
+                is_final_leg: true,
+                completed_leg: completedLeg,
+                next_leg: null
+            };
+        }
+    });
+
+    return executeTx();
+}
+
+/**
+ * Returns shipments awaiting manifest assignment for a specific hub and corridor
+ */
+function getShipmentsAwaitingManifest(hubId, destinationHubId = null) {
+    let sql = `
+        SELECT s.*, sl.id as leg_id, sl.leg_sequence, sl.origin_hub_id as leg_origin, sl.destination_hub_id as leg_destination
+        FROM shipments s
+        JOIN shipment_legs sl ON sl.shipment_id = s.id
+        WHERE sl.origin_hub_id = ?
+          AND sl.status IN ('PENDING', 'ACTIVE')
+          AND sl.manifest_id IS NULL
+          AND s.status IN ('BOOKED', 'ACCEPTED', 'AT_ORIGIN_HUB', 'SORTED', 'READY_FOR_DISPATCH', 'AT_HUB')
+    `;
+    const params = [hubId];
+    if (destinationHubId) {
+        sql += ` AND sl.destination_hub_id = ?`;
+        params.push(destinationHubId);
+    }
+    sql += ` ORDER BY s.id ASC`;
+    return db.prepare(sql).all(...params);
+}
+
 module.exports = {
     SHIPMENT_STATUSES,
     ALLOWED_TRANSITIONS,
@@ -678,5 +872,9 @@ module.exports = {
     listShipments,
     getShipmentById,
     transitionShipmentStatus,
-    getPublicTracking
+    getPublicTracking,
+    getShipmentLegs,
+    getActiveLeg,
+    completeLegAndActivateNext,
+    getShipmentsAwaitingManifest
 };

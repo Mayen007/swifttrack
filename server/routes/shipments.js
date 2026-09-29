@@ -115,5 +115,39 @@ router.get('/:id/waybill', authenticateToken, (req, res) => {
     }
 });
 
+// GET /api/v1/shipments/:id/legs - Retrieve all routing legs for multi-leg orchestration
+router.get('/:id/legs', authenticateToken, (req, res) => {
+    try {
+        const legs = shipmentService.getShipmentLegs(req.params.id);
+        res.json(legs);
+    } catch (err) {
+        console.error('Get shipment legs error:', err);
+        res.status(err.statusCode || 500).json({ error: err.message });
+    }
+});
+
+// GET /api/v1/shipments/:id/active-leg - Retrieve the current active or pending leg
+router.get('/:id/active-leg', authenticateToken, (req, res) => {
+    try {
+        const activeLeg = shipmentService.getActiveLeg(req.params.id);
+        if (!activeLeg) return res.status(404).json({ error: 'No active leg found for shipment' });
+        res.json(activeLeg);
+    } catch (err) {
+        console.error('Get active leg error:', err);
+        res.status(err.statusCode || 500).json({ error: err.message });
+    }
+});
+
+// GET /api/v1/shipments/awaiting-manifest/:hubId - Retrieve shipments at hub ready to be manifested
+router.get('/awaiting-manifest/:hubId', authenticateToken, (req, res) => {
+    try {
+        const shipments = shipmentService.getShipmentsAwaitingManifest(req.params.hubId, req.query.destination_hub_id);
+        res.json(shipments);
+    } catch (err) {
+        console.error('Get awaiting manifest shipments error:', err);
+        res.status(err.statusCode || 500).json({ error: err.message });
+    }
+});
+
 module.exports = router;
 

@@ -185,4 +185,73 @@ router.get('/manifests/:id', authenticateToken, (req, res) => {
     }
 });
 
+// --- CROSS-BORDER LOGISTICS & CUSTOMS WORKFLOWS ---
+
+// GET /api/v1/transport/cross-border/legs - List cross-border corridor legs
+router.get('/cross-border/legs', authenticateToken, (req, res) => {
+    try {
+        const legs = transportService.getCrossBorderLegs(req.query);
+        res.json(legs);
+    } catch (err) {
+        console.error('List cross border legs error:', err);
+        res.status(err.statusCode || 500).json({ error: err.message });
+    }
+});
+
+// POST /api/v1/transport/legs/:id/customs/submit - Submit customs declaration
+router.post('/legs/:id/customs/submit', authenticateToken, (req, res) => {
+    try {
+        const result = transportService.submitCustomsDeclaration(req.params.id, req.body, req.user);
+        res.json(result);
+    } catch (err) {
+        console.error('Submit customs declaration error:', err);
+        res.status(err.statusCode || 400).json({ error: err.message });
+    }
+});
+
+// POST /api/v1/transport/legs/:id/customs/inspect - Record customs physical inspection
+router.post('/legs/:id/customs/inspect', authenticateToken, (req, res) => {
+    try {
+        const result = transportService.inspectCustomsLeg(req.params.id, req.body, req.user);
+        res.json(result);
+    } catch (err) {
+        console.error('Inspect customs leg error:', err);
+        res.status(err.statusCode || 400).json({ error: err.message });
+    }
+});
+
+// POST /api/v1/transport/legs/:id/customs/hold - Place customs hold with mandatory reason
+router.post('/legs/:id/customs/hold', authenticateToken, (req, res) => {
+    try {
+        const result = transportService.holdCustomsLeg(req.params.id, req.body, req.user);
+        res.json(result);
+    } catch (err) {
+        console.error('Hold customs leg error:', err);
+        res.status(err.statusCode || 400).json({ error: err.message });
+    }
+});
+
+// POST /api/v1/transport/legs/:id/customs/clear - Record customs clearance certificate
+router.post('/legs/:id/customs/clear', authenticateToken, (req, res) => {
+    try {
+        const result = transportService.clearCustomsLeg(req.params.id, req.body, req.user);
+        res.json(result);
+    } catch (err) {
+        console.error('Clear customs leg error:', err);
+        res.status(err.statusCode || 400).json({ error: err.message });
+    }
+});
+
+// POST /api/v1/transport/legs/:id/customs/release - Release customs inspection to proceed
+router.post('/legs/:id/customs/release', authenticateToken, (req, res) => {
+    try {
+        const result = transportService.releaseCustomsLeg(req.params.id, req.user);
+        res.json(result);
+    } catch (err) {
+        console.error('Release customs leg error:', err);
+        res.status(err.statusCode || 400).json({ error: err.message });
+    }
+});
+
 module.exports = router;
+

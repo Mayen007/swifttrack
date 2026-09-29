@@ -3,6 +3,7 @@
 const { db } = require('../db/database.js');
 const { logAuditEvent } = require('../middleware/audit.js');
 const notificationService = require('./notificationService.js');
+const shipmentService = require('./shipmentService.js');
 
 /**
  * Generates human-readable sequential business identifiers
@@ -83,29 +84,14 @@ function createDeliveryTask(data, user = {}) {
 
         const deliveryId = info.lastInsertRowid;
 
-        // Transition shipment status to READY_FOR_DELIVERY
-        db.prepare(`
-            UPDATE shipments 
-            SET status = 'READY_FOR_DELIVERY', updated_at = CURRENT_TIMESTAMP 
-            WHERE id = ?
-        `).run(shipment.id);
-
-        // Record tracking event
-        db.prepare(`
-            INSERT INTO tracking_events (
-                shipment_id, event_code, event_name,
-                hub_id, location_desc, actor_type, actor_name,
-                description, is_customer_visible, metadata
-            ) VALUES (?, 'DELIVERY_CREATED', 'Delivery Task Scheduled', ?, ?, ?, ?, ?, 1, ?)
-        `).run(
-            shipment.id,
-            branchId,
-            `${shipment.destination_hub_name || 'Destination Hub'}`,
-            user.roleName || 'DISPATCHER',
-            user.fullName || 'Dispatcher',
-            `Delivery task ${deliveryNumber} created for last-mile destination`,
-            JSON.stringify({ delivery_id: deliveryId, delivery_number: deliveryNumber })
-        );
+        // Transition shipment status to READY_FOR_DELIVERY via canonical state machine
+        shipmentService.transitionShipmentStatus(shipment.id, 'READY_FOR_DELIVERY', {
+            hub_id: branchId,
+            location_desc: shipment.destination_hub_name || 'Destination Hub',
+            event_code: 'DELIVERY_CREATED',
+            event_name: 'Delivery Task Scheduled',
+            notes: `Delivery task ${deliveryNumber} created for last-mile destination`
+        }, user);
 
         // Link or initialize COD Settlement if shipment has positive COD obligation
         if (shipment.cod_amount && shipment.cod_amount > 0) {
@@ -196,26 +182,12 @@ function startDelivery(deliveryId, user = {}) {
         `).run(currentOtp || null, deliveryId);
 
         if (delivery.shipment_id) {
-            db.prepare(`
-                UPDATE shipments
-                SET status = 'OUT_FOR_DELIVERY', updated_at = CURRENT_TIMESTAMP
-                WHERE id = ?
-            `).run(delivery.shipment_id);
-
-            db.prepare(`
-                INSERT INTO tracking_events (
-                    shipment_id, event_code, event_name,
-                    hub_id, location_desc, actor_type, actor_name,
-                    description, is_customer_visible, metadata
-                ) VALUES (?, 'OUT_FOR_DELIVERY', 'Out for Delivery', ?, ?, 'DRIVER', ?, ?, 1, ?)
-            `).run(
-                delivery.shipment_id,
-                delivery.hub_id,
-                delivery.destination_city || 'Local Delivery Route',
-                user.fullName || 'Courier Driver',
-                `Shipment is out for delivery to ${delivery.recipient_name}`,
-                JSON.stringify({ delivery_id: deliveryId, delivery_number: delivery.delivery_number })
-            );
+            // Transition shipment to OUT_FOR_DELIVERY via canonical state machine
+            shipmentService.transitionShipmentStatus(delivery.shipment_id, 'OUT_FOR_DELIVERY', {
+                hub_id: delivery.hub_id,
+                location_desc: delivery.destination_city || 'Local Delivery Route',
+                notes: `Shipment is out for delivery to ${delivery.recipient_name}`
+            }, user);
         }
 
         return getDeliveryById(deliveryId);
@@ -299,11 +271,13 @@ function recordDeliveryAttempt(deliveryId, data, user = {}) {
                 `).run(nextAttemptNumber, data.failure_reason, data.failure_notes || null, deliveryId);
 
                 if (delivery.shipment_id) {
-                    db.prepare(`
-                        UPDATE shipments
-                        SET status = 'DELIVERY_FAILED', updated_at = CURRENT_TIMESTAMP
-                        WHERE id = ?
-                    `).run(delivery.shipment_id);
+                    // Update shipment to FAILED_DELIVERY via canonical state machine
+                    shipmentService.transitionShipmentStatus(delivery.shipment_id, 'DELIVERY_FAILED', {
+                        hub_id: delivery.hub_id,
+                        location_desc: delivery.destination_city || 'Delivery Stop',
+                        reason: data.failure_reason,
+                        notes: `Delivery unsuccessful after ${nextAttemptNumber} attempts (${data.failure_reason}). Returning to hub.`
+                    }, user);
 
                     // Auto-generate operational exception (Rule EXC-005)
                     createdException = createExceptionInternal({
@@ -314,21 +288,6 @@ function recordDeliveryAttempt(deliveryId, data, user = {}) {
                         hub_id: delivery.hub_id,
                         description: `Delivery failed after ${nextAttemptNumber}/${maxAttempts} attempts. Final reason: ${data.failure_reason}. Notes: ${data.failure_notes || 'None'}`
                     }, user);
-
-                    db.prepare(`
-                        INSERT INTO tracking_events (
-                            shipment_id, event_code, event_name,
-                            hub_id, location_desc, actor_type, actor_name,
-                            description, is_customer_visible, metadata
-                        ) VALUES (?, 'DELIVERY_FAILED_FINAL', 'Delivery Unsuccessful - Returning to Hub', ?, ?, 'DRIVER', ?, ?, 1, ?)
-                    `).run(
-                        delivery.shipment_id,
-                        delivery.hub_id,
-                        delivery.destination_city || 'Delivery Stop',
-                        user.fullName || 'Courier Driver',
-                        `Delivery unsuccessful after ${nextAttemptNumber} attempts (${data.failure_reason}). Returning to hub.`,
-                        JSON.stringify({ attempt_number: nextAttemptNumber, reason: data.failure_reason })
-                    );
                 }
             } else {
                 // Rescheduled for next attempt
@@ -461,31 +420,15 @@ function completeDeliveryWithPOD(deliveryId, podData, user = {}) {
             WHERE id = ?
         `).run(nextAttempt, codCollected, deliveryId);
 
-        // Update shipment
+        // Update shipment to DELIVERED via canonical state machine
         if (delivery.shipment_id) {
-            db.prepare(`
-                UPDATE shipments
-                SET status = 'DELIVERED', updated_at = CURRENT_TIMESTAMP
-                WHERE id = ?
-            `).run(delivery.shipment_id);
-
-            // Record DELIVERED tracking event
-            db.prepare(`
-                INSERT INTO tracking_events (
-                    shipment_id, event_code, event_name,
-                    hub_id, location_desc, latitude, longitude,
-                    actor_type, actor_name, description, is_customer_visible, metadata
-                ) VALUES (?, 'DELIVERED', 'Shipment Delivered', ?, ?, ?, ?, 'DRIVER', ?, ?, 1, ?)
-            `).run(
-                delivery.shipment_id,
-                delivery.hub_id,
-                delivery.destination_city || 'Recipient Location',
-                podData.latitude || null,
-                podData.longitude || null,
-                user.fullName || 'Courier Driver',
-                `Delivered to ${recipientName}. Proof of delivery confirmed.`,
-                JSON.stringify({ recipient: recipientName, pod_verified: true, cod_collected: codCollected })
-            );
+            shipmentService.transitionShipmentStatus(delivery.shipment_id, 'DELIVERED', {
+                hub_id: delivery.hub_id,
+                location_desc: delivery.destination_city || 'Recipient Location',
+                latitude: podData.latitude || null,
+                longitude: podData.longitude || null,
+                notes: `Delivered to ${recipientName}. Proof of delivery confirmed.`
+            }, user);
         }
 
         // Automatic COD Settlement Synchronization on POD Completion
@@ -614,27 +557,14 @@ function processReturnToHub(deliveryId, data = {}, user = {}) {
         `).run(deliveryId);
 
         if (delivery.shipment_id) {
-            db.prepare(`
-                UPDATE shipments
-                SET status = 'RETURNED', updated_at = CURRENT_TIMESTAMP
-                WHERE id = ?
-            `).run(delivery.shipment_id);
-
-            db.prepare(`
-                INSERT INTO tracking_events (
-                    shipment_id, event_code, event_name,
-                    hub_id, location_desc, actor_type, actor_name,
-                    description, is_customer_visible, metadata
-                ) VALUES (?, 'RETURNED_TO_HUB', 'Returned to Hub Facility', ?, ?, ?, ?, ?, 1, ?)
-            `).run(
-                delivery.shipment_id,
-                delivery.hub_id,
-                `Hub #${delivery.hub_id} Receiving`,
-                user.roleName || 'OPERATOR',
-                user.fullName || 'Hub Receiving Operator',
-                `Package returned to hub after failed delivery. Reason: ${delivery.failure_reason || data.notes || 'Unclaimed'}`,
-                JSON.stringify({ delivery_id: deliveryId, notes: data.notes })
-            );
+            // Update shipment to RETURNED via canonical state machine
+            shipmentService.transitionShipmentStatus(delivery.shipment_id, 'RETURNED', {
+                hub_id: delivery.hub_id,
+                location_desc: `Hub #${delivery.hub_id} Receiving`,
+                event_code: 'RETURNED_TO_HUB',
+                event_name: 'Returned to Hub Facility',
+                notes: `Package returned to hub after failed delivery. Reason: ${delivery.failure_reason || data.notes || 'Unclaimed'}`
+            }, user);
         }
 
         return getDeliveryById(deliveryId);

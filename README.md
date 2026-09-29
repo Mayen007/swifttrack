@@ -198,42 +198,56 @@ npm test
 
 ---
 
+### 5. Enterprise Logistics & Transportation Platform
+- **Canonical Shipment Lifecycle State Machine**: Single source of truth across all booking, manifest linehauls, hub handoffs, and last-mile deliveries with immutably audited tracking events. Direct SQL updates to shipment statuses are strictly prohibited.
+- **First-Class Multi-Leg Corridor Orchestration**: Support for sequential linehaul corridors (e.g., Nairobi -> Nakuru -> Mombasa). Completing an inbound leg at an intermediate transit hub automatically sets the consignment `AT_HUB` and activates the subsequent leg for manifest assignment in the outbound corridor queue.
+- **Cross-Border Customs Workflow Scaffolding**: Structured East African cross-border declaration lifecycle: `DECLARED` -> `INSPECTION` -> `ON_HOLD` (with auto-generated exception and notification) -> `CLEARED` -> `RELEASED`.
+- **Durable Offline Operations Gateway**: Resilient off-grid operations for handheld PDAs and mobile drivers (`SCAN`, `CUSTODY_HANDOFF`, `HUB_RECEIVE`, `DELIVERY_ATTEMPT`, `DELIVERY_POD`, `DRIVER_LOCATION`). Incorporates client operation UUIDs, replay deduplication with cached responses, and background synchronization.
+- **Automated Operations Control Tower & Notifications Engine**: Real-time corridor telemetry, hub bottleneck detection, automated outbox workers (SMS/WhatsApp/Email) with exponential backoff retries, and dynamic OTP delivery confirmation.
+
+---
+
+## Operational Modules
+
+| # | Operational Module | Purpose & Core Capabilities |
+| :--- | :--- | :--- |
+| **1** | **Operations Control Tower** | Real-time network telemetry, active corridor monitoring, bottleneck alerts, station on-hand volumes, and rapid exception resolution. |
+| **2** | **Multi-Leg Corridors & Linehaul** | Route master definitions, multi-leg consignment planning, manifest lock & load, checkpoint waypoint tracking, and transshipment activation. |
+| **3** | **Chain of Custody & Hub Intake** | High-throughput barcode scanning, formal handoffs (Agent -> Driver), bay receiving sessions, and manifest shortage/overage discrepancy tracking. |
+| **4** | **Last-Mile Delivery & POD** | Dispatcher allocation, driver mobile delivery execution, multi-attempt rules (BR-008), 6-digit OTP delivery PINs, GPS tagging, and immutable POD evidence. |
+| **5** | **Cross-Border Customs Clearance** | Border post inspection workflows, customs hold with automated operational exceptions, clearance certifications, and release verification. |
+| **6** | **Durable Offline Field Operations** | Local queue persistence, network state monitoring, replay deduplication, and batch synchronization for remote distribution centers. |
+| **7** | **COD Settlement & Finance Depot** | Cash-on-Delivery collections, bank remittances, mandatory variance justification enforcement (BR-010), and managerial reconciliation. |
+| **8** | **Cashier POS Counter Booking** | Volumetric rating quote calculation, cash drawer tenders, Safaricom M-Pesa push, official waybill printing, and physical custody intake. |
+| **9** | **Communications Outbox Engine** | Multi-channel SMS/WhatsApp/Email notifications, template token interpolation, delivery logs, and automated exponential retry worker. |
+
+---
+
 ## Available NPM Scripts
 
 ### Root Scripts (`package.json`)
 - `npm run start` — Starts the Express backend API server on port 4000.
 - `npm run dev` — Launches the Vite frontend client development server.
 - `npm run build` — Compiles production frontend client assets into `client/dist/`.
-- `npm test` — Executes the 14-test end-to-end verification suite.
-- `node tests/verify-auth-phase1.js` — Executes the 12-test Phase 1.1 Authentication Hardening test suite.
-- `node tests/verify-auth-phase1-2.js` — Executes the 16-test Phase 1.2 Authorization Matrix (Role × Resource × Action × Branch) test suite.
+- `npm test` — Executes the 14-test end-to-end POS + security verification suite.
+- `npm run test:shipments` — Stage 1 & 2 Shipment Core & Rating verification suite (7 tests).
+- `npm run test:transport` — Stage 3 Linehaul Transport & Manifest verification suite (7 tests).
+- `npm run test:custody` — Stage 4 Physical Custody & Hub Operations verification suite (8 tests).
+- `npm run test:last-mile` — Stage 5 Last-Mile Delivery, Attempts, & POD verification suite (9 tests).
+- `npm run test:pos-counter` — Stage 6 POS Counter Booking & Rating verification suite (9 tests).
+- `npm run test:cod` — Stage 7 COD Settlement & Variance Reconciliation verification suite (11 tests).
+- `npm run test:control-tower` — Stage 8 Operations Control Tower verification suite (10 tests).
+- `npm run test:notifications` — Stage 9 Notifications Engine verification suite (10 tests).
+- `npm run test:e2e` — Stage 10 E2E 23-Step Multi-Leg Acceptance verification suite (8 tests).
+- `npm run test:multi-leg` — Multi-Leg Corridors & Cross-Border Customs verification suite (7 tests).
+- `npm run test:offline` — Durable Offline Operations & Idempotent Replay verification suite (7 tests).
+- `npm run test:all` — Executes all 13 enterprise test suites (117 automated tests, 100% pass rate).
 - `npm run db:setup` — Initializes SQLite database schemas and triggers.
 - `npm run db:seed:branches` — Seeds full multi-branch demo dataset (Nairobi, Mombasa, Kisumu, Nakuru).
 - `npm run db:seed:prod` — Seeds clean production baseline records.
 - `npm run db:reset:prod` — Safely backs up, clears, and rebuilds a pristine production database.
 - `npm run db:reset:demo` — Backs up, clears, and resets the demo database.
 - `npm run db:backup` — Creates an instant SHA-256 verified database snapshot in `backups/`.
-
-### Security Architecture & Access Control
-- **Phase 1.1 — Authentication Foundation**:
-  - Zero JWT fallback secret; mandatory production secrets validation at boot.
-  - Corporate 7-rule strong password policy with scrypt hashing and 16-byte random salts.
-  - Sliding session management, rotating refresh tokens, and instant JTI revocation blacklist.
-  - Progressive account lockout (HTTP 423) after 5 failed attempts + unlock telemetry.
-  - First-login mandatory password change gates.
-  - TOTP Two-Factor Authentication (RFC 6238) with single-use cryptographic recovery codes.
-- **Phase 1.2 — Role × Resource × Action × Branch Authorization Matrix**:
-  - Centralized deny-by-default access matrix (`server/config/permissions.js`).
-  - Scopes: `GLOBAL`, `OWN_BRANCH`, `OWN_RECORD`, and `DENIED`.
-  - Separation of duties (self-approval prohibited for refunds and expenses).
-  - Dynamic entity-level branch resolution preventing horizontal privilege escalation (HTTP 403).
-  - Vertical privilege escalation blocks against unauthorized administrative mutations (HTTP 403).
-  - Super-Admin company-wide cross-branch authority with dynamic scoping.
-
-### Client Scripts (`client/package.json`)
-- `npm run dev` — Starts Vite dev server with Hot Module Replacement (HMR).
-- `npm run build` — Bundles client assets with Tailwind CSS v4 and minification.
-- `npm run preview` — Locally previews production client build.
 
 ---
 

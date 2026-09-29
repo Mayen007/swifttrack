@@ -516,33 +516,12 @@ function lockManifest(runId, user = {}) {
         for (const item of items) {
             itemUpdateStmt.run(user.id || 1, manifest.id, item.shipment_id);
 
-            // Update shipment and tracking event
-            db.prepare(`
-                UPDATE shipments SET
-                    status = 'LOADED',
-                    updated_at = CURRENT_TIMESTAMP
-                WHERE id = ?
-            `).run(item.shipment_id);
-
-            db.prepare(`
-                INSERT INTO tracking_events (
-                    shipment_id, event_code, event_name,
-                    hub_id, location_desc, actor_id, actor_type, actor_name,
-                    description, is_customer_visible, metadata
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            `).run(
-                item.shipment_id,
-                'LOADED',
-                'Shipment Loaded on Vehicle',
-                run.origin_hub_id,
-                hub ? hub.name : 'Origin Hub',
-                user.id || 1,
-                user.roleName || 'STAFF',
-                user.fullName || 'Dispatcher',
-                `Shipment loaded on transport run ${run.run_number}`,
-                1,
-                JSON.stringify({ run_number: run.run_number })
-            );
+            // Update shipment status via canonical state machine
+            shipmentService.transitionShipmentStatus(item.shipment_id, 'LOADED', {
+                hub_id: run.origin_hub_id,
+                location_desc: hub ? hub.name : 'Origin Hub',
+                notes: `Shipment loaded on transport run ${run.run_number} (Manifest ${manifest.manifest_number})`
+            }, user);
         }
 
         return getTransportRunById(runId);
@@ -619,33 +598,12 @@ function dispatchTransportRun(runId, payload = {}, user = {}) {
                 WHERE manifest_id = ? AND shipment_id = ?
             `).run(run.manifest.id, item.shipment_id);
 
-            db.prepare(`
-                UPDATE shipments SET
-                    status = 'IN_TRANSIT',
-                    current_location_desc = ?,
-                    updated_at = CURRENT_TIMESTAMP
-                WHERE id = ?
-            `).run(`In transit on ${run.run_number}`, item.shipment_id);
-
-            db.prepare(`
-                INSERT INTO tracking_events (
-                    shipment_id, event_code, event_name,
-                    hub_id, location_desc, actor_id, actor_type, actor_name,
-                    description, is_customer_visible, metadata
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            `).run(
-                item.shipment_id,
-                'IN_TRANSIT',
-                'In Transit',
-                run.origin_hub_id,
-                hub ? hub.name : 'Origin Hub',
-                user.id || 1,
-                user.roleName || 'STAFF',
-                user.fullName || 'Dispatcher',
-                `Departed from ${run.origin_hub_name} heading towards ${run.destination_hub_name}`,
-                1,
-                JSON.stringify({ run_number: run.run_number, driver: run.driver_name, vehicle: run.vehicle_reg })
-            );
+            // Update shipment status to IN_TRANSIT via canonical state machine
+            shipmentService.transitionShipmentStatus(item.shipment_id, 'IN_TRANSIT', {
+                hub_id: run.origin_hub_id,
+                location_desc: `In transit on ${run.run_number}`,
+                notes: `Departed from ${run.origin_hub_name} heading towards ${run.destination_hub_name}`
+            }, user);
         }
 
         // Audit Log
@@ -799,40 +757,14 @@ function receiveManifest(runId, receivedShipmentIds = [], user = {}) {
                     WHERE manifest_id = ? AND shipment_id = ?
                 `).run(user.id || 1, manifest.id, item.shipment_id);
 
-                // Update shipment to AT_HUB
-                db.prepare(`
-                    UPDATE shipments SET
-                        status = 'AT_HUB',
-                        current_hub_id = ?,
-                        current_location_desc = ?,
-                        updated_at = CURRENT_TIMESTAMP
-                    WHERE id = ?
-                `).run(run.destination_hub_id, destHubName, item.shipment_id);
-
-                // Mark matching shipment leg as COMPLETED
-                db.prepare(`
-                    UPDATE shipment_legs SET
-                        status = 'COMPLETED',
-                        actual_arrival = CURRENT_TIMESTAMP,
-                        updated_at = CURRENT_TIMESTAMP
-                    WHERE manifest_id = ? AND shipment_id = ?
-                `).run(manifest.id, item.shipment_id);
-
-                // Tracking event
-                db.prepare(`
-                    INSERT INTO tracking_events (
-                        shipment_id, event_code, event_name,
-                        hub_id, location_desc, actor_id, actor_type, actor_name,
-                        description, is_customer_visible, metadata
-                    ) VALUES (?, 'ARRIVED_AT_HUB', 'Arrived at Hub', ?, ?, ?, 'STAFF', ?, ?, 1, ?)
-                `).run(
+                // Multi-leg completion & activation via canonical domain service
+                shipmentService.completeLegAndActivateNext(
                     item.shipment_id,
+                    manifest.id,
                     run.destination_hub_id,
                     destHubName,
-                    user.id || 1,
-                    user.fullName || 'Hub Receiving Staff',
-                    `Received and verified at ${destHubName}`,
-                    JSON.stringify({ run_number: run.run_number })
+                    user,
+                    { run_number: run.run_number }
                 );
 
                 receivedCount++;
@@ -845,28 +777,13 @@ function receiveManifest(runId, receivedShipmentIds = [], user = {}) {
                     WHERE manifest_id = ? AND shipment_id = ?
                 `).run(manifest.id, item.shipment_id);
 
-                db.prepare(`
-                    UPDATE shipments SET
-                        status = 'EXCEPTION',
-                        updated_at = CURRENT_TIMESTAMP
-                    WHERE id = ?
-                `).run(item.shipment_id);
-
-                db.prepare(`
-                    INSERT INTO tracking_events (
-                        shipment_id, event_code, event_name,
-                        hub_id, location_desc, actor_id, actor_type, actor_name,
-                        description, is_customer_visible, metadata
-                    ) VALUES (?, 'EXCEPTION', 'Manifest Discrepancy (Shortage)', ?, ?, ?, 'STAFF', ?, ?, 1, ?)
-                `).run(
-                    item.shipment_id,
-                    run.destination_hub_id,
-                    destHubName,
-                    user.id || 1,
-                    user.fullName || 'Hub Receiving Staff',
-                    `Package missing upon arrival verification at ${destHubName}`,
-                    JSON.stringify({ run_number: run.run_number, discrepancy: 'SHORTAGE' })
-                );
+                // Mark shipment in EXCEPTION via canonical state machine
+                shipmentService.transitionShipmentStatus(item.shipment_id, 'EXCEPTION', {
+                    hub_id: run.destination_hub_id,
+                    location_desc: destHubName,
+                    reason: 'Manifest Discrepancy (Shortage): Expected but missing from unload',
+                    notes: `Shortage on transport run ${run.run_number} manifest #${manifest.id}`
+                }, user);
 
                 shortageCount++;
             }
@@ -980,6 +897,297 @@ function getManifestById(id) {
     };
 }
 
+/**
+ * Cross-border: Submit customs documentation for a cross-border leg
+ */
+function submitCustomsDeclaration(legId, payload = {}, user = {}) {
+    const leg = db.prepare('SELECT * FROM shipment_legs WHERE id = ?').get(legId);
+    if (!leg) throw new Error(`Shipment leg #${legId} not found`);
+    if (!leg.is_cross_border) throw new Error(`Leg #${legId} is not designated as cross-border`);
+
+    const customsDocNumber = payload.customs_doc_number || `CUST-DOC-${Date.now().toString().slice(-6)}`;
+    const borderPost = payload.border_post_name || leg.border_post_name || 'Namanga Border Post';
+
+    const executeTx = db.transaction(() => {
+        db.prepare(`
+            UPDATE shipment_legs SET
+                customs_status = 'SUBMITTED',
+                border_post_name = ?,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+        `).run(borderPost, legId);
+
+        // Record tracking event on shipment
+        db.prepare(`
+            INSERT INTO tracking_events (
+                shipment_id, leg_id, event_code, event_name,
+                hub_id, location_desc, actor_id, actor_type, actor_name,
+                description, is_customer_visible, metadata
+            ) VALUES (?, ?, 'CUSTOMS_SUBMITTED', 'Customs Declaration Submitted', ?, ?, ?, 'STAFF', ?, ?, 1, ?)
+        `).run(
+            leg.shipment_id,
+            legId,
+            leg.origin_hub_id,
+            borderPost,
+            user.id || 1,
+            user.fullName || 'Customs Broker',
+            `Customs clearance declaration ${customsDocNumber} submitted at ${borderPost}`,
+            JSON.stringify({
+                customs_doc_number: customsDocNumber,
+                border_post: borderPost,
+                notes: payload.notes || null
+            })
+        );
+
+        return {
+            leg_id: legId,
+            shipment_id: leg.shipment_id,
+            customs_status: 'SUBMITTED',
+            customs_doc_number: customsDocNumber,
+            border_post: borderPost
+        };
+    });
+
+    return executeTx();
+}
+
+/**
+ * Cross-border: Record customs physical inspection
+ */
+function inspectCustomsLeg(legId, payload = {}, user = {}) {
+    const leg = db.prepare('SELECT * FROM shipment_legs WHERE id = ?').get(legId);
+    if (!leg) throw new Error(`Shipment leg #${legId} not found`);
+
+    const borderPost = leg.border_post_name || 'Border Post';
+
+    const executeTx = db.transaction(() => {
+        db.prepare(`
+            UPDATE shipment_legs SET
+                customs_status = 'INSPECTION',
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+        `).run(legId);
+
+        db.prepare(`
+            INSERT INTO tracking_events (
+                shipment_id, leg_id, event_code, event_name,
+                hub_id, location_desc, actor_id, actor_type, actor_name,
+                description, is_customer_visible, metadata
+            ) VALUES (?, ?, 'CUSTOMS_INSPECTION', 'Customs Inspection Underway', ?, ?, ?, 'STAFF', ?, ?, 1, ?)
+        `).run(
+            leg.shipment_id,
+            legId,
+            leg.origin_hub_id,
+            borderPost,
+            user.id || 1,
+            user.fullName || 'Customs Official',
+            `Package undergoing mandatory customs inspection at ${borderPost}`,
+            JSON.stringify({
+                inspector_name: payload.inspector_name || user.fullName,
+                notes: payload.notes || null
+            })
+        );
+
+        return {
+            leg_id: legId,
+            shipment_id: leg.shipment_id,
+            customs_status: 'INSPECTION'
+        };
+    });
+
+    return executeTx();
+}
+
+/**
+ * Cross-border: Place customs hold with reason and auto-generate exception
+ */
+function holdCustomsLeg(legId, payload = {}, user = {}) {
+    const leg = db.prepare('SELECT * FROM shipment_legs WHERE id = ?').get(legId);
+    if (!leg) throw new Error(`Shipment leg #${legId} not found`);
+    if (!payload.reason) throw new Error('A specific reason is strictly mandatory when placing a customs hold');
+
+    const borderPost = leg.border_post_name || 'Border Post';
+
+    const executeTx = db.transaction(() => {
+        db.prepare(`
+            UPDATE shipment_legs SET
+                customs_status = 'CUSTOMS_HOLD',
+                customs_hold_reason = ?,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+        `).run(payload.reason, legId);
+
+        // Put shipment on hold
+        try {
+            shipmentService.transitionShipmentStatus(leg.shipment_id, 'ON_HOLD', {
+                location_desc: borderPost,
+                reason: payload.reason,
+                notes: `Customs hold at ${borderPost}: ${payload.reason}`
+            }, user);
+        } catch {
+            // Ignore if state transition is already non-pending
+        }
+
+        // Insert into exceptions table for Control Tower tracking
+        const today = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+        const rand = Math.floor(1000 + Math.random() * 9000);
+        const excNum = `EXC-${today}-${rand}`;
+
+        db.prepare(`
+            INSERT INTO exceptions (
+                exception_number, shipment_id, hub_id, exception_type, severity, status,
+                description, reported_by_user_id
+            ) VALUES (?, ?, ?, 'CUSTOMS_HOLD', 'HIGH', 'OPEN', ?, ?)
+        `).run(
+            excNum,
+            leg.shipment_id,
+            leg.origin_hub_id,
+            `Customs Hold at ${borderPost}: ${payload.reason}`,
+            user.id || 1
+        );
+
+        return {
+            leg_id: legId,
+            shipment_id: leg.shipment_id,
+            customs_status: 'CUSTOMS_HOLD',
+            hold_reason: payload.reason
+        };
+    });
+
+    return executeTx();
+}
+
+/**
+ * Cross-border: Clear customs verification
+ */
+function clearCustomsLeg(legId, payload = {}, user = {}) {
+    const leg = db.prepare('SELECT * FROM shipment_legs WHERE id = ?').get(legId);
+    if (!leg) throw new Error(`Shipment leg #${legId} not found`);
+
+    const clearanceRef = payload.clearance_number || `CLR-KE-TZ-${Date.now().toString().slice(-6)}`;
+    const borderPost = leg.border_post_name || 'Border Post';
+
+    const executeTx = db.transaction(() => {
+        db.prepare(`
+            UPDATE shipment_legs SET
+                customs_status = 'CLEARED',
+                customs_hold_reason = NULL,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+        `).run(legId);
+
+        db.prepare(`
+            INSERT INTO tracking_events (
+                shipment_id, leg_id, event_code, event_name,
+                hub_id, location_desc, actor_id, actor_type, actor_name,
+                description, is_customer_visible, metadata
+            ) VALUES (?, ?, 'CUSTOMS_CLEARED', 'Customs Cleared', ?, ?, ?, 'STAFF', ?, ?, 1, ?)
+        `).run(
+            leg.shipment_id,
+            legId,
+            leg.origin_hub_id,
+            borderPost,
+            user.id || 1,
+            user.fullName || 'Customs Authority',
+            `Customs cleared at ${borderPost}. Clearance certificate: ${clearanceRef}`,
+            JSON.stringify({ clearance_number: clearanceRef })
+        );
+
+        return {
+            leg_id: legId,
+            shipment_id: leg.shipment_id,
+            customs_status: 'CLEARED',
+            clearance_number: clearanceRef
+        };
+    });
+
+    return executeTx();
+}
+
+/**
+ * Cross-border: Release customs inspection and permit continuation of transit leg
+ */
+function releaseCustomsLeg(legId, user = {}) {
+    const leg = db.prepare('SELECT * FROM shipment_legs WHERE id = ?').get(legId);
+    if (!leg) throw new Error(`Shipment leg #${legId} not found`);
+
+    const borderPost = leg.border_post_name || 'Border Post';
+
+    const executeTx = db.transaction(() => {
+        db.prepare(`
+            UPDATE shipment_legs SET
+                customs_status = 'RELEASED',
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+        `).run(legId);
+
+        // Resume IN_TRANSIT status on shipment if was on hold
+        const shipment = db.prepare('SELECT status FROM shipments WHERE id = ?').get(leg.shipment_id);
+        if (shipment && shipment.status === 'ON_HOLD') {
+            shipmentService.transitionShipmentStatus(leg.shipment_id, 'IN_TRANSIT', {
+                location_desc: `Departed ${borderPost} after customs release`,
+                notes: `Customs released at ${borderPost}. Continuing transit.`
+            }, user);
+        }
+
+        db.prepare(`
+            INSERT INTO tracking_events (
+                shipment_id, leg_id, event_code, event_name,
+                hub_id, location_desc, actor_id, actor_type, actor_name,
+                description, is_customer_visible, metadata
+            ) VALUES (?, ?, 'CUSTOMS_RELEASED', 'Customs Released & En Route', ?, ?, ?, 'STAFF', ?, ?, 1, ?)
+        `).run(
+            leg.shipment_id,
+            legId,
+            leg.origin_hub_id,
+            borderPost,
+            user.id || 1,
+            user.fullName || 'Border Gate Officer',
+            `Released from ${borderPost}. Vehicle cleared to proceed to next destination hub.`,
+            JSON.stringify({ released: true })
+        );
+
+        return {
+            leg_id: legId,
+            shipment_id: leg.shipment_id,
+            customs_status: 'RELEASED'
+        };
+    });
+
+    return executeTx();
+}
+
+/**
+ * Lists cross-border shipment legs with filtering
+ */
+function getCrossBorderLegs(filters = {}) {
+    let sql = `
+        SELECT sl.*,
+               s.tracking_number, s.waybill_number, s.status as shipment_status,
+               s.chargeable_weight_kg, s.declared_value, s.currency,
+               orig.name as origin_hub_name, orig.city as origin_hub_city,
+               dest.name as destination_hub_name, dest.city as destination_hub_city,
+               tr.run_number
+        FROM shipment_legs sl
+        JOIN shipments s ON sl.shipment_id = s.id
+        JOIN branches orig ON sl.origin_hub_id = orig.id
+        JOIN branches dest ON sl.destination_hub_id = dest.id
+        LEFT JOIN transport_runs tr ON sl.transport_run_id = tr.id
+        WHERE sl.is_cross_border = 1
+    `;
+    const params = [];
+    if (filters.customs_status) {
+        sql += ` AND sl.customs_status = ?`;
+        params.push(filters.customs_status);
+    }
+    if (filters.border_post) {
+        sql += ` AND sl.border_post_name = ?`;
+        params.push(filters.border_post);
+    }
+    sql += ` ORDER BY sl.id DESC`;
+    return db.prepare(sql).all(...params);
+}
+
 module.exports = {
     RUN_STATUSES,
     ALLOWED_RUN_TRANSITIONS,
@@ -999,5 +1207,11 @@ module.exports = {
     arriveTransportRun,
     receiveManifest,
     listManifests,
-    getManifestById
+    getManifestById,
+    submitCustomsDeclaration,
+    inspectCustomsLeg,
+    holdCustomsLeg,
+    clearCustomsLeg,
+    releaseCustomsLeg,
+    getCrossBorderLegs
 };

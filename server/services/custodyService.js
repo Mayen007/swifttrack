@@ -2,6 +2,7 @@
 // SwiftTrack Logistics: Stage 4 Physical Custody & Hub Operations Domain Service
 const { db } = require('../db/database.js');
 const crypto = require('node:crypto');
+const shipmentService = require('./shipmentService.js');
 
 /**
  * Generates human-readable sequential business identifiers
@@ -604,8 +605,12 @@ function completeReceivingSession(sessionId, data = {}, user = {}) {
                     }, user);
                     missingDiscrepancies.push(disc);
 
-                    // Mark shipment exception
-                    db.prepare(`UPDATE shipments SET status = 'EXCEPTION', updated_at = CURRENT_TIMESTAMP WHERE id = ?`).run(item.shipment_id);
+                    // Mark shipment exception via canonical state machine
+                    shipmentService.transitionShipmentStatus(item.shipment_id, 'EXCEPTION', {
+                        hub_id: session.hub_id,
+                        reason: 'MISSING_MANIFEST_ITEM',
+                        notes: `Shipment missing during hub receiving scan for session #${sessionId} manifest #${session.manifest_id}`
+                    }, user);
                 }
             }
         }
