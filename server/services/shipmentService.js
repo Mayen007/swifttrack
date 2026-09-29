@@ -540,8 +540,8 @@ function transitionShipmentStatus(id, targetStatus, payload = {}, user = {}) {
         throw err;
     }
 
-    // Invariant checks
-    if (target === SHIPMENT_STATUSES.FAILED_DELIVERY && !payload.reason) {
+    // Invariant checks: Failure reason strictly mandatory for failed delivery
+    if ((target === 'FAILED_DELIVERY' || target === 'DELIVERY_FAILED') && !payload.reason) {
         const err = new Error('A failure reason is strictly mandatory when recording a failed delivery (BR-008)');
         err.statusCode = 400;
         err.code = 'FAILED_REASON_REQUIRED';

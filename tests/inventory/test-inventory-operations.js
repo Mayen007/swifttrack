@@ -45,7 +45,7 @@ const wh2 = db.prepare('SELECT id, branch_id FROM warehouses WHERE branch_id != 
 const prod = db.prepare('SELECT id, cost_price, selling_price FROM products LIMIT 1').get() || { id: 1, cost_price: 100, selling_price: 150 };
 const adminUser = db.prepare("SELECT id FROM users WHERE role_id = (SELECT id FROM roles WHERE name = 'SUPER_ADMIN') LIMIT 1").get() || { id: 1 };
 
-// Reset test inventory
+// Reset test inventory for both warehouses
 getOrInitInventory(wh1.id, prod.id, branch1.id);
 db.prepare(`
   UPDATE inventory
@@ -53,6 +53,14 @@ db.prepare(`
       quantity_in_transit = 0, quantity_damaged = 0, quantity_expired = 0
   WHERE warehouse_id = ? AND product_id = ?
 `).run(wh1.id, prod.id);
+
+getOrInitInventory(wh2.id, prod.id, wh2.branch_id || branch1.id);
+db.prepare(`
+  UPDATE inventory
+  SET quantity_on_hand = 100, quantity_available = 100, quantity_reserved = 0,
+      quantity_in_transit = 0, quantity_damaged = 0, quantity_expired = 0
+  WHERE warehouse_id = ? AND product_id = ?
+`).run(wh2.id, prod.id);
 
 // 1. STOCK RECEIVING (GOODS RECEIVED NOTE)
 runTest('1.1: receiveStock() with GOOD condition increments ON_HAND & AVAILABLE', () => {
@@ -221,7 +229,7 @@ runTest('4.1: Certified write-off permanently deducts DAMAGED stock and ON_HAND'
 // 5. TRANSFER RECEIPT WITH DISCREPANCY
 runTest('5.1: Transfer receipt discrepancy tracks transit loss and logs TRANSIT_LOSS', () => {
   // Transfer 10 units from wh1 to wh2
-  const trfNo = `TRF-TEST-${Date.now().toString().slice(-4)}`;
+  const trfNo = `TRF-TEST-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
   const trf = db.prepare(`
     INSERT INTO stock_transfers (
       transfer_number, source_branch_id, source_warehouse_id,

@@ -181,6 +181,12 @@ export function Sidebar({
           icon: ShieldCheck,
           roles: ['SUPER_ADMIN'],
         },
+        {
+          id: 'procurement',
+          label: 'Procurement & Suppliers',
+          icon: ShoppingBag,
+          roles: ['SUPER_ADMIN', 'BRANCH_MANAGER'],
+        },
       ],
     },
   ];

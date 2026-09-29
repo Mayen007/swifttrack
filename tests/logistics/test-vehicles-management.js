@@ -42,12 +42,22 @@ let createdVehicle1 = null;
 let createdVehicle2 = null;
 let testDriver = null;
 
+function generateUniquePlate(prefix = 'KDA') {
+  for (let i = 0; i < 50; i++) {
+    const num = Math.floor(100 + Math.random() * 899);
+    const letter = String.fromCharCode(65 + Math.floor(Math.random() * 26));
+    const plate = `${prefix} ${num}${letter}`;
+    const exists = db.prepare('SELECT id FROM vehicles WHERE registration_number = ?').get(plate);
+    if (!exists) return plate;
+  }
+  return `${prefix} 999Z`;
+}
+
 async function executeSuite() {
   // TEST 1: Vehicle Registry Creation
   await runTest('1. Vehicle Registry Creation: Registration plate, type, capacity (kg/m3), specs, odometer', async () => {
-    const uniqueSuffix = Date.now().toString().slice(-3);
     const payload = {
-      registration_number: `KDX 1${uniqueSuffix}Z`,
+      registration_number: generateUniquePlate('KDX'),
       vehicle_type: 'VAN',
       make: 'Toyota',
       model: 'HiAce Commuter',
@@ -327,7 +337,7 @@ async function executeSuite() {
   await runTest('9. Service Due Proximity: Computes km_until_service and triggers alert when <= 500 km', async () => {
     // Register vehicle that is close to service target
     createdVehicle2 = vehicleService.createVehicle({
-      registration_number: `KCA 99${Date.now().toString().slice(-2)}Q`,
+      registration_number: generateUniquePlate('KCA'),
       vehicle_type: 'MOTORCYCLE',
       make: 'Bajaj',
       model: 'Boxer BM150',

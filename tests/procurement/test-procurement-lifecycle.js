@@ -41,16 +41,15 @@ const branch = db.prepare('SELECT * FROM branches LIMIT 1').get() || { id: 1 };
 const warehouse = db.prepare('SELECT * FROM warehouses WHERE branch_id = ? LIMIT 1').get(branch.id) ||
   db.prepare('SELECT * FROM warehouses LIMIT 1').get();
 
-// Ensure test product exists
-let testProduct = db.prepare('SELECT * FROM products WHERE is_active = 1 LIMIT 1').get();
-if (!testProduct) {
-  const cat = db.prepare('SELECT id FROM categories LIMIT 1').get() || { id: 1 };
-  const prodRes = db.prepare(`
-    INSERT INTO products (sku, barcode, name, category_id, unit, unit_of_measure, selling_price, cost_price)
-    VALUES ('SKU-PROC-TEST', 'BAR-PROC-TEST', 'Procurement Cement 50kg', ?, 'BAG', 'BAG', 850.0, 650.0)
-  `).run(cat.id);
-  testProduct = db.prepare('SELECT * FROM products WHERE id = ?').get(prodRes.lastInsertRowid);
-}
+// Create isolated dedicated test product
+const cat = db.prepare('SELECT id FROM categories LIMIT 1').get() || { id: 1 };
+const skuSuffix = Date.now() + '-' + Math.floor(Math.random() * 10000);
+const prodRes = db.prepare(`
+  INSERT INTO products (sku, barcode, name, category_id, unit, unit_of_measure, selling_price, cost_price)
+  VALUES (?, ?, 'Procurement Cement 50kg', ?, 'BAG', 'BAG', 850.0, 650.0)
+`).run(`SKU-PROC-${skuSuffix}`, `BAR-PROC-${skuSuffix}`, cat.id);
+const testProduct = db.prepare('SELECT * FROM products WHERE id = ?').get(prodRes.lastInsertRowid);
+getOrInitInventory(warehouse.id, testProduct.id, branch.id);
 
 let testSupplierId = null;
 let testRequisitionId = null;
@@ -269,7 +268,7 @@ let testInvoiceId = null;
       supplierId: testSupplierId,
       purchaseOrderId: testPurchaseOrderId,
       stockReceiptId: testStockReceiptId,
-      supplierInvoiceNo: 'INV-BAM-2026-0901',
+      supplierInvoiceNo: `INV-BAM-${Date.now()}`,
       branchId: branch.id,
       invoiceDate: '2026-09-22',
       dueDate: '2026-10-22',

@@ -489,7 +489,10 @@ class E2EAcceptanceService {
             });
 
             // Drain outbox queue to finalize all milestone communication dispatches
-            const notificationDrain = await notificationService.processOutboxBatch(100);
+            let notificationDrain;
+            do {
+                notificationDrain = await notificationService.processOutboxBatch(100);
+            } while (notificationDrain && notificationDrain.total_selected > 0);
 
             const totalDurationMs = Date.now() - startTime;
 

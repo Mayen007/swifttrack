@@ -1,0 +1,88 @@
+version: '3.8'
+
+# SwiftTrack Kenya Logistics Platform - Production Stack Architecture
+# Components:
+#   - postgres: Authoritative relational database with WAL & pooled connections
+#   - app: Core Express.js API + Static React Client
+#   - worker: Isolated background outbox notification & sync processing worker
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: swifttrack_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: swifttrack_logistics
+      POSTGRES_USER: swifttrack_admin
+      POSTGRES_PASSWORD: ${PGPASSWORD:-super_secure_pg_password_2026}
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./server/db/postgres/migrations:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U swifttrack_admin -d swifttrack_logistics"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - swifttrack_net
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: swifttrack_api
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "4000:4000"
+    environment:
+      NODE_ENV: production
+      PORT: 4000
+      DEMO_MODE: "false"
+      DB_CLIENT: postgres
+      DATABASE_URL: postgres://swifttrack_admin:${PGPASSWORD:-super_secure_pg_password_2026}@postgres:5432/swifttrack_logistics
+      JWT_SECRET: ${JWT_SECRET:-swifttrack_jwt_production_secret_change_in_real_env}
+      SESSION_EXPIRY: 24h
+      CORS_ORIGINS: ${CORS_ORIGINS:-https://app.swifttrack.co.ke,http://localhost:4000}
+      RATE_LIMIT_WINDOW_MS: 900000
+      RATE_LIMIT_MAX_LOGIN_ATTEMPTS: 10
+      PGPOOL_MAX: 25
+      PGPOOL_MIN: 5
+    volumes:
+      - app_backups:/app/backups
+    networks:
+      - swifttrack_net
+
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: swifttrack_worker
+    restart: unless-stopped
+    depends_on:
+      app:
+        condition: service_started
+      postgres:
+        condition: service_healthy
+    command: ["node", "-e", "require('./server/workers/notificationWorker.js').startNotificationWorker(); setInterval(() => {}, 10000);"]
+    environment:
+      NODE_ENV: production
+      DB_CLIENT: postgres
+      DATABASE_URL: postgres://swifttrack_admin:${PGPASSWORD:-super_secure_pg_password_2026}@postgres:5432/swifttrack_logistics
+      WORKER_INTERVAL_MS: 15000
+    networks:
+      - swifttrack_net
+
+volumes:
+  pgdata:
+    driver: local
+  app_backups:
+    driver: local
+
+networks:
+  swifttrack_net:
+    driver: bridge

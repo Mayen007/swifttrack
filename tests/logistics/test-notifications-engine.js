@@ -132,6 +132,12 @@ async function runTests() {
 
     // TEST 6: Exponential Backoff & Retry Handling on Failure (Rule NTF-003)
     console.log('\n> TEST 6: Exponential Backoff & Retry Handling on Gateway Error (Rule NTF-003)...');
+    // Drain any leftover pending items first so failItemId is processed immediately
+    let drainPending;
+    do {
+        drainPending = await notificationService.processOutboxBatch(100);
+    } while (drainPending && drainPending.total_selected > 0);
+
     // Enqueue a test notification with simulated failure
     const uuidFail = `NTF-TEST-FAIL-${Date.now()}`;
     const insertFail = db.prepare(`
