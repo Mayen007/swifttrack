@@ -8,7 +8,7 @@ const shipmentService = require('../../server/services/shipmentService.js');
 const transportService = require('../../server/services/transportService.js');
 
 console.log('============================================================');
-console.log('📦  SWIFTTRACK LOGISTICS: STAGE 4 PHYSICAL CUSTODY SUITE');
+console.log('  SWIFTTRACK LOGISTICS: STAGE 4 PHYSICAL CUSTODY SUITE');
 console.log('============================================================\n');
 
 let passedTests = 0;
@@ -22,7 +22,7 @@ try {
     // -------------------------------------------------------------
     // TEST 1: Single & Bulk Offline Barcode Scan Events with Idempotency
     // -------------------------------------------------------------
-    console.log('▶ TEST 1: Single & Bulk Offline Barcode Scans with Idempotency...');
+    console.log('> TEST 1: Single & Bulk Offline Barcode Scans with Idempotency...');
     
     // Create test shipment
     const shp1 = shipmentService.createShipment({
@@ -79,12 +79,12 @@ try {
     assert.strictEqual(postSortShp.status, 'SORTED', 'Shipment should transition to SORTED');
 
     passedTests++;
-    console.log('✓ [PASS] 1. Single & Bulk Offline Barcode Scans: Verified with idempotency deduplication\n');
+    console.log('[PASS] [PASS] 1. Single & Bulk Offline Barcode Scans: Verified with idempotency deduplication\n');
 
     // -------------------------------------------------------------
     // TEST 2: Scan Events Immutability Trigger
     // -------------------------------------------------------------
-    console.log('▶ TEST 2: Scan Events Immutability Trigger...');
+    console.log('> TEST 2: Scan Events Immutability Trigger...');
 
     let updateBlocked = false;
     try {
@@ -103,12 +103,12 @@ try {
     assert.strictEqual(deleteBlocked, true, 'Database trigger must block DELETE on scan_events');
 
     passedTests++;
-    console.log('✓ [PASS] 2. Scan Events Immutability: SQL triggers block UPDATE and DELETE\n');
+    console.log('[PASS] [PASS] 2. Scan Events Immutability: SQL triggers block UPDATE and DELETE\n');
 
     // -------------------------------------------------------------
     // TEST 3: Custody Transfer Handoff (HND-)
     // -------------------------------------------------------------
-    console.log('▶ TEST 3: Custody Transfer Handoff (Agent to Driver)...');
+    console.log('> TEST 3: Custody Transfer Handoff (Agent to Driver)...');
 
     const handoffResult = custodyService.recordHandoff({
         shipment_id: shp1.id,
@@ -138,12 +138,12 @@ try {
     assert.ok(handoffEvent, 'Shipment timeline must include CUSTODY_HANDOFF event');
 
     passedTests++;
-    console.log('✓ [PASS] 3. Chain of Custody Handoff: Recorded with digital signature & verification\n');
+    console.log('[PASS] [PASS] 3. Chain of Custody Handoff: Recorded with digital signature & verification\n');
 
     // -------------------------------------------------------------
     // TEST 4: Damaged Package Intake & Auto-Discrepancy Creation
     // -------------------------------------------------------------
-    console.log('▶ TEST 4: Damaged Package Intake & Auto-Discrepancy Creation...');
+    console.log('> TEST 4: Damaged Package Intake & Auto-Discrepancy Creation...');
 
     const shpDamaged = shipmentService.createShipment({
         origin_hub_id: 1,
@@ -174,12 +174,12 @@ try {
     assert.strictEqual(damagedHandoff.discrepancy.status, 'OPEN');
 
     passedTests++;
-    console.log('✓ [PASS] 4. Damaged Package Intake: Automatically spawns tracked discrepancy record\n');
+    console.log('[PASS] [PASS] 4. Damaged Package Intake: Automatically spawns tracked discrepancy record\n');
 
     // -------------------------------------------------------------
     // TEST 5: Hub Receiving Session Opening & Station Bay Assignment
     // -------------------------------------------------------------
-    console.log('▶ TEST 5: Hub Receiving Session Opening & Station Bay Assignment...');
+    console.log('> TEST 5: Hub Receiving Session Opening & Station Bay Assignment...');
 
     const session = custodyService.openReceivingSession({
         hub_id: 2,
@@ -193,12 +193,12 @@ try {
     assert.strictEqual(session.scanned_packages_count, 0);
 
     passedTests++;
-    console.log('✓ [PASS] 5. Hub Receiving Session: Opened with designated sorting bay\n');
+    console.log('[PASS] [PASS] 5. Hub Receiving Session: Opened with designated sorting bay\n');
 
     // -------------------------------------------------------------
     // TEST 6: Inbound Package Scans & Manifest Expected-vs-Received Tracking
     // -------------------------------------------------------------
-    console.log('▶ TEST 6: Inbound Package Scans & Expected-vs-Received Tracking...');
+    console.log('> TEST 6: Inbound Package Scans & Expected-vs-Received Tracking...');
 
     // Plan route, run, and manifest with 2 shipments
     const mShp1 = shipmentService.createShipment({
@@ -281,12 +281,12 @@ try {
     assert.strictEqual(scanItemUnexpected.discrepancy.discrepancy_type, 'UNEXPECTED_OVERAGE');
 
     passedTests++;
-    console.log('✓ [PASS] 6. Inbound Package Scans: Reconciled against manifest with overage detection\n');
+    console.log('[PASS] [PASS] 6. Inbound Package Scans: Reconciled against manifest with overage detection\n');
 
     // -------------------------------------------------------------
     // TEST 7: Completing Receiving Session & Missing Manifest Discrepancy (BR-006)
     // -------------------------------------------------------------
-    console.log('▶ TEST 7: Complete Receiving Session & Missing Manifest Item Discrepancy...');
+    console.log('> TEST 7: Complete Receiving Session & Missing Manifest Item Discrepancy...');
 
     // Complete session without scanning mShp2
     const completeRes = custodyService.completeReceivingSession(manifestSession.id, {
@@ -306,12 +306,12 @@ try {
     assert.strictEqual(missingShp.status, 'EXCEPTION', 'Missing manifest item must transition to EXCEPTION');
 
     passedTests++;
-    console.log('✓ [PASS] 7. Receiving Session Completion: Auto-flags missing items with EXCEPTION state\n');
+    console.log('[PASS] [PASS] 7. Receiving Session Completion: Auto-flags missing items with EXCEPTION state\n');
 
     // -------------------------------------------------------------
     // TEST 8: Discrepancy Investigation & Resolution Lifecycle
     // -------------------------------------------------------------
-    console.log('▶ TEST 8: Discrepancy Investigation & Resolution Lifecycle...');
+    console.log('> TEST 8: Discrepancy Investigation & Resolution Lifecycle...');
 
     const resolvedDisc = custodyService.resolveDiscrepancy(missingDisc.id, {
         resolution_action: 'FOUND_AND_MERGED',
@@ -329,14 +329,14 @@ try {
     assert.ok(resolveEvent, 'Shipment must receive DISCREPANCY_RESOLVED tracking event');
 
     passedTests++;
-    console.log('✓ [PASS] 8. Discrepancy Investigation: Full lifecycle resolution with audit timeline\n');
+    console.log('[PASS] [PASS] 8. Discrepancy Investigation: Full lifecycle resolution with audit timeline\n');
 
     console.log('============================================================');
-    console.log(`🎉 ALL ${passedTests}/${totalTests} PHYSICAL CUSTODY & HUB OPERATIONS TESTS PASSED!`);
+    console.log(`[SUCCESS] ALL ${passedTests}/${totalTests} PHYSICAL CUSTODY & HUB OPERATIONS TESTS PASSED!`);
     console.log('============================================================\n');
 
 } catch (error) {
-    console.error(`\n❌ TEST SUITE FAILED at Test #${passedTests + 1}:`);
+    console.error(`\n[FAIL] TEST SUITE FAILED at Test #${passedTests + 1}:`);
     console.error(error);
     process.exit(1);
 }

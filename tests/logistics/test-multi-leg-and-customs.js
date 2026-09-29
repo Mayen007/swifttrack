@@ -13,9 +13,9 @@ async function runTest(name, fn) {
     try {
         await fn();
         passedTests++;
-        console.log(`✓ [PASS] ${name}`);
+        console.log(`[PASS] [PASS] ${name}`);
     } catch (err) {
-        console.error(`❌ [FAIL] ${name}`);
+        console.error(`[FAIL] [FAIL] ${name}`);
         console.error(err);
         process.exit(1);
     }
@@ -23,7 +23,7 @@ async function runTest(name, fn) {
 
 async function runSuite() {
     console.log('\n============================================================');
-    console.log('🌐  SWIFTTRACK LOGISTICS: MULTI-LEG & CROSS-BORDER SUITE');
+    console.log('  SWIFTTRACK LOGISTICS: MULTI-LEG & CROSS-BORDER SUITE');
     console.log('============================================================\n');
 
     const adminUser = { id: 1, roleName: 'SUPER_ADMIN', username: 'superadmin', fullName: 'Super Admin' };
@@ -249,7 +249,7 @@ async function runSuite() {
     });
 
     console.log(`\n============================================================`);
-    console.log(`🎉 ALL ${passedTests}/${totalTests} MULTI-LEG & CUSTOMS TESTS PASSED!`);
+    console.log(`[SUCCESS] ALL ${passedTests}/${totalTests} MULTI-LEG & CUSTOMS TESTS PASSED!`);
     console.log(`============================================================\n`);
 }
 

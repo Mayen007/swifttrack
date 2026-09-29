@@ -250,7 +250,7 @@ export function MultiLegJourney({ shipment, legs = [], onUpdate }) {
                 <div>
                   <span className="text-slate-500 text-[10px]">Leg Type:</span>
                   <p className="font-medium text-slate-200">
-                    {isCrossBorder ? '🌍 Cross-Border Corridor' : '🚛 Domestic Linehaul'}
+                    {isCrossBorder ? 'Cross-Border Corridor' : 'Domestic Linehaul'}
                   </p>
                 </div>
                 {leg.actual_departure && (
@@ -276,7 +276,7 @@ export function MultiLegJourney({ shipment, legs = [], onUpdate }) {
                 <div className="mt-2.5 pt-2.5 border-t border-[#1e2330] space-y-2">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-1.5">
-                      <span className="text-[11px] font-bold text-amber-400">🛂 {leg.border_post_name || 'Border Post Checkpoint'}</span>
+                      <span className="text-[11px] font-bold text-amber-400">{leg.border_post_name || 'Border Post Checkpoint'}</span>
                     </div>
                     {getCustomsBadge(leg.customs_status, leg.customs_hold_reason)}
                   </div>

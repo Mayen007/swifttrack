@@ -21,7 +21,7 @@ const { receiveStock } = require('../../server/services/inventoryOperationsServi
 const { getOrInitInventory, assertInventoryInvariant } = require('../../server/services/inventoryStateService.js');
 
 console.log('\n============================================================');
-console.log('🧪  SWIFTTRACK 3.3 ADVANCED INVENTORY & CONCURRENCY SUITE');
+console.log('[TEST]  SWIFTTRACK 3.3 ADVANCED INVENTORY & CONCURRENCY SUITE');
 console.log('============================================================\n');
 
 let server;
@@ -74,7 +74,7 @@ async function runTest(name, fn) {
   totalTests++;
   try {
     await fn();
-    console.log(`✓ [PASS] ${name}`);
+    console.log(`[PASS] [PASS] ${name}`);
     passedTests++;
   } catch (err) {
     console.error(`✗ [FAIL] ${name}`);
@@ -476,9 +476,9 @@ async function runTest(name, fn) {
     console.log('============================================================');
 
     if (passedTests === totalTests) {
-      console.log('\n🎉 ALL ADVANCED INVENTORY & CONCURRENCY TESTS PASSED!\n');
+      console.log('\n[SUCCESS] ALL ADVANCED INVENTORY & CONCURRENCY TESTS PASSED!\n');
     } else {
-      console.error('\n❌ SOME ADVANCED INVENTORY TESTS FAILED!\n');
+      console.error('\n[FAIL] SOME ADVANCED INVENTORY TESTS FAILED!\n');
       process.exitCode = 1;
     }
 

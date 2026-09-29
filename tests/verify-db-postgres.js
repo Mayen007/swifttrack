@@ -15,7 +15,7 @@ function runTest(name, fn) {
     totalTests++;
     try {
         fn();
-        console.log(`✓ [PASS] ${name}`);
+        console.log(`[PASS] [PASS] ${name}`);
         passedTests++;
     } catch (err) {
         console.error(`✗ [FAIL] ${name}`);
@@ -28,7 +28,7 @@ async function runAsyncTest(name, fn) {
     totalTests++;
     try {
         await fn();
-        console.log(`✓ [PASS] ${name}`);
+        console.log(`[PASS] [PASS] ${name}`);
         passedTests++;
     } catch (err) {
         console.error(`✗ [FAIL] ${name}`);
@@ -406,10 +406,10 @@ setTimeout(() => {
     console.log('============================================================\n');
 
     if (passedTests === totalTests) {
-        console.log('🎉 ALL POSTGRESQL ARCHITECTURE & MIGRATION TESTS PASSED!\n');
+        console.log('[SUCCESS] ALL POSTGRESQL ARCHITECTURE & MIGRATION TESTS PASSED!\n');
         process.exit(0);
     } else {
-        console.error('💥 SOME TESTS FAILED!\n');
+        console.error(' SOME TESTS FAILED!\n');
         process.exit(1);
     }
 }, 100);

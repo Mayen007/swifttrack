@@ -7,7 +7,7 @@ const shipmentService = require('../../server/services/shipmentService.js');
 const posShiftService = require('../../server/services/posShiftService.js');
 
 console.log('============================================================');
-console.log('🧾  SWIFTTRACK LOGISTICS: STAGE 6 POS COUNTER BOOKING SUITE');
+console.log('  SWIFTTRACK LOGISTICS: STAGE 6 POS COUNTER BOOKING SUITE');
 console.log('============================================================\n');
 
 let passedTests = 0;
@@ -23,7 +23,7 @@ try {
     // -------------------------------------------------------------
     // TEST 1: Live Volumetric Rating Quote at Counter
     // -------------------------------------------------------------
-    console.log('▶ TEST 1: Volumetric Rate Quote Calculation at Counter...');
+    console.log('> TEST 1: Volumetric Rate Quote Calculation at Counter...');
     
     // 50cm x 40cm x 30cm, weight 5.0kg
     // Volumetric weight = (50*40*30)/5000 = 12.0kg -> Chargeable = 12.0kg
@@ -48,13 +48,13 @@ try {
     assert.strictEqual(quote.currency, 'KES');
     assert.strictEqual(quote.origin_hub.id, 1);
     assert.strictEqual(quote.destination_hub.id, 2);
-    console.log(`  ✔ Volumetric rating verified: Actual 5kg, Volumetric 12kg -> Chargeable 12kg (Quote: KES ${quote.total_amount})`);
+    console.log(`  [PASS] Volumetric rating verified: Actual 5kg, Volumetric 12kg -> Chargeable 12kg (Quote: KES ${quote.total_amount})`);
     passedTests++;
 
     // -------------------------------------------------------------
     // TEST 2: Cashier Active Shift Guard Enforcement
     // -------------------------------------------------------------
-    console.log('▶ TEST 2: Cashier Active Shift Guard Enforcement...');
+    console.log('> TEST 2: Cashier Active Shift Guard Enforcement...');
     
     // Ensure any open shift for cashier 4 is temporarily closed
     const activeShift = posShiftService.getCurrentShift(cashierUser.id, 1);
@@ -75,13 +75,13 @@ try {
     }, (err) => {
         return err.code === 'NO_ACTIVE_SHIFT' || err.message.includes('No active shift');
     }, 'Must reject booking when cashier has no active shift open');
-    console.log('  ✔ Shift guard strictly blocks counter booking when register is closed (NO_ACTIVE_SHIFT)');
+    console.log('  [PASS] Shift guard strictly blocks counter booking when register is closed (NO_ACTIVE_SHIFT)');
     passedTests++;
 
     // -------------------------------------------------------------
     // TEST 3: Cash Counter Booking with Drawer Payout & Shift Totals
     // -------------------------------------------------------------
-    console.log('▶ TEST 3: Counter Booking with Cash Payment & Cash Drawer Update...');
+    console.log('> TEST 3: Counter Booking with Cash Payment & Cash Drawer Update...');
 
     // Open shift for cashier with 5,000 float
     const shift = posShiftService.openShift({ opening_float: 5000, notes: 'Morning test shift' }, cashierUser);
@@ -133,13 +133,13 @@ try {
     assert.ok(drawerMove, 'Cash drawer movement record must exist');
     assert.strictEqual(drawerMove.movement_type, 'SALE_CASH');
     assert.strictEqual(drawerMove.amount, cashBooking.pricing.total_amount);
-    console.log(`  ✔ Cash booking confirmed: STK: ${cashBooking.tracking_number}, Paid: KES ${cashBooking.pricing.total_amount}, Tendered: KES 3000, Change: KES ${cashBooking.payments[0].change}`);
+    console.log(`  [PASS] Cash booking confirmed: STK: ${cashBooking.tracking_number}, Paid: KES ${cashBooking.pricing.total_amount}, Tendered: KES 3000, Change: KES ${cashBooking.payments[0].change}`);
     passedTests++;
 
     // -------------------------------------------------------------
     // TEST 4: M-Pesa Counter Booking with Safaricom Receipt Verification
     // -------------------------------------------------------------
-    console.log('▶ TEST 4: M-Pesa Counter Booking with Safaricom Receipt Verification...');
+    console.log('> TEST 4: M-Pesa Counter Booking with Safaricom Receipt Verification...');
 
     const mpesaBooking = counterBookingService.bookCounterShipment({
         origin_hub_id: 1,
@@ -171,13 +171,13 @@ try {
     // Drawer cash must not increase from M-Pesa, but total_mpesa_amount must
     const shiftAfterMpesa = posShiftService.getCurrentShift(cashierUser.id, 1);
     assert.strictEqual(shiftAfterMpesa.total_mpesa_amount, mpesaBooking.pricing.total_amount);
-    console.log(`  ✔ M-Pesa booking verified: Ref: ${mpesaPayment.reference_code}, Phone: ${mpesaPayment.mpesa_phone_number}`);
+    console.log(`  [PASS] M-Pesa booking verified: Ref: ${mpesaPayment.reference_code}, Phone: ${mpesaPayment.mpesa_phone_number}`);
     passedTests++;
 
     // -------------------------------------------------------------
     // TEST 5: Multi-Parcel Consignment Booking (Actual vs Volumetric)
     // -------------------------------------------------------------
-    console.log('▶ TEST 5: Multi-Parcel Consignment Booking with Aggregations...');
+    console.log('> TEST 5: Multi-Parcel Consignment Booking with Aggregations...');
 
     const multiBooking = counterBookingService.bookCounterShipment({
         origin_hub_id: 1,
@@ -214,13 +214,13 @@ try {
     assert.strictEqual(multiBooking.pricing.actual_weight_kg, 12.0);
     assert.strictEqual(multiBooking.pricing.volumetric_weight_kg, 25.6);
     assert.strictEqual(multiBooking.pricing.chargeable_weight_kg, 25.6, 'Total chargeable weight must be max(12.0, 25.6) = 25.6kg');
-    console.log(`  ✔ Multi-parcel volumetric aggregation verified: 2 parcels, Actual 12kg, Volumetric 25.6kg -> Chargeable 25.6kg`);
+    console.log(`  [PASS] Multi-parcel volumetric aggregation verified: 2 parcels, Actual 12kg, Volumetric 25.6kg -> Chargeable 25.6kg`);
     passedTests++;
 
     // -------------------------------------------------------------
     // TEST 6: Split Payment Counter Booking (Cash + M-Pesa)
     // -------------------------------------------------------------
-    console.log('▶ TEST 6: Split Payment Counter Booking (Cash + M-Pesa)...');
+    console.log('> TEST 6: Split Payment Counter Booking (Cash + M-Pesa)...');
 
     const quoteForSplit = counterBookingService.calculateCounterQuote({
         origin_hub_id: 1,
@@ -250,13 +250,13 @@ try {
     assert.strictEqual(dbPayments.length, 2);
     assert.ok(dbPayments.some(p => p.payment_method === 'CASH' && p.amount === halfAmt));
     assert.ok(dbPayments.some(p => p.payment_method === 'MPESA' && p.amount === otherHalf));
-    console.log(`  ✔ Split payment verified: KES ${halfAmt} Cash + KES ${otherHalf} M-Pesa = KES ${quoteForSplit.total_amount}`);
+    console.log(`  [PASS] Split payment verified: KES ${halfAmt} Cash + KES ${otherHalf} M-Pesa = KES ${quoteForSplit.total_amount}`);
     passedTests++;
 
     // -------------------------------------------------------------
     // TEST 7: Physical Custody Intake Scan Handshake (Stage 4)
     // -------------------------------------------------------------
-    console.log('▶ TEST 7: Physical Custody Intake Scan Handshake...');
+    console.log('> TEST 7: Physical Custody Intake Scan Handshake...');
 
     const intakeScan = db.prepare('SELECT * FROM scan_events WHERE shipment_id = ? AND scan_type = ?').get(cashBooking.shipment_id, 'INTAKE');
     assert.ok(intakeScan, 'INTAKE scan event must be recorded in scan_events table');
@@ -267,13 +267,13 @@ try {
     const trackEvents = db.prepare('SELECT event_code, event_name FROM tracking_events WHERE shipment_id = ? ORDER BY id ASC').all(cashBooking.shipment_id);
     assert.strictEqual(trackEvents[0].event_code, 'BOOKED');
     assert.strictEqual(trackEvents[1].event_code, 'ACCEPTED');
-    console.log('  ✔ Custody intake verified: INTAKE scan event recorded with BOOKED & ACCEPTED timeline milestones');
+    console.log('  [PASS] Custody intake verified: INTAKE scan event recorded with BOOKED & ACCEPTED timeline milestones');
     passedTests++;
 
     // -------------------------------------------------------------
     // TEST 8: Official Printable Waybill Generation & Reprint Endpoint
     // -------------------------------------------------------------
-    console.log('▶ TEST 8: Official Printable Waybill Document Generation...');
+    console.log('> TEST 8: Official Printable Waybill Document Generation...');
 
     const waybill = counterBookingService.getWaybillByIdentifier(cashBooking.tracking_number, cashierUser);
     assert.ok(waybill, 'Waybill document must be generated');
@@ -289,13 +289,13 @@ try {
     assert.ok(Array.isArray(waybill.payment_receipt.payments) && waybill.payment_receipt.payments.length > 0);
     assert.strictEqual(waybill.payment_receipt.cashier_name, cashierUser.fullName);
     assert.ok(waybill.terms_and_conditions.includes('conditions of carriage'));
-    console.log(`  ✔ Official Waybill generated: ${waybill.waybill_number} [${waybill.origin.code} -> ${waybill.destination.code}] with Barcode & Payment Stamp`);
+    console.log(`  [PASS] Official Waybill generated: ${waybill.waybill_number} [${waybill.origin.code} -> ${waybill.destination.code}] with Barcode & Payment Stamp`);
     passedTests++;
 
     // -------------------------------------------------------------
     // TEST 9: Public Tracking Timeline Reflects Counter Intake
     // -------------------------------------------------------------
-    console.log('▶ TEST 9: Public Customer Tracking Reflects Counter Intake...');
+    console.log('> TEST 9: Public Customer Tracking Reflects Counter Intake...');
 
     const publicTracking = shipmentService.getPublicTracking(cashBooking.tracking_number);
     assert.ok(publicTracking, 'Public tracking lookup should succeed');
@@ -309,15 +309,15 @@ try {
     // Financial and PII details must not be in public tracking
     assert.strictEqual(publicTracking.total_amount, undefined);
     assert.strictEqual(publicTracking.sender, undefined);
-    console.log('  ✔ Public customer tracking verified: Shows booking & origin hub acceptance with PII sanitized');
+    console.log('  [PASS] Public customer tracking verified: Shows booking & origin hub acceptance with PII sanitized');
     passedTests++;
 
     console.log('\n============================================================');
-    console.log(`🎉 ALL ${passedTests}/${totalTests} STAGE 6 POS COUNTER BOOKING TESTS PASSED!`);
+    console.log(`[SUCCESS] ALL ${passedTests}/${totalTests} STAGE 6 POS COUNTER BOOKING TESTS PASSED!`);
     console.log('============================================================\n');
 
 } catch (err) {
-    console.error(`\n❌ TEST SUITE FAILED at Test #${passedTests + 1}:`);
+    console.error(`\n[FAIL] TEST SUITE FAILED at Test #${passedTests + 1}:`);
     console.error(err);
     process.exit(1);
 }

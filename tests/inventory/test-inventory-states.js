@@ -18,7 +18,7 @@ const {
 } = require('../../server/services/inventoryStateService.js');
 
 console.log('\n============================================================');
-console.log('📦  SWIFTTRACK INVENTORY ENGINE: 3.1 INVENTORY STATES SUITE');
+console.log('  SWIFTTRACK INVENTORY ENGINE: 3.1 INVENTORY STATES SUITE');
 console.log('============================================================\n');
 
 let passedTests = 0;
@@ -28,7 +28,7 @@ function runTest(name, fn) {
   totalTests++;
   try {
     fn();
-    console.log(`✓ [PASS] ${name}`);
+    console.log(`[PASS] [PASS] ${name}`);
     passedTests++;
   } catch (err) {
     console.error(`✗ [FAIL] ${name}`);
@@ -285,9 +285,9 @@ db.prepare('DELETE FROM inventory WHERE product_id = ?').run(testProductId);
 db.prepare('DELETE FROM products WHERE id = ?').run(testProductId);
 
 if (passedTests === totalTests) {
-  console.log('🎉 ALL INVENTORY STATE ENGINE TESTS PASSED!\n');
+  console.log('[SUCCESS] ALL INVENTORY STATE ENGINE TESTS PASSED!\n');
   process.exit(0);
 } else {
-  console.error('❌ SOME TESTS FAILED!\n');
+  console.error('[FAIL] SOME TESTS FAILED!\n');
   process.exit(1);
 }

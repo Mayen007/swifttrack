@@ -6,7 +6,7 @@ const procurementService = require('../../server/services/procurementService.js'
 const { assertInventoryInvariant, getOrInitInventory } = require('../../server/services/inventoryStateService.js');
 
 console.log('\n============================================================');
-console.log('📦  SWIFTTRACK KENYA: PHASE 8 PROCUREMENT LIFECYCLE SUITE');
+console.log('  SWIFTTRACK KENYA: PHASE 8 PROCUREMENT LIFECYCLE SUITE');
 console.log('============================================================\n');
 
 let passedTests = 0;
@@ -16,7 +16,7 @@ async function runTest(name, fn) {
   totalTests++;
   try {
     await fn();
-    console.log(`✓ [PASS] ${name}`);
+    console.log(`[PASS] [PASS] ${name}`);
     passedTests++;
   } catch (err) {
     console.error(`✗ [FAIL] ${name}`);
@@ -380,7 +380,7 @@ let testInvoiceId = null;
   });
 
   console.log('\n============================================================');
-  console.log(`📊  PROCUREMENT SUITE RESULTS: ${passedTests}/${totalTests} TESTS PASSED`);
+  console.log(`  PROCUREMENT SUITE RESULTS: ${passedTests}/${totalTests} TESTS PASSED`);
   console.log('============================================================\n');
 
   if (passedTests !== totalTests) {

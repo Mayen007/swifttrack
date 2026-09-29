@@ -6,7 +6,7 @@ const { db, initSchema } = require('../../server/db/database.js');
 const customerService = require('../../server/services/customerService.js');
 
 console.log('\n============================================================');
-console.log('👥  SWIFTTRACK KENYA: PHASE 4.1 CUSTOMER MANAGEMENT SUITE');
+console.log('  SWIFTTRACK KENYA: PHASE 4.1 CUSTOMER MANAGEMENT SUITE');
 console.log('============================================================\n');
 
 let passedTests = 0;
@@ -16,7 +16,7 @@ function runTest(name, fn) {
     totalTests++;
     try {
         fn();
-        console.log(`✓ [PASS] ${name}`);
+        console.log(`[PASS] [PASS] ${name}`);
         passedTests++;
     } catch (err) {
         console.error(`✗ [FAIL] ${name}`);
@@ -391,7 +391,7 @@ runTest('Branch Isolation: Branch Manager of Branch 1 cannot access Branch 2 Cus
 });
 
 console.log('\n============================================================');
-console.log(`📊  CUSTOMER MANAGEMENT SUITE RESULTS: ${passedTests}/${totalTests} TESTS PASSED`);
+console.log(`  CUSTOMER MANAGEMENT SUITE RESULTS: ${passedTests}/${totalTests} TESTS PASSED`);
 console.log('============================================================\n');
 
 if (passedTests !== totalTests) {

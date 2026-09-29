@@ -141,7 +141,7 @@ router.post('/forgot-password', (req, res) => {
         VALUES (?, ?, datetime('now', '+15 minutes'), CURRENT_TIMESTAMP)
     `).run(user.id, tokenHash);
 
-    console.log(`🔑 [Password Reset] Issued reset token for user '${user.username}': ${resetToken}`);
+    console.log(`[AUTH] [Password Reset] Issued reset token for user '${user.username}': ${resetToken}`);
 
     // In dev / test / sandbox mode, return resetToken in payload to facilitate automated tests
     const isDevOrDemo = process.env.NODE_ENV !== 'production' || process.env.DEMO_MODE === 'true' || process.env.AUTH_TEST_MODE === 'true';

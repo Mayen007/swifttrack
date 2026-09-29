@@ -21,7 +21,7 @@ function runTest(name, fn) {
     totalTests++;
     try {
         fn();
-        console.log(`✓ [PASS] ${name}`);
+        console.log(`[PASS] [PASS] ${name}`);
         passedTests++;
     } catch (err) {
         console.error(`✗ [FAIL] ${name}`);
@@ -34,7 +34,7 @@ async function runAsyncTest(name, fn) {
     totalTests++;
     try {
         await fn();
-        console.log(`✓ [PASS] ${name}`);
+        console.log(`[PASS] [PASS] ${name}`);
         passedTests++;
     } catch (err) {
         console.error(`✗ [FAIL] ${name}`);
@@ -413,10 +413,10 @@ function makeRequest(path, options = {}) {
     console.log('============================================================\n');
 
     if (passedTests === totalTests) {
-        console.log('🎉 ALL 1.4 API FOUNDATION TESTS PASSED WITH 100% SUCCESS!\n');
+        console.log('[SUCCESS] ALL 1.4 API FOUNDATION TESTS PASSED WITH 100% SUCCESS!\n');
         process.exit(0);
     } else {
-        console.error('💥 SOME TESTS FAILED!\n');
+        console.error(' SOME TESTS FAILED!\n');
         process.exit(1);
     }
 })();

@@ -106,8 +106,8 @@ try {
 if (require.main === module) {
     const server = app.listen(PORT, () => {
         console.log(`========================================================`);
-        console.log(`🚀 SwiftTrack Logistics + POS Server Running on Port ${PORT}`);
-        console.log(`👉 http://localhost:${PORT}`);
+        console.log(`[START] SwiftTrack Logistics + POS Server Running on Port ${PORT}`);
+        console.log(`[URL] http://localhost:${PORT}`);
         console.log(`   Mode: ${process.env.DEMO_MODE === 'true' ? 'SANDBOX / EVALUATION' : 'ENTERPRISE PRODUCTION'}`);
         console.log(`========================================================`);
         startNotificationWorker();
@@ -115,9 +115,9 @@ if (require.main === module) {
 
     server.on('error', (err) => {
         if (err.code === 'EADDRINUSE') {
-            console.error(`❌ Port ${PORT} is already in use by another process!`);
+            console.error(`[ERROR] Port ${PORT} is already in use by another process!`);
         } else {
-            console.error('❌ Server error:', err);
+            console.error('[ERROR] Server error:', err);
         }
         process.exit(1);
     });

@@ -2139,7 +2139,7 @@ function migrateNotificationsEngineSchema() {
                 name: 'Successful Delivery Confirmation',
                 event_type: 'DELIVERED',
                 sms_template: 'Delivered! Shipment {{tracking_number}} was successfully delivered and signed for. Thank you for choosing SwiftTrack Kenya!',
-                whatsapp_template: '✅ *Delivered!* Your shipment *{{tracking_number}}* was successfully delivered to {{recipient_name}} and legally verified with Proof of Delivery.\n\nThank you for choosing SwiftTrack Kenya Logistics!',
+                whatsapp_template: '*Delivered!* Your shipment *{{tracking_number}}* was successfully delivered to {{recipient_name}} and legally verified with Proof of Delivery.\n\nThank you for choosing SwiftTrack Kenya Logistics!',
                 email_subject: 'Delivered Successfully: {{tracking_number}}',
                 email_template: '<h3>Delivery Completed</h3><p>Shipment <strong>{{tracking_number}}</strong> has been successfully delivered and acknowledged with legal Proof of Delivery.</p>'
             },
@@ -2148,7 +2148,7 @@ function migrateNotificationsEngineSchema() {
                 name: 'Delivery Attempt Exception',
                 event_type: 'DELIVERY_FAILED',
                 sms_template: 'Notice: Delivery for {{tracking_number}} could not be completed: {{reason}}. Rescheduling for next dispatch. Details: {{tracking_url}}',
-                whatsapp_template: '⚠️ *Delivery Exception*: Delivery attempt for *{{tracking_number}}* could not be completed due to: {{reason}}.\n\nOur dispatch team is rescheduling delivery. Track: {{tracking_url}}',
+                whatsapp_template: '*Delivery Exception*: Delivery attempt for *{{tracking_number}}* could not be completed due to: {{reason}}.\n\nOur dispatch team is rescheduling delivery. Track: {{tracking_url}}',
                 email_subject: 'Delivery Attempt Notice: {{tracking_number}}',
                 email_template: '<h3>Delivery Rescheduling Notice</h3><p>We attempted delivery of shipment <strong>{{tracking_number}}</strong>, but were unable to complete delivery due to: <strong>{{reason}}</strong>.</p><p>We are rescheduling delivery for the next dispatch window.</p>'
             },
@@ -2157,7 +2157,7 @@ function migrateNotificationsEngineSchema() {
                 name: 'Discrepancy or Operational Delay Alert',
                 event_type: 'EXCEPTION',
                 sms_template: 'SwiftTrack Alert: An operational update was logged for shipment {{tracking_number}} ({{reason}}). Investigating with priority.',
-                whatsapp_template: '⚠️ *SwiftTrack Operational Alert*: Update logged for shipment *{{tracking_number}}*:\n_{{reason}}_\n\nOur operations team is actively resolving this exception. Track: {{tracking_url}}',
+                whatsapp_template: '*SwiftTrack Operational Alert*: Update logged for shipment *{{tracking_number}}*:\n_{{reason}}_\n\nOur operations team is actively resolving this exception. Track: {{tracking_url}}',
                 email_subject: 'Operational Update: {{tracking_number}}',
                 email_template: '<h3>Operational Notice</h3><p>Shipment <strong>{{tracking_number}}</strong> encountered an operational event: <strong>{{reason}}</strong>. Our logistics team is investigating.</p>'
             }

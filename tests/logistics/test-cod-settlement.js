@@ -9,7 +9,7 @@ const deliveryExecutionService = require('../../server/services/deliveryExecutio
 const posShiftService = require('../../server/services/posShiftService.js');
 
 console.log('============================================================');
-console.log('💰  SWIFTTRACK LOGISTICS: STAGE 7 COD SETTLEMENT SUITE');
+console.log('  SWIFTTRACK LOGISTICS: STAGE 7 COD SETTLEMENT SUITE');
 console.log('============================================================\n');
 
 let passedTests = 0;
@@ -29,7 +29,7 @@ try {
     // -------------------------------------------------------------
     // TEST 1: Auto-Initialization of Expected COD Settlement on Booking
     // -------------------------------------------------------------
-    console.log('▶ TEST 1: Auto-initialization of COD Settlement on Shipment Booking...');
+    console.log('> TEST 1: Auto-initialization of COD Settlement on Shipment Booking...');
     const codBooking = shipmentService.createShipment({
         origin_hub_id: 1,
         destination_hub_id: 2,
@@ -61,13 +61,13 @@ try {
     assert.strictEqual(settlement1.currency, 'KES');
     assert.strictEqual(settlement1.hub_id, 2, 'Settlement destination hub must be Mombasa (Branch 2)');
 
-    console.log(`  ✔ Settlement ${settlement1.settlement_number} auto-initialized with expected KES ${settlement1.expected_amount} at Hub 2`);
+    console.log(`  [PASS] Settlement ${settlement1.settlement_number} auto-initialized with expected KES ${settlement1.expected_amount} at Hub 2`);
     passedTests++;
 
     // -------------------------------------------------------------
     // TEST 2: Direct Creation / Retrieval of COD Settlement
     // -------------------------------------------------------------
-    console.log('▶ TEST 2: Manual / Programmatic Expected Settlement Creation...');
+    console.log('> TEST 2: Manual / Programmatic Expected Settlement Creation...');
     const manualShipment = shipmentService.createShipment({
         origin_hub_id: 1,
         destination_hub_id: 1,
@@ -87,13 +87,13 @@ try {
     assert.ok(directSettlement.id, 'Settlement must exist');
     assert.strictEqual(directSettlement.expected_amount, 12000.00);
     assert.strictEqual(directSettlement.status, 'PENDING_COLLECTION');
-    console.log(`  ✔ Direct settlement creation verified (Settlement ID: ${directSettlement.id}, Amount: KES ${directSettlement.expected_amount})`);
+    console.log(`  [PASS] Direct settlement creation verified (Settlement ID: ${directSettlement.id}, Amount: KES ${directSettlement.expected_amount})`);
     passedTests++;
 
     // -------------------------------------------------------------
     // TEST 3: Full Recipient Collection Recording
     // -------------------------------------------------------------
-    console.log('▶ TEST 3: Record COD Collection from Recipient (Full Amount via M-Pesa)...');
+    console.log('> TEST 3: Record COD Collection from Recipient (Full Amount via M-Pesa)...');
     const collectedSettlement = codService.recordCollection(settlement1.id, {
         collected_amount: 8500.00,
         collection_method: 'MPESA',
@@ -114,13 +114,13 @@ try {
     `).get(codBooking.id);
     assert.ok(collectEvent, 'COD_COLLECTED tracking event must be logged');
     assert.ok(collectEvent.description.includes('KES 8500.00 via MPESA'));
-    console.log(`  ✔ Full collection recorded with M-Pesa ref MPESA-QZX789012 and tracking event logged`);
+    console.log(`  [PASS] Full collection recorded with M-Pesa ref MPESA-QZX789012 and tracking event logged`);
     passedTests++;
 
     // -------------------------------------------------------------
     // TEST 4: Remittance of Collected Funds to Hub Finance
     // -------------------------------------------------------------
-    console.log('▶ TEST 4: Remit Collected COD Funds to Hub Finance Depot...');
+    console.log('> TEST 4: Remit Collected COD Funds to Hub Finance Depot...');
     const remittedSettlement = codService.recordRemittance(settlement1.id, {
         remitted_amount: 8500.00,
         remittance_method: 'BANK_DEPOSIT',
@@ -139,13 +139,13 @@ try {
         WHERE shipment_id = ? AND event_code = 'COD_REMITTED'
     `).get(codBooking.id);
     assert.ok(remitEvent, 'COD_REMITTED tracking event must be logged');
-    console.log(`  ✔ Remittance recorded via BANK_DEPOSIT with ref KCB-DEP-445566`);
+    console.log(`  [PASS] Remittance recorded via BANK_DEPOSIT with ref KCB-DEP-445566`);
     passedTests++;
 
     // -------------------------------------------------------------
     // TEST 5: Discrepancy & Variance Tracking on Partial Collection
     // -------------------------------------------------------------
-    console.log('▶ TEST 5: Discrepancy & Variance Tracking on Partial Collection...');
+    console.log('> TEST 5: Discrepancy & Variance Tracking on Partial Collection...');
     const partialShipment = shipmentService.createShipment({
         origin_hub_id: 1,
         destination_hub_id: 1,
@@ -167,13 +167,13 @@ try {
     assert.strictEqual(partialCollected.collected_amount, 4500.00);
     assert.strictEqual(partialCollected.variance_amount, -500.00, 'Variance must equal collected - expected = -500.00');
     assert.strictEqual(partialCollected.status, 'DISCREPANT', 'Status must transition to DISCREPANT when variance != 0');
-    console.log(`  ✔ Partial collection discrepancy identified: Expected KES 5000, Collected KES 4500 -> Variance KES -500.00 (Status: DISCREPANT)`);
+    console.log(`  [PASS] Partial collection discrepancy identified: Expected KES 5000, Collected KES 4500 -> Variance KES -500.00 (Status: DISCREPANT)`);
     passedTests++;
 
     // -------------------------------------------------------------
     // TEST 6: Rule BR-010 Violation - Mandatory Justification for Variances
     // -------------------------------------------------------------
-    console.log('▶ TEST 6: Rule BR-010: Mandatory Justification for Variances Guard...');
+    console.log('> TEST 6: Rule BR-010: Mandatory Justification for Variances Guard...');
     
     // Remit what was collected
     codService.recordRemittance(partialSettlement.id, {
@@ -190,13 +190,13 @@ try {
     }, (err) => {
         return err.message.includes('BR-010') && err.message.includes('Mandatory variance justification');
     }, 'Must reject reconciliation of discrepant settlement without variance_reason');
-    console.log('  ✔ Silent variance override strictly blocked by BR-010 guard (variance_reason required)');
+    console.log('  [PASS] Silent variance override strictly blocked by BR-010 guard (variance_reason required)');
     passedTests++;
 
     // -------------------------------------------------------------
     // TEST 7: Successful Reconciliation with Valid Justification
     // -------------------------------------------------------------
-    console.log('▶ TEST 7: Successful Reconciliation with Formal Variance Justification...');
+    console.log('> TEST 7: Successful Reconciliation with Formal Variance Justification...');
     const reconciledSettlement = codService.reconcileSettlement(partialSettlement.id, {
         reconciliation_notes: 'Audited against cashier till tape',
         variance_reason: 'Recipient returned 1 damaged textbook; KES 500 credit memo approved by Branch Manager David'
@@ -213,13 +213,13 @@ try {
         WHERE shipment_id = ? AND event_code = 'COD_RECONCILED'
     `).get(partialShipment.id);
     assert.ok(reconEvent, 'COD_RECONCILED tracking event must be logged');
-    console.log(`  ✔ Settlement reconciled and closed with signed variance justification: "${reconciledSettlement.variance_reason.slice(0, 45)}..."`);
+    console.log(`  [PASS] Settlement reconciled and closed with signed variance justification: "${reconciledSettlement.variance_reason.slice(0, 45)}..."`);
     passedTests++;
 
     // -------------------------------------------------------------
     // TEST 8: Vertical Privilege Escalation Block (Cashier & Driver Blocked)
     // -------------------------------------------------------------
-    console.log('▶ TEST 8: Vertical Privilege Escalation Block on Reconciliation...');
+    console.log('> TEST 8: Vertical Privilege Escalation Block on Reconciliation...');
     
     // Create new settlement for testing role enforcement
     const roleShipment = shipmentService.createShipment({
@@ -249,13 +249,13 @@ try {
         return err.message.includes('Vertical Privilege Escalation Blocked');
     }, 'Driver must be blocked from reconciling settlements');
 
-    console.log('  ✔ Vertical privilege escalation blocked for Cashier and Driver roles');
+    console.log('  [PASS] Vertical privilege escalation blocked for Cashier and Driver roles');
     passedTests++;
 
     // -------------------------------------------------------------
     // TEST 9: Horizontal Branch Isolation on COD Reconciliation
     // -------------------------------------------------------------
-    console.log('▶ TEST 9: Horizontal Branch Isolation (Cross-Branch Access Block)...');
+    console.log('> TEST 9: Horizontal Branch Isolation (Cross-Branch Access Block)...');
     
     // Settlement 1 belongs to Hub 2 (Mombasa)
     // Nairobi Manager (Branch 1) attempts to reconcile Mombasa (Branch 2) settlement -> Must fail
@@ -270,13 +270,13 @@ try {
         reconciliation_notes: 'Approved by Coast Regional Manager'
     }, managerMombasa);
     assert.strictEqual(mombasaReconciled.status, 'RECONCILED');
-    console.log('  ✔ Nairobi Manager blocked from Mombasa settlement; Mombasa Manager successfully approved');
+    console.log('  [PASS] Nairobi Manager blocked from Mombasa settlement; Mombasa Manager successfully approved');
     passedTests++;
 
     // -------------------------------------------------------------
     // TEST 10: Aggregated COD Summary Metrics & KPIs
     // -------------------------------------------------------------
-    console.log('▶ TEST 10: Aggregated COD Summary Metrics & KPIs for Control Tower...');
+    console.log('> TEST 10: Aggregated COD Summary Metrics & KPIs for Control Tower...');
     const allMetrics = codService.getCODSummaryMetrics(null, superAdmin);
     assert.ok(allMetrics.total_settlements > 0, 'Total settlements count must be > 0');
     assert.ok(allMetrics.total_expected > 0, 'Total expected COD must be > 0');
@@ -286,13 +286,13 @@ try {
     const hub1Metrics = codService.getCODSummaryMetrics(1, managerNairobi);
     assert.ok(hub1Metrics.total_settlements > 0, 'Hub 1 metrics must contain settlements');
 
-    console.log(`  ✔ Metrics aggregate: Total Settlements: ${allMetrics.total_settlements}, Expected: KES ${allMetrics.total_expected.toLocaleString()}, Collected: KES ${allMetrics.total_collected.toLocaleString()}, Reconciled: ${allMetrics.reconciled_count}`);
+    console.log(`  [PASS] Metrics aggregate: Total Settlements: ${allMetrics.total_settlements}, Expected: KES ${allMetrics.total_expected.toLocaleString()}, Collected: KES ${allMetrics.total_collected.toLocaleString()}, Reconciled: ${allMetrics.reconciled_count}`);
     passedTests++;
 
     // -------------------------------------------------------------
     // TEST 11: End-to-End Last-Mile Delivery POD COD Sync
     // -------------------------------------------------------------
-    console.log('▶ TEST 11: End-to-End Delivery Task POD COD Synchronization...');
+    console.log('> TEST 11: End-to-End Delivery Task POD COD Synchronization...');
     const podShipment = shipmentService.createShipment({
         origin_hub_id: 1,
         destination_hub_id: 1,
@@ -345,13 +345,13 @@ try {
     assert.strictEqual(syncSettlement.collection_method, 'MPESA');
     assert.strictEqual(syncSettlement.collection_reference, 'MPESA-LEO-4455');
     assert.strictEqual(syncSettlement.variance_amount, 0.00);
-    console.log(`  ✔ Delivery task POD completed with KES 4,200 collected; Settlement linked and updated to COLLECTED`);
+    console.log(`  [PASS] Delivery task POD completed with KES 4,200 collected; Settlement linked and updated to COLLECTED`);
     passedTests++;
 
     console.log('\n============================================================');
-    console.log(`✅  ALL ${passedTests}/${totalTests} TESTS PASSED SUCCESSFULLY!`);
+    console.log(`[OK]  ALL ${passedTests}/${totalTests} TESTS PASSED SUCCESSFULLY!`);
     console.log('============================================================\n');
 } catch (error) {
-    console.error('\n❌  TEST FAILED WITH EXCEPTION:', error);
+    console.error('\n[FAIL]  TEST FAILED WITH EXCEPTION:', error);
     process.exit(1);
 }

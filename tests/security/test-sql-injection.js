@@ -6,7 +6,7 @@ const app = require('../../server/server.js');
 const { db } = require('../../server/db/database.js');
 
 console.log('\n============================================================');
-console.log('🛡️  SWIFTTRACK PENETRATION SUITE: SQL INJECTION IMMUNITY');
+console.log('  SWIFTTRACK PENETRATION SUITE: SQL INJECTION IMMUNITY');
 console.log('============================================================\n');
 
 let server;
@@ -57,7 +57,7 @@ async function runTest(name, fn) {
     totalTests++;
     try {
         await fn();
-        console.log(`✓ [PASS] ${name}`);
+        console.log(`[PASS] [PASS] ${name}`);
         passedTests++;
     } catch (err) {
         console.error(`✗ [FAIL] ${name}`);
@@ -162,9 +162,9 @@ async function runTest(name, fn) {
         console.log('============================================================');
 
         if (passedTests === totalTests) {
-            console.log('\n🎉 ALL SQL INJECTION IMMUNITY TESTS PASSED (100% SECURE)!\n');
+            console.log('\n[SUCCESS] ALL SQL INJECTION IMMUNITY TESTS PASSED (100% SECURE)!\n');
         } else {
-            console.error('\n❌ SQL INJECTION VULNERABILITIES DETECTED!\n');
+            console.error('\n[FAIL] SQL INJECTION VULNERABILITIES DETECTED!\n');
             process.exit(1);
         }
 

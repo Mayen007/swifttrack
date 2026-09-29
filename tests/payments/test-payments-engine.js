@@ -7,7 +7,7 @@ const darajaService = require('../../server/services/darajaService.js');
 const orderService = require('../../server/services/orderService.js');
 
 console.log('\n============================================================');
-console.log('💳  SWIFTTRACK KENYA: PHASE 7 PAYMENTS ENGINE SUITE');
+console.log('  SWIFTTRACK KENYA: PHASE 7 PAYMENTS ENGINE SUITE');
 console.log('============================================================\n');
 
 let passedTests = 0;
@@ -17,7 +17,7 @@ async function runTest(name, fn) {
     totalTests++;
     try {
         await fn();
-        console.log(`✓ [PASS] ${name}`);
+        console.log(`[PASS] [PASS] ${name}`);
         passedTests++;
     } catch (err) {
         console.error(`✗ [FAIL] ${name}`);
@@ -309,7 +309,7 @@ async function runSuite() {
     });
 
     console.log('\n============================================================');
-    console.log(`📊  PAYMENTS ENGINE SUITE RESULTS: ${passedTests}/${totalTests} TESTS PASSED`);
+    console.log(`  PAYMENTS ENGINE SUITE RESULTS: ${passedTests}/${totalTests} TESTS PASSED`);
     console.log('============================================================\n');
 }
 

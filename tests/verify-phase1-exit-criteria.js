@@ -7,7 +7,7 @@ const fs = require('node:fs');
 const ROOT_DIR = path.resolve(__dirname, '..');
 
 console.log('╔══════════════════════════════════════════════════════════════════════╗');
-console.log('║  🚀 SWIFTTRACK KENYA MULTI-BRANCH PLATFORM: PHASE 1 EXIT CRITERIA    ║');
+console.log('║  [START] SWIFTTRACK KENYA MULTI-BRANCH PLATFORM: PHASE 1 EXIT CRITERIA    ║');
 console.log('║  Production Pre-Flight Gatekeeper & Automated Attestation Suite      ║');
 console.log('╚══════════════════════════════════════════════════════════════════════╝\n');
 
@@ -114,7 +114,7 @@ for (let i = 0; i < GATES.length; i++) {
     const passed = child.status === 0;
 
     if (passed) {
-        console.log(`\x1b[32m✔ PASS\x1b[0m (${elapsedMs}ms)`);
+        console.log(`\x1b[32m[PASS] PASS\x1b[0m (${elapsedMs}ms)`);
         results.push({
             id: gate.id,
             name: gate.name,
@@ -122,7 +122,7 @@ for (let i = 0; i < GATES.length; i++) {
             durationMs: elapsedMs
         });
     } else {
-        console.log(`\x1b[31m❌ FAIL\x1b[0m (${elapsedMs}ms)`);
+        console.log(`\x1b[31m[FAIL] FAIL\x1b[0m (${elapsedMs}ms)`);
         console.error('\n--- Failure Diagnostic Log ---');
         console.error(child.stderr || child.stdout || 'Command failed without output');
         console.error('------------------------------\n');
@@ -141,7 +141,7 @@ for (let i = 0; i < GATES.length; i++) {
 const totalDurationSec = ((Date.now() - startTime) / 1000).toFixed(2);
 
 console.log('\n======================================================================');
-console.log('📋 PHASE 1 PRODUCTION READINESS EVALUATION MATRIX');
+console.log('[MATRIX] PHASE 1 PRODUCTION READINESS EVALUATION MATRIX');
 console.log('======================================================================');
 console.table(results.map(r => ({
     'Gate ID': r.id,
@@ -170,7 +170,7 @@ if (allPassed) {
     };
 
     console.log('╔══════════════════════════════════════════════════════════════════════╗');
-    console.log('║  🏆 PHASE 1 PRODUCTION EXIT CRITERIA PASSED: 100% CERTIFIED READY!  ║');
+    console.log('║  [CERTIFIED] PHASE 1 PRODUCTION EXIT CRITERIA PASSED: 100% CERTIFIED READY!  ║');
     console.log(`║  All ${GATES.length} Quality Gates Passed in ${totalDurationSec}s. Production deployment approved.║`);
     console.log('╚══════════════════════════════════════════════════════════════════════╝\n');
 
@@ -181,7 +181,7 @@ if (allPassed) {
     process.exit(0);
 } else {
     console.error('╔══════════════════════════════════════════════════════════════════════╗');
-    console.error('║  ⛔ PHASE 1 EXIT CRITERIA FAILED: PRODUCTION DEPLOYMENT BLOCKED!     ║');
+    console.error('║  [BLOCKED] PHASE 1 EXIT CRITERIA FAILED: PRODUCTION DEPLOYMENT BLOCKED!     ║');
     console.error('║  One or more security, authentication, or integrity checks failed.   ║');
     console.error('╚══════════════════════════════════════════════════════════════════════╝\n');
     process.exit(1);

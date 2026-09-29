@@ -6,7 +6,7 @@ const shipmentService = require('../../server/services/shipmentService.js');
 const transportService = require('../../server/services/transportService.js');
 
 console.log('\n============================================================');
-console.log('🚛  SWIFTTRACK LOGISTICS: STAGE 3 TRANSPORT & MANIFEST SUITE');
+console.log('  SWIFTTRACK LOGISTICS: STAGE 3 TRANSPORT & MANIFEST SUITE');
 console.log('============================================================\n');
 
 let passedTests = 0;
@@ -16,7 +16,7 @@ async function runTest(name, fn) {
     totalTests++;
     try {
         await fn();
-        console.log(`✓ [PASS] ${name}`);
+        console.log(`[PASS] [PASS] ${name}`);
         passedTests++;
     } catch (err) {
         console.error(`✗ [FAIL] ${name}`);
@@ -226,7 +226,7 @@ async function executeSuite() {
     });
 
     console.log('\n============================================================');
-    console.log(`🎉 ALL ${passedTests}/${totalTests} TRANSPORT & MANIFEST TESTS PASSED!`);
+    console.log(`[SUCCESS] ALL ${passedTests}/${totalTests} TRANSPORT & MANIFEST TESTS PASSED!`);
     console.log('============================================================\n');
 }
 

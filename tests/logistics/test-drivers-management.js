@@ -5,7 +5,7 @@ const { db } = require('../../server/db/database.js');
 const driverService = require('../../server/services/driverService.js');
 
 console.log('\n============================================================');
-console.log('🚚  SWIFTTRACK KENYA: PHASE 9 FLEET DRIVERS SUITE (9.1)');
+console.log('  SWIFTTRACK KENYA: PHASE 9 FLEET DRIVERS SUITE (9.1)');
 console.log('============================================================\n');
 
 let passedTests = 0;
@@ -15,7 +15,7 @@ async function runTest(name, fn) {
   totalTests++;
   try {
     await fn();
-    console.log(`✓ [PASS] ${name}`);
+    console.log(`[PASS] [PASS] ${name}`);
     passedTests++;
   } catch (err) {
     console.error(`✗ [FAIL] ${name}`);
@@ -319,7 +319,7 @@ async function executeSuite() {
   });
 
   console.log('\n============================================================');
-  console.log(`📊  DRIVERS MANAGEMENT SUITE RESULTS: ${passedTests}/${totalTests} TESTS PASSED`);
+  console.log(`  DRIVERS MANAGEMENT SUITE RESULTS: ${passedTests}/${totalTests} TESTS PASSED`);
   console.log('============================================================\n');
 
   if (passedTests !== totalTests) {

@@ -293,7 +293,7 @@ async function seedProductionBaseline(pool = null) {
         }
     });
 
-    console.log('[PostgreSQL Seed] ✓ Production Foundation Bootstrap seeded successfully.');
+    console.log('[PostgreSQL Seed] [OK] Production Foundation Bootstrap seeded successfully.');
 }
 
 // CLI handler

@@ -10,7 +10,7 @@ const deliveryExecutionService = require('../../server/services/deliveryExecutio
 const codService = require('../../server/services/codService.js');
 
 console.log('============================================================');
-console.log('🗼  SWIFTTRACK LOGISTICS: STAGE 8 OPERATIONS CONTROL TOWER');
+console.log('  SWIFTTRACK LOGISTICS: STAGE 8 OPERATIONS CONTROL TOWER');
 console.log('============================================================\n');
 
 let passedTests = 0;
@@ -28,7 +28,7 @@ try {
     // -------------------------------------------------------------
     // TEST 1: Global Live Operational Telemetry Summary
     // -------------------------------------------------------------
-    console.log('▶ TEST 1: Global Live Operational Telemetry Summary ("What is happening now?")...');
+    console.log('> TEST 1: Global Live Operational Telemetry Summary ("What is happening now?")...');
     const summary = controlTowerService.getLiveOperationalSummary({}, superAdmin);
 
     assert.ok(summary, 'Summary must be returned');
@@ -39,36 +39,36 @@ try {
     assert.ok(typeof summary.now.volume.total_parcels === 'number');
     assert.ok(typeof summary.now.volume.total_weight_kg === 'number');
     assert.ok(typeof summary.now.volume.freight_revenue_kes === 'number');
-    console.log(`  ✔ Global summary: Total Shipments Recorded: ${summary.now.total_shipments_recorded}, Active: ${summary.now.active_pipeline_shipments}, Total Weight: ${summary.now.volume.total_weight_kg} kg`);
+    console.log(`  [PASS] Global summary: Total Shipments Recorded: ${summary.now.total_shipments_recorded}, Active: ${summary.now.active_pipeline_shipments}, Total Weight: ${summary.now.volume.total_weight_kg} kg`);
     passedTests++;
 
     // -------------------------------------------------------------
     // TEST 2: Network Performance KPIs & Rates
     // -------------------------------------------------------------
-    console.log('▶ TEST 2: Network Performance KPIs (Delivery Success, COD Reconciliation)...');
+    console.log('> TEST 2: Network Performance KPIs (Delivery Success, COD Reconciliation)...');
     assert.ok(summary.performance, 'Performance section must exist');
     assert.ok(typeof summary.performance.delivery_success_rate_pct === 'number', 'Delivery success rate must be a number');
     assert.ok(summary.performance.delivery_success_rate_pct >= 0 && summary.performance.delivery_success_rate_pct <= 100);
     assert.ok(typeof summary.performance.cod_reconciliation_rate_pct === 'number', 'COD reconciliation rate must be a number');
     assert.ok(typeof summary.performance.avg_delivery_attempts === 'number');
-    console.log(`  ✔ Performance KPIs: Delivery Success: ${summary.performance.delivery_success_rate_pct}%, COD Recon: ${summary.performance.cod_reconciliation_rate_pct}%, Avg Attempts: ${summary.performance.avg_delivery_attempts}`);
+    console.log(`  [PASS] Performance KPIs: Delivery Success: ${summary.performance.delivery_success_rate_pct}%, COD Recon: ${summary.performance.cod_reconciliation_rate_pct}%, Avg Attempts: ${summary.performance.avg_delivery_attempts}`);
     passedTests++;
 
     // -------------------------------------------------------------
     // TEST 3: Branch-Scoped Telemetry Isolation
     // -------------------------------------------------------------
-    console.log('▶ TEST 3: Branch-Scoped Telemetry (Hub Isolation for Branch Managers)...');
+    console.log('> TEST 3: Branch-Scoped Telemetry (Hub Isolation for Branch Managers)...');
     const branch1Summary = controlTowerService.getLiveOperationalSummary({}, managerNairobi);
     assert.strictEqual(branch1Summary.is_global, false);
     assert.strictEqual(branch1Summary.scoped_hub_id, 1, 'Manager Nairobi must be scoped to Hub 1');
     assert.ok(branch1Summary.now.total_shipments_recorded <= summary.now.total_shipments_recorded);
-    console.log(`  ✔ Branch isolation verified: Hub 1 active volume: ${branch1Summary.now.active_pipeline_shipments} (strictly isolated from network total)`);
+    console.log(`  [PASS] Branch isolation verified: Hub 1 active volume: ${branch1Summary.now.active_pipeline_shipments} (strictly isolated from network total)`);
     passedTests++;
 
     // -------------------------------------------------------------
     // TEST 4: Actionable Alerts Generation ("What needs attention?")
     // -------------------------------------------------------------
-    console.log('▶ TEST 4: Actionable Alerts Generation ("What needs attention?")...');
+    console.log('> TEST 4: Actionable Alerts Generation ("What needs attention?")...');
     
     // Inject a test physical discrepancy
     const testShipment = shipmentService.createShipment({
@@ -96,22 +96,22 @@ try {
     assert.strictEqual(discAlert.category, 'PHYSICAL_DISCREPANCY');
     assert.strictEqual(discAlert.entity_id, testDiscrepancy.id);
     assert.ok(discAlert.action_prompt, 'Action prompt must be present');
-    console.log(`  ✔ Alert queue verified: ${alertsData.total_alerts} alerts detected (${alertsData.critical_count} Critical, ${alertsData.high_count} High)`);
+    console.log(`  [PASS] Alert queue verified: ${alertsData.total_alerts} alerts detected (${alertsData.critical_count} Critical, ${alertsData.high_count} High)`);
     passedTests++;
 
     // -------------------------------------------------------------
     // TEST 5: Alert Filtering by Severity
     // -------------------------------------------------------------
-    console.log('▶ TEST 5: Alert Queue Filtering by Severity...');
+    console.log('> TEST 5: Alert Queue Filtering by Severity...');
     const highAlerts = controlTowerService.getOperationalAlerts({ severity: 'HIGH' }, superAdmin);
     assert.ok(highAlerts.alerts.every(a => a.severity === 'HIGH'), 'All returned alerts must have severity HIGH');
-    console.log(`  ✔ Filtered HIGH severity alerts: ${highAlerts.total_alerts} items returned`);
+    console.log(`  [PASS] Filtered HIGH severity alerts: ${highAlerts.total_alerts} items returned`);
     passedTests++;
 
     // -------------------------------------------------------------
     // TEST 6: Active Transport Corridors & In-Transit Telemetry
     // -------------------------------------------------------------
-    console.log('▶ TEST 6: Active Transport Corridors & In-Transit Telemetry ("What is moving?")...');
+    console.log('> TEST 6: Active Transport Corridors & In-Transit Telemetry ("What is moving?")...');
     
     // Create an active transport run
     const route = db.prepare('SELECT * FROM routes WHERE origin_hub_id = 1 AND destination_hub_id = 2 LIMIT 1').get() ||
@@ -148,13 +148,13 @@ try {
     assert.strictEqual(activeRun.status, 'IN_TRANSIT');
     assert.strictEqual(activeRun.plate_number, testVehicle.registration_number);
     assert.ok(corridorsData.corridors.length > 0, 'Corridor summaries must be aggregated');
-    console.log(`  ✔ Active transport telemetry: ${corridorsData.total_active_runs} runs active across ${corridorsData.corridors.length} corridors`);
+    console.log(`  [PASS] Active transport telemetry: ${corridorsData.total_active_runs} runs active across ${corridorsData.corridors.length} corridors`);
     passedTests++;
 
     // -------------------------------------------------------------
     // TEST 7: Station-by-Station Hub Network Telemetry
     // -------------------------------------------------------------
-    console.log('▶ TEST 7: Station-by-Station Hub Network Telemetry...');
+    console.log('> TEST 7: Station-by-Station Hub Network Telemetry...');
     const hubTelemetry = controlTowerService.getHubNetworkTelemetry(superAdmin);
     assert.ok(hubTelemetry.hubs_count >= 2, 'Must report on at least 2 hubs');
     
@@ -164,13 +164,13 @@ try {
     assert.ok(typeof nairobiHub.inbound_shipments === 'number');
     assert.ok(typeof nairobiHub.outbound_shipments === 'number');
     assert.ok(typeof nairobiHub.open_discrepancies === 'number');
-    console.log(`  ✔ Station telemetry: Hub ${nairobiHub.hub_code}: ${nairobiHub.on_hand_shipments} on-hand (${nairobiHub.on_hand_weight_kg} kg), ${nairobiHub.inbound_shipments} inbound, ${nairobiHub.open_discrepancies} open alerts`);
+    console.log(`  [PASS] Station telemetry: Hub ${nairobiHub.hub_code}: ${nairobiHub.on_hand_shipments} on-hand (${nairobiHub.on_hand_weight_kg} kg), ${nairobiHub.inbound_shipments} inbound, ${nairobiHub.open_discrepancies} open alerts`);
     passedTests++;
 
     // -------------------------------------------------------------
     // TEST 8: Fast-Resolution of Discrepancy Alert via Control Tower
     // -------------------------------------------------------------
-    console.log('▶ TEST 8: Fast-Resolution of Discrepancy Alert via Control Tower...');
+    console.log('> TEST 8: Fast-Resolution of Discrepancy Alert via Control Tower...');
     const resolveResult = controlTowerService.resolveAlert('DISCREPANCY', testDiscrepancy.id, {
         action: 'SHORTAGE_CONFIRMED_INSURANCE_FILED',
         notes: 'Carton misplaced at origin loading dock; insurance claim filed by dispatcher'
@@ -186,13 +186,13 @@ try {
     // Verify it drops off the active alerts list
     const updatedAlerts = controlTowerService.getOperationalAlerts({}, superAdmin);
     assert.ok(!updatedAlerts.alerts.some(a => a.id === `DISC-${testDiscrepancy.id}`), 'Resolved discrepancy must drop off active alert queue');
-    console.log('  ✔ Discrepancy successfully resolved from Control Tower and evicted from active alert queue');
+    console.log('  [PASS] Discrepancy successfully resolved from Control Tower and evicted from active alert queue');
     passedTests++;
 
     // -------------------------------------------------------------
     // TEST 9: Acknowledgment of Delivery Failure Alert
     // -------------------------------------------------------------
-    console.log('▶ TEST 9: Acknowledgment of Delivery Failure Alert...');
+    console.log('> TEST 9: Acknowledgment of Delivery Failure Alert...');
     
     // Create shipment and delivery task that fails
     const failShipment = shipmentService.createShipment({
@@ -233,13 +233,13 @@ try {
         notes: 'Rescheduling delivery for tomorrow 09:00 AM'
     }, dispatcherNairobi);
     assert.strictEqual(ackResult.success, true);
-    console.log(`  ✔ Delivery failure alert acknowledged with rescheduling notes`);
+    console.log(`  [PASS] Delivery failure alert acknowledged with rescheduling notes`);
     passedTests++;
 
     // -------------------------------------------------------------
     // TEST 10: Public Customer Milestone Tracking (PRD Section 21)
     // -------------------------------------------------------------
-    console.log('▶ TEST 10: Public Customer Milestone Tracking Lookup...');
+    console.log('> TEST 10: Public Customer Milestone Tracking Lookup...');
     const pubTracking = shipmentService.getPublicTracking(testShipment.tracking_number);
     assert.ok(pubTracking, 'Tracking data must be returned');
     assert.strictEqual(pubTracking.tracking_number, testShipment.tracking_number);
@@ -253,13 +253,13 @@ try {
     assert.strictEqual(pubTracking.recipient_phone, undefined, 'Recipient phone must not be exposed');
     assert.strictEqual(pubTracking.sender_address, undefined, 'Sender address must not be exposed');
     assert.strictEqual(pubTracking.recipient_address, undefined, 'Recipient address must not be exposed');
-    console.log(`  ✔ Public customer tracking verified for ${pubTracking.tracking_number} with PII stripped and ${pubTracking.timeline.length} milestones`);
+    console.log(`  [PASS] Public customer tracking verified for ${pubTracking.tracking_number} with PII stripped and ${pubTracking.timeline.length} milestones`);
     passedTests++;
 
     console.log('\n============================================================');
-    console.log(`✅  ALL ${passedTests}/${totalTests} CONTROL TOWER TESTS PASSED!`);
+    console.log(`[OK]  ALL ${passedTests}/${totalTests} CONTROL TOWER TESTS PASSED!`);
     console.log('============================================================\n');
 } catch (error) {
-    console.error('\n❌  TEST FAILED WITH EXCEPTION:', error);
+    console.error('\n[FAIL]  TEST FAILED WITH EXCEPTION:', error);
     process.exit(1);
 }

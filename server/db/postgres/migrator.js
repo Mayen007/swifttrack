@@ -160,7 +160,7 @@ async function migrateUp() {
                 });
             }, client);
 
-            console.log(`[PostgreSQL Migrator] ✓ Applied ${migration.filename} in ${Date.now() - start}ms`);
+            console.log(`[PostgreSQL Migrator] [OK] Applied ${migration.filename} in ${Date.now() - start}ms`);
         }
 
         console.log(`[PostgreSQL Migrator] All ${pending.length} migration(s) applied successfully.`);
@@ -202,7 +202,7 @@ async function migrateRollback() {
             await txClient.query('DELETE FROM schema_migrations WHERE version = $1', [latest.version]);
         }, client);
 
-        console.log(`[PostgreSQL Migrator] ✓ Rolled back ${latest.name}`);
+        console.log(`[PostgreSQL Migrator] [OK] Rolled back ${latest.name}`);
         return latest;
     } finally {
         client.release();

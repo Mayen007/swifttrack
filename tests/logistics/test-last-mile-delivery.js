@@ -6,7 +6,7 @@ const shipmentService = require('../../server/services/shipmentService.js');
 const deliveryExecutionService = require('../../server/services/deliveryExecutionService.js');
 
 console.log('============================================================');
-console.log('🛵  SWIFTTRACK LOGISTICS: STAGE 5 LAST-MILE DELIVERY SUITE');
+console.log('  SWIFTTRACK LOGISTICS: STAGE 5 LAST-MILE DELIVERY SUITE');
 console.log('============================================================\n');
 
 let passedTests = 0;
@@ -23,7 +23,7 @@ try {
     // -------------------------------------------------------------
     // TEST 1: Delivery Task Creation Linked to Shipment
     // -------------------------------------------------------------
-    console.log('▶ TEST 1: Delivery Task Creation Linked to Shipment...');
+    console.log('> TEST 1: Delivery Task Creation Linked to Shipment...');
 
     const shp1 = shipmentService.createShipment({
         origin_hub_id: 1,
@@ -57,12 +57,12 @@ try {
     assert.ok(event, 'Shipment timeline must include DELIVERY_CREATED event');
 
     passedTests++;
-    console.log('✓ [PASS] 1. Delivery Task Creation: Linked to shipment and scheduled for destination\n');
+    console.log('[PASS] [PASS] 1. Delivery Task Creation: Linked to shipment and scheduled for destination\n');
 
     // -------------------------------------------------------------
     // TEST 2: Dispatcher Assignment to Driver and Vehicle
     // -------------------------------------------------------------
-    console.log('▶ TEST 2: Dispatcher Assignment to Driver and Vehicle...');
+    console.log('> TEST 2: Dispatcher Assignment to Driver and Vehicle...');
 
     const assignedTask = deliveryExecutionService.assignDeliveryTask(deliveryTask.id, {
         driver_id: testDriver.id,
@@ -79,12 +79,12 @@ try {
     assert.ok(assignEvent, 'Shipment timeline must include DELIVERY_ASSIGNED event');
 
     passedTests++;
-    console.log('✓ [PASS] 2. Driver & Vehicle Assignment: Successfully assigned and tracked\n');
+    console.log('[PASS] [PASS] 2. Driver & Vehicle Assignment: Successfully assigned and tracked\n');
 
     // -------------------------------------------------------------
     // TEST 3: Driver Starts Delivery Run
     // -------------------------------------------------------------
-    console.log('▶ TEST 3: Driver Starts Delivery Run...');
+    console.log('> TEST 3: Driver Starts Delivery Run...');
 
     const startedTask = deliveryExecutionService.startDelivery(deliveryTask.id, driverUser);
 
@@ -98,12 +98,12 @@ try {
     assert.ok(outEvent, 'Shipment timeline must include OUT_FOR_DELIVERY event');
 
     passedTests++;
-    console.log('✓ [PASS] 3. Out for Delivery: Driver started delivery and synchronized shipment state\n');
+    console.log('[PASS] [PASS] 3. Out for Delivery: Driver started delivery and synchronized shipment state\n');
 
     // -------------------------------------------------------------
     // TEST 4: Failed Delivery Attempt Requires Reason (Rule BR-008)
     // -------------------------------------------------------------
-    console.log('▶ TEST 4: Failed Delivery Attempt Requires Reason (Rule BR-008)...');
+    console.log('> TEST 4: Failed Delivery Attempt Requires Reason (Rule BR-008)...');
 
     let reasonValidationBlocked = false;
     try {
@@ -137,12 +137,12 @@ try {
     assert.ok(attemptEvent, 'Timeline must include DELIVERY_ATTEMPT_FAILED event');
 
     passedTests++;
-    console.log('✓ [PASS] 4. Failed Attempt Validation: Enforces BR-008 reason requirement & rescheduling\n');
+    console.log('[PASS] [PASS] 4. Failed Attempt Validation: Enforces BR-008 reason requirement & rescheduling\n');
 
     // -------------------------------------------------------------
     // TEST 5: Multi-Attempt Threshold & Auto-Exception (Rule EXC-005)
     // -------------------------------------------------------------
-    console.log('▶ TEST 5: Multi-Attempt Threshold & Auto-Exception...');
+    console.log('> TEST 5: Multi-Attempt Threshold & Auto-Exception...');
 
     // Attempt #2: Customer requested reschedule
     const attempt2Result = deliveryExecutionService.recordDeliveryAttempt(deliveryTask.id, {
@@ -178,12 +178,12 @@ try {
     assert.strictEqual(attempt3Result.exception.status, 'OPEN');
 
     passedTests++;
-    console.log('✓ [PASS] 5. Max Attempts Reached: Transitions to RETURN_TO_HUB and auto-generates exception\n');
+    console.log('[PASS] [PASS] 5. Max Attempts Reached: Transitions to RETURN_TO_HUB and auto-generates exception\n');
 
     // -------------------------------------------------------------
     // TEST 6: Return-to-Hub Reception Workflow
     // -------------------------------------------------------------
-    console.log('▶ TEST 6: Return-to-Hub Reception Workflow...');
+    console.log('> TEST 6: Return-to-Hub Reception Workflow...');
 
     const returnedTask = deliveryExecutionService.processReturnToHub(deliveryTask.id, {
         notes: 'Driver handed back package to Station Bay 1'
@@ -198,12 +198,12 @@ try {
     assert.ok(returnEvent, 'Shipment timeline must include RETURNED_TO_HUB event');
 
     passedTests++;
-    console.log('✓ [PASS] 6. Return-to-Hub Reception: Package safely received back into facility inventory\n');
+    console.log('[PASS] [PASS] 6. Return-to-Hub Reception: Package safely received back into facility inventory\n');
 
     // -------------------------------------------------------------
     // TEST 7: Successful Delivery Completion with Multi-Factor POD (Rule BR-007)
     // -------------------------------------------------------------
-    console.log('▶ TEST 7: Successful Delivery with Multi-Factor POD (Rule BR-007)...');
+    console.log('> TEST 7: Successful Delivery with Multi-Factor POD (Rule BR-007)...');
 
     const shp2 = shipmentService.createShipment({
         origin_hub_id: 1,
@@ -264,12 +264,12 @@ try {
     assert.ok(deliveredEvent, 'Shipment timeline must include DELIVERED event');
 
     passedTests++;
-    console.log('✓ [PASS] 7. Proof of Delivery: Legally verified with signature, OTP, and GPS capture\n');
+    console.log('[PASS] [PASS] 7. Proof of Delivery: Legally verified with signature, OTP, and GPS capture\n');
 
     // -------------------------------------------------------------
     // TEST 8: Proof of Delivery Immutability Enforcement (Rule POD-005)
     // -------------------------------------------------------------
-    console.log('▶ TEST 8: Proof of Delivery Immutability Enforcement (Rule POD-005)...');
+    console.log('> TEST 8: Proof of Delivery Immutability Enforcement (Rule POD-005)...');
 
     let updatePodBlocked = false;
     try {
@@ -288,12 +288,12 @@ try {
     assert.strictEqual(deletePodBlocked, true, 'Database trigger must block DELETE on proof_of_delivery');
 
     passedTests++;
-    console.log('✓ [PASS] 8. POD Immutability: SQL triggers block UPDATE and DELETE on evidence records\n');
+    console.log('[PASS] [PASS] 8. POD Immutability: SQL triggers block UPDATE and DELETE on evidence records\n');
 
     // -------------------------------------------------------------
     // TEST 9: Operational Exception Investigation & Resolution Lifecycle
     // -------------------------------------------------------------
-    console.log('▶ TEST 9: Operational Exception Investigation & Resolution Lifecycle...');
+    console.log('> TEST 9: Operational Exception Investigation & Resolution Lifecycle...');
 
     const resolvedException = deliveryExecutionService.resolveException(attempt3Result.exception.id, {
         root_cause: 'Recipient phone was unreachable and customer refused acceptance upon late contact',
@@ -310,14 +310,14 @@ try {
     assert.ok(excResolvedEvent, 'Timeline must record EXCEPTION_RESOLVED event');
 
     passedTests++;
-    console.log('✓ [PASS] 9. Exception Resolution: Complete investigation and resolution audit trail\n');
+    console.log('[PASS] [PASS] 9. Exception Resolution: Complete investigation and resolution audit trail\n');
 
     console.log('============================================================');
-    console.log(`🎉 ALL ${passedTests}/${totalTests} LAST-MILE DELIVERY TESTS PASSED!`);
+    console.log(`[SUCCESS] ALL ${passedTests}/${totalTests} LAST-MILE DELIVERY TESTS PASSED!`);
     console.log('============================================================\n');
 
 } catch (error) {
-    console.error(`\n❌ TEST SUITE FAILED at Test #${passedTests + 1}:`);
+    console.error(`\n[FAIL] TEST SUITE FAILED at Test #${passedTests + 1}:`);
     console.error(error);
     process.exit(1);
 }

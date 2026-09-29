@@ -9,7 +9,7 @@ const deliveryExecutionService = require('../../server/services/deliveryExecutio
 const offlineSyncService = require('../../server/services/offlineSyncService.js');
 
 console.log('============================================================');
-console.log('📱  SWIFTTRACK LOGISTICS: DURABLE OFFLINE OPERATIONS SUITE');
+console.log('  SWIFTTRACK LOGISTICS: DURABLE OFFLINE OPERATIONS SUITE');
 console.log('============================================================\n');
 
 let passedTests = 0;
@@ -29,7 +29,7 @@ try {
     // -------------------------------------------------------------
     // TEST 1: Offline Barcode Scan Operation (SCAN)
     // -------------------------------------------------------------
-    console.log('▶ TEST 1: Ingesting Offline Barcode Scan with Durable Audit...');
+    console.log('> TEST 1: Ingesting Offline Barcode Scan with Durable Audit...');
 
     const shp1 = shipmentService.createShipment({
         origin_hub_id: 1,
@@ -79,12 +79,12 @@ try {
     assert.strictEqual(log1.device_id, testDeviceId);
 
     passedTests++;
-    console.log('✓ [PASS] 1. Offline Scan: Ingested, persisted to log, and shipment moved to AT_ORIGIN_HUB\n');
+    console.log('[PASS] [PASS] 1. Offline Scan: Ingested, persisted to log, and shipment moved to AT_ORIGIN_HUB\n');
 
     // -------------------------------------------------------------
     // TEST 2: Offline Custody Transfer Operation (CUSTODY_HANDOFF)
     // -------------------------------------------------------------
-    console.log('▶ TEST 2: Ingesting Offline Custody Transfer...');
+    console.log('> TEST 2: Ingesting Offline Custody Transfer...');
 
     const handoffOpId = 'OP-HANDOFF-' + crypto.randomUUID();
     const batch2 = {
@@ -120,12 +120,12 @@ try {
     assert.strictEqual(log2.status, 'PROCESSED');
 
     passedTests++;
-    console.log('✓ [PASS] 2. Offline Custody Transfer: Successfully transferred physical custody off-network\n');
+    console.log('[PASS] [PASS] 2. Offline Custody Transfer: Successfully transferred physical custody off-network\n');
 
     // -------------------------------------------------------------
     // TEST 3: Offline Delivery Attempt (DELIVERY_ATTEMPT)
     // -------------------------------------------------------------
-    console.log('▶ TEST 3: Ingesting Offline Delivery Attempt...');
+    console.log('> TEST 3: Ingesting Offline Delivery Attempt...');
 
     const shpDelivery = shipmentService.createShipment({
         origin_hub_id: 1,
@@ -186,12 +186,12 @@ try {
     assert.strictEqual(failedShp.status, 'DELIVERY_FAILED');
 
     passedTests++;
-    console.log('✓ [PASS] 3. Offline Delivery Attempt: Recorded attempt, marked FAILED_ATTEMPT and DELIVERY_FAILED\n');
+    console.log('[PASS] [PASS] 3. Offline Delivery Attempt: Recorded attempt, marked FAILED_ATTEMPT and DELIVERY_FAILED\n');
 
     // -------------------------------------------------------------
     // TEST 4: Idempotent Replay Deduplication
     // -------------------------------------------------------------
-    console.log('▶ TEST 4: Verifying Idempotent Replay Deduplication...');
+    console.log('> TEST 4: Verifying Idempotent Replay Deduplication...');
 
     // Combine previous operations into a single replay batch
     const replayBatch = {
@@ -222,12 +222,12 @@ try {
     assert.strictEqual(taskAfterReplay.attempt_count, 1, 'Attempt count must remain 1 after replay');
 
     passedTests++;
-    console.log('✓ [PASS] 4. Idempotent Replay: Deduplicated 3/3 operations without side-effects or state mutation\n');
+    console.log('[PASS] [PASS] 4. Idempotent Replay: Deduplicated 3/3 operations without side-effects or state mutation\n');
 
     // -------------------------------------------------------------
     // TEST 5: Driver Location Telemetry Sync (DRIVER_LOCATION)
     // -------------------------------------------------------------
-    console.log('▶ TEST 5: Ingesting Offline Driver Location Telemetry...');
+    console.log('> TEST 5: Ingesting Offline Driver Location Telemetry...');
 
     const locationOpId = 'OP-LOC-' + crypto.randomUUID();
     const batchLoc = {
@@ -256,12 +256,12 @@ try {
     assert.strictEqual(updatedDriver.current_longitude, 36.8219);
 
     passedTests++;
-    console.log('✓ [PASS] 5. Location Telemetry: Successfully synchronized driver GPS location offline\n');
+    console.log('[PASS] [PASS] 5. Location Telemetry: Successfully synchronized driver GPS location offline\n');
 
     // -------------------------------------------------------------
     // TEST 6: Validation, Rejection, and Error Isolation
     // -------------------------------------------------------------
-    console.log('▶ TEST 6: Testing Validation Rejections & Fault Isolation...');
+    console.log('> TEST 6: Testing Validation Rejections & Fault Isolation...');
 
     const badBatch = {
         device_id: testDeviceId,
@@ -290,12 +290,12 @@ try {
     assert.strictEqual(resBad.operations[1].status, 'FAILED');
 
     passedTests++;
-    console.log('✓ [PASS] 6. Fault Isolation: Handled missing IDs and invalid types without crashing batch\n');
+    console.log('[PASS] [PASS] 6. Fault Isolation: Handled missing IDs and invalid types without crashing batch\n');
 
     // -------------------------------------------------------------
     // TEST 7: Offline Sync Stats & Reporting
     // -------------------------------------------------------------
-    console.log('▶ TEST 7: Checking Offline Sync Statistics API...');
+    console.log('> TEST 7: Checking Offline Sync Statistics API...');
 
     const stats = offlineSyncService.getOfflineSyncStats(testDeviceId);
     assert.ok(stats.stats && Array.isArray(stats.stats));
@@ -307,14 +307,14 @@ try {
     assert.ok(totalProcessed >= 3, `Expected at least 3 processed ops, got ${totalProcessed}`);
 
     passedTests++;
-    console.log('✓ [PASS] 7. Offline Stats: Accurate telemetry aggregation by device and operation type\n');
+    console.log('[PASS] [PASS] 7. Offline Stats: Accurate telemetry aggregation by device and operation type\n');
 
     console.log('============================================================');
-    console.log(`🎉 ALL ${passedTests}/${totalTests} OFFLINE SYNC TESTS PASSED!`);
+    console.log(`[SUCCESS] ALL ${passedTests}/${totalTests} OFFLINE SYNC TESTS PASSED!`);
     console.log('============================================================\n');
 
 } catch (err) {
-    console.error('\n❌ TEST FAILED:', err.message);
+    console.error('\n[FAIL] TEST FAILED:', err.message);
     console.error(err.stack);
     process.exit(1);
 }

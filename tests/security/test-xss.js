@@ -5,7 +5,7 @@ const http = require('node:http');
 const app = require('../../server/server.js');
 
 console.log('\n============================================================');
-console.log('🛡️  SWIFTTRACK PENETRATION SUITE: XSS & HEADER IMMUNITY');
+console.log('  SWIFTTRACK PENETRATION SUITE: XSS & HEADER IMMUNITY');
 console.log('============================================================\n');
 
 let server;
@@ -56,7 +56,7 @@ async function runTest(name, fn) {
     totalTests++;
     try {
         await fn();
-        console.log(`✓ [PASS] ${name}`);
+        console.log(`[PASS] [PASS] ${name}`);
         passedTests++;
     } catch (err) {
         console.error(`✗ [FAIL] ${name}`);
@@ -219,9 +219,9 @@ async function runTest(name, fn) {
         console.log('============================================================');
 
         if (passedTests === totalTests) {
-            console.log('\n🎉 ALL XSS & HEADER IMMUNITY TESTS PASSED (100% SECURE)!\n');
+            console.log('\n[SUCCESS] ALL XSS & HEADER IMMUNITY TESTS PASSED (100% SECURE)!\n');
         } else {
-            console.error('\n❌ XSS VULNERABILITIES DETECTED!\n');
+            console.error('\n[FAIL] XSS VULNERABILITIES DETECTED!\n');
             process.exit(1);
         }
 

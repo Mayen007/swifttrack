@@ -134,11 +134,11 @@ function configureCors() {
     const allowed = rawAllowed.filter(origin => {
         if (!isProd) return true;
         if (origin === '*') {
-            console.error('❌ SECURITY WARNING: Wildcard CORS origin (*) is rejected in production!');
+            console.error('[SECURITY WARNING] Wildcard CORS origin (*) is rejected in production!');
             return false;
         }
         if (/^http:\/\/(localhost|127\.0\.0\.1)/i.test(origin)) {
-            console.error(`❌ SECURITY WARNING: Localhost origin (${origin}) is rejected in production mode!`);
+            console.error(`[SECURITY WARNING] Localhost origin (${origin}) is rejected in production mode!`);
             return false;
         }
         return true;

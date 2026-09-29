@@ -6,7 +6,7 @@ const app = require('../../server/server.js');
 const { db } = require('../../server/db/database.js');
 
 console.log('\n============================================================');
-console.log('📦  SWIFTTRACK COMMERCE: PRODUCT CATALOG & VARIANTS SUITE');
+console.log('  SWIFTTRACK COMMERCE: PRODUCT CATALOG & VARIANTS SUITE');
 console.log('============================================================\n');
 
 let server;
@@ -59,7 +59,7 @@ async function runTest(name, fn) {
     totalTests++;
     try {
         await fn();
-        console.log(`✓ [PASS] ${name}`);
+        console.log(`[PASS] [PASS] ${name}`);
         passedTests++;
     } catch (err) {
         console.error(`✗ [FAIL] ${name}`);
@@ -254,9 +254,9 @@ async function runTest(name, fn) {
         console.log('============================================================');
 
         if (passedTests === totalTests) {
-            console.log('\n🎉 ALL PRODUCT CATALOG & VARIANTS TESTS PASSED!\n');
+            console.log('\n[SUCCESS] ALL PRODUCT CATALOG & VARIANTS TESTS PASSED!\n');
         } else {
-            console.error('\n❌ PRODUCT CATALOG TESTS FAILED!\n');
+            console.error('\n[FAIL] PRODUCT CATALOG TESTS FAILED!\n');
             process.exit(1);
         }
 

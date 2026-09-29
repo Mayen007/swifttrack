@@ -18,7 +18,7 @@ const {
 } = require('../../server/services/inventoryOperationsService.js');
 
 console.log('\n============================================================');
-console.log('⚙️   SWIFTTRACK INVENTORY OPERATIONS: 3.2 TEST SUITE');
+console.log('   SWIFTTRACK INVENTORY OPERATIONS: 3.2 TEST SUITE');
 console.log('============================================================\n');
 
 let passed = 0;
@@ -28,7 +28,7 @@ function runTest(name, fn) {
   total++;
   try {
     fn();
-    console.log(`✓ [PASS] ${name}`);
+    console.log(`[PASS] [PASS] ${name}`);
     passed++;
   } catch (err) {
     console.error(`✗ [FAIL] ${name}`);
@@ -298,9 +298,9 @@ console.log(`FAILED:      ${total - passed}`);
 console.log('============================================================\n');
 
 if (passed === total) {
-  console.log('🎉 ALL INVENTORY OPERATIONS ENGINE TESTS PASSED!\n');
+  console.log('[SUCCESS] ALL INVENTORY OPERATIONS ENGINE TESTS PASSED!\n');
   process.exit(0);
 } else {
-  console.error('❌ SOME TESTS FAILED!\n');
+  console.error('[FAIL] SOME TESTS FAILED!\n');
   process.exit(1);
 }

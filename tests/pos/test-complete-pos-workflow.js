@@ -6,7 +6,7 @@ const { db, initSchema } = require('../../server/db/database.js');
 const posShiftService = require('../../server/services/posShiftService.js');
 
 console.log('\n============================================================');
-console.log('🛒  SWIFTTRACK KENYA: PHASE 5.1 COMPLETE POS WORKFLOW SUITE');
+console.log('  SWIFTTRACK KENYA: PHASE 5.1 COMPLETE POS WORKFLOW SUITE');
 console.log('============================================================\n');
 
 let passedTests = 0;
@@ -16,7 +16,7 @@ function runTest(name, fn) {
     totalTests++;
     try {
         fn();
-        console.log(`✓ [PASS] ${name}`);
+        console.log(`[PASS] [PASS] ${name}`);
         passedTests++;
     } catch (err) {
         console.error(`✗ [FAIL] ${name}`);
@@ -382,7 +382,7 @@ runTest('10. Shift Close & EOD Reconciliation: Cash count, variance & manager si
 });
 
 console.log('\n============================================================');
-console.log(`📊  POS WORKFLOW SUITE RESULTS: ${passedTests}/${totalTests} TESTS PASSED`);
+console.log(`  POS WORKFLOW SUITE RESULTS: ${passedTests}/${totalTests} TESTS PASSED`);
 console.log('============================================================\n');
 
 if (passedTests !== totalTests) {

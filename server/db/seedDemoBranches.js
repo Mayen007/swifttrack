@@ -11,7 +11,7 @@ const { hashPassword } = require('../utils/security.js');
 
 function seedAllBranchesDemoData() {
     console.log('================================================================');
-    console.log('🚀 SEEDING ENTERPRISE MULTI-BRANCH DEMO DATA ACROSS ALL BRANCHES');
+    console.log('[START] SEEDING ENTERPRISE MULTI-BRANCH DEMO DATA ACROSS ALL BRANCHES');
     console.log('================================================================\n');
 
     // 1. Ensure all 4 branches exist
@@ -29,7 +29,7 @@ function seedAllBranchesDemoData() {
                 INSERT INTO branches (id, code, name, city, address, phone, email, is_active)
                 VALUES (?, ?, ?, ?, ?, ?, ?, 1)
             `).run(b.id, b.code, b.name, b.city, b.address, b.phone, b.email);
-            console.log(`  ✔ Provisioned branch: ${b.name} (${b.code})`);
+            console.log(`  [OK] Provisioned branch: ${b.name} (${b.code})`);
         }
     }
 
@@ -49,7 +49,7 @@ function seedAllBranchesDemoData() {
                 INSERT INTO warehouses (id, branch_id, code, name, location_desc, is_active)
                 VALUES (?, ?, ?, ?, ?, 1)
             `).run(w.id, w.branch_id, w.code, w.name, w.location_desc);
-            console.log(`  ✔ Provisioned warehouse: ${w.name} (${w.code})`);
+            console.log(`  [OK] Provisioned warehouse: ${w.name} (${w.code})`);
         }
     }
 
@@ -89,7 +89,7 @@ function seedAllBranchesDemoData() {
                 INSERT INTO users (id, branch_id, role_id, username, email, full_name, phone, password_hash, is_active)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)
             `).run(u.id, u.branch_id, u.role_id, u.username, u.email, u.full_name, u.phone, dynamicHash);
-            console.log(`  ✔ Provisioned staff user: ${u.username} (${u.full_name})`);
+            console.log(`  [OK] Provisioned staff user: ${u.username} (${u.full_name})`);
         }
     }
 
@@ -110,7 +110,7 @@ function seedAllBranchesDemoData() {
                 INSERT INTO vehicles (id, branch_id, registration_number, vehicle_type, model, max_capacity_kg, is_active)
                 VALUES (?, ?, ?, ?, ?, ?, 1)
             `).run(v.id, v.branch_id, v.reg, v.type, v.model, v.cap);
-            console.log(`  ✔ Provisioned vehicle: ${v.reg} (${v.model})`);
+            console.log(`  [OK] Provisioned vehicle: ${v.reg} (${v.model})`);
         }
     }
 
@@ -128,7 +128,7 @@ function seedAllBranchesDemoData() {
                 INSERT INTO drivers (id, user_id, branch_id, license_number, vehicle_id, phone, status, current_latitude, current_longitude, last_ping_at)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
             `).run(d.id, d.user_id, d.branch_id, d.license, d.vehicle_id, d.phone, d.status, d.lat, d.lng);
-            console.log(`  ✔ Provisioned driver record for User ID: ${d.user_id} (${d.license})`);
+            console.log(`  [OK] Provisioned driver record for User ID: ${d.user_id} (${d.license})`);
         }
     }
 
@@ -165,7 +165,7 @@ function seedAllBranchesDemoData() {
         }
     }
     if (newInventoryCount > 0) {
-        console.log(`  ✔ Provisioned ${newInventoryCount} initial inventory stock items across regional warehouses.`);
+        console.log(`  [OK] Provisioned ${newInventoryCount} initial inventory stock items across regional warehouses.`);
     }
 
     // 6. Regional B2B Customers
@@ -202,7 +202,7 @@ function seedAllBranchesDemoData() {
                 INSERT INTO customers (id, branch_id, customer_number, full_name, phone, email, address, city, kra_pin)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             `).run(c.id, c.branch_id, c.no, c.name, c.phone, c.email, c.address, c.city, c.pin);
-            console.log(`  ✔ Provisioned customer: ${c.name} (${c.no})`);
+            console.log(`  [OK] Provisioned customer: ${c.name} (${c.no})`);
         }
     }
 
@@ -504,7 +504,7 @@ function seedAllBranchesDemoData() {
         }
     }
 
-    console.log(`  ✔ Successfully seeded ${totalOrdersCreated} orders, ${totalSalesCreated} sales with COGS line items, and ${totalDeliveriesCreated} deliveries.`);
+    console.log(`  [OK] Successfully seeded ${totalOrdersCreated} orders, ${totalSalesCreated} sales with COGS line items, and ${totalDeliveriesCreated} deliveries.`);
 
     // 8. Seed POS Held Sales per branch
     console.log('\n[Demo] Seeding POS held carts per branch...');
@@ -562,7 +562,7 @@ function seedAllBranchesDemoData() {
                 INSERT INTO held_sales (branch_id, cashier_user_id, hold_reference, customer_name, customer_phone, cart_data_json, subtotal, total, notes)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             `).run(h.branch_id, h.cashier_id, h.ref, h.cust_name, h.phone, h.cart, h.subtotal, h.total, h.notes);
-            console.log(`  ✔ Provisioned held cart: ${h.ref} for Branch ${h.branch_id}`);
+            console.log(`  [OK] Provisioned held cart: ${h.ref} for Branch ${h.branch_id}`);
         }
     }
 
@@ -617,7 +617,7 @@ function seedAllBranchesDemoData() {
                     INSERT INTO refund_requests (refund_request_number, branch_id, sale_id, cashier_user_id, amount, reason, status)
                     VALUES (?, ?, ?, ?, ?, ?, ?)
                 `).run(r.req_num, r.branch_id, sale.id, r.cashier_id, r.amount, r.reason, r.status);
-                console.log(`  ✔ Provisioned refund request: ${r.req_num} for Branch ${r.branch_id}`);
+                console.log(`  [OK] Provisioned refund request: ${r.req_num} for Branch ${r.branch_id}`);
             }
         }
     }
@@ -666,7 +666,7 @@ function seedAllBranchesDemoData() {
                 e.amt, e.payee, e.method, e.status,
                 e.user_id, e.app_user_id
             );
-            console.log(`  ✔ Provisioned expense: ${e.exp_no} (${e.desc} - KES ${e.amt})`);
+            console.log(`  [OK] Provisioned expense: ${e.exp_no} (${e.desc} - KES ${e.amt})`);
         }
     }
 
@@ -729,7 +729,7 @@ function seedAllBranchesDemoData() {
                     VALUES (?, ?, ?, ?, ?)
                 `).run(trfId, itm.prod_id, itm.qty_req, itm.qty_sent, itm.qty_rec);
             }
-            console.log(`  ✔ Provisioned transfer: ${t.num} (${t.status})`);
+            console.log(`  [OK] Provisioned transfer: ${t.num} (${t.status})`);
         }
     }
 
@@ -748,7 +748,7 @@ function seedAllBranchesDemoData() {
                 INSERT INTO stock_adjustments (adjustment_number, branch_id, warehouse_id, product_id, adjustment_type, quantity, reason, status, requested_by_user_id, approved_by_user_id)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             `).run(a.num, a.branch_id, a.warehouse_id, a.prod_id, a.type, a.qty, a.reason, a.status, a.user_id, a.app_id);
-            console.log(`  ✔ Provisioned stock adjustment: ${a.num}`);
+            console.log(`  [OK] Provisioned stock adjustment: ${a.num}`);
         }
     }
 
@@ -785,7 +785,7 @@ function seedAllBranchesDemoData() {
     }
 
     console.log('\n================================================================');
-    console.log('✅ ALL EXISTING BRANCHES SUCCESSFULLY POPULATED WITH DEMO DATA!');
+    console.log('[OK] ALL EXISTING BRANCHES SUCCESSFULLY POPULATED WITH DEMO DATA!');
     console.log('================================================================\n');
 }
 

@@ -6,7 +6,7 @@ const orderService = require('../../server/services/orderService.js');
 const inventoryStateService = require('../../server/services/inventoryStateService.js');
 
 console.log('\n============================================================');
-console.log('📦  SWIFTTRACK KENYA: PHASE 6 ORDERS ENGINE SUITE');
+console.log('  SWIFTTRACK KENYA: PHASE 6 ORDERS ENGINE SUITE');
 console.log('============================================================\n');
 
 let passedTests = 0;
@@ -16,7 +16,7 @@ function runTest(name, fn) {
     totalTests++;
     try {
         fn();
-        console.log(`✓ [PASS] ${name}`);
+        console.log(`[PASS] [PASS] ${name}`);
         passedTests++;
     } catch (err) {
         console.error(`✗ [FAIL] ${name}`);
@@ -290,7 +290,7 @@ runTest('10. Audit, Invoice & Export: Timeline integrity, staff notes, tax invoi
 });
 
 console.log('\n============================================================');
-console.log(`📊  ORDERS ENGINE SUITE RESULTS: ${passedTests}/${totalTests} TESTS PASSED`);
+console.log(`  ORDERS ENGINE SUITE RESULTS: ${passedTests}/${totalTests} TESTS PASSED`);
 console.log('============================================================\n');
 
 if (passedTests !== totalTests) {

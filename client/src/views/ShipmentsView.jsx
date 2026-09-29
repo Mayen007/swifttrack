@@ -364,7 +364,7 @@ export function ShipmentsView({ onNavigate }) {
                         )}
                         {s.is_cross_border === 1 && (
                           <span className="px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-300 font-mono text-[9px] border border-amber-500/20">
-                            🛂 Border
+                            Cross-Border
                           </span>
                         )}
                       </div>

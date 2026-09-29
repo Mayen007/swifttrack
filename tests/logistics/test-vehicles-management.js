@@ -6,7 +6,7 @@ const vehicleService = require('../../server/services/vehicleService.js');
 const driverService = require('../../server/services/driverService.js');
 
 console.log('\n============================================================');
-console.log('🚛  SWIFTTRACK KENYA: PHASE 9 FLEET VEHICLES SUITE (9.2)');
+console.log('  SWIFTTRACK KENYA: PHASE 9 FLEET VEHICLES SUITE (9.2)');
 console.log('============================================================\n');
 
 let passedTests = 0;
@@ -16,7 +16,7 @@ async function runTest(name, fn) {
   totalTests++;
   try {
     await fn();
-    console.log(`✓ [PASS] ${name}`);
+    console.log(`[PASS] [PASS] ${name}`);
     passedTests++;
   } catch (err) {
     console.error(`✗ [FAIL] ${name}`);

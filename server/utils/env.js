@@ -30,19 +30,19 @@ function getJwtSecret() {
 
     if (isProd) {
         if (!rawSecret) {
-            console.error('❌ FATAL SECURITY ERROR: JWT_SECRET environment variable is missing in production!');
-            console.error('👉 Generate a secure secret using: node -e "console.log(require(\'crypto\').randomBytes(32).toString(\'hex\'))"');
+            console.error('[ERROR] FATAL SECURITY ERROR: JWT_SECRET environment variable is missing in production!');
+            console.error('[GUIDE] Generate a secure secret using: node -e "console.log(require(\'crypto\').randomBytes(32).toString(\'hex\'))"');
             process.exit(1);
         }
 
         if (KNOWN_INSECURE_SECRETS.includes(rawSecret.toLowerCase())) {
-            console.error('❌ FATAL SECURITY ERROR: JWT_SECRET is set to an insecure default placeholder!');
-            console.error('👉 Set a cryptographically random production secret in .env or environment.');
+            console.error('[ERROR] FATAL SECURITY ERROR: JWT_SECRET is set to an insecure default placeholder!');
+            console.error('[GUIDE] Set a cryptographically random production secret in .env or environment.');
             process.exit(1);
         }
 
         if (rawSecret.length < 32) {
-            console.error(`❌ FATAL SECURITY ERROR: JWT_SECRET is too short (${rawSecret.length} chars). Minimum length is 32 characters.`);
+            console.error(`[ERROR] FATAL SECURITY ERROR: JWT_SECRET is too short (${rawSecret.length} chars). Minimum length is 32 characters.`);
             process.exit(1);
         }
 
@@ -76,20 +76,20 @@ function validateStartupEnv() {
     if (isProd) {
         // Enforce production constraints
         if (process.env.DEMO_MODE === 'true') {
-            console.error('❌ FATAL SECURITY ERROR: DEMO_MODE must NOT be enabled in production environment!');
+            console.error('[ERROR] FATAL SECURITY ERROR: DEMO_MODE must NOT be enabled in production environment!');
             process.exit(1);
         }
 
         // Check database password entropy if PostgreSQL credentials provided
         const dbPassword = process.env.DB_PASSWORD || process.env.PGPASSWORD;
         if (dbPassword && KNOWN_INSECURE_SECRETS.includes(dbPassword.toLowerCase())) {
-            console.error('❌ FATAL SECURITY ERROR: Database password is set to an insecure default!');
+            console.error('[ERROR] FATAL SECURITY ERROR: Database password is set to an insecure default!');
             process.exit(1);
         }
 
-        console.log('🔒 [Security] Production environment secrets verified.');
+        console.log('[Security] Production environment secrets verified.');
     } else {
-        console.log('🔒 [Security] Production environment secrets verified.');
+        console.log('[Security] Production environment secrets verified.');
     }
 
     return {

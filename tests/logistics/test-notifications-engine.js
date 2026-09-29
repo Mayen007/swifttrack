@@ -11,7 +11,7 @@ const { checkPermission } = require('../../server/config/permissions.js');
 
 async function runTests() {
     console.log('============================================================');
-    console.log('📢  SWIFTTRACK LOGISTICS: STAGE 9 NOTIFICATIONS ENGINE');
+    console.log('  SWIFTTRACK LOGISTICS: STAGE 9 NOTIFICATIONS ENGINE');
     console.log('============================================================\n');
 
     const adminUser = { id: 1, roleName: 'SUPER_ADMIN', roleDisplayName: 'Super Admin', branchId: 1 };
@@ -19,7 +19,7 @@ async function runTests() {
     const cashierUser = { id: 4, roleName: 'CASHIER', roleDisplayName: 'Cashier', branchId: 1 };
 
     // TEST 1: Template Management & Dynamic Token Interpolation
-    console.log('▶ TEST 1: Template Management & Dynamic Token Interpolation...');
+    console.log('> TEST 1: Template Management & Dynamic Token Interpolation...');
     const templates = notificationService.getTemplates();
     assert(templates.length >= 7, 'Should have at least 7 seeded standard templates');
 
@@ -37,10 +37,10 @@ async function runTests() {
         sms_template: 'Habari {{recipient_name}}, package {{tracking_number}} has been booked from {{origin_city}} to {{dest_city}}. Live tracking: {{tracking_url}} - SwiftTrack Kenya'
     }, adminUser);
     assert(updatedTpl.sms_template.includes('SwiftTrack Kenya'), 'Template should be updated successfully');
-    console.log('  ✔ Templates verified with dynamic token interpolation');
+    console.log('  [PASS] Templates verified with dynamic token interpolation');
 
     // TEST 2: Multi-Channel Dispatch Adapters (SMS, WhatsApp, Email) & Phone Normalization
-    console.log('\n▶ TEST 2: Multi-Channel Dispatch Adapters & Phone Normalization...');
+    console.log('\n> TEST 2: Multi-Channel Dispatch Adapters & Phone Normalization...');
     const normalized1 = notificationService.normalizePhone('0712345678');
     const normalized2 = notificationService.normalizePhone('+254799887766');
     const normalized3 = notificationService.normalizePhone('254112345678');
@@ -56,10 +56,10 @@ async function runTests() {
 
     const emailRes = await notificationService.sendViaChannel('EMAIL', 'customer@example.com', 'Test Email', 'Subject');
     assert.strictEqual(emailRes.status, 'ACCEPTED_BY_RELAY');
-    console.log('  ✔ Phone normalization and SMS/WhatsApp/Email gateways verified');
+    console.log('  [PASS] Phone normalization and SMS/WhatsApp/Email gateways verified');
 
     // TEST 3: Non-blocking Outbox Enqueuing on Booking (Rule NTF-002)
-    console.log('\n▶ TEST 3: Non-blocking Outbox Enqueuing on Consignment Booking (Rule NTF-002)...');
+    console.log('\n> TEST 3: Non-blocking Outbox Enqueuing on Consignment Booking (Rule NTF-002)...');
     const outboxBefore = db.prepare('SELECT count(*) as count FROM notification_outbox').get().count;
 
     const testShipment = shipmentService.createShipment({
@@ -78,10 +78,10 @@ async function runTests() {
     assert(latestOutbox.length >= 2, 'Should enqueue for both recipient and sender on booking');
     assert.strictEqual(latestOutbox[0].status, 'PENDING');
     assert(latestOutbox[0].rendered_content.includes(testShipment.tracking_number), 'Content must contain tracking number');
-    console.log(`  ✔ Consignment booking enqueued ${latestOutbox.length} outbox notifications for tracking ${testShipment.tracking_number}`);
+    console.log(`  [PASS] Consignment booking enqueued ${latestOutbox.length} outbox notifications for tracking ${testShipment.tracking_number}`);
 
     // TEST 4: Outbox Batch Worker Processing & Status Progression
-    console.log('\n▶ TEST 4: Outbox Batch Worker Processing (PENDING -> SENT)...');
+    console.log('\n> TEST 4: Outbox Batch Worker Processing (PENDING -> SENT)...');
     let processResult = { success_count: 0, failed_count: 0, processed_count: 0 };
     for (let i = 0; i < 20; i++) {
         const batch = await notificationService.processOutboxBatch(50);
@@ -101,10 +101,10 @@ async function runTests() {
     assert(logs.length >= 1, 'Delivery log must be recorded in notification_logs');
     assert.strictEqual(logs[0].status, 'SUCCESS');
     assert(logs[0].provider_message_id !== null);
-    console.log(`  ✔ Worker processed batch: ${processResult.success_count} sent, audit logs generated`);
+    console.log(`  [PASS] Worker processed batch: ${processResult.success_count} sent, audit logs generated`);
 
     // TEST 5: Dynamic OTP Generation & Delivery on OUT_FOR_DELIVERY
-    console.log('\n▶ TEST 5: Dynamic OTP Delivery Notification on OUT_FOR_DELIVERY...');
+    console.log('\n> TEST 5: Dynamic OTP Delivery Notification on OUT_FOR_DELIVERY...');
     // Create delivery task for shipment
     const deliveryTask = deliveryExecutionService.createDeliveryTask({
         shipment_id: testShipment.id,
@@ -128,10 +128,10 @@ async function runTests() {
     assert(outForDelNotifs[0].rendered_content.includes(activeDelivery.pod_otp), 'Recipient notification must contain the exact delivery OTP PIN');
 
     await notificationService.processOutboxBatch(10);
-    console.log(`  ✔ OUT_FOR_DELIVERY alert enqueued with PIN: ${activeDelivery.pod_otp} and dispatched`);
+    console.log(`  [PASS] OUT_FOR_DELIVERY alert enqueued with PIN: ${activeDelivery.pod_otp} and dispatched`);
 
     // TEST 6: Exponential Backoff & Retry Handling on Failure (Rule NTF-003)
-    console.log('\n▶ TEST 6: Exponential Backoff & Retry Handling on Gateway Error (Rule NTF-003)...');
+    console.log('\n> TEST 6: Exponential Backoff & Retry Handling on Gateway Error (Rule NTF-003)...');
     // Enqueue a test notification with simulated failure
     const uuidFail = `NTF-TEST-FAIL-${Date.now()}`;
     const insertFail = db.prepare(`
@@ -156,10 +156,10 @@ async function runTests() {
     // Verify log entry
     const failLog = db.prepare('SELECT * FROM notification_logs WHERE outbox_id = ?').get(failItemId);
     assert(failLog !== null && failLog.status === 'FAILED', 'Failed log entry must be created');
-    console.log('  ✔ Exponential backoff triggered on failure, retry count = 1 with error logged');
+    console.log('  [PASS] Exponential backoff triggered on failure, retry count = 1 with error logged');
 
     // TEST 7: Max Retries Exhaustion
-    console.log('\n▶ TEST 7: Max Retries Exhaustion (Transitions to Final Failure)...');
+    console.log('\n> TEST 7: Max Retries Exhaustion (Transitions to Final Failure)...');
     // Force retry count to 2, so next attempt is 3 (max_retries = 3)
     db.prepare("UPDATE notification_outbox SET retry_count = 2, next_retry_at = datetime('now') WHERE id = ?").run(failItemId);
     await notificationService.processOutboxBatch(10);
@@ -167,10 +167,10 @@ async function runTests() {
     const exhaustedItem = db.prepare('SELECT * FROM notification_outbox WHERE id = ?').get(failItemId);
     assert.strictEqual(exhaustedItem.retry_count, 3, 'Retry count should reach max_retries = 3');
     assert.strictEqual(exhaustedItem.status, 'FAILED');
-    console.log('  ✔ Max retries reached (3/3), outbox item marked permanently FAILED');
+    console.log('  [PASS] Max retries reached (3/3), outbox item marked permanently FAILED');
 
     // TEST 8: Manual Operator Resend / Immediate Retry via API
-    console.log('\n▶ TEST 8: Manual Operator Resend (Resets Status & Dispatches)...');
+    console.log('\n> TEST 8: Manual Operator Resend (Resets Status & Dispatches)...');
     // Remove failure flag from payload so resend succeeds
     db.prepare("UPDATE notification_outbox SET payload = '{}' WHERE id = ?").run(failItemId);
 
@@ -179,20 +179,20 @@ async function runTests() {
 
     const resentItem = db.prepare('SELECT * FROM notification_outbox WHERE id = ?').get(failItemId);
     assert.strictEqual(resentItem.status, 'SENT', 'Item should transition from FAILED to SENT after resend');
-    console.log('  ✔ Manual operator resend successfully cleared failure and delivered notification');
+    console.log('  [PASS] Manual operator resend successfully cleared failure and delivered notification');
 
     // TEST 9: Communications Telemetry & Delivery Rate KPIs
-    console.log('\n▶ TEST 9: Communications Telemetry & Delivery Rate KPIs...');
+    console.log('\n> TEST 9: Communications Telemetry & Delivery Rate KPIs...');
     const stats = notificationService.getNotificationStats();
     assert(stats.total_notifications > 0, 'Total notifications should be positive');
     assert(stats.sent_count > 0, 'Sent count should be positive');
     assert(stats.delivery_rate_pct >= 0 && stats.delivery_rate_pct <= 100, 'Delivery rate should be a valid percentage');
     assert(Array.isArray(stats.channels), 'Channels telemetry breakdown should be an array');
     assert(stats.recent_logs.length > 0, 'Recent activity logs should be populated');
-    console.log(`  ✔ Telemetry KPIs: ${stats.total_notifications} total queued, ${stats.sent_count} sent, Delivery Rate: ${stats.delivery_rate_pct}%`);
+    console.log(`  [PASS] Telemetry KPIs: ${stats.total_notifications} total queued, ${stats.sent_count} sent, Delivery Rate: ${stats.delivery_rate_pct}%`);
 
     // TEST 10: RBAC Authorization & Scoping
-    console.log('\n▶ TEST 10: RBAC Authorization & Scoping on Notifications Resource...');
+    console.log('\n> TEST 10: RBAC Authorization & Scoping on Notifications Resource...');
     const cashierCheck = checkPermission(cashierUser, 'notifications', 'manage');
     assert.strictEqual(cashierCheck.granted, false, 'Cashier should NOT have permission to manage notification templates');
 
@@ -201,14 +201,14 @@ async function runTests() {
 
     const managerCheck = checkPermission(managerUser, 'notifications', 'resend', { branchId: 1 });
     assert.strictEqual(managerCheck.granted, true, 'Branch Manager should have permission to resend notifications in their branch');
-    console.log('  ✔ RBAC checks passed: Cashier denied manage, Super Admin & Manager permitted');
+    console.log('  [PASS] RBAC checks passed: Cashier denied manage, Super Admin & Manager permitted');
 
     console.log('\n============================================================');
-    console.log('✅  ALL 10/10 NOTIFICATIONS ENGINE TESTS PASSED!');
+    console.log('[OK]  ALL 10/10 NOTIFICATIONS ENGINE TESTS PASSED!');
     console.log('============================================================\n');
 }
 
 runTests().catch(err => {
-    console.error('\n❌ TEST FAILED:', err);
+    console.error('\n[FAIL] TEST FAILED:', err);
     process.exit(1);
 });

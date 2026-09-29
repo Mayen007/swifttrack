@@ -6,7 +6,7 @@ const app = require('../../server/server.js');
 const { resolvePrice } = require('../../server/services/pricingService.js');
 
 console.log('\n============================================================');
-console.log('💰  SWIFTTRACK COMMERCE: DYNAMIC PRICING ENGINE SUITE');
+console.log('  SWIFTTRACK COMMERCE: DYNAMIC PRICING ENGINE SUITE');
 console.log('============================================================\n');
 
 let server;
@@ -59,7 +59,7 @@ async function runTest(name, fn) {
     totalTests++;
     try {
         await fn();
-        console.log(`✓ [PASS] ${name}`);
+        console.log(`[PASS] [PASS] ${name}`);
         passedTests++;
     } catch (err) {
         console.error(`✗ [FAIL] ${name}`);
@@ -199,9 +199,9 @@ async function runTest(name, fn) {
         console.log('============================================================');
 
         if (passedTests === totalTests) {
-            console.log('\n🎉 ALL DYNAMIC PRICING ENGINE TESTS PASSED!\n');
+            console.log('\n[SUCCESS] ALL DYNAMIC PRICING ENGINE TESTS PASSED!\n');
         } else {
-            console.error('\n❌ PRICING ENGINE TESTS FAILED!\n');
+            console.error('\n[FAIL] PRICING ENGINE TESTS FAILED!\n');
             process.exit(1);
         }
 

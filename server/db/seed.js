@@ -501,7 +501,7 @@ function initProductionBootstrap() {
         `).run();
     }
 
-    console.log('✅ [Bootstrap] Clean production database bootstrap completed successfully.');
+    console.log('[BOOTSTRAP] Clean production database bootstrap completed successfully.');
 }
 
 /**
@@ -899,7 +899,7 @@ function ensureRichChartTelemetry() {
         }
     }
 
-    console.log('✅ [Demo] Operational visual analytics telemetry populated successfully.');
+    console.log('[DEMO] Operational visual analytics telemetry populated successfully.');
 }
 
 /**
