@@ -165,44 +165,103 @@ export function DashboardView({ onNavigate }) {
         <OperationsControlTower onNavigate={onNavigate} />
       ) : (
         <>
-          {/* 1. OPERATIONAL CONSOLE HEADER */}
-      <div className="bg-[#12161f] border border-[#222834] rounded p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 select-none">
-        <div className="space-y-1">
-          <div className="flex items-center gap-2 text-[10px] font-mono uppercase tracking-widest text-slate-400">
-            <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block" />
-            <span>TERMINAL TELEMETRY</span>
-            <span>//</span>
-            <span className="text-amber-400 font-bold">{selectedBranch ? selectedBranch.code : 'HQ-ALL'}</span>
+      {/* 1. OPERATIONAL CONSOLE BENTO HEADER */}
+      <div className="bg-[#12161f] border border-[#222834] rounded-2xl p-4 sm:p-5 shadow-xl relative overflow-hidden select-none">
+        <div className="absolute top-0 right-0 w-96 h-96 bg-blue-500/5 rounded-full blur-3xl pointer-events-none" />
+
+        {/* Tier 1: Platform & Node Identity + Telemetry Controls */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start relative z-10">
+          <div className="lg:col-span-8 space-y-1.5">
+            <div className="flex flex-wrap items-center gap-2 text-[10px] font-mono uppercase tracking-widest text-slate-400">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block" />
+              <span>TERMINAL TELEMETRY</span>
+              <span>//</span>
+              <span className="text-amber-400 font-bold">{selectedBranch ? selectedBranch.code : 'HQ-ALL'}</span>
+              <span>•</span>
+              <span className="text-slate-400">STATION:</span>
+              <span className="text-slate-200 font-medium">{selectedBranch ? selectedBranch.name : 'Enterprise Network'}</span>
+            </div>
+            <h1 className="text-xl sm:text-2xl font-bold text-white tracking-tight font-sans">
+              SwiftTrack Logistics & Commerce Console
+            </h1>
+            <p className="text-xs text-slate-400 font-sans">
+              Active session: <span className="text-slate-200 font-medium">{user?.full_name || user?.username}</span> • Role: <span className="text-slate-200 font-medium">{user?.role || 'OPERATOR'}</span>
+            </p>
           </div>
-          <h1 className="text-xl sm:text-2xl font-bold text-white tracking-tight font-sans">
-            SwiftTrack Logistics Console
-          </h1>
-          <p className="text-xs text-slate-400 font-sans">
-            Active session: <span className="text-slate-200 font-medium">{user?.full_name || user?.username}</span> • Station: <span className="text-slate-200 font-medium">{selectedBranch ? selectedBranch.name : 'Enterprise Network'}</span>
-          </p>
+
+          {/* Telemetry Clock, Sync & Latency Cluster */}
+          <div className="lg:col-span-4 flex flex-wrap items-center justify-start lg:justify-end gap-2.5">
+            <button
+              onClick={handleRefresh}
+              title="Refresh Real-time Telemetry"
+              className="px-3 py-2 rounded-xl bg-[#0c0e12] hover:bg-[#18202d] border border-[#222834] hover:border-[#38455e] text-slate-300 hover:text-white transition-colors cursor-pointer flex items-center gap-1.5 text-xs font-mono"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin text-amber-400' : 'text-slate-400'}`} />
+              <span>SYNC</span>
+            </button>
+
+            <div className="px-3 py-2 rounded-xl bg-[#0c0e12] border border-[#222834] text-xs font-mono text-slate-300 flex items-center gap-2">
+              <Calendar className="w-3.5 h-3.5 text-slate-400" />
+              <span className="tabular-nums">
+                {new Date().toLocaleDateString('en-KE', { weekday: 'short', month: 'short', day: 'numeric' })}
+              </span>
+            </div>
+
+            <div className="px-3 py-2 rounded-xl bg-[#0c0e12] border border-[#222834] text-xs font-mono text-emerald-400 flex items-center gap-1.5">
+              <Activity className="w-3.5 h-3.5" />
+              <span className="tabular-nums font-semibold">14ms</span>
+            </div>
+          </div>
         </div>
 
-        {/* Telemetry Clock & Sync Indicator */}
-        <div className="flex items-center gap-3 self-start sm:self-auto">
-          <button
-            onClick={handleRefresh}
-            title="Refresh Real-time Telemetry"
-            className="p-2 rounded bg-[#0c0e12] hover:bg-[#18202d] border border-[#222834] hover:border-[#38455e] text-slate-300 hover:text-white transition-colors cursor-pointer flex items-center gap-1.5 text-xs font-mono"
-          >
-            <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin text-amber-400' : 'text-slate-400'}`} />
-            <span className="hidden sm:inline">SYNC</span>
-          </button>
-
-          <div className="px-3 py-2 rounded bg-[#0c0e12] border border-[#222834] text-xs font-mono text-slate-300 flex items-center gap-2.5">
-            <Calendar className="w-3.5 h-3.5 text-slate-400" />
-            <span className="tabular-nums">
-              {new Date().toLocaleDateString('en-KE', { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' })}
-            </span>
+        {/* Tier 2: Stacked Operational & Financial Bento KPI Strip */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-3.5 mt-3.5 border-t border-[#222834] relative z-10">
+          <div className="bg-[#0c0e12]/80 border border-[#222834] rounded-xl p-3 flex items-center justify-between">
+            <div className="space-y-0.5">
+              <span className="text-[10px] text-slate-400 uppercase tracking-wider block font-mono">Gross Revenue</span>
+              <div className="text-lg font-bold text-emerald-400 font-mono">
+                KES {stats?.todaySales?.toLocaleString() || 0}
+              </div>
+            </div>
+            <div className="w-8 h-8 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
+              <DollarSign className="w-4 h-4" />
+            </div>
           </div>
 
-          <div className="px-3 py-2 rounded bg-[#0c0e12] border border-[#222834] text-xs font-mono text-emerald-400 flex items-center gap-1.5">
-            <Activity className="w-3.5 h-3.5" />
-            <span className="tabular-nums font-semibold">14ms</span>
+          <div className="bg-[#0c0e12]/80 border border-[#222834] rounded-xl p-3 flex items-center justify-between">
+            <div className="space-y-0.5">
+              <span className="text-[10px] text-slate-400 uppercase tracking-wider block font-mono">Total Orders</span>
+              <div className="text-lg font-bold text-white font-mono">
+                {stats?.ordersCount || 0}
+              </div>
+            </div>
+            <div className="w-8 h-8 rounded-lg bg-slate-800/60 border border-slate-700/40 flex items-center justify-center text-slate-300">
+              <Package className="w-4 h-4" />
+            </div>
+          </div>
+
+          <div className="bg-[#0c0e12]/80 border border-[#222834] rounded-xl p-3 flex items-center justify-between">
+            <div className="space-y-0.5">
+              <span className="text-[10px] text-slate-400 uppercase tracking-wider block font-mono">Active Fleet</span>
+              <div className="text-lg font-bold text-cyan-400 font-mono">
+                {stats?.activeFleet || 0} Online
+              </div>
+            </div>
+            <div className="w-8 h-8 rounded-lg bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center text-cyan-400">
+              <Truck className="w-4 h-4" />
+            </div>
+          </div>
+
+          <div className="bg-[#0c0e12]/80 border border-[#222834] rounded-xl p-3 flex items-center justify-between">
+            <div className="space-y-0.5">
+              <span className="text-[10px] text-slate-400 uppercase tracking-wider block font-mono">Fulfillment</span>
+              <div className="text-lg font-bold text-amber-400 font-mono">
+                {deliverySuccessRate}%
+              </div>
+            </div>
+            <div className="w-8 h-8 rounded-lg bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400">
+              <CheckCircle2 className="w-4 h-4" />
+            </div>
           </div>
         </div>
       </div>

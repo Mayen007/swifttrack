@@ -195,14 +195,15 @@ export function OperationsControlTower({ onNavigate }) {
 
   return (
     <div className="space-y-6 pb-12 animate-fade-in">
-      {/* 1. TOP CONTROL TOWER STATUS INSTRUMENT (BENTO HEADER) */}
+      {/* 1. TOP CONTROL TOWER STATUS INSTRUMENT (STACKED BENTO GRID) */}
       <div className="bg-[#12161f] border border-slate-800 rounded-2xl p-4 sm:p-5 shadow-xl relative overflow-hidden">
         <div className="absolute top-0 right-0 w-96 h-96 bg-amber-500/5 rounded-full blur-3xl pointer-events-none" />
 
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-center relative z-10">
-          {/* Bento Cell 1: Identity & Active Telemetry */}
-          <div className="lg:col-span-5 xl:col-span-5 space-y-1.5">
-            <div className="flex items-center space-x-2.5">
+        {/* Tier 1: Platform Identity & Operational Toolbar */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start relative z-10">
+          {/* Identity & Live Telemetry Badge */}
+          <div className="lg:col-span-7 xl:col-span-7 space-y-1.5">
+            <div className="flex flex-wrap items-center gap-2.5">
               <span className="flex h-2.5 w-2.5 relative">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
                 <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500" />
@@ -214,37 +215,21 @@ export function OperationsControlTower({ onNavigate }) {
                 Updated {lastUpdated.toLocaleTimeString()}
               </span>
             </div>
-            <h1 className="text-xl sm:text-2xl font-bold text-white tracking-tight flex items-center gap-2.5 font-sans">
+
+            <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-white tracking-tight flex flex-wrap items-center gap-2.5 font-sans">
               Operations Control Tower
               <span className="text-xs px-2.5 py-0.5 rounded bg-amber-500/10 border border-amber-500/30 text-amber-400 font-medium font-mono">
                 {selectedBranch ? selectedBranch.name : 'Network-Wide Master Control'}
               </span>
             </h1>
-            <p className="text-xs text-slate-400">
+
+            <p className="text-xs sm:text-sm text-slate-400 max-w-2xl leading-relaxed">
               Active shipment lifecycle tracking, corridor fleet movement, and real-time operational bottleneck intervention.
             </p>
           </div>
 
-          {/* Bento Cell 2: Quick Situational Awareness Tiles */}
-          <div className="lg:col-span-3 xl:col-span-3 grid grid-cols-3 gap-2">
-            <div className="bg-slate-900/70 border border-slate-800/80 rounded-xl p-2.5 text-center">
-              <span className="text-[10px] text-slate-400 uppercase tracking-wider block font-mono">In Transit</span>
-              <span className="text-base font-bold text-amber-400 font-mono">{lifecycle.in_transit || 0}</span>
-            </div>
-            <div className="bg-slate-900/70 border border-slate-800/80 rounded-xl p-2.5 text-center">
-              <span className="text-[10px] text-slate-400 uppercase tracking-wider block font-mono">Active Runs</span>
-              <span className="text-base font-bold text-cyan-400 font-mono">{corridorsData.total_active_runs || 0}</span>
-            </div>
-            <div className="bg-slate-900/70 border border-slate-800/80 rounded-xl p-2.5 text-center">
-              <span className="text-[10px] text-slate-400 uppercase tracking-wider block font-mono">Exceptions</span>
-              <span className={`text-base font-bold font-mono ${alertsData.critical_count > 0 ? 'text-rose-400 animate-pulse' : 'text-slate-200'}`}>
-                {alertsData.total_count || 0}
-              </span>
-            </div>
-          </div>
-
-          {/* Bento Cell 3: Track Search & Operational Action Triggers */}
-          <div className="lg:col-span-4 xl:col-span-4 space-y-2">
+          {/* Quick Search & Operational Action Buttons (Stacked in Toolbar) */}
+          <div className="lg:col-span-5 xl:col-span-5 flex flex-col gap-2.5 bg-[#0e1219]/90 border border-[#222834] rounded-xl p-3">
             <form onSubmit={handleTrackingSearch} className="relative w-full">
               <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
               <input
@@ -252,45 +237,103 @@ export function OperationsControlTower({ onNavigate }) {
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Track STK-XXXX or Waybill..."
-                className="w-full pl-9 pr-16 py-2 bg-slate-900/90 border border-slate-700/80 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-500/80 transition-colors"
+                className="w-full pl-9 pr-16 py-2 bg-[#141923] border border-[#222834] rounded text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-500/80 transition-colors font-mono"
               />
               <button
                 type="submit"
-                className="absolute right-1.5 top-1/2 -translate-y-1/2 px-2.5 py-1 bg-amber-500/20 text-amber-300 text-xs font-semibold rounded-lg hover:bg-amber-500/30 transition-colors cursor-pointer"
+                className="absolute right-1.5 top-1/2 -translate-y-1/2 px-2.5 py-1 bg-amber-500/20 text-amber-300 text-xs font-semibold rounded hover:bg-amber-500/30 transition-colors cursor-pointer"
               >
                 Track
               </button>
             </form>
 
-            <div className="flex items-center justify-start lg:justify-end gap-2">
+            <div className="grid grid-cols-3 gap-2">
               <button
                 onClick={() => loadTelemetry()}
                 disabled={refreshing}
-                className="flex-1 sm:flex-none flex items-center justify-center space-x-1.5 px-3 py-1.5 bg-slate-800/90 hover:bg-slate-700/80 border border-slate-700 text-slate-200 text-xs font-medium rounded-xl transition-all shadow-sm active:scale-95 disabled:opacity-50 cursor-pointer"
+                className="flex items-center justify-center space-x-1.5 py-2 px-2 bg-[#181d28] hover:bg-[#222836] border border-[#263044] text-slate-200 text-xs font-medium rounded transition-all active:scale-95 disabled:opacity-50 cursor-pointer"
+                title="Refresh Real-time Telemetry"
               >
                 <RefreshCw className={`w-3.5 h-3.5 text-amber-400 ${refreshing ? 'animate-spin' : ''}`} />
-                <span>Refresh</span>
+                <span className="truncate">Refresh</span>
               </button>
 
               {onNavigate && (
                 <button
                   onClick={() => onNavigate('communications')}
-                  className="flex-1 sm:flex-none flex items-center justify-center space-x-1.5 px-3 py-1.5 bg-indigo-950/50 hover:bg-indigo-900/60 border border-indigo-700/60 text-indigo-300 text-xs font-semibold rounded-xl transition-all shadow-sm active:scale-95 cursor-pointer"
+                  className="flex items-center justify-center space-x-1.5 py-2 px-2 bg-indigo-950/40 hover:bg-indigo-900/50 border border-indigo-700/50 text-indigo-300 text-xs font-semibold rounded transition-all active:scale-95 cursor-pointer"
                   title="View Milestone Notifications Outbox and Communication Logs"
                 >
                   <Radio className="w-3.5 h-3.5 text-indigo-400" />
-                  <span>Outbox</span>
+                  <span className="truncate">Outbox</span>
                 </button>
               )}
 
               <button
                 onClick={() => { sound.playClick(); setSimModalOpen(true); }}
-                className="flex-1 sm:flex-none flex items-center justify-center space-x-1.5 px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 border border-emerald-500/50 text-slate-950 font-bold text-xs rounded-xl transition-all shadow-sm active:scale-95 cursor-pointer"
+                className="flex items-center justify-center space-x-1.5 py-2 px-2 bg-emerald-600 hover:bg-emerald-500 border border-emerald-500/60 text-slate-950 font-bold text-xs rounded transition-all active:scale-95 cursor-pointer shadow-sm"
                 title="Launch PRD Section 30 Multi-Leg Acceptance Scenario Simulator"
               >
                 <Sparkles className="w-3.5 h-3.5 text-slate-950" />
-                <span>E2E Simulator</span>
+                <span className="truncate">E2E Test</span>
               </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Tier 2: Stacked Operational Telemetry Bento Tiles */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 pt-3.5 mt-3.5 border-t border-[#222834] relative z-10">
+          <div className="bg-[#0e1219]/80 border border-[#222834] rounded-xl p-3 flex items-center justify-between">
+            <div className="space-y-0.5">
+              <span className="text-[10px] text-slate-400 uppercase tracking-wider block font-mono">In Transit Volume</span>
+              <div className="text-xl font-bold text-amber-400 font-mono">{lifecycle.in_transit || 0}</div>
+              <span className="text-[10px] text-slate-500 block">Moving on active route legs</span>
+            </div>
+            <div className="w-9 h-9 rounded-lg bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400">
+              <Truck className="w-4 h-4" />
+            </div>
+          </div>
+
+          <div className="bg-[#0e1219]/80 border border-[#222834] rounded-xl p-3 flex items-center justify-between">
+            <div className="space-y-0.5">
+              <span className="text-[10px] text-slate-400 uppercase tracking-wider block font-mono">Active Corridors</span>
+              <div className="text-xl font-bold text-cyan-400 font-mono">{corridorsData.total_active_runs || 0}</div>
+              <span className="text-[10px] text-slate-500 block">Linehaul runs dispatched</span>
+            </div>
+            <div className="w-9 h-9 rounded-lg bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center text-cyan-400">
+              <Activity className="w-4 h-4" />
+            </div>
+          </div>
+
+          <div className="bg-[#0e1219]/80 border border-[#222834] rounded-xl p-3 flex items-center justify-between">
+            <div className="space-y-0.5">
+              <span className="text-[10px] text-slate-400 uppercase tracking-wider block font-mono">Network Exceptions</span>
+              <div className={`text-xl font-bold font-mono ${alertsData.critical_count > 0 ? 'text-rose-400 animate-pulse' : 'text-slate-200'}`}>
+                {alertsData.total_count || 0}
+              </div>
+              <span className="text-[10px] text-slate-500 block">
+                {alertsData.critical_count > 0 ? `${alertsData.critical_count} critical bottlenecks` : 'All corridors nominal'}
+              </span>
+            </div>
+            <div className={`w-9 h-9 rounded-lg flex items-center justify-center ${
+              alertsData.critical_count > 0
+                ? 'bg-rose-500/10 border border-rose-500/30 text-rose-400'
+                : 'bg-slate-800/50 border border-slate-700/40 text-slate-400'
+            }`}>
+              <AlertTriangle className="w-4 h-4" />
+            </div>
+          </div>
+
+          <div className="bg-[#0e1219]/80 border border-[#222834] rounded-xl p-3 flex items-center justify-between">
+            <div className="space-y-0.5">
+              <span className="text-[10px] text-slate-400 uppercase tracking-wider block font-mono">Delivery Success</span>
+              <div className="text-xl font-bold text-emerald-400 font-mono">
+                {performance.delivery_success_rate_pct || 100}%
+              </div>
+              <span className="text-[10px] text-slate-500 block">First-attempt completed</span>
+            </div>
+            <div className="w-9 h-9 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
+              <CheckCircle2 className="w-4 h-4" />
             </div>
           </div>
         </div>
