@@ -24,15 +24,39 @@ import {
   ChevronRight,
   X,
   Send,
-  AlertCircle
+  AlertCircle,
+  Globe,
+  FileText,
+  Loader2,
+  Filter,
+  ShieldAlert
 } from 'lucide-react';
 
 export function HubOperationsView() {
   const { user, selectedBranch } = useAuth();
   const currentHubId = selectedBranch?.id || 1;
 
-  const [activeTab, setActiveTab] = useState('RECEIVING'); // RECEIVING | SORT | HANDOFFS | MANIFESTS | DISCREPANCIES
+  const [activeTab, setActiveTab] = useState('RECEIVING'); // RECEIVING | SORT | HANDOFFS | MANIFESTS | DISCREPANCIES | CROSS_BORDER | TRANSSHIPMENT
   const [loading, setLoading] = useState(false);
+
+  // Cross-Border Customs State
+  const [crossBorderLegs, setCrossBorderLegs] = useState([]);
+  const [crossBorderPostFilter, setCrossBorderPostFilter] = useState('ALL');
+  const [customsStatusFilter, setCustomsStatusFilter] = useState('ALL');
+  const [selectedLegForCustoms, setSelectedLegForCustoms] = useState(null);
+  const [customsModalAction, setCustomsModalAction] = useState(null);
+  const [customsForm, setCustomsForm] = useState({
+    declaration_number: '',
+    certificate_number: '',
+    hold_reason: 'VALUATION_DISCREPANCY',
+    notes: '',
+    documents_verified: true
+  });
+  const [customsSubmitting, setCustomsSubmitting] = useState(false);
+
+  // Transshipment / Awaiting Outbound Manifest State
+  const [awaitingShipments, setAwaitingShipments] = useState([]);
+  const [awaitingLoading, setAwaitingLoading] = useState(false);
 
   // Inbound Receiving State
   const [sessions, setSessions] = useState([]);
@@ -75,6 +99,14 @@ export function HubOperationsView() {
       const dRes = await api.get('/api/custody/discrepancies');
       setDiscrepancies(Array.isArray(dRes) ? dRes : dRes?.data || []);
 
+      // Cross-Border Legs
+      const cbRes = await api.get('/api/transport/cross-border/legs').catch(() => []);
+      setCrossBorderLegs(Array.isArray(cbRes) ? cbRes : cbRes?.data || []);
+
+      // Awaiting Transshipment Manifest
+      const awRes = await api.get(`/api/shipments/awaiting-manifest/${currentHubId}`).catch(() => []);
+      setAwaitingShipments(Array.isArray(awRes) ? awRes : awRes?.data || []);
+
       // Mock receiving sessions baseline or fetch if route exists
       setSessions([
         {
@@ -99,6 +131,81 @@ export function HubOperationsView() {
   useEffect(() => {
     fetchHubData();
   }, [selectedBranch]);
+
+  const openCustomsModal = (leg, actionType) => {
+    setSelectedLegForCustoms(leg);
+    setCustomsModalAction(actionType);
+    setCustomsForm({
+      declaration_number: leg.customs_declaration_number || `DEC-${new Date().getFullYear()}-${Math.floor(10000 + Math.random() * 90000)}`,
+      certificate_number: `CC-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`,
+      hold_reason: 'DOCUMENTATION_MISSING',
+      notes: '',
+      documents_verified: true
+    });
+    sound.playClick();
+  };
+
+  const handleExecuteCustoms = async (e) => {
+    e.preventDefault();
+    if (!selectedLegForCustoms || !customsModalAction) return;
+    setCustomsSubmitting(true);
+
+    try {
+      let endpoint = '';
+      let payload = {};
+
+      switch (customsModalAction) {
+        case 'SUBMIT':
+          endpoint = `/api/transport/legs/${selectedLegForCustoms.id}/customs/submit`;
+          payload = {
+            declaration_number: customsForm.declaration_number,
+            documents_verified: customsForm.documents_verified,
+            notes: customsForm.notes
+          };
+          break;
+        case 'INSPECT':
+          endpoint = `/api/transport/legs/${selectedLegForCustoms.id}/customs/inspect`;
+          payload = {
+            inspection_result: 'SATISFACTORY',
+            notes: customsForm.notes || 'Border post physical inspection completed.'
+          };
+          break;
+        case 'HOLD':
+          endpoint = `/api/transport/legs/${selectedLegForCustoms.id}/customs/hold`;
+          payload = {
+            hold_reason: customsForm.hold_reason,
+            notes: customsForm.notes || 'Detained pending regulatory review.'
+          };
+          break;
+        case 'CLEAR':
+          endpoint = `/api/transport/legs/${selectedLegForCustoms.id}/customs/clear`;
+          payload = {
+            certificate_number: customsForm.certificate_number,
+            notes: customsForm.notes || 'Clearance certificate granted.'
+          };
+          break;
+        case 'RELEASE':
+          endpoint = `/api/transport/legs/${selectedLegForCustoms.id}/customs/release`;
+          payload = {
+            notes: customsForm.notes || 'Gate pass authorized. Released to continue transit.'
+          };
+          break;
+        default:
+          throw new Error('Unrecognized action');
+      }
+
+      await api.post(endpoint, payload);
+      sound.playSuccess();
+      setSelectedLegForCustoms(null);
+      setCustomsModalAction(null);
+      fetchHubData();
+    } catch (err) {
+      sound.playError();
+      alert(`Customs action failed: ${err.message}`);
+    } finally {
+      setCustomsSubmitting(false);
+    }
+  };
 
   // Handle Receiving Barcode Scan
   const handleReceivingScan = (e) => {
@@ -273,6 +380,36 @@ export function HubOperationsView() {
         >
           <AlertTriangle className="w-4 h-4" />
           Discrepancies ({discrepancies.length})
+        </button>
+
+        <button
+          onClick={() => {
+            setActiveTab('CROSS_BORDER');
+            sound.playClick();
+          }}
+          className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition whitespace-nowrap ${
+            activeTab === 'CROSS_BORDER'
+              ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20'
+              : 'text-slate-400 hover:text-white hover:bg-[#181d28]'
+          }`}
+        >
+          <Globe className="w-4 h-4" />
+          Cross-Border Customs ({crossBorderLegs.length})
+        </button>
+
+        <button
+          onClick={() => {
+            setActiveTab('TRANSSHIPMENT');
+            sound.playClick();
+          }}
+          className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition whitespace-nowrap ${
+            activeTab === 'TRANSSHIPMENT'
+              ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20'
+              : 'text-slate-400 hover:text-white hover:bg-[#181d28]'
+          }`}
+        >
+          <Layers className="w-4 h-4" />
+          Awaiting Manifest ({awaitingShipments.length})
         </button>
       </div>
 
@@ -597,6 +734,330 @@ export function HubOperationsView() {
         </div>
       )}
 
+      {/* TAB 6: CROSS-BORDER CUSTOMS INSPECTION & CLEARANCE */}
+      {activeTab === 'CROSS_BORDER' && (
+        <div className="space-y-4">
+          {/* Quick Metrics Bar */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="bg-[#12161f] border border-[#222834] p-3 rounded-xl">
+              <span className="text-[10px] text-slate-400 uppercase font-bold">Total Cross-Border</span>
+              <p className="text-xl font-bold font-mono text-white mt-0.5">{crossBorderLegs.length}</p>
+            </div>
+            <div className="bg-[#12161f] border border-[#222834] p-3 rounded-xl">
+              <span className="text-[10px] text-amber-400 uppercase font-bold">In Physical Inspection</span>
+              <p className="text-xl font-bold font-mono text-amber-300 mt-0.5">
+                {crossBorderLegs.filter((l) => l.customs_status === 'INSPECTION').length}
+              </p>
+            </div>
+            <div className="bg-[#12161f] border border-[#222834] p-3 rounded-xl">
+              <span className="text-[10px] text-rose-400 uppercase font-bold">Under Customs Hold</span>
+              <p className="text-xl font-bold font-mono text-rose-400 mt-0.5">
+                {crossBorderLegs.filter((l) => l.customs_status === 'ON_HOLD').length}
+              </p>
+            </div>
+            <div className="bg-[#12161f] border border-[#222834] p-3 rounded-xl">
+              <span className="text-[10px] text-emerald-400 uppercase font-bold">Cleared & Released</span>
+              <p className="text-xl font-bold font-mono text-emerald-400 mt-0.5">
+                {crossBorderLegs.filter((l) => ['CLEARED', 'RELEASED'].includes(l.customs_status)).length}
+              </p>
+            </div>
+          </div>
+
+          {/* Filters & Actions Bar */}
+          <div className="bg-[#12161f] border border-[#222834] p-3.5 rounded-xl flex flex-col sm:flex-row items-center justify-between gap-3">
+            <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+              <div className="flex items-center gap-1.5 bg-[#181d28] border border-[#222834] px-3 py-1.5 rounded-xl text-xs text-slate-300">
+                <Globe className="w-3.5 h-3.5 text-blue-400" />
+                <select
+                  value={crossBorderPostFilter}
+                  onChange={(e) => setCrossBorderPostFilter(e.target.value)}
+                  className="bg-transparent text-white focus:outline-none text-xs"
+                >
+                  <option value="ALL">All Border Posts</option>
+                  <option value="Malaba Border Post (KE-UG)">Malaba (KE-UG)</option>
+                  <option value="Busia One Stop Border Post (KE-UG)">Busia (KE-UG)</option>
+                  <option value="Namanga One Stop Border Post (KE-TZ)">Namanga (KE-TZ)</option>
+                  <option value="Isebania Border Post (KE-TZ)">Isebania (KE-TZ)</option>
+                  <option value="Moyale Border Post (KE-ET)">Moyale (KE-ET)</option>
+                </select>
+              </div>
+
+              <div className="flex items-center gap-1.5 bg-[#181d28] border border-[#222834] px-3 py-1.5 rounded-xl text-xs text-slate-300">
+                <Filter className="w-3.5 h-3.5 text-slate-400" />
+                <select
+                  value={customsStatusFilter}
+                  onChange={(e) => setCustomsStatusFilter(e.target.value)}
+                  className="bg-transparent text-white focus:outline-none text-xs"
+                >
+                  <option value="ALL">All Customs States</option>
+                  <option value="PENDING">Pending Declaration</option>
+                  <option value="DECLARED">Declaration Filed</option>
+                  <option value="INSPECTION">Under Inspection</option>
+                  <option value="ON_HOLD">Customs Hold (Exception)</option>
+                  <option value="CLEARED">Cleared</option>
+                  <option value="RELEASED">Released</option>
+                </select>
+              </div>
+            </div>
+
+            <button
+              onClick={fetchHubData}
+              className="px-3 py-1.5 rounded-xl bg-[#181d28] hover:bg-[#202737] border border-[#222834] text-xs font-semibold text-slate-300 flex items-center gap-1.5"
+            >
+              <RefreshCw className="w-3.5 h-3.5" />
+              Sync Customs Feed
+            </button>
+          </div>
+
+          {/* Table */}
+          <div className="bg-[#12161f] border border-[#222834] rounded-xl overflow-x-auto">
+            <table className="w-full text-left text-xs">
+              <thead className="bg-[#181d28] text-slate-400 font-semibold border-b border-[#222834]">
+                <tr>
+                  <th className="py-2.5 px-3">Tracking / Waybill</th>
+                  <th className="py-2.5 px-3">Border Checkpoint</th>
+                  <th className="py-2.5 px-3">Corridor</th>
+                  <th className="py-2.5 px-3">Declaration / Ref</th>
+                  <th className="py-2.5 px-3">Customs Status</th>
+                  <th className="py-2.5 px-3 text-right">Border Inspection Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[#222834] text-slate-300">
+                {crossBorderLegs
+                  .filter((leg) => {
+                    if (crossBorderPostFilter !== 'ALL' && leg.border_post_name !== crossBorderPostFilter) return false;
+                    if (customsStatusFilter !== 'ALL' && (leg.customs_status || 'PENDING') !== customsStatusFilter) return false;
+                    return true;
+                  })
+                  .length === 0 ? (
+                  <tr>
+                    <td colSpan="6" className="py-12 text-center text-slate-500">
+                      <Globe className="w-8 h-8 mx-auto mb-2 text-slate-600 opacity-60" />
+                      No cross-border consignments matching criteria.
+                    </td>
+                  </tr>
+                ) : (
+                  crossBorderLegs
+                    .filter((leg) => {
+                      if (crossBorderPostFilter !== 'ALL' && leg.border_post_name !== crossBorderPostFilter) return false;
+                      if (customsStatusFilter !== 'ALL' && (leg.customs_status || 'PENDING') !== customsStatusFilter) return false;
+                      return true;
+                    })
+                    .map((leg) => (
+                      <tr key={leg.id} className="hover:bg-white/[0.02]">
+                        <td className="py-2.5 px-3">
+                          <div className="font-mono font-bold text-white">{leg.tracking_number}</div>
+                          <div className="text-[10px] text-slate-500 font-mono">{leg.waybill_number || `Leg #${leg.id}`}</div>
+                        </td>
+                        <td className="py-2.5 px-3">
+                          <span className="font-semibold text-slate-200">{leg.border_post_name || 'Border Post'}</span>
+                          <div className="text-[10px] text-slate-500 font-mono">One-Stop Border Post</div>
+                        </td>
+                        <td className="py-2.5 px-3">
+                          <div className="flex items-center gap-1 font-medium text-slate-200">
+                            <span>Hub #{leg.origin_hub_id}</span>
+                            <span className="text-slate-500">$\to$</span>
+                            <span>Hub #{leg.destination_hub_id}</span>
+                          </div>
+                          <div className="text-[10px] text-slate-400 font-mono">
+                            {leg.run_number ? `Run ${leg.run_number}` : 'Linehaul Transit'}
+                          </div>
+                        </td>
+                        <td className="py-2.5 px-3 font-mono">
+                          {leg.customs_declaration_number || <span className="text-slate-600">Pending</span>}
+                          {leg.customs_hold_reason && (
+                            <div className="text-[10px] text-rose-400 font-sans">
+                              Hold: {leg.customs_hold_reason}
+                            </div>
+                          )}
+                        </td>
+                        <td className="py-2.5 px-3">
+                          {leg.customs_status === 'RELEASED' && (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
+                              <CheckCircle2 className="w-3 h-3" />
+                              Released
+                            </span>
+                          )}
+                          {leg.customs_status === 'CLEARED' && (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-teal-500/15 text-teal-300 border border-teal-500/30">
+                              <ShieldCheck className="w-3 h-3" />
+                              Cleared
+                            </span>
+                          )}
+                          {leg.customs_status === 'INSPECTION' && (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/15 text-amber-300 border border-amber-500/30 animate-pulse">
+                              <Clock className="w-3 h-3" />
+                              Inspection
+                            </span>
+                          )}
+                          {leg.customs_status === 'ON_HOLD' && (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-rose-500/20 text-rose-300 border border-rose-500/40">
+                              <AlertTriangle className="w-3 h-3" />
+                              Hold: {leg.customs_hold_reason || 'Detained'}
+                            </span>
+                          )}
+                          {leg.customs_status === 'DECLARED' && (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-blue-500/15 text-blue-300 border border-blue-500/30">
+                              <FileText className="w-3 h-3" />
+                              Declared
+                            </span>
+                          )}
+                          {(!leg.customs_status || leg.customs_status === 'PENDING') && (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-slate-500/15 text-slate-300 border border-slate-500/30">
+                              <Clock className="w-3 h-3" />
+                              Pending Declaration
+                            </span>
+                          )}
+                        </td>
+                        <td className="py-2.5 px-3 text-right">
+                          <div className="flex items-center justify-end gap-1.5">
+                            {(!leg.customs_status || leg.customs_status === 'PENDING') && (
+                              <button
+                                onClick={() => openCustomsModal(leg, 'SUBMIT')}
+                                className="px-2.5 py-1 rounded-lg bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 border border-blue-500/30 text-[11px] font-bold"
+                              >
+                                Submit Declaration
+                              </button>
+                            )}
+                            {leg.customs_status === 'DECLARED' && (
+                              <button
+                                onClick={() => openCustomsModal(leg, 'INSPECT')}
+                                className="px-2.5 py-1 rounded-lg bg-amber-600/20 hover:bg-amber-600/30 text-amber-300 border border-amber-500/30 text-[11px] font-bold"
+                              >
+                                Inspect
+                              </button>
+                            )}
+                            {['DECLARED', 'INSPECTION'].includes(leg.customs_status) && (
+                              <>
+                                <button
+                                  onClick={() => openCustomsModal(leg, 'CLEAR')}
+                                  className="px-2.5 py-1 rounded-lg bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/30 text-[11px] font-bold"
+                                >
+                                  Clear
+                                </button>
+                                <button
+                                  onClick={() => openCustomsModal(leg, 'HOLD')}
+                                  className="px-2.5 py-1 rounded-lg bg-rose-600/20 hover:bg-rose-600/30 text-rose-300 border border-rose-500/30 text-[11px] font-bold"
+                                >
+                                  Hold
+                                </button>
+                              </>
+                            )}
+                            {leg.customs_status === 'ON_HOLD' && (
+                              <button
+                                onClick={() => openCustomsModal(leg, 'CLEAR')}
+                                className="px-2.5 py-1 rounded-lg bg-teal-600/20 hover:bg-teal-600/30 text-teal-300 border border-teal-500/30 text-[11px] font-bold"
+                              >
+                                Resolve & Clear
+                              </button>
+                            )}
+                            {leg.customs_status === 'CLEARED' && (
+                              <button
+                                onClick={() => openCustomsModal(leg, 'RELEASE')}
+                                className="px-2.5 py-1 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white text-[11px] font-bold flex items-center gap-1 shadow"
+                              >
+                                <Truck className="w-3 h-3" />
+                                Release Gate Pass
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* TAB 7: TRANSSHIPMENT / AWAITING OUTBOUND MANIFEST */}
+      {activeTab === 'TRANSSHIPMENT' && (
+        <div className="space-y-4">
+          <div className="bg-[#12161f] border border-[#222834] p-4 rounded-xl flex items-center justify-between">
+            <div>
+              <h3 className="font-bold text-white text-sm flex items-center gap-2">
+                <Layers className="w-4 h-4 text-blue-400" />
+                Station #{currentHubId} Transshipment Manifest Queue
+              </h3>
+              <p className="text-xs text-slate-400 mt-0.5">
+                Consignments that arrived at this transit hub and are awaiting outbound linehaul manifest assignment to reach final destination.
+              </p>
+            </div>
+            <span className="px-3 py-1 rounded-full text-xs font-mono font-bold bg-blue-500/10 text-blue-400 border border-blue-500/20">
+              {awaitingShipments.length} Awaiting Outbound
+            </span>
+          </div>
+
+          <div className="bg-[#12161f] border border-[#222834] rounded-xl overflow-x-auto">
+            <table className="w-full text-left text-xs">
+              <thead className="bg-[#181d28] text-slate-400 font-semibold border-b border-[#222834]">
+                <tr>
+                  <th className="py-2.5 px-3">Tracking / Waybill</th>
+                  <th className="py-2.5 px-3">Initial Origin $\to$ Current Hub</th>
+                  <th className="py-2.5 px-3">Final Destination</th>
+                  <th className="py-2.5 px-3">Active Leg #</th>
+                  <th className="py-2.5 px-3">Payload (Parcels & Weight)</th>
+                  <th className="py-2.5 px-3">Status</th>
+                  <th className="py-2.5 px-3 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[#222834] text-slate-300">
+                {awaitingShipments.length === 0 ? (
+                  <tr>
+                    <td colSpan="7" className="py-12 text-center text-slate-500">
+                      <Layers className="w-8 h-8 mx-auto mb-2 text-slate-600 opacity-60" />
+                      All intermediate transit consignments are currently attached to outbound manifests.
+                    </td>
+                  </tr>
+                ) : (
+                  awaitingShipments.map((shp) => (
+                    <tr key={shp.id} className="hover:bg-white/[0.02]">
+                      <td className="py-2.5 px-3">
+                        <div className="font-mono font-bold text-white">{shp.tracking_number}</div>
+                        <div className="text-[10px] text-slate-500 font-mono">{shp.waybill_number || `WAY-${shp.id}`}</div>
+                      </td>
+                      <td className="py-2.5 px-3">
+                        <div className="font-medium text-slate-200">
+                          Hub #{shp.origin_hub_id} $\to$ Hub #{shp.leg_destination || shp.destination_hub_id}
+                        </div>
+                        <div className="text-[10px] text-blue-400 font-mono">Current: Hub #{shp.current_hub_id || currentHubId}</div>
+                      </td>
+                      <td className="py-2.5 px-3 font-semibold text-slate-300">
+                        Hub #{shp.destination_hub_id}
+                      </td>
+                      <td className="py-2.5 px-3 font-mono font-bold text-amber-400">
+                        Leg {shp.leg_sequence || 2}
+                      </td>
+                      <td className="py-2.5 px-3">
+                        <div className="text-white">{shp.total_parcels || 1} pkg ({shp.actual_weight_kg || 0} kg)</div>
+                        <div className="text-[10px] text-slate-500 font-mono">Chargeable: {shp.chargeable_weight_kg || 0} kg</div>
+                      </td>
+                      <td className="py-2.5 px-3">
+                        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/10 text-amber-300 border border-amber-500/20">
+                          {shp.status}
+                        </span>
+                      </td>
+                      <td className="py-2.5 px-3 text-right">
+                        <button
+                          onClick={() => {
+                            setActiveTab('MANIFESTS');
+                            sound.playClick();
+                          }}
+                          className="px-2.5 py-1 rounded-lg bg-blue-600 hover:bg-blue-500 text-[11px] font-bold text-white shadow"
+                        >
+                          Attach to Manifest
+                        </button>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
       {/* Discrepancy Resolution Modal */}
       {resolvingModalOpen && selectedDiscrepancy && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
@@ -658,6 +1119,128 @@ export function HubOperationsView() {
                   className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-xs font-bold text-white shadow"
                 >
                   Execute Resolution
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Customs Workflow Execution Modal */}
+      {selectedLegForCustoms && customsModalAction && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-xs animate-fade-in">
+          <div className="w-full max-w-md bg-[#0e1219] border border-[#222834] rounded-2xl shadow-2xl p-5 space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-[#222834]">
+              <div>
+                <h4 className="text-sm font-bold text-white flex items-center gap-2">
+                  <ShieldCheck className="w-4 h-4 text-blue-400" />
+                  Customs Action: {customsModalAction}
+                </h4>
+                <p className="text-[11px] text-slate-400 font-mono mt-0.5">
+                  Border Post: {selectedLegForCustoms.border_post_name || 'Checkpoint'} (Leg #{selectedLegForCustoms.leg_sequence || selectedLegForCustoms.id})
+                </p>
+              </div>
+              <button
+                onClick={() => setSelectedLegForCustoms(null)}
+                className="p-1.5 rounded-lg bg-[#181d28] text-slate-400 hover:text-white"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleExecuteCustoms} className="space-y-3 text-xs">
+              {customsModalAction === 'SUBMIT' && (
+                <div>
+                  <label className="block text-[11px] font-medium text-slate-300 mb-1">
+                    Customs Declaration Number
+                  </label>
+                  <input
+                    type="text"
+                    value={customsForm.declaration_number}
+                    onChange={(e) => setCustomsForm({ ...customsForm, declaration_number: e.target.value })}
+                    required
+                    className="w-full px-3 py-2 rounded-xl bg-[#141822] border border-[#262c3c] text-white font-mono"
+                    placeholder="e.g. DEC-2026-88192"
+                  />
+                </div>
+              )}
+
+              {customsModalAction === 'CLEAR' && (
+                <div>
+                  <label className="block text-[11px] font-medium text-slate-300 mb-1">
+                    Customs Clearance Certificate #
+                  </label>
+                  <input
+                    type="text"
+                    value={customsForm.certificate_number}
+                    onChange={(e) => setCustomsForm({ ...customsForm, certificate_number: e.target.value })}
+                    required
+                    className="w-full px-3 py-2 rounded-xl bg-[#141822] border border-[#262c3c] text-white font-mono"
+                    placeholder="e.g. CC-2026-4491"
+                  />
+                </div>
+              )}
+
+              {customsModalAction === 'HOLD' && (
+                <div>
+                  <label className="block text-[11px] font-medium text-rose-300 mb-1">
+                    Customs Hold Reason (Spawns Operational Exception)
+                  </label>
+                  <select
+                    value={customsForm.hold_reason}
+                    onChange={(e) => setCustomsForm({ ...customsForm, hold_reason: e.target.value })}
+                    className="w-full px-3 py-2 rounded-xl bg-[#141822] border border-[#262c3c] text-white"
+                  >
+                    <option value="DOCUMENTATION_MISSING">DOCUMENTATION_MISSING — Invoice / Origin Missing</option>
+                    <option value="VALUATION_DISCREPANCY">VALUATION_DISCREPANCY — Tariff Code Audit Required</option>
+                    <option value="PHYSICAL_INSPECTION_FAILED">PHYSICAL_INSPECTION_FAILED — Seal Broken / Mismatch</option>
+                    <option value="SECURITY_FLAG">SECURITY_FLAG — Border Security Directive</option>
+                    <option value="DUTY_UNPAID">DUTY_UNPAID — Cross-Border Duty Assessment Pending</option>
+                  </select>
+                </div>
+              )}
+
+              <div>
+                <label className="block text-[11px] font-medium text-slate-300 mb-1">
+                  Officer Notes / Verification Comments
+                </label>
+                <textarea
+                  value={customsForm.notes}
+                  onChange={(e) => setCustomsForm({ ...customsForm, notes: e.target.value })}
+                  rows={3}
+                  className="w-full px-3 py-2 rounded-xl bg-[#141822] border border-[#262c3c] text-white"
+                  placeholder="Official comments recorded at border checkpoint..."
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-[#222834]">
+                <button
+                  type="button"
+                  onClick={() => setSelectedLegForCustoms(null)}
+                  className="px-3 py-2 rounded-xl bg-[#181d28] hover:bg-[#202737] text-slate-300 text-xs font-semibold"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={customsSubmitting}
+                  className={`px-4 py-2 rounded-xl text-xs font-bold text-white flex items-center gap-1.5 shadow ${
+                    customsModalAction === 'HOLD'
+                      ? 'bg-rose-600 hover:bg-rose-500'
+                      : 'bg-blue-600 hover:bg-blue-500'
+                  }`}
+                >
+                  {customsSubmitting ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      Processing...
+                    </>
+                  ) : (
+                    <>
+                      <Send className="w-3.5 h-3.5" />
+                      Confirm {customsModalAction}
+                    </>
+                  )}
                 </button>
               </div>
             </form>

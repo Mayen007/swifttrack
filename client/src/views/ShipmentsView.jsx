@@ -29,6 +29,7 @@ import {
   Banknote,
   Send
 } from 'lucide-react';
+import { MultiLegJourney } from '../components/shipments/MultiLegJourney.jsx';
 
 export function ShipmentsView({ onNavigate }) {
   const { user, selectedBranch } = useAuth();
@@ -89,7 +90,7 @@ export function ShipmentsView({ onNavigate }) {
         setSelectedShipment(details);
         setParcels(details.parcels || []);
         setLegs(details.legs || []);
-        setTrackingEvents(details.tracking_events || details.events || []);
+        setTrackingEvents(details.timeline || details.tracking_events || details.events || []);
       }
     } catch (err) {
       console.warn('Failed to fetch full shipment details, using summary:', err);
@@ -354,8 +355,18 @@ export function ShipmentsView({ onNavigate }) {
                         <ArrowRight className="w-3 h-3 text-slate-500" />
                         <span>Hub #{s.destination_hub_id}</span>
                       </div>
-                      <div className="text-[10px] text-blue-400 mt-0.5">
-                        Current: {s.current_location_desc || `At Hub #${s.current_hub_id || s.origin_hub_id}`}
+                      <div className="text-[10px] text-blue-400 mt-0.5 flex items-center gap-1.5 flex-wrap">
+                        <span>{s.current_location_desc || `At Hub #${s.current_hub_id || s.origin_hub_id}`}</span>
+                        {s.total_legs > 1 && (
+                          <span className="px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-400 font-mono text-[9px] border border-blue-500/20">
+                            {s.total_legs} Legs
+                          </span>
+                        )}
+                        {s.is_cross_border === 1 && (
+                          <span className="px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-300 font-mono text-[9px] border border-amber-500/20">
+                            🛂 Border
+                          </span>
+                        )}
                       </div>
                     </td>
 
@@ -461,35 +472,12 @@ export function ShipmentsView({ onNavigate }) {
               </button>
             </div>
 
-            {/* Route & Corridors */}
-            <div className="bg-[#12161f] border border-[#222834] p-3 rounded-xl space-y-3">
-              <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Multi-Leg Route & Scope</h3>
-              <div className="flex items-center justify-between text-xs text-white">
-                <div>
-                  <p className="text-[10px] text-slate-500">Origin Hub</p>
-                  <p className="font-semibold text-sm">Hub #{selectedShipment.origin_hub_id}</p>
-                  <p className="text-[10px] text-slate-400">{selectedShipment.sender_city || 'Origin'}</p>
-                </div>
-                <ArrowRight className="w-5 h-5 text-blue-500" />
-                <div className="text-right">
-                  <p className="text-[10px] text-slate-500">Destination Hub</p>
-                  <p className="font-semibold text-sm">Hub #{selectedShipment.destination_hub_id}</p>
-                  <p className="text-[10px] text-slate-400">{selectedShipment.recipient_city || 'Destination'}</p>
-                </div>
-              </div>
-
-              {legs.length > 0 && (
-                <div className="pt-2 border-t border-[#222834] space-y-2">
-                  <p className="text-[10px] font-semibold text-slate-500">Active Routing Segments</p>
-                  {legs.map((leg, idx) => (
-                    <div key={leg.id || idx} className="flex items-center justify-between text-xs bg-[#181d28] p-2 rounded-lg">
-                      <span className="font-medium text-slate-300">Leg {leg.leg_sequence}: Hub #{leg.origin_hub_id} $\to$ Hub #{leg.destination_hub_id}</span>
-                      <span className="text-[10px] font-bold text-blue-400">{leg.status}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
+            {/* Multi-Leg Corridor Journey & Cross-Border Customs Section */}
+            <MultiLegJourney
+              shipment={selectedShipment}
+              legs={legs}
+              onUpdate={() => handleSelectShipment(selectedShipment)}
+            />
 
             {/* Parties & Consignment Payload */}
             <div className="grid grid-cols-2 gap-3 text-xs">
