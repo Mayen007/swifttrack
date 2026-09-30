@@ -63,6 +63,13 @@ CREATE TABLE IF NOT EXISTS roles (
     is_system INTEGER NOT NULL DEFAULT 1
 );
 
+INSERT OR IGNORE INTO roles (id, name, display_name, description, is_system) VALUES
+    (1, 'SUPER_ADMIN', 'Super Administrator', 'Enterprise administrator with full system privileges', 1),
+    (2, 'BRANCH_MANAGER', 'Branch Manager', 'Branch and inventory supervisor', 1),
+    (3, 'CASHIER', 'Cashier', 'Point of sale and front-desk operator', 1),
+    (4, 'DISPATCHER', 'Dispatcher', 'Logistics, delivery and driver coordinator', 1),
+    (5, 'AUDITOR', 'Auditor', 'Read-only financial and tax compliance officer', 1);
+
 -- 5. PERMISSIONS
 CREATE TABLE IF NOT EXISTS permissions (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -738,6 +745,7 @@ CREATE TABLE IF NOT EXISTS payment_intents (
     branch_id INTEGER NOT NULL REFERENCES branches(id) ON DELETE RESTRICT,
     order_id INTEGER REFERENCES orders(id) ON DELETE SET NULL,
     sale_id INTEGER REFERENCES sales(id) ON DELETE SET NULL,
+    shipment_id INTEGER REFERENCES shipments(id) ON DELETE SET NULL,
     customer_id INTEGER REFERENCES customers(id) ON DELETE SET NULL,
     payment_method TEXT NOT NULL, -- MPESA, CARD, CASH, BANK
     amount REAL NOT NULL,
@@ -763,6 +771,7 @@ CREATE TABLE IF NOT EXISTS payments (
     payment_intent_id INTEGER REFERENCES payment_intents(id) ON DELETE SET NULL,
     sale_id INTEGER REFERENCES sales(id) ON DELETE RESTRICT,
     order_id INTEGER REFERENCES orders(id) ON DELETE RESTRICT,
+    shipment_id INTEGER REFERENCES shipments(id) ON DELETE SET NULL,
     payment_number TEXT NOT NULL UNIQUE,
     payment_method TEXT NOT NULL, -- CASH, MPESA, CARD, BANK
     amount REAL NOT NULL,

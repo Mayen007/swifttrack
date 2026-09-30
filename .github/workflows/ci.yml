@@ -30,6 +30,9 @@ jobs:
       - name: Build Frontend Application
         run: cd client && npm run build
 
+      - name: Bootstrap Database Master Schema & Baseline Seed
+        run: npm run db:seed:prod
+
       - name: Verify PostgreSQL Migrations & Repository Layer
         run: node tests/database/test-postgres-data-architecture.js
 

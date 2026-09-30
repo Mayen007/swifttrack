@@ -38,6 +38,12 @@ async function runAsyncTest(name, fn) {
 }
 
 (async () => {
+    // Ensure base tables and operational seed data exist for repository/adapter verification
+    if (process.env.DB_CLIENT !== 'postgres') {
+        const { initProductionBootstrap } = require('../../server/db/seed.js');
+        initProductionBootstrap();
+    }
+
     // -------------------------------------------------------------------------
     // 1. PostgreSQL Schema Migrations Completeness (001 - 023)
     // -------------------------------------------------------------------------
@@ -163,6 +169,8 @@ async function runAsyncTest(name, fn) {
     // -------------------------------------------------------------------------
     // 3. Domain Repositories Layer Verification
     // -------------------------------------------------------------------------
+    let testShipmentId = null;
+
     await runAsyncTest('3.1: ShipmentRepository performs CRUD, parcel management, legs and tracking events', async () => {
         const { shipmentRepository } = require('../../server/repositories');
 
@@ -196,6 +204,7 @@ async function runAsyncTest(name, fn) {
         });
 
         assert(shipmentId > 0, 'Shipment ID must be returned');
+        testShipmentId = shipmentId;
 
         // Find by tracking number
         const fetched = await shipmentRepository.findByTrackingNumber(trackingNum);
@@ -329,7 +338,7 @@ async function runAsyncTest(name, fn) {
         const delNum = `DEL-TEST-${Date.now().toString().slice(-6)}`;
         const deliveryId = await deliveryRepository.createDelivery({
             delivery_number: delNum,
-            shipment_id: 1,
+            shipment_id: testShipmentId || 1,
             hub_id: 1,
             status: 'PENDING',
             recipient_name: 'Bob Consignee',
@@ -346,7 +355,7 @@ async function runAsyncTest(name, fn) {
         // Proof of Delivery
         const podId = await deliveryRepository.createPOD({
             delivery_id: deliveryId,
-            shipment_id: 1,
+            shipment_id: testShipmentId || 1,
             recipient_name: 'Bob Consignee',
             otp_verified: true,
             signature_data: 'data:image/svg+xml;signature_test',
@@ -359,7 +368,7 @@ async function runAsyncTest(name, fn) {
         const ref = `COD-TEST-${Date.now().toString().slice(-6)}`;
         const codId = await codRepository.createSettlement({
             settlement_number: ref,
-            shipment_id: 1,
+            shipment_id: testShipmentId || 1,
             expected_amount: 1500.00,
             status: 'PENDING_COLLECTION',
             hub_id: 1

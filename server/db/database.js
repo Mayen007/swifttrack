@@ -2226,27 +2226,55 @@ function initSchema() {
     migrateNotificationsEngineSchema();
 }
 
-// Run non-destructive migrations on load
-migrateAuthSchema();
-migrateCommerceSchema();
-migrateInventoryStatesSchema();
-migrateInventoryOperationsSchema();
-migrateAdvancedInventorySchema();
-migrateCustomerSchema();
-migratePosShiftSchema();
-migrateOrdersEngineSchema();
-migratePaymentsEngineSchema();
-migrateProcurementSchema();
-migrateDriversSchema();
-migrateVehiclesSchema();
-migrateShipmentCoreSchema();
-migrateTransportSchema();
-migratePhysicalCustodySchema();
-migrateLastMileSchema();
-migratePosCounterBookingSchema();
-migrateCODSchema();
-migrateControlTowerSchema();
-migrateNotificationsEngineSchema();
+// Ensure database schema is initialized on fresh DB, or run migrations for schema evolution
+try {
+    const isInitialized = db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='company_settings'").get();
+    if (!isInitialized) {
+        initSchema();
+    } else {
+        // Ensure baseline system roles exist to satisfy foreign keys for permission assignments
+        try {
+            const hasRolesTable = db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='roles'").get();
+            if (hasRolesTable) {
+                const hasRoles = db.prepare("SELECT 1 FROM roles LIMIT 1").get();
+                if (!hasRoles) {
+                    db.exec(`
+                        INSERT OR IGNORE INTO roles (id, name, display_name, description, is_system) VALUES
+                            (1, 'SUPER_ADMIN', 'Super Administrator', 'Enterprise administrator with full system privileges', 1),
+                            (2, 'BRANCH_MANAGER', 'Branch Manager', 'Branch and inventory supervisor', 1),
+                            (3, 'CASHIER', 'Cashier', 'Point of sale and front-desk operator', 1),
+                            (4, 'DISPATCHER', 'Dispatcher', 'Logistics, delivery and driver coordinator', 1),
+                            (5, 'AUDITOR', 'Auditor', 'Read-only financial and tax compliance officer', 1);
+                    `);
+                }
+            }
+        } catch (_) {}
+
+        // Run non-destructive migrations on load for an existing database
+        migrateAuthSchema();
+        migrateCommerceSchema();
+        migrateInventoryStatesSchema();
+        migrateInventoryOperationsSchema();
+        migrateAdvancedInventorySchema();
+        migrateCustomerSchema();
+        migratePosShiftSchema();
+        migrateOrdersEngineSchema();
+        migratePaymentsEngineSchema();
+        migrateProcurementSchema();
+        migrateDriversSchema();
+        migrateVehiclesSchema();
+        migrateShipmentCoreSchema();
+        migrateTransportSchema();
+        migratePhysicalCustodySchema();
+        migrateLastMileSchema();
+        migratePosCounterBookingSchema();
+        migrateCODSchema();
+        migrateControlTowerSchema();
+        migrateNotificationsEngineSchema();
+    }
+} catch (err) {
+    console.warn('Database initialization warning:', err.message);
+}
 
 module.exports = {
     db,
