@@ -64,11 +64,11 @@ CREATE TABLE IF NOT EXISTS roles (
 );
 
 INSERT OR IGNORE INTO roles (id, name, display_name, description, is_system) VALUES
-    (1, 'SUPER_ADMIN', 'Super Administrator', 'Enterprise administrator with full system privileges', 1),
-    (2, 'BRANCH_MANAGER', 'Branch Manager', 'Branch and inventory supervisor', 1),
-    (3, 'CASHIER', 'Cashier', 'Point of sale and front-desk operator', 1),
-    (4, 'DISPATCHER', 'Dispatcher', 'Logistics, delivery and driver coordinator', 1),
-    (5, 'AUDITOR', 'Auditor', 'Read-only financial and tax compliance officer', 1);
+    (1, 'SUPER_ADMIN', 'Super Admin', 'Company-wide complete control over all operations, settings, and branches', 1),
+    (2, 'BRANCH_MANAGER', 'Branch Manager', 'Manages branch inventory, staff, approvals, expenses, and performance', 1),
+    (3, 'DISPATCHER', 'Dispatcher', 'Logistics operations, driver assignment, routing, and delivery tracking', 1),
+    (4, 'CASHIER', 'Cashier', 'POS terminal operator, fast customer checkout, returns, and payments', 1),
+    (5, 'DRIVER', 'Driver', 'Mobile delivery driver, proof-of-delivery capture, exception reporting', 1);
 
 -- 5. PERMISSIONS
 CREATE TABLE IF NOT EXISTS permissions (
