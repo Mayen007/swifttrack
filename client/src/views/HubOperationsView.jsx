@@ -87,6 +87,13 @@ export function HubOperationsView() {
   const [handoffDriverName, setHandoffDriverName] = useState('');
   const [handoffSealNumber, setHandoffSealNumber] = useState('');
 
+  // Operational Secondary Filter States for Optimal Space Utilization
+  const [manifestStatusFilter, setManifestStatusFilter] = useState('ALL');
+  const [discrepancySeverityFilter, setDiscrepancySeverityFilter] = useState('ALL');
+  const [discrepancySearch, setDiscrepancySearch] = useState('');
+  const [handoffTypeFilter, setHandoffTypeFilter] = useState('ALL');
+  const [transshipmentSearch, setTransshipmentSearch] = useState('');
+
   // Fetch initial telemetry
   const fetchHubData = async () => {
     setLoading(true);
@@ -278,139 +285,88 @@ export function HubOperationsView() {
 
   return (
     <div className="space-y-4">
-      {/* Hub Station Banner */}
-      <div className="bg-[#12161f] border border-[#222834] p-3.5 sm:p-4 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2">
-            <Building2 className="w-5 h-5 text-blue-500" />
-            <h1 className="text-xl font-bold text-white tracking-tight">
-              {selectedBranch?.name || 'Nairobi Central HQ Hub'}
-            </h1>
-            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-blue-500/10 text-blue-400 border border-blue-500/20">
-              Station #{currentHubId}
-            </span>
+      {/* Hub Station Command Bar & High-Density Tab Filter Navigation */}
+      <div className="bg-[#121622] border border-[#222834] p-3 sm:p-3.5 rounded-xl space-y-2.5 shadow-sm">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-lg bg-blue-600/10 border border-blue-500/20 flex items-center justify-center text-blue-400 shrink-0">
+              <Building2 className="w-4 h-4" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h1 className="text-base sm:text-lg font-bold text-white tracking-tight font-mono">
+                  {selectedBranch?.name || 'Nairobi Central HQ Hub'}
+                </h1>
+                <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-blue-500/10 text-blue-400 border border-blue-500/20">
+                  Station #{currentHubId}
+                </span>
+                <span className="hidden sm:inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-mono font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                  ONLINE
+                </span>
+              </div>
+            </div>
           </div>
-          <p className="text-xs text-slate-400 mt-1">
-            Inbound Linehaul Receiving, Automated Sortation Bays, Chain of Custody Handoffs & Discrepancies
-          </p>
+
+          <div className="flex items-center gap-2 self-start sm:self-auto">
+            <button
+              onClick={fetchHubData}
+              disabled={loading}
+              className="px-2.5 py-1.5 rounded-lg bg-[#181d28] hover:bg-[#202738] border border-[#222834] text-xs font-mono font-medium text-slate-300 hover:text-white flex items-center gap-1.5 transition-colors cursor-pointer disabled:opacity-50"
+              title="Sync station telemetry"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin text-blue-400' : 'text-slate-400'}`} />
+              <span className="hidden sm:inline">SYNC TELEMETRY</span>
+              <span className="sm:hidden">SYNC</span>
+            </button>
+          </div>
         </div>
 
-        <button
-          onClick={fetchHubData}
-          disabled={loading}
-          className="px-3.5 py-2 rounded-xl bg-[#181d28] hover:bg-[#1f2534] border border-[#222834] text-xs font-semibold text-slate-300 flex items-center gap-2 transition"
-        >
-          <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
-          Sync Station Telemetry
-        </button>
-      </div>
-
-      {/* Operations Navigation Tabs */}
-      <div className="flex items-center gap-2 border-b border-[#222834] pb-2 overflow-x-auto">
-        <button
-          onClick={() => {
-            setActiveTab('RECEIVING');
-            sound.playClick();
-          }}
-          className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition ${
-            activeTab === 'RECEIVING'
-              ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20'
-              : 'text-slate-400 hover:text-white hover:bg-[#181d28]'
-          }`}
-        >
-          <ScanBarcode className="w-4 h-4" />
-          Inbound Hub Receiving
-        </button>
-
-        <button
-          onClick={() => {
-            setActiveTab('SORT');
-            sound.playClick();
-          }}
-          className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition ${
-            activeTab === 'SORT'
-              ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20'
-              : 'text-slate-400 hover:text-white hover:bg-[#181d28]'
-          }`}
-        >
-          <Layers className="w-4 h-4" />
-          Intake & Sortation
-        </button>
-
-        <button
-          onClick={() => {
-            setActiveTab('HANDOFFS');
-            sound.playClick();
-          }}
-          className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition ${
-            activeTab === 'HANDOFFS'
-              ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20'
-              : 'text-slate-400 hover:text-white hover:bg-[#181d28]'
-          }`}
-        >
-          <ArrowRightLeft className="w-4 h-4" />
-          Custody Handoffs
-        </button>
-
-        <button
-          onClick={() => {
-            setActiveTab('MANIFESTS');
-            sound.playClick();
-          }}
-          className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition ${
-            activeTab === 'MANIFESTS'
-              ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20'
-              : 'text-slate-400 hover:text-white hover:bg-[#181d28]'
-          }`}
-        >
-          <FileCheck2 className="w-4 h-4" />
-          Linehaul Manifests
-        </button>
-
-        <button
-          onClick={() => {
-            setActiveTab('DISCREPANCIES');
-            sound.playClick();
-          }}
-          className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition ${
-            activeTab === 'DISCREPANCIES'
-              ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20'
-              : 'text-slate-400 hover:text-white hover:bg-[#181d28]'
-          }`}
-        >
-          <AlertTriangle className="w-4 h-4" />
-          Discrepancies ({discrepancies.length})
-        </button>
-
-        <button
-          onClick={() => {
-            setActiveTab('CROSS_BORDER');
-            sound.playClick();
-          }}
-          className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition whitespace-nowrap ${
-            activeTab === 'CROSS_BORDER'
-              ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20'
-              : 'text-slate-400 hover:text-white hover:bg-[#181d28]'
-          }`}
-        >
-          <Globe className="w-4 h-4" />
-          Cross-Border Customs ({crossBorderLegs.length})
-        </button>
-
-        <button
-          onClick={() => {
-            setActiveTab('TRANSSHIPMENT');
-            sound.playClick();
-          }}
-          className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition whitespace-nowrap ${
-            activeTab === 'TRANSSHIPMENT'
-              ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20'
-              : 'text-slate-400 hover:text-white hover:bg-[#181d28]'
-          }`}
-        >
-          <Layers className="w-4 h-4" />
-          Awaiting Manifest ({awaitingShipments.length})
-        </button>
+        {/* High-Density Segmented Operations Tab Filter Bar */}
+        <div className="bg-[#0b0e14] p-1 rounded-lg border border-[#1e2433] flex items-center gap-1 overflow-x-auto no-scrollbar text-xs font-mono">
+          {[
+            { id: 'RECEIVING', label: 'Inbound', icon: ScanBarcode },
+            { id: 'SORT', label: 'Sortation', icon: Layers },
+            { id: 'HANDOFFS', label: 'Handoffs', icon: ArrowRightLeft },
+            { id: 'MANIFESTS', label: 'Manifests', icon: FileCheck2, count: manifests.length },
+            { id: 'DISCREPANCIES', label: 'Discrepancies', icon: AlertTriangle, count: discrepancies.length, alert: discrepancies.length > 0 },
+            { id: 'CROSS_BORDER', label: 'Cross-Border', icon: Globe, count: crossBorderLegs.length },
+            { id: 'TRANSSHIPMENT', label: 'Transshipment', icon: Truck, count: awaitingShipments.length },
+          ].map((tab) => {
+            const Icon = tab.icon;
+            const isActive = activeTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => {
+                  setActiveTab(tab.id);
+                  sound.playClick();
+                }}
+                className={`px-3 py-1.5 rounded-md text-xs font-mono font-medium flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap ${
+                  isActive
+                    ? 'bg-blue-600 text-white font-bold shadow-sm shadow-blue-600/30'
+                    : 'text-slate-400 hover:text-white hover:bg-white/[0.06]'
+                }`}
+              >
+                <Icon className={`w-3.5 h-3.5 shrink-0 ${isActive ? 'text-white' : 'text-slate-400'}`} />
+                <span>{tab.label}</span>
+                {typeof tab.count === 'number' && tab.count > 0 && (
+                  <span
+                    className={`ml-0.5 px-1.5 py-0.2 rounded-full text-[10px] font-mono font-bold leading-none ${
+                      isActive
+                        ? 'bg-white/20 text-white'
+                        : tab.alert
+                        ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30'
+                        : 'bg-blue-500/20 text-blue-400 border border-blue-500/30'
+                    }`}
+                  >
+                    {tab.count}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       {/* TAB 1: INBOUND RECEIVING */}
@@ -585,19 +541,39 @@ export function HubOperationsView() {
 
       {/* TAB 3: CUSTODY HANDOFFS */}
       {activeTab === 'HANDOFFS' && (
-        <div className="bg-[#12161f] border border-[#222834] p-3.5 sm:p-4 rounded-xl space-y-5">
-          <div className="flex items-center justify-between pb-3 border-b border-[#222834]">
+        <div className="bg-[#121622] border border-[#222834] p-3.5 sm:p-4 rounded-xl space-y-4 shadow-sm">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-[#222834]">
             <div>
-              <h3 className="font-bold text-white text-base">Chain of Custody Transfers</h3>
+              <h3 className="font-bold text-white text-sm font-mono uppercase tracking-wider">Chain of Custody Transfers</h3>
               <p className="text-xs text-slate-400">Legally binding custody transfers between drivers, hubs, and couriers</p>
             </div>
-            <button
-              onClick={() => setNewHandoffModalOpen(true)}
-              className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl text-xs flex items-center gap-1.5 shadow"
-            >
-              <Plus className="w-4 h-4" />
-              Record Physical Handoff
-            </button>
+
+            <div className="flex flex-wrap items-center gap-2">
+              {/* Type Filter Pills */}
+              <div className="flex items-center gap-1 bg-[#0b0e14] p-0.5 rounded-lg border border-[#1e2433] text-xs font-mono">
+                {['ALL', 'HUB_TO_DRIVER', 'DRIVER_TO_HUB'].map((tp) => (
+                  <button
+                    key={tp}
+                    onClick={() => setHandoffTypeFilter(tp)}
+                    className={`px-2.5 py-1 rounded text-[11px] font-semibold transition-all cursor-pointer ${
+                      handoffTypeFilter === tp
+                        ? 'bg-blue-600 text-white shadow-xs'
+                        : 'text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    {tp === 'ALL' ? 'All Types' : tp.replace(/_/g, ' ')}
+                  </button>
+                ))}
+              </div>
+
+              <button
+                onClick={() => setNewHandoffModalOpen(true)}
+                className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-lg text-xs font-mono flex items-center gap-1.5 shadow-sm cursor-pointer"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>RECORD HANDOFF</span>
+              </button>
+            </div>
           </div>
 
           <div className="overflow-x-auto">
@@ -613,18 +589,33 @@ export function HubOperationsView() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#222834] text-slate-300">
-                <tr className="hover:bg-white/[0.02]">
-                  <td className="py-2 px-3 font-mono font-bold text-white">HND-20260928-8812</td>
-                  <td className="py-2 px-3">
-                    <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-500/10 text-blue-400">
-                      HUB_TO_DRIVER
-                    </span>
-                  </td>
-                  <td className="py-2 px-3">Nairobi Hub Dispatcher</td>
-                  <td className="py-2 px-3">Driver: John Mwangi (KDA 123A)</td>
-                  <td className="py-2 px-3 font-mono text-emerald-400">#SEAL-NRB-9981</td>
-                  <td className="py-2 px-3 text-right text-slate-500 font-mono">14:20:15</td>
-                </tr>
+                {[
+                  {
+                    id: 1,
+                    handoff_number: 'HND-20260928-8812',
+                    transfer_type: 'HUB_TO_DRIVER',
+                    releasing_actor: 'Nairobi Hub Dispatcher',
+                    receiving_actor: 'Driver: John Mwangi (KDA 123A)',
+                    security_seal: '#SEAL-NRB-9981',
+                    timestamp: '14:20:15'
+                  },
+                  ...handoffs
+                ]
+                  .filter((h) => handoffTypeFilter === 'ALL' || h.transfer_type === handoffTypeFilter)
+                  .map((h) => (
+                    <tr key={h.id || h.handoff_number} className="hover:bg-white/[0.02]">
+                      <td className="py-2 px-3 font-mono font-bold text-white">{h.handoff_number || `HND-${h.id}`}</td>
+                      <td className="py-2 px-3">
+                        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-500/10 text-blue-400">
+                          {h.transfer_type}
+                        </span>
+                      </td>
+                      <td className="py-2 px-3">{h.releasing_actor}</td>
+                      <td className="py-2 px-3">{h.receiving_actor}</td>
+                      <td className="py-2 px-3 font-mono text-emerald-400">{h.security_seal}</td>
+                      <td className="py-2 px-3 text-right text-slate-500 font-mono">{h.timestamp}</td>
+                    </tr>
+                  ))}
               </tbody>
             </table>
           </div>
@@ -633,39 +624,65 @@ export function HubOperationsView() {
 
       {/* TAB 4: LINEHAUL MANIFESTS */}
       {activeTab === 'MANIFESTS' && (
-        <div className="bg-[#12161f] border border-[#222834] p-3.5 sm:p-4 rounded-xl space-y-5">
-          <div className="flex items-center justify-between pb-3 border-b border-[#222834]">
+        <div className="bg-[#12161f] border border-[#222834] p-3.5 sm:p-4 rounded-xl space-y-4 shadow-sm">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-[#222834]">
             <div>
-              <h3 className="font-bold text-white text-base">Linehaul Manifest Ledger</h3>
+              <h3 className="font-bold text-white text-sm font-mono uppercase tracking-wider flex items-center gap-2">
+                <span>Linehaul Manifest Ledger</span>
+                <span className="px-2 py-0.2 rounded-full text-[10px] font-mono font-bold bg-blue-500/10 text-blue-400 border border-blue-500/20">
+                  {manifests.length} Total
+                </span>
+              </h3>
               <p className="text-xs text-slate-400">Lock, seal, and dispatch multi-shipment transport payloads (Rule BR-005)</p>
+            </div>
+
+            {/* Quick Status Filter Pills */}
+            <div className="flex items-center gap-1 bg-[#0b0e14] p-0.5 rounded-lg border border-[#1e2433] text-xs font-mono">
+              {['ALL', 'DISPATCHED', 'LOCKED', 'DRAFT', 'COMPLETED'].map((st) => (
+                <button
+                  key={st}
+                  onClick={() => setManifestStatusFilter(st)}
+                  className={`px-2.5 py-1 rounded text-[11px] font-semibold transition-all cursor-pointer ${
+                    manifestStatusFilter === st
+                      ? 'bg-blue-600 text-white shadow-xs'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  {st}
+                </button>
+              ))}
             </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {manifests.length === 0 ? (
-              <p className="p-8 text-center text-xs text-slate-500 col-span-2">No active linehaul manifests.</p>
+            {manifests.filter(m => manifestStatusFilter === 'ALL' || m.status === manifestStatusFilter).length === 0 ? (
+              <p className="p-8 text-center text-xs text-slate-500 col-span-2">
+                No linehaul manifests matching "{manifestStatusFilter}".
+              </p>
             ) : (
-              manifests.map((m) => (
-                <div key={m.id} className="bg-[#181d28] border border-[#222834] p-4 rounded-xl space-y-3">
-                  <div className="flex items-center justify-between">
-                    <span className="font-mono font-bold text-white text-sm">{m.manifest_number}</span>
-                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-blue-500/10 text-blue-400 border border-blue-500/20">
-                      {m.status}
-                    </span>
-                  </div>
+              manifests
+                .filter(m => manifestStatusFilter === 'ALL' || m.status === manifestStatusFilter)
+                .map((m) => (
+                  <div key={m.id} className="bg-[#181d28] border border-[#222834] p-4 rounded-xl space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="font-mono font-bold text-white text-sm">{m.manifest_number}</span>
+                      <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-blue-500/10 text-blue-400 border border-blue-500/20">
+                        {m.status}
+                      </span>
+                    </div>
 
-                  <div className="text-xs text-slate-300 flex items-center justify-between">
-                    <span>Origin: Hub #{m.origin_hub_id}</span>
-                    <span>$\to$</span>
-                    <span>Dest: Hub #{m.destination_hub_id}</span>
-                  </div>
+                    <div className="text-xs text-slate-300 flex items-center justify-between">
+                      <span>Origin: Hub #{m.origin_hub_id}</span>
+                      <span>$\to$</span>
+                      <span>Dest: Hub #{m.destination_hub_id}</span>
+                    </div>
 
-                  <div className="text-[11px] text-slate-400 flex items-center justify-between pt-2 border-t border-[#222834]">
-                    <span>Total Consignments: {m.total_shipments || 0}</span>
-                    <span>Total Weight: {m.total_weight_kg || 0} kg</span>
+                    <div className="text-[11px] text-slate-400 flex items-center justify-between pt-2 border-t border-[#222834]">
+                      <span>Total Consignments: {m.total_shipments || 0}</span>
+                      <span>Total Weight: {m.total_weight_kg || 0} kg</span>
+                    </div>
                   </div>
-                </div>
-              ))
+                ))
             )}
           </div>
         </div>
@@ -673,11 +690,48 @@ export function HubOperationsView() {
 
       {/* TAB 5: DISCREPANCIES */}
       {activeTab === 'DISCREPANCIES' && (
-        <div className="bg-[#12161f] border border-[#222834] p-3.5 sm:p-4 rounded-xl space-y-5">
-          <div className="flex items-center justify-between pb-3 border-b border-[#222834]">
+        <div className="bg-[#12161f] border border-[#222834] p-3.5 sm:p-4 rounded-xl space-y-4 shadow-sm">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-[#222834]">
             <div>
-              <h3 className="font-bold text-white text-base">Operational Discrepancy Tickets</h3>
+              <h3 className="font-bold text-white text-sm font-mono uppercase tracking-wider flex items-center gap-2">
+                <span>Operational Discrepancy Tickets</span>
+                {discrepancies.length > 0 && (
+                  <span className="px-2 py-0.2 rounded-full text-[10px] font-mono font-bold bg-rose-500/10 text-rose-400 border border-rose-500/20">
+                    {discrepancies.length} Active
+                  </span>
+                )}
+              </h3>
               <p className="text-xs text-slate-400">Missing, damaged, overage or misrouted parcels under active investigation</p>
+            </div>
+
+            {/* Severity Filter & Search */}
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="flex items-center gap-1 bg-[#0b0e14] p-0.5 rounded-lg border border-[#1e2433] text-xs font-mono">
+                {['ALL', 'CRITICAL', 'WARNING'].map((sev) => (
+                  <button
+                    key={sev}
+                    onClick={() => setDiscrepancySeverityFilter(sev)}
+                    className={`px-2.5 py-1 rounded text-[11px] font-semibold transition-all cursor-pointer ${
+                      discrepancySeverityFilter === sev
+                        ? 'bg-blue-600 text-white shadow-xs'
+                        : 'text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    {sev}
+                  </button>
+                ))}
+              </div>
+
+              <div className="flex items-center gap-1.5 bg-[#0b0e14] border border-[#1e2433] px-2.5 py-1 rounded-lg text-xs">
+                <Search className="w-3 h-3 text-slate-400" />
+                <input
+                  type="text"
+                  placeholder="Filter ticket or #..."
+                  value={discrepancySearch}
+                  onChange={(e) => setDiscrepancySearch(e.target.value)}
+                  className="bg-transparent text-white text-xs font-mono focus:outline-none w-36"
+                />
+              </div>
             </div>
           </div>
 
@@ -694,39 +748,63 @@ export function HubOperationsView() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#222834] text-slate-300">
-                {discrepancies.length === 0 ? (
+                {discrepancies
+                  .filter((d) => {
+                    if (discrepancySeverityFilter !== 'ALL' && d.severity !== discrepancySeverityFilter) return false;
+                    if (discrepancySearch.trim()) {
+                      const q = discrepancySearch.toLowerCase();
+                      const numMatch = (d.discrepancy_number || '').toLowerCase().includes(q);
+                      const shpMatch = String(d.shipment_id || '').toLowerCase().includes(q);
+                      const typeMatch = (d.discrepancy_type || '').toLowerCase().includes(q);
+                      if (!numMatch && !shpMatch && !typeMatch) return false;
+                    }
+                    return true;
+                  })
+                  .length === 0 ? (
                   <tr>
                     <td colSpan="6" className="py-8 text-center text-slate-500">
-                      No active operational discrepancies reported.
+                      No operational discrepancies matching filter criteria.
                     </td>
                   </tr>
                 ) : (
-                  discrepancies.map((d) => (
-                    <tr key={d.id} className="hover:bg-white/[0.02]">
-                      <td className="py-2 px-3 font-mono font-bold text-white">{d.discrepancy_number}</td>
-                      <td className="py-2 px-3">{d.discrepancy_type}</td>
-                      <td className="py-2 px-3">
-                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                          d.severity === 'CRITICAL' ? 'bg-rose-500/10 text-rose-400' : 'bg-amber-500/10 text-amber-400'
-                        }`}>
-                          {d.severity}
-                        </span>
-                      </td>
-                      <td className="py-2 px-3 font-mono text-slate-400">Shipment #{d.shipment_id || 'N/A'}</td>
-                      <td className="py-2 px-3 font-semibold text-blue-400">{d.status}</td>
-                      <td className="py-2 px-3 text-right">
-                        <button
-                          onClick={() => {
-                            setSelectedDiscrepancy(d);
-                            setResolvingModalOpen(true);
-                          }}
-                          className="px-2.5 py-1 rounded-lg bg-blue-600 hover:bg-blue-500 text-[11px] font-bold text-white"
-                        >
-                          Resolve
-                        </button>
-                      </td>
-                    </tr>
-                  ))
+                  discrepancies
+                    .filter((d) => {
+                      if (discrepancySeverityFilter !== 'ALL' && d.severity !== discrepancySeverityFilter) return false;
+                      if (discrepancySearch.trim()) {
+                        const q = discrepancySearch.toLowerCase();
+                        const numMatch = (d.discrepancy_number || '').toLowerCase().includes(q);
+                        const shpMatch = String(d.shipment_id || '').toLowerCase().includes(q);
+                        const typeMatch = (d.discrepancy_type || '').toLowerCase().includes(q);
+                        if (!numMatch && !shpMatch && !typeMatch) return false;
+                      }
+                      return true;
+                    })
+                    .map((d) => (
+                      <tr key={d.id} className="hover:bg-white/[0.02]">
+                        <td className="py-2 px-3 font-mono font-bold text-white">{d.discrepancy_number}</td>
+                        <td className="py-2 px-3">{d.discrepancy_type}</td>
+                        <td className="py-2 px-3">
+                          <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                            d.severity === 'CRITICAL' ? 'bg-rose-500/10 text-rose-400' : 'bg-amber-500/10 text-amber-400'
+                          }`}>
+                            {d.severity}
+                          </span>
+                        </td>
+                        <td className="py-2 px-3 font-mono text-slate-400">Shipment #{d.shipment_id || 'N/A'}</td>
+                        <td className="py-2 px-3 font-semibold text-blue-400">{d.status}</td>
+                        <td className="py-2 px-3 text-right">
+                          <button
+                            onClick={() => {
+                              setSelectedDiscrepancy(d);
+                              setResolvingModalOpen(true);
+                            }}
+                            className="px-2.5 py-1 rounded-lg bg-blue-600 hover:bg-blue-500 text-[11px] font-bold text-white"
+                          >
+                            Resolve
+                          </button>
+                        </td>
+                      </tr>
+                    ))
                 )}
               </tbody>
             </table>
@@ -736,42 +814,81 @@ export function HubOperationsView() {
 
       {/* TAB 6: CROSS-BORDER CUSTOMS INSPECTION & CLEARANCE */}
       {activeTab === 'CROSS_BORDER' && (
-        <div className="space-y-4">
-          {/* Quick Metrics Bar */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <div className="bg-[#12161f] border border-[#222834] p-3 rounded-xl">
-              <span className="text-[10px] text-slate-400 uppercase font-bold">Total Cross-Border</span>
-              <p className="text-xl font-bold font-mono text-white mt-0.5">{crossBorderLegs.length}</p>
+        <div className="bg-[#12161f] border border-[#222834] p-3.5 sm:p-4 rounded-xl space-y-3.5 shadow-sm">
+          {/* High-Density Customs Filter & Metrics Command Bar */}
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 pb-3 border-b border-[#222834]">
+            {/* Interactive Status Metrics / Filter Pills */}
+            <div className="flex items-center gap-1 bg-[#0b0e14] p-1 rounded-lg border border-[#1e2433] overflow-x-auto no-scrollbar text-xs font-mono">
+              {[
+                { id: 'ALL', label: 'All', count: crossBorderLegs.length },
+                {
+                  id: 'INSPECTION',
+                  label: 'Inspection',
+                  count: crossBorderLegs.filter((l) => l.customs_status === 'INSPECTION').length,
+                  color: 'amber'
+                },
+                {
+                  id: 'ON_HOLD',
+                  label: 'Hold',
+                  count: crossBorderLegs.filter((l) => l.customs_status === 'ON_HOLD').length,
+                  color: 'rose'
+                },
+                {
+                  id: 'CLEARED',
+                  label: 'Cleared / Released',
+                  count: crossBorderLegs.filter((l) => ['CLEARED', 'RELEASED'].includes(l.customs_status)).length,
+                  color: 'emerald'
+                },
+                {
+                  id: 'PENDING',
+                  label: 'Pending',
+                  count: crossBorderLegs.filter((l) => !l.customs_status || l.customs_status === 'PENDING').length,
+                  color: 'slate'
+                },
+              ].map((pill) => {
+                const isActive = customsStatusFilter === pill.id;
+                return (
+                  <button
+                    key={pill.id}
+                    onClick={() => {
+                      setCustomsStatusFilter(pill.id);
+                      sound.playClick();
+                    }}
+                    className={`px-2.5 py-1 rounded-md text-xs font-mono font-medium flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap ${
+                      isActive
+                        ? 'bg-blue-600 text-white font-bold shadow-xs'
+                        : 'text-slate-400 hover:text-white hover:bg-white/[0.05]'
+                    }`}
+                  >
+                    <span>{pill.label}</span>
+                    <span
+                      className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono font-bold leading-none ${
+                        isActive
+                          ? 'bg-white/20 text-white'
+                          : pill.color === 'rose' && pill.count > 0
+                          ? 'bg-rose-500/20 text-rose-400'
+                          : pill.color === 'amber' && pill.count > 0
+                          ? 'bg-amber-500/20 text-amber-300'
+                          : pill.color === 'emerald' && pill.count > 0
+                          ? 'bg-emerald-500/20 text-emerald-400'
+                          : 'bg-white/10 text-slate-400'
+                      }`}
+                    >
+                      {pill.count}
+                    </span>
+                  </button>
+                );
+              })}
             </div>
-            <div className="bg-[#12161f] border border-[#222834] p-3 rounded-xl">
-              <span className="text-[10px] text-amber-400 uppercase font-bold">In Physical Inspection</span>
-              <p className="text-xl font-bold font-mono text-amber-300 mt-0.5">
-                {crossBorderLegs.filter((l) => l.customs_status === 'INSPECTION').length}
-              </p>
-            </div>
-            <div className="bg-[#12161f] border border-[#222834] p-3 rounded-xl">
-              <span className="text-[10px] text-rose-400 uppercase font-bold">Under Customs Hold</span>
-              <p className="text-xl font-bold font-mono text-rose-400 mt-0.5">
-                {crossBorderLegs.filter((l) => l.customs_status === 'ON_HOLD').length}
-              </p>
-            </div>
-            <div className="bg-[#12161f] border border-[#222834] p-3 rounded-xl">
-              <span className="text-[10px] text-emerald-400 uppercase font-bold">Cleared & Released</span>
-              <p className="text-xl font-bold font-mono text-emerald-400 mt-0.5">
-                {crossBorderLegs.filter((l) => ['CLEARED', 'RELEASED'].includes(l.customs_status)).length}
-              </p>
-            </div>
-          </div>
 
-          {/* Filters & Actions Bar */}
-          <div className="bg-[#12161f] border border-[#222834] p-3.5 rounded-xl flex flex-col sm:flex-row items-center justify-between gap-3">
-            <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
-              <div className="flex items-center gap-1.5 bg-[#181d28] border border-[#222834] px-3 py-1.5 rounded-xl text-xs text-slate-300">
-                <Globe className="w-3.5 h-3.5 text-blue-400" />
+            {/* Checkpoint Selection & Feed Refresh */}
+            <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1.5 bg-[#0b0e14] border border-[#1e2433] px-2.5 py-1.5 rounded-lg text-xs text-slate-300">
+                <Globe className="w-3.5 h-3.5 text-blue-400 shrink-0" />
                 <select
                   value={crossBorderPostFilter}
                   onChange={(e) => setCrossBorderPostFilter(e.target.value)}
-                  className="bg-transparent text-white focus:outline-none text-xs"
+                  className="bg-transparent text-white focus:outline-none text-xs font-mono cursor-pointer"
                 >
                   <option value="ALL">All Border Posts</option>
                   <option value="Malaba Border Post (KE-UG)">Malaba (KE-UG)</option>
@@ -782,31 +899,16 @@ export function HubOperationsView() {
                 </select>
               </div>
 
-              <div className="flex items-center gap-1.5 bg-[#181d28] border border-[#222834] px-3 py-1.5 rounded-xl text-xs text-slate-300">
-                <Filter className="w-3.5 h-3.5 text-slate-400" />
-                <select
-                  value={customsStatusFilter}
-                  onChange={(e) => setCustomsStatusFilter(e.target.value)}
-                  className="bg-transparent text-white focus:outline-none text-xs"
-                >
-                  <option value="ALL">All Customs States</option>
-                  <option value="PENDING">Pending Declaration</option>
-                  <option value="DECLARED">Declaration Filed</option>
-                  <option value="INSPECTION">Under Inspection</option>
-                  <option value="ON_HOLD">Customs Hold (Exception)</option>
-                  <option value="CLEARED">Cleared</option>
-                  <option value="RELEASED">Released</option>
-                </select>
-              </div>
+              <button
+                onClick={fetchHubData}
+                disabled={loading}
+                className="px-2.5 py-1.5 rounded-lg bg-[#0b0e14] hover:bg-[#181d28] border border-[#1e2433] text-xs font-mono font-medium text-slate-300 hover:text-white flex items-center gap-1.5 transition-colors cursor-pointer shrink-0"
+                title="Sync customs feed"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin text-blue-400' : 'text-slate-400'}`} />
+                <span className="hidden sm:inline">SYNC</span>
+              </button>
             </div>
-
-            <button
-              onClick={fetchHubData}
-              className="px-3 py-1.5 rounded-xl bg-[#181d28] hover:bg-[#202737] border border-[#222834] text-xs font-semibold text-slate-300 flex items-center gap-1.5"
-            >
-              <RefreshCw className="w-3.5 h-3.5" />
-              Sync Customs Feed
-            </button>
           </div>
 
           {/* Table */}
@@ -826,7 +928,15 @@ export function HubOperationsView() {
                 {crossBorderLegs
                   .filter((leg) => {
                     if (crossBorderPostFilter !== 'ALL' && leg.border_post_name !== crossBorderPostFilter) return false;
-                    if (customsStatusFilter !== 'ALL' && (leg.customs_status || 'PENDING') !== customsStatusFilter) return false;
+                    if (customsStatusFilter !== 'ALL') {
+                      if (customsStatusFilter === 'CLEARED') {
+                        if (!['CLEARED', 'RELEASED'].includes(leg.customs_status)) return false;
+                      } else if (customsStatusFilter === 'PENDING') {
+                        if (leg.customs_status && leg.customs_status !== 'PENDING') return false;
+                      } else {
+                        if (leg.customs_status !== customsStatusFilter) return false;
+                      }
+                    }
                     return true;
                   })
                   .length === 0 ? (
@@ -840,7 +950,15 @@ export function HubOperationsView() {
                   crossBorderLegs
                     .filter((leg) => {
                       if (crossBorderPostFilter !== 'ALL' && leg.border_post_name !== crossBorderPostFilter) return false;
-                      if (customsStatusFilter !== 'ALL' && (leg.customs_status || 'PENDING') !== customsStatusFilter) return false;
+                      if (customsStatusFilter !== 'ALL') {
+                        if (customsStatusFilter === 'CLEARED') {
+                          if (!['CLEARED', 'RELEASED'].includes(leg.customs_status)) return false;
+                        } else if (customsStatusFilter === 'PENDING') {
+                          if (leg.customs_status && leg.customs_status !== 'PENDING') return false;
+                        } else {
+                          if (leg.customs_status !== customsStatusFilter) return false;
+                        }
+                      }
                       return true;
                     })
                     .map((leg) => (
@@ -973,20 +1091,31 @@ export function HubOperationsView() {
 
       {/* TAB 7: TRANSSHIPMENT / AWAITING OUTBOUND MANIFEST */}
       {activeTab === 'TRANSSHIPMENT' && (
-        <div className="space-y-4">
-          <div className="bg-[#12161f] border border-[#222834] p-4 rounded-xl flex items-center justify-between">
+        <div className="bg-[#12161f] border border-[#222834] p-3.5 sm:p-4 rounded-xl space-y-3.5 shadow-sm">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-[#222834]">
             <div>
-              <h3 className="font-bold text-white text-sm flex items-center gap-2">
-                <Layers className="w-4 h-4 text-blue-400" />
-                Station #{currentHubId} Transshipment Manifest Queue
+              <h3 className="font-bold text-white text-sm font-mono uppercase tracking-wider flex items-center gap-2">
+                <Truck className="w-4 h-4 text-blue-400" />
+                <span>Station #{currentHubId} Transshipment Queue</span>
+                <span className="px-2 py-0.2 rounded-full text-[10px] font-mono font-bold bg-blue-500/10 text-blue-400 border border-blue-500/20">
+                  {awaitingShipments.length} Awaiting
+                </span>
               </h3>
-              <p className="text-xs text-slate-400 mt-0.5">
-                Consignments that arrived at this transit hub and are awaiting outbound linehaul manifest assignment to reach final destination.
-              </p>
+              <p className="text-xs text-slate-400">Consignments in transit awaiting outbound linehaul assignment</p>
             </div>
-            <span className="px-3 py-1 rounded-full text-xs font-mono font-bold bg-blue-500/10 text-blue-400 border border-blue-500/20">
-              {awaitingShipments.length} Awaiting Outbound
-            </span>
+
+            <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1.5 bg-[#0b0e14] border border-[#1e2433] px-2.5 py-1.5 rounded-lg text-xs">
+                <Search className="w-3.5 h-3.5 text-slate-400" />
+                <input
+                  type="text"
+                  placeholder="Filter tracking # or dest..."
+                  value={transshipmentSearch}
+                  onChange={(e) => setTransshipmentSearch(e.target.value)}
+                  className="bg-transparent text-white text-xs font-mono focus:outline-none w-44"
+                />
+              </div>
+            </div>
           </div>
 
           <div className="bg-[#12161f] border border-[#222834] rounded-xl overflow-x-auto">
@@ -1003,54 +1132,78 @@ export function HubOperationsView() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#222834] text-slate-300">
-                {awaitingShipments.length === 0 ? (
+                {awaitingShipments
+                  .filter((shp) => {
+                    if (transshipmentSearch.trim()) {
+                      const q = transshipmentSearch.toLowerCase();
+                      const trk = (shp.tracking_number || '').toLowerCase().includes(q);
+                      const way = (shp.waybill_number || '').toLowerCase().includes(q);
+                      const dest = String(shp.destination_hub_id || '').includes(q);
+                      if (!trk && !way && !dest) return false;
+                    }
+                    return true;
+                  })
+                  .length === 0 ? (
                   <tr>
-                    <td colSpan="7" className="py-12 text-center text-slate-500">
+                    <td colSpan="7" className="py-10 text-center text-slate-500">
                       <Layers className="w-8 h-8 mx-auto mb-2 text-slate-600 opacity-60" />
-                      All intermediate transit consignments are currently attached to outbound manifests.
+                      {transshipmentSearch.trim()
+                        ? `No transshipment consignments matching "${transshipmentSearch}".`
+                        : 'All intermediate transit consignments are currently attached to outbound manifests.'}
                     </td>
                   </tr>
                 ) : (
-                  awaitingShipments.map((shp) => (
-                    <tr key={shp.id} className="hover:bg-white/[0.02]">
-                      <td className="py-2.5 px-3">
-                        <div className="font-mono font-bold text-white">{shp.tracking_number}</div>
-                        <div className="text-[10px] text-slate-500 font-mono">{shp.waybill_number || `WAY-${shp.id}`}</div>
-                      </td>
-                      <td className="py-2.5 px-3">
-                        <div className="font-medium text-slate-200">
-                          Hub #{shp.origin_hub_id} $\to$ Hub #{shp.leg_destination || shp.destination_hub_id}
-                        </div>
-                        <div className="text-[10px] text-blue-400 font-mono">Current: Hub #{shp.current_hub_id || currentHubId}</div>
-                      </td>
-                      <td className="py-2.5 px-3 font-semibold text-slate-300">
-                        Hub #{shp.destination_hub_id}
-                      </td>
-                      <td className="py-2.5 px-3 font-mono font-bold text-amber-400">
-                        Leg {shp.leg_sequence || 2}
-                      </td>
-                      <td className="py-2.5 px-3">
-                        <div className="text-white">{shp.total_parcels || 1} pkg ({shp.actual_weight_kg || 0} kg)</div>
-                        <div className="text-[10px] text-slate-500 font-mono">Chargeable: {shp.chargeable_weight_kg || 0} kg</div>
-                      </td>
-                      <td className="py-2.5 px-3">
-                        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/10 text-amber-300 border border-amber-500/20">
-                          {shp.status}
-                        </span>
-                      </td>
-                      <td className="py-2.5 px-3 text-right">
-                        <button
-                          onClick={() => {
-                            setActiveTab('MANIFESTS');
-                            sound.playClick();
-                          }}
-                          className="px-2.5 py-1 rounded-lg bg-blue-600 hover:bg-blue-500 text-[11px] font-bold text-white shadow"
-                        >
-                          Attach to Manifest
-                        </button>
-                      </td>
-                    </tr>
-                  ))
+                  awaitingShipments
+                    .filter((shp) => {
+                      if (transshipmentSearch.trim()) {
+                        const q = transshipmentSearch.toLowerCase();
+                        const trk = (shp.tracking_number || '').toLowerCase().includes(q);
+                        const way = (shp.waybill_number || '').toLowerCase().includes(q);
+                        const dest = String(shp.destination_hub_id || '').includes(q);
+                        if (!trk && !way && !dest) return false;
+                      }
+                      return true;
+                    })
+                    .map((shp) => (
+                      <tr key={shp.id} className="hover:bg-white/[0.02]">
+                        <td className="py-2.5 px-3">
+                          <div className="font-mono font-bold text-white">{shp.tracking_number}</div>
+                          <div className="text-[10px] text-slate-500 font-mono">{shp.waybill_number || `WAY-${shp.id}`}</div>
+                        </td>
+                        <td className="py-2.5 px-3">
+                          <div className="font-medium text-slate-200">
+                            Hub #{shp.origin_hub_id} $\to$ Hub #{shp.leg_destination || shp.destination_hub_id}
+                          </div>
+                          <div className="text-[10px] text-blue-400 font-mono">Current: Hub #{shp.current_hub_id || currentHubId}</div>
+                        </td>
+                        <td className="py-2.5 px-3 font-semibold text-slate-300">
+                          Hub #{shp.destination_hub_id}
+                        </td>
+                        <td className="py-2.5 px-3 font-mono font-bold text-amber-400">
+                          Leg {shp.leg_sequence || 2}
+                        </td>
+                        <td className="py-2.5 px-3">
+                          <div className="text-white">{shp.total_parcels || 1} pkg ({shp.actual_weight_kg || 0} kg)</div>
+                          <div className="text-[10px] text-slate-500 font-mono">Chargeable: {shp.chargeable_weight_kg || 0} kg</div>
+                        </td>
+                        <td className="py-2.5 px-3">
+                          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/10 text-amber-300 border border-amber-500/20">
+                            {shp.status}
+                          </span>
+                        </td>
+                        <td className="py-2.5 px-3 text-right">
+                          <button
+                            onClick={() => {
+                              setActiveTab('MANIFESTS');
+                              sound.playClick();
+                            }}
+                            className="px-2.5 py-1 rounded-lg bg-blue-600 hover:bg-blue-500 text-[11px] font-bold text-white shadow cursor-pointer"
+                          >
+                            Attach to Manifest
+                          </button>
+                        </td>
+                      </tr>
+                    ))
                 )}
               </tbody>
             </table>

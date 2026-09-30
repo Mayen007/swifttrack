@@ -179,41 +179,29 @@ dialog::backdrop {
 }
 
 /* 1. Base Canvas Workspace (#f8fafc porcelain canvas) */
-[data-theme="light"] .bg-\[\#080a0e\],
-[data-theme="light"] .bg-\[\#0a0d14\],
-[data-theme="light"] .bg-\[\#0b0e14\],
 [data-theme="light"] .bg-\[\#0b0f19\],
 [data-theme="light"] .bg-\[\#0c0e12\],
 [data-theme="light"] .bg-\[\#0c101b\],
-[data-theme="light"] .bg-\[\#0d111a\],
 [data-theme="light"] .bg-\[\#0d121c\],
 [data-theme="light"] .bg-\[\#0e1117\],
 [data-theme="light"] .bg-\[\#0e1118\],
 [data-theme="light"] .bg-\[\#0e1219\],
-[data-theme="light"] .bg-\[\#0e121a\],
 [data-theme="light"] .bg-\[\#0e131d\],
 [data-theme="light"] .bg-\[\#0e1320\],
 [data-theme="light"] .bg-\[\#0f121a\],
-[data-theme="light"] .bg-\[\#0f131c\],
 [data-theme="light"] .bg-\[\#0f1420\],
 [data-theme="light"] .bg-\[\#0f1422\],
 [data-theme="light"] .bg-\[\#0f1520\],
-.light .bg-\[\#080a0e\],
-.light .bg-\[\#0a0d14\],
-.light .bg-\[\#0b0e14\],
 .light .bg-\[\#0b0f19\],
 .light .bg-\[\#0c0e12\],
 .light .bg-\[\#0c101b\],
-.light .bg-\[\#0d111a\],
 .light .bg-\[\#0d121c\],
 .light .bg-\[\#0e1117\],
 .light .bg-\[\#0e1118\],
 .light .bg-\[\#0e1219\],
-.light .bg-\[\#0e121a\],
 .light .bg-\[\#0e131d\],
 .light .bg-\[\#0e1320\],
 .light .bg-\[\#0f121a\],
-.light .bg-\[\#0f131c\],
 .light .bg-\[\#0f1420\],
 .light .bg-\[\#0f1422\],
 .light .bg-\[\#0f1520\] {
@@ -239,6 +227,9 @@ dialog::backdrop {
 }
 
 /* 3. Elevated Cards, Modals, Drawers & Bento Instruments (Pure White #ffffff) */
+[data-theme="light"] .bg-\[\#0e121a\],
+[data-theme="light"] .bg-\[\#0d111a\],
+[data-theme="light"] .bg-\[\#0c0e14\],
 [data-theme="light"] .bg-\[\#111622\],
 [data-theme="light"] .bg-\[\#12161f\],
 [data-theme="light"] .bg-\[\#121620\],
@@ -272,8 +263,10 @@ dialog::backdrop {
 [data-theme="light"] .bg-\[\#0e1320\]\/80,
 [data-theme="light"] .bg-\[\#0e1219\]\/80,
 [data-theme="light"] .bg-\[\#0e1219\]\/90,
-[data-theme="light"] .bg-\[\#0b0e14\]\/60,
 [data-theme="light"] .bg-\[\#0e1118\]\/60,
+.light .bg-\[\#0e121a\],
+.light .bg-\[\#0d111a\],
+.light .bg-\[\#0c0e14\],
 .light .bg-\[\#111622\],
 .light .bg-\[\#12161f\],
 .light .bg-\[\#121620\],
@@ -307,7 +300,6 @@ dialog::backdrop {
 .light .bg-\[\#0e1320\]\/80,
 .light .bg-\[\#0e1219\]\/80,
 .light .bg-\[\#0e1219\]\/90,
-.light .bg-\[\#0b0e14\]\/60,
 .light .bg-\[\#0e1118\]\/60 {
   background-color: #ffffff !important;
   border-color: #cbd5e1 !important;
@@ -315,6 +307,12 @@ dialog::backdrop {
 }
 
 /* 4. Inset Wells, KPI Tiles, Sub-modules, Table Headers, Inactive Pills & Filter Bars */
+[data-theme="light"] .bg-\[\#0b0e14\],
+[data-theme="light"] .bg-\[\#0b0e14\]\/60,
+[data-theme="light"] .bg-\[\#080a0e\],
+[data-theme="light"] .bg-\[\#0a0d14\],
+[data-theme="light"] .bg-\[\#0f131c\],
+[data-theme="light"] .bg-\[\#181e2b\],
 [data-theme="light"] .bg-\[\#0c0e12\]\/80,
 [data-theme="light"] .bg-\[\#10141c\],
 [data-theme="light"] .bg-\[\#11141c\],
@@ -366,6 +364,12 @@ dialog::backdrop {
 [data-theme="light"] .bg-slate-700\/40,
 [data-theme="light"] .bg-slate-700\/50,
 [data-theme="light"] .bg-slate-700\/80,
+.light .bg-\[\#0b0e14\],
+.light .bg-\[\#0b0e14\]\/60,
+.light .bg-\[\#080a0e\],
+.light .bg-\[\#0a0d14\],
+.light .bg-\[\#0f131c\],
+.light .bg-\[\#181e2b\],
 .light .bg-\[\#0c0e12\]\/80,
 .light .bg-\[\#10141c\],
 .light .bg-\[\#11141c\],
@@ -421,6 +425,20 @@ dialog::backdrop {
   border-color: #cbd5e1 !important;
 }
 
+/* Interactive Inset Button & Dropdown Hover States in Light Mode */
+[data-theme="light"] .hover\:bg-\[\#202738\]:hover,
+[data-theme="light"] .hover\:bg-\[\#252d40\]:hover,
+[data-theme="light"] .hover\:bg-\[\#1f2638\]:hover,
+[data-theme="light"] .hover\:bg-white\/\[0\.04\]:hover,
+[data-theme="light"] .hover\:bg-white\/\[0\.02\]:hover,
+.light .hover\:bg-\[\#202738\]:hover,
+.light .hover\:bg-\[\#252d40\]:hover,
+.light .hover\:bg-\[\#1f2638\]:hover,
+.light .hover\:bg-white\/\[0\.04\]:hover,
+.light .hover\:bg-white\/\[0\.02\]:hover {
+  background-color: #e2e8f0 !important;
+}
+
 /* Tooltip Floaters in Light Mode */
 [data-theme="light"] .bg-\[\#141923\],
 .light .bg-\[\#141923\] {
@@ -440,19 +458,31 @@ dialog::backdrop {
 [data-theme="light"] .bg-\[\#0f1714\],
 [data-theme="light"] .bg-\[\#121b18\],
 [data-theme="light"] .bg-\[\#121c17\],
+[data-theme="light"] .bg-emerald-950\/10,
 .light .bg-\[\#0f1714\],
 .light .bg-\[\#121b18\],
-.light .bg-\[\#121c17\] {
+.light .bg-\[\#121c17\],
+.light .bg-emerald-950\/10 {
   background-color: #ecfdf5 !important;
   border-color: #a7f3d0 !important;
 }
 
 [data-theme="light"] .bg-\[\#1b1417\],
 [data-theme="light"] .bg-\[\#151114\],
+[data-theme="light"] .bg-rose-950\/40,
+[data-theme="light"] .hover\:bg-rose-950\/40:hover,
 .light .bg-\[\#1b1417\],
-.light .bg-\[\#151114\] {
+.light .bg-\[\#151114\],
+.light .bg-rose-950\/40,
+.light .hover\:bg-rose-950\/40:hover {
   background-color: #fef2f2 !important;
   border-color: #fecaca !important;
+}
+
+[data-theme="light"] .bg-amber-950\/20,
+.light .bg-amber-950\/20 {
+  background-color: #fffbeb !important;
+  border-color: #fde68a !important;
 }
 
 /* 6. Elimination of Cloudy Ambient Glow Blobs & Smudges */
@@ -605,7 +635,14 @@ dialog::backdrop {
 .light .border-slate-700\/80,
 .light .border-slate-600,
 .light .border-slate-600\/40,
-.light .border-slate-600\/50,
+[data-theme="light"] .border-emerald-900\/30,
+[data-theme="light"] .border-emerald-500\/30,
+[data-theme="light"] .border-amber-800\/40,
+[data-theme="light"] .border-rose-800\/60,
+.light .border-emerald-900\/30,
+.light .border-emerald-500\/30,
+.light .border-amber-800\/40,
+.light .border-rose-800\/60,
 .light .border-slate-950 {
   border-color: #cbd5e1 !important;
 }
@@ -613,16 +650,39 @@ dialog::backdrop {
 [data-theme="light"] .divide-\[\#222834\] > :not([hidden]) ~ :not([hidden]),
 [data-theme="light"] .divide-\[\#181e2b\] > :not([hidden]) ~ :not([hidden]),
 [data-theme="light"] .divide-\[\#1b212c\] > :not([hidden]) ~ :not([hidden]),
+[data-theme="light"] .divide-\[\#1e2433\] > :not([hidden]) ~ :not([hidden]),
 [data-theme="light"] .divide-gray-800 > :not([hidden]) ~ :not([hidden]),
 [data-theme="light"] .divide-slate-800 > :not([hidden]) ~ :not([hidden]),
 [data-theme="light"] .divide-slate-700 > :not([hidden]) ~ :not([hidden]),
 .light .divide-\[\#222834\] > :not([hidden]) ~ :not([hidden]),
 .light .divide-\[\#181e2b\] > :not([hidden]) ~ :not([hidden]),
 .light .divide-\[\#1b212c\] > :not([hidden]) ~ :not([hidden]),
+.light .divide-\[\#1e2433\] > :not([hidden]) ~ :not([hidden]),
 .light .divide-gray-800 > :not([hidden]) ~ :not([hidden]),
 .light .divide-slate-800 > :not([hidden]) ~ :not([hidden]),
 .light .divide-slate-700 > :not([hidden]) ~ :not([hidden]) {
   border-color: #cbd5e1 !important;
+}
+
+/* High-Contrast Form Controls, Numbered Badges & Select Options */
+[data-theme="light"] select option,
+.light select option {
+  background-color: #ffffff !important;
+  color: #090d16 !important;
+}
+
+[data-theme="light"] input::placeholder,
+[data-theme="light"] textarea::placeholder,
+.light input::placeholder,
+.light textarea::placeholder {
+  color: #64748b !important;
+  opacity: 1;
+}
+
+[data-theme="light"] .bg-slate-800.text-slate-300,
+.light .bg-slate-800.text-slate-300 {
+  background-color: #e2e8f0 !important;
+  color: #0f172a !important;
 }
 
 /* 8. Ultra High-Legibility Typography Scale (WCAG AAA Compliant) */
