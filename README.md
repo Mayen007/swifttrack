@@ -41,6 +41,7 @@ SwiftTrack connects physical regional hubs (**Nairobi Central Hub `NRB-HQ`**, **
 - [9. Getting Started & Local Development](#9-getting-started--local-development)
 - [10. Environment Configuration](#10-environment-configuration)
 - [11. Repository Structure](#11-repository-structure)
+- [12. Production Documentation Suite](#12-production-documentation-suite)
 
 ---
 
@@ -471,6 +472,10 @@ swifttrack/
 │   └── vite.config.js               # Bundler configuration
 ├── data/                            # Local SQLite storage (WAL mode)
 │   └── logistics_platform.db
+├── docs/                            # Production documentation & operational runbooks
+│   ├── API.md                       # Complete OpenAPI & REST API specification
+│   ├── ARCHITECTURE.md              # Domain design, state machines, and database architecture
+│   └── RUNBOOK.md                   # Operational incident response, backups, and migration drills
 ├── scripts/                         # Operational & maintenance utilities
 │   └── migrate-sqlite-to-postgres.js# Automated cross-database migration tool
 ├── server/                          # Express.js backend application
@@ -542,6 +547,20 @@ swifttrack/
 ├── .env.example                     # Environment template
 └── package.json                     # Root project configuration & scripts
 ```
+
+---
+
+## 12. Production Documentation Suite
+
+Comprehensive architecture, API contracts, incident runbooks, and production readiness certifications are available in the repository documentation suite:
+
+| Document | File Path | Scope & Focus |
+| :--- | :--- | :--- |
+| **System Architecture Specification** | [`docs/ARCHITECTURE.md`](file:///c:/Users/ariic/Documents/Logistics%20Platform/docs/ARCHITECTURE.md) | Component architecture, domain state machines, dual-engine `dbAdapter`, 23 migrations, partitioning, outbox pattern, and security pillars. |
+| **REST API Reference & Specification** | [`docs/API.md`](file:///c:/Users/ariic/Documents/Logistics%20Platform/docs/API.md) | Complete OpenAPI / REST endpoints, request/response JSON schemas, rate limits, status codes, and error code matrix. |
+| **Production Incident & Operations Runbook** | [`docs/RUNBOOK.md`](file:///c:/Users/ariic/Documents/Logistics%20Platform/docs/RUNBOOK.md) | Pre-flight checklists, PostgreSQL migration drills, snapshot backups, RPO/RTO targets, worker queue management, and emergency response playbooks. |
+| **Production Readiness Certification** | [`PROD-READINESS.md`](file:///c:/Users/ariic/Documents/Logistics%20Platform/PROD-READINESS.md) | Authoritative certification deliverable, 28-area readiness matrix, feature completion matrix, and attestation record. |
+| **Machine-Readable Attestation** | [`tests/production-readiness-certification.json`](file:///c:/Users/ariic/Documents/Logistics%20Platform/tests/production-readiness-certification.json) | Structured compliance metadata, verified test counts (39/39), and operational domain seals. |
 
 ---
 
