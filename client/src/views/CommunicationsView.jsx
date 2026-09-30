@@ -352,9 +352,9 @@ export function CommunicationsView() {
 
                   <button
                     onClick={() => { sound.playClick(); setTestModalOpen(true); }}
-                    className="flex items-center justify-center space-x-1.5 py-2 px-2.5 bg-emerald-600 hover:bg-emerald-500 border border-emerald-500/60 text-slate-950 font-bold text-xs rounded transition-all active:scale-95 cursor-pointer shadow-sm"
+                    className="flex items-center justify-center space-x-1.5 py-2 px-2.5 bg-emerald-600 hover:bg-emerald-500 border border-emerald-500/60 text-white font-bold text-xs rounded transition-all active:scale-95 cursor-pointer shadow-sm"
                   >
-                    <Send className="w-3.5 h-3.5 text-slate-950" />
+                    <Send className="w-3.5 h-3.5 text-white" />
                     <span className="truncate">Test Send</span>
                   </button>
                 </>
@@ -916,7 +916,7 @@ export function CommunicationsView() {
                 <button
                   type="submit"
                   disabled={actionLoading}
-                  className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-slate-950 font-bold text-sm rounded shadow-sm flex items-center gap-2"
+                  className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-sm rounded shadow-sm flex items-center gap-2"
                 >
                   <Send className={`w-4 h-4 ${actionLoading ? 'animate-spin' : ''}`} />
                   <span>Send Test Now</span>
@@ -1002,7 +1002,7 @@ export function CommunicationsView() {
                 <button
                   type="submit"
                   disabled={actionLoading}
-                  className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-slate-950 font-bold text-sm rounded shadow-sm flex items-center gap-2"
+                  className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-sm rounded shadow-sm flex items-center gap-2"
                 >
                   <CheckCircle2 className={`w-4 h-4 ${actionLoading ? 'animate-spin' : ''}`} />
                   <span>Save Template</span>

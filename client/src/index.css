@@ -133,105 +133,292 @@ dialog::backdrop {
 
 /* ==========================================================================
    DIETER RAMS FUNCTIONALIST LIGHT MODE THEME OVERRIDES (HIGH CONTRAST WCAG AAA)
-   "Less, but better" — Matte porcelain canvas, crisp white cards, hairline
-   slate-300 architectural dividers, ultra-legible slate-900 typography,
-   punchy signal telemetry badges, and crisp SVG chart styling.
+   "Less, but better" — Matte porcelain canvas (#f8fafc), crisp white cards (#ffffff),
+   framing shell chrome (header & sidebar in pure white with hairline slate dividers),
+   clean hairline dividers (#cbd5e1), elimination of cloudy translucent smudges,
+   ultra-legible slate-900 typography, and punchy saturated telemetry badges.
    ========================================================================== */
 
 [data-theme="light"],
 .light {
   color-scheme: light;
+
+  /* Functionalist Light Mode Surface Hierarchy */
+  --color-surface-bg: #f8fafc;
+  --color-surface-dark: #f8fafc;
+  --color-surface-card: #ffffff;
+  --color-surface-secondary: #f1f5f9;
+  --color-surface-tertiary: #e2e8f0;
+  --color-surface-border: #cbd5e1;
+  --color-surface-hover: #f1f5f9;
+
+  /* Functionalist Telemetry Signals */
+  --color-signal-nominal: #065f46;
+  --color-signal-warning: #92400e;
+  --color-signal-critical: #9f1239;
+  --color-signal-info: #1e40af;
+  --color-status-success: #065f46;
+  --color-status-warning: #92400e;
+  --color-status-danger: #9f1239;
+  --color-status-info: #1e40af;
+}
+
+[data-theme="light"] *,
+.light * {
+  border-color: #cbd5e1;
 }
 
 [data-theme="light"] body,
-.light body {
+.light body,
+[data-theme="light"] #root,
+.light #root,
+[data-theme="light"] .h-screen.w-screen,
+.light .h-screen.w-screen {
   background-color: #f8fafc !important;
   color: #090d16 !important;
 }
 
-/* 1. Base Canvas & Shell Surfaces */
-[data-theme="light"] .bg-\[\#0c0e12\],
-[data-theme="light"] .bg-\[\#0c0e14\],
+/* 1. Base Canvas Workspace (#f8fafc porcelain canvas) */
+[data-theme="light"] .bg-\[\#080a0e\],
+[data-theme="light"] .bg-\[\#0a0d14\],
+[data-theme="light"] .bg-\[\#0b0e14\],
 [data-theme="light"] .bg-\[\#0b0f19\],
+[data-theme="light"] .bg-\[\#0c0e12\],
 [data-theme="light"] .bg-\[\#0c101b\],
+[data-theme="light"] .bg-\[\#0d111a\],
+[data-theme="light"] .bg-\[\#0d121c\],
+[data-theme="light"] .bg-\[\#0e1117\],
+[data-theme="light"] .bg-\[\#0e1118\],
+[data-theme="light"] .bg-\[\#0e1219\],
+[data-theme="light"] .bg-\[\#0e121a\],
+[data-theme="light"] .bg-\[\#0e131d\],
 [data-theme="light"] .bg-\[\#0e1320\],
-[data-theme="light"] .bg-\[\#0e1320\]\/80,
-[data-theme="light"] .bg-\[\#0f1219\],
 [data-theme="light"] .bg-\[\#0f121a\],
-.light .bg-\[\#0c0e12\],
-.light .bg-\[\#0c0e14\],
+[data-theme="light"] .bg-\[\#0f131c\],
+[data-theme="light"] .bg-\[\#0f1420\],
+[data-theme="light"] .bg-\[\#0f1422\],
+[data-theme="light"] .bg-\[\#0f1520\],
+.light .bg-\[\#080a0e\],
+.light .bg-\[\#0a0d14\],
+.light .bg-\[\#0b0e14\],
 .light .bg-\[\#0b0f19\],
+.light .bg-\[\#0c0e12\],
 .light .bg-\[\#0c101b\],
+.light .bg-\[\#0d111a\],
+.light .bg-\[\#0d121c\],
+.light .bg-\[\#0e1117\],
+.light .bg-\[\#0e1118\],
+.light .bg-\[\#0e1219\],
+.light .bg-\[\#0e121a\],
+.light .bg-\[\#0e131d\],
 .light .bg-\[\#0e1320\],
-.light .bg-\[\#0e1320\]\/80,
-.light .bg-\[\#0f1219\],
-.light .bg-\[\#0f121a\] {
+.light .bg-\[\#0f121a\],
+.light .bg-\[\#0f131c\],
+.light .bg-\[\#0f1420\],
+.light .bg-\[\#0f1422\],
+.light .bg-\[\#0f1520\] {
   background-color: #f8fafc !important;
 }
 
-/* 2. Elevated Cards, Modals, Drawers & Instrument Panels */
+/* 2. Shell Framing Surfaces: Header & Sidebar (Crisp White #ffffff) */
+[data-theme="light"] header,
+[data-theme="light"] aside,
+[data-theme="light"] .bg-\[\#0c0e14\],
+[data-theme="light"] .bg-\[\#0f1219\],
+.light header,
+.light aside,
+.light .bg-\[\#0c0e14\],
+.light .bg-\[\#0f1219\] {
+  background-color: #ffffff !important;
+  border-color: #cbd5e1 !important;
+}
+
+[data-theme="light"] header,
+.light header {
+  box-shadow: 0 1px 3px 0 rgba(15, 23, 42, 0.05) !important;
+}
+
+/* 3. Elevated Cards, Modals, Drawers & Bento Instruments (Pure White #ffffff) */
 [data-theme="light"] .bg-\[\#111622\],
 [data-theme="light"] .bg-\[\#12161f\],
 [data-theme="light"] .bg-\[\#121620\],
+[data-theme="light"] .bg-\[\#121622\],
+[data-theme="light"] .bg-\[\#121722\],
 [data-theme="light"] .bg-\[\#151923\],
 [data-theme="light"] .bg-gray-900,
 [data-theme="light"] .bg-gray-950,
+[data-theme="light"] .bg-slate-900,
+[data-theme="light"] .bg-slate-950,
+[data-theme="light"] .bg-slate-900\/60,
+[data-theme="light"] .bg-slate-900\/40,
+[data-theme="light"] .bg-slate-900\/80,
+[data-theme="light"] .bg-slate-900\/20,
+[data-theme="light"] .bg-slate-900\/30,
+[data-theme="light"] .bg-slate-900\/90,
+[data-theme="light"] .bg-slate-950\/60,
+[data-theme="light"] .bg-slate-950\/40,
+[data-theme="light"] .bg-slate-950\/50,
+[data-theme="light"] .bg-slate-950\/70,
+[data-theme="light"] .bg-slate-950\/80,
+[data-theme="light"] .bg-gray-900\/40,
+[data-theme="light"] .bg-gray-900\/50,
+[data-theme="light"] .bg-gray-900\/60,
+[data-theme="light"] .bg-gray-900\/70,
+[data-theme="light"] .bg-gray-900\/80,
+[data-theme="light"] .bg-gray-900\/90,
+[data-theme="light"] .bg-gray-950\/60,
+[data-theme="light"] .bg-\[\#12161f\]\/80,
+[data-theme="light"] .bg-\[\#12161f\]\/40,
+[data-theme="light"] .bg-\[\#0e1320\]\/80,
+[data-theme="light"] .bg-\[\#0e1219\]\/80,
+[data-theme="light"] .bg-\[\#0e1219\]\/90,
+[data-theme="light"] .bg-\[\#0b0e14\]\/60,
+[data-theme="light"] .bg-\[\#0e1118\]\/60,
 .light .bg-\[\#111622\],
 .light .bg-\[\#12161f\],
 .light .bg-\[\#121620\],
+.light .bg-\[\#121622\],
+.light .bg-\[\#121722\],
 .light .bg-\[\#151923\],
 .light .bg-gray-900,
-.light .bg-gray-950 {
+.light .bg-gray-950,
+.light .bg-slate-900,
+.light .bg-slate-950,
+.light .bg-slate-900\/60,
+.light .bg-slate-900\/40,
+.light .bg-slate-900\/80,
+.light .bg-slate-900\/20,
+.light .bg-slate-900\/30,
+.light .bg-slate-900\/90,
+.light .bg-slate-950\/60,
+.light .bg-slate-950\/40,
+.light .bg-slate-950\/50,
+.light .bg-slate-950\/70,
+.light .bg-slate-950\/80,
+.light .bg-gray-900\/40,
+.light .bg-gray-900\/50,
+.light .bg-gray-900\/60,
+.light .bg-gray-900\/70,
+.light .bg-gray-900\/80,
+.light .bg-gray-900\/90,
+.light .bg-gray-950\/60,
+.light .bg-\[\#12161f\]\/80,
+.light .bg-\[\#12161f\]\/40,
+.light .bg-\[\#0e1320\]\/80,
+.light .bg-\[\#0e1219\]\/80,
+.light .bg-\[\#0e1219\]\/90,
+.light .bg-\[\#0b0e14\]\/60,
+.light .bg-\[\#0e1118\]\/60 {
   background-color: #ffffff !important;
-  box-shadow: 0 1px 3px 0 rgba(15, 23, 42, 0.08), 0 1px 2px -1px rgba(15, 23, 42, 0.06) !important;
+  border-color: #cbd5e1 !important;
+  box-shadow: 0 1px 3px 0 rgba(15, 23, 42, 0.06), 0 1px 2px -1px rgba(15, 23, 42, 0.04) !important;
 }
 
-/* 3. Inset Wells, Secondary Modules, Table Headers, Inactive Pills & Chart Cards */
+/* 4. Inset Wells, KPI Tiles, Sub-modules, Table Headers, Inactive Pills & Filter Bars */
+[data-theme="light"] .bg-\[\#0c0e12\]\/80,
 [data-theme="light"] .bg-\[\#10141c\],
+[data-theme="light"] .bg-\[\#11141c\],
 [data-theme="light"] .bg-\[\#141822\],
 [data-theme="light"] .bg-\[\#141a27\],
 [data-theme="light"] .bg-\[\#151a24\],
+[data-theme="light"] .bg-\[\#151c2a\],
 [data-theme="light"] .bg-\[\#161b26\],
 [data-theme="light"] .bg-\[\#161c27\],
 [data-theme="light"] .bg-\[\#161c28\],
+[data-theme="light"] .bg-\[\#161c28\]\/60,
 [data-theme="light"] .bg-\[\#181d28\],
+[data-theme="light"] .bg-\[\#181d28\]\/40,
+[data-theme="light"] .bg-\[\#181d28\]\/50,
+[data-theme="light"] .bg-\[\#181d28\]\/60,
+[data-theme="light"] .bg-\[\#181d28\]\/70,
 [data-theme="light"] .bg-\[\#181f2c\],
 [data-theme="light"] .bg-\[\#18202d\],
 [data-theme="light"] .bg-\[\#1a202d\],
+[data-theme="light"] .bg-\[\#1a2130\],
+[data-theme="light"] .bg-\[\#1a2233\],
 [data-theme="light"] .bg-\[\#1b2230\],
+[data-theme="light"] .bg-\[\#1c2230\],
 [data-theme="light"] .bg-\[\#1c2333\],
 [data-theme="light"] .bg-\[\#1e2535\],
+[data-theme="light"] .bg-\[\#1f2534\],
+[data-theme="light"] .bg-\[\#1f2636\],
+[data-theme="light"] .bg-\[\#1f2638\],
 [data-theme="light"] .bg-\[\#1f2738\],
 [data-theme="light"] .bg-\[\#202736\],
+[data-theme="light"] .bg-\[\#202737\],
 [data-theme="light"] .bg-\[\#202738\],
 [data-theme="light"] .bg-\[\#222834\],
 [data-theme="light"] .bg-\[\#222836\],
 [data-theme="light"] .bg-\[\#222938\],
 [data-theme="light"] .bg-\[\#222b3d\],
+[data-theme="light"] .bg-\[\#252d40\],
 [data-theme="light"] .bg-gray-800,
+[data-theme="light"] .bg-gray-800\/30,
+[data-theme="light"] .bg-gray-800\/40,
+[data-theme="light"] .bg-gray-800\/80,
+[data-theme="light"] .bg-slate-800,
+[data-theme="light"] .bg-slate-800\/30,
+[data-theme="light"] .bg-slate-800\/40,
+[data-theme="light"] .bg-slate-800\/50,
+[data-theme="light"] .bg-slate-800\/60,
+[data-theme="light"] .bg-slate-800\/80,
+[data-theme="light"] .bg-slate-700,
+[data-theme="light"] .bg-slate-700\/40,
+[data-theme="light"] .bg-slate-700\/50,
+[data-theme="light"] .bg-slate-700\/80,
+.light .bg-\[\#0c0e12\]\/80,
 .light .bg-\[\#10141c\],
+.light .bg-\[\#11141c\],
 .light .bg-\[\#141822\],
 .light .bg-\[\#141a27\],
 .light .bg-\[\#151a24\],
+.light .bg-\[\#151c2a\],
 .light .bg-\[\#161b26\],
 .light .bg-\[\#161c27\],
 .light .bg-\[\#161c28\],
+.light .bg-\[\#161c28\]\/60,
 .light .bg-\[\#181d28\],
+.light .bg-\[\#181d28\]\/40,
+.light .bg-\[\#181d28\]\/50,
+.light .bg-\[\#181d28\]\/60,
+.light .bg-\[\#181d28\]\/70,
 .light .bg-\[\#181f2c\],
 .light .bg-\[\#18202d\],
 .light .bg-\[\#1a202d\],
+.light .bg-\[\#1a2130\],
+.light .bg-\[\#1a2233\],
 .light .bg-\[\#1b2230\],
+.light .bg-\[\#1c2230\],
 .light .bg-\[\#1c2333\],
 .light .bg-\[\#1e2535\],
+.light .bg-\[\#1f2534\],
+.light .bg-\[\#1f2636\],
+.light .bg-\[\#1f2638\],
 .light .bg-\[\#1f2738\],
 .light .bg-\[\#202736\],
+.light .bg-\[\#202737\],
 .light .bg-\[\#202738\],
 .light .bg-\[\#222834\],
 .light .bg-\[\#222836\],
 .light .bg-\[\#222938\],
 .light .bg-\[\#222b3d\],
-.light .bg-gray-800 {
+.light .bg-\[\#252d40\],
+.light .bg-gray-800,
+.light .bg-gray-800\/30,
+.light .bg-gray-800\/40,
+.light .bg-gray-800\/80,
+.light .bg-slate-800,
+.light .bg-slate-800\/30,
+.light .bg-slate-800\/40,
+.light .bg-slate-800\/50,
+.light .bg-slate-800\/60,
+.light .bg-slate-800\/80,
+.light .bg-slate-700,
+.light .bg-slate-700\/40,
+.light .bg-slate-700\/50,
+.light .bg-slate-700\/80 {
   background-color: #f1f5f9 !important;
+  border-color: #cbd5e1 !important;
 }
 
 /* Tooltip Floaters in Light Mode */
@@ -249,7 +436,7 @@ dialog::backdrop {
   background-color: #e2e8f0 !important;
 }
 
-/* 4. Status Tinted Wells with Punchy Light Backgrounds */
+/* 5. Status Tinted Wells with Punchy Light Backgrounds */
 [data-theme="light"] .bg-\[\#0f1714\],
 [data-theme="light"] .bg-\[\#121b18\],
 [data-theme="light"] .bg-\[\#121c17\],
@@ -268,49 +455,158 @@ dialog::backdrop {
   border-color: #fecaca !important;
 }
 
-/* 5. Precision Hairline Borders & Structural Dividers (Crisp Slate-300 for maximum definition) */
+/* 6. Elimination of Cloudy Ambient Glow Blobs & Smudges */
+[data-theme="light"] .blur-3xl,
+[data-theme="light"] .blur-2xl,
+.light .blur-3xl,
+.light .blur-2xl {
+  display: none !important;
+}
+
+/* Neutralize in-page backdrop-blur to eliminate milky cloudy film on cards */
+[data-theme="light"] .backdrop-blur-md:not(.fixed),
+[data-theme="light"] .backdrop-blur-sm:not(.fixed),
+[data-theme="light"] .backdrop-blur-xs:not(.fixed),
+[data-theme="light"] .backdrop-blur-lg:not(.fixed),
+[data-theme="light"] .backdrop-blur-xl:not(.fixed),
+.light .backdrop-blur-md:not(.fixed),
+.light .backdrop-blur-sm:not(.fixed),
+.light .backdrop-blur-xs:not(.fixed),
+.light .backdrop-blur-lg:not(.fixed),
+.light .backdrop-blur-xl:not(.fixed) {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+/* Modal Dialog and Drawer backdrops: Clean, frosted dark-slate scrim */
+[data-theme="light"] .fixed.inset-0.bg-black\/80,
+[data-theme="light"] .fixed.inset-0.bg-black\/85,
+[data-theme="light"] .fixed.inset-0.bg-black\/75,
+[data-theme="light"] .fixed.inset-0.bg-black\/70,
+[data-theme="light"] .fixed.inset-0.bg-black\/60,
+[data-theme="light"] .fixed.inset-0.bg-slate-900\/60,
+.light .fixed.inset-0.bg-black\/80,
+.light .fixed.inset-0.bg-black\/85,
+.light .fixed.inset-0.bg-black\/75,
+.light .fixed.inset-0.bg-black\/70,
+.light .fixed.inset-0.bg-black\/60,
+.light .fixed.inset-0.bg-slate-900\/60 {
+  background-color: rgba(15, 23, 42, 0.45) !important;
+  backdrop-filter: blur(4px) !important;
+  -webkit-backdrop-filter: blur(4px) !important;
+}
+
+[data-theme="light"] dialog::backdrop,
+.light dialog::backdrop {
+  background: rgba(15, 23, 42, 0.45) !important;
+  backdrop-filter: blur(4px) !important;
+}
+
+/* 7. Precision Hairline Borders & Structural Dividers (Crisp Slate-300 for maximum definition) */
 [data-theme="light"] .border-\[\#0c0e14\],
+[data-theme="light"] .border-\[\#181e2b\],
 [data-theme="light"] .border-\[\#181f2c\],
+[data-theme="light"] .border-\[\#1b202c\],
 [data-theme="light"] .border-\[\#1b212c\],
 [data-theme="light"] .border-\[\#1b2230\],
 [data-theme="light"] .border-\[\#1b2232\],
+[data-theme="light"] .border-\[\#1c222e\],
+[data-theme="light"] .border-\[\#1c2436\],
+[data-theme="light"] .border-\[\#1e2330\],
 [data-theme="light"] .border-\[\#1e2430\],
+[data-theme="light"] .border-\[\#1e2433\],
 [data-theme="light"] .border-\[\#1e2532\],
 [data-theme="light"] .border-\[\#1e2535\],
+[data-theme="light"] .border-\[\#1e2536\],
+[data-theme="light"] .border-\[\#1f2637\],
 [data-theme="light"] .border-\[\#202738\],
 [data-theme="light"] .border-\[\#222834\],
+[data-theme="light"] .border-\[\#222834\]\/80,
 [data-theme="light"] .border-\[\#222a3b\],
 [data-theme="light"] .border-\[\#252f44\],
+[data-theme="light"] .border-\[\#262c3c\],
+[data-theme="light"] .border-\[\#262d3d\],
+[data-theme="light"] .border-\[\#263044\],
+[data-theme="light"] .border-\[\#263045\],
 [data-theme="light"] .border-\[\#273347\],
 [data-theme="light"] .border-\[\#2a3447\],
 [data-theme="light"] .border-\[\#2b3548\],
+[data-theme="light"] .border-\[\#2c3548\],
 [data-theme="light"] .border-\[\#2c374d\],
+[data-theme="light"] .border-\[\#2e3748\],
 [data-theme="light"] .border-\[\#354054\],
 [data-theme="light"] .border-\[\#38455e\],
 [data-theme="light"] .border-\[\#3b475e\],
 [data-theme="light"] .border-gray-800,
+[data-theme="light"] .border-gray-800\/60,
+[data-theme="light"] .border-gray-800\/80,
+[data-theme="light"] .border-gray-800\/90,
 [data-theme="light"] .border-gray-700,
+[data-theme="light"] .border-gray-700\/60,
+[data-theme="light"] .border-slate-800,
+[data-theme="light"] .border-slate-800\/60,
+[data-theme="light"] .border-slate-800\/80,
+[data-theme="light"] .border-slate-800\/90,
+[data-theme="light"] .border-slate-700,
+[data-theme="light"] .border-slate-700\/40,
+[data-theme="light"] .border-slate-700\/60,
+[data-theme="light"] .border-slate-700\/80,
+[data-theme="light"] .border-slate-600,
+[data-theme="light"] .border-slate-600\/40,
+[data-theme="light"] .border-slate-600\/50,
+[data-theme="light"] .border-slate-950,
 .light .border-\[\#0c0e14\],
+.light .border-\[\#181e2b\],
 .light .border-\[\#181f2c\],
+.light .border-\[\#1b202c\],
 .light .border-\[\#1b212c\],
 .light .border-\[\#1b2230\],
 .light .border-\[\#1b2232\],
+.light .border-\[\#1c222e\],
+.light .border-\[\#1c2436\],
+.light .border-\[\#1e2330\],
 .light .border-\[\#1e2430\],
+.light .border-\[\#1e2433\],
 .light .border-\[\#1e2532\],
 .light .border-\[\#1e2535\],
+.light .border-\[\#1e2536\],
+.light .border-\[\#1f2637\],
 .light .border-\[\#202738\],
 .light .border-\[\#222834\],
+.light .border-\[\#222834\]\/80,
 .light .border-\[\#222a3b\],
 .light .border-\[\#252f44\],
+.light .border-\[\#262c3c\],
+.light .border-\[\#262d3d\],
+.light .border-\[\#263044\],
+.light .border-\[\#263045\],
 .light .border-\[\#273347\],
 .light .border-\[\#2a3447\],
 .light .border-\[\#2b3548\],
+.light .border-\[\#2c3548\],
 .light .border-\[\#2c374d\],
+.light .border-\[\#2e3748\],
 .light .border-\[\#354054\],
 .light .border-\[\#38455e\],
 .light .border-\[\#3b475e\],
 .light .border-gray-800,
-.light .border-gray-700 {
+.light .border-gray-800\/60,
+.light .border-gray-800\/80,
+.light .border-gray-800\/90,
+.light .border-gray-700,
+.light .border-gray-700\/60,
+.light .border-slate-800,
+.light .border-slate-800\/60,
+.light .border-slate-800\/80,
+.light .border-slate-800\/90,
+.light .border-slate-700,
+.light .border-slate-700\/40,
+.light .border-slate-700\/60,
+.light .border-slate-700\/80,
+.light .border-slate-600,
+.light .border-slate-600\/40,
+.light .border-slate-600\/50,
+.light .border-slate-950 {
   border-color: #cbd5e1 !important;
 }
 
@@ -318,14 +614,18 @@ dialog::backdrop {
 [data-theme="light"] .divide-\[\#181e2b\] > :not([hidden]) ~ :not([hidden]),
 [data-theme="light"] .divide-\[\#1b212c\] > :not([hidden]) ~ :not([hidden]),
 [data-theme="light"] .divide-gray-800 > :not([hidden]) ~ :not([hidden]),
+[data-theme="light"] .divide-slate-800 > :not([hidden]) ~ :not([hidden]),
+[data-theme="light"] .divide-slate-700 > :not([hidden]) ~ :not([hidden]),
 .light .divide-\[\#222834\] > :not([hidden]) ~ :not([hidden]),
 .light .divide-\[\#181e2b\] > :not([hidden]) ~ :not([hidden]),
 .light .divide-\[\#1b212c\] > :not([hidden]) ~ :not([hidden]),
-.light .divide-gray-800 > :not([hidden]) ~ :not([hidden]) {
+.light .divide-gray-800 > :not([hidden]) ~ :not([hidden]),
+.light .divide-slate-800 > :not([hidden]) ~ :not([hidden]),
+.light .divide-slate-700 > :not([hidden]) ~ :not([hidden]) {
   border-color: #cbd5e1 !important;
 }
 
-/* 6. Ultra High-Legibility Typography Scale (WCAG AAA Compliant) */
+/* 8. Ultra High-Legibility Typography Scale (WCAG AAA Compliant) */
 [data-theme="light"] .text-white,
 .light .text-white {
   color: #090d16 !important;
@@ -350,25 +650,72 @@ dialog::backdrop {
   color: #1e293b !important;
 }
 
-/* Primary secondary labels (boosted from #64748b to #334155 for crisp 9:1 contrast) */
+/* Primary secondary labels & icons (boosted from #64748b to #334155 for crisp 9.1:1 contrast) */
 [data-theme="light"] .text-slate-400,
 [data-theme="light"] .text-gray-400,
+[data-theme="light"] .text-zinc-400,
+[data-theme="light"] .text-neutral-400,
+[data-theme="light"] .text-neutral-600,
 .light .text-slate-400,
-.light .text-gray-400 {
+.light .text-gray-400,
+.light .text-zinc-400,
+.light .text-neutral-400,
+.light .text-neutral-600 {
   color: #334155 !important;
   font-weight: 500;
 }
 
-/* Tertiary muted text (boosted from #94a3b8 to #475569 for crisp 7:1 contrast) */
+[data-theme="light"] svg.text-slate-400,
+[data-theme="light"] svg.text-gray-400,
+[data-theme="light"] svg.text-zinc-400,
+[data-theme="light"] svg.text-neutral-400,
+.light svg.text-slate-400,
+.light svg.text-gray-400,
+.light svg.text-zinc-400,
+.light svg.text-neutral-400 {
+  stroke: #334155 !important;
+  color: #334155 !important;
+}
+
+/* Tertiary muted text & icons (boosted from #94a3b8 to #475569 for crisp 7:1 contrast) */
 [data-theme="light"] .text-slate-500,
 [data-theme="light"] .text-gray-500,
+[data-theme="light"] .text-zinc-500,
+[data-theme="light"] .text-neutral-500,
 .light .text-slate-500,
-.light .text-gray-500 {
+.light .text-gray-500,
+.light .text-zinc-500,
+.light .text-neutral-500 {
+  color: #475569 !important;
+  font-weight: 500;
+}
+
+[data-theme="light"] svg.text-slate-500,
+[data-theme="light"] svg.text-gray-500,
+[data-theme="light"] svg.text-zinc-500,
+[data-theme="light"] svg.text-neutral-500,
+.light svg.text-slate-500,
+.light svg.text-gray-500,
+.light svg.text-zinc-500,
+.light svg.text-neutral-500 {
+  stroke: #475569 !important;
   color: #475569 !important;
 }
 
 [data-theme="light"] .text-slate-600,
-.light .text-slate-600 {
+[data-theme="light"] .text-gray-600,
+[data-theme="light"] .text-zinc-600,
+.light .text-slate-600,
+.light .text-gray-600,
+.light .text-zinc-600 {
+  color: #334155 !important;
+}
+
+[data-theme="light"] svg.text-slate-600,
+[data-theme="light"] svg.text-gray-600,
+.light svg.text-slate-600,
+.light svg.text-gray-600 {
+  stroke: #334155 !important;
   color: #334155 !important;
 }
 
@@ -378,204 +725,620 @@ dialog::backdrop {
   color: #cbd5e1 !important;
 }
 
-/* 7. Solid Button & Badge Text Contrast Protections */
-[data-theme="light"] .bg-blue-600,
-[data-theme="light"] .bg-blue-500,
-[data-theme="light"] .bg-emerald-600,
-[data-theme="light"] .bg-emerald-500,
-[data-theme="light"] .bg-rose-600,
-[data-theme="light"] .bg-rose-500,
-[data-theme="light"] .bg-red-600,
-[data-theme="light"] .bg-red-500,
-[data-theme="light"] .bg-indigo-600,
-[data-theme="light"] .bg-indigo-500,
-[data-theme="light"] .bg-purple-600,
-.light .bg-blue-600,
-.light .bg-blue-500,
-.light .bg-emerald-600,
-.light .bg-emerald-500,
-.light .bg-rose-600,
-.light .bg-rose-500,
-.light .bg-red-600,
-.light .bg-red-500,
-.light .bg-indigo-600,
-.light .bg-indigo-500,
-.light .bg-purple-600 {
+/* 9. Solid Button & Action Controls Contrast Protections (Pure White Text/Icons on Dark Solid Backgrounds) */
+[data-theme="light"] button.bg-blue-600,
+[data-theme="light"] button.bg-blue-500,
+[data-theme="light"] button.bg-emerald-600,
+[data-theme="light"] button.bg-emerald-500,
+[data-theme="light"] button.bg-rose-600,
+[data-theme="light"] button.bg-rose-500,
+[data-theme="light"] button.bg-red-600,
+[data-theme="light"] button.bg-red-500,
+[data-theme="light"] button.bg-indigo-600,
+[data-theme="light"] button.bg-indigo-500,
+[data-theme="light"] button.bg-purple-600,
+[data-theme="light"] button.bg-cyan-600,
+[data-theme="light"] button.bg-cyan-500,
+[data-theme="light"] button.bg-sky-600,
+[data-theme="light"] button.bg-sky-500,
+[data-theme="light"] a.bg-blue-600,
+[data-theme="light"] a.bg-blue-500,
+[data-theme="light"] a.bg-emerald-600,
+[data-theme="light"] a.bg-emerald-500,
+[data-theme="light"] a.bg-indigo-600,
+.light button.bg-blue-600,
+.light button.bg-blue-500,
+.light button.bg-emerald-600,
+.light button.bg-emerald-500,
+.light button.bg-rose-600,
+.light button.bg-rose-500,
+.light button.bg-red-600,
+.light button.bg-red-500,
+.light button.bg-indigo-600,
+.light button.bg-indigo-500,
+.light button.bg-purple-600,
+.light button.bg-cyan-600,
+.light button.bg-cyan-500,
+.light button.bg-sky-600,
+.light button.bg-sky-500,
+.light a.bg-blue-600,
+.light a.bg-blue-500,
+.light a.bg-emerald-600,
+.light a.bg-emerald-500,
+.light a.bg-indigo-600,
+[data-theme="light"] .bg-blue-600:not([class*="/"]),
+[data-theme="light"] .bg-blue-500:not([class*="/"]),
+[data-theme="light"] .bg-emerald-600:not([class*="/"]),
+[data-theme="light"] .bg-emerald-500:not([class*="/"]),
+[data-theme="light"] .bg-rose-600:not([class*="/"]),
+[data-theme="light"] .bg-rose-500:not([class*="/"]),
+[data-theme="light"] .bg-red-600:not([class*="/"]),
+[data-theme="light"] .bg-red-500:not([class*="/"]),
+[data-theme="light"] .bg-indigo-600:not([class*="/"]),
+[data-theme="light"] .bg-indigo-500:not([class*="/"]),
+[data-theme="light"] .bg-purple-600:not([class*="/"]),
+[data-theme="light"] .bg-cyan-600:not([class*="/"]),
+[data-theme="light"] .bg-cyan-500:not([class*="/"]),
+.light .bg-blue-600:not([class*="/"]),
+.light .bg-blue-500:not([class*="/"]),
+.light .bg-emerald-600:not([class*="/"]),
+.light .bg-emerald-500:not([class*="/"]),
+.light .bg-rose-600:not([class*="/"]),
+.light .bg-rose-500:not([class*="/"]),
+.light .bg-red-600:not([class*="/"]),
+.light .bg-red-500:not([class*="/"]),
+.light .bg-indigo-600:not([class*="/"]),
+.light .bg-indigo-500:not([class*="/"]),
+.light .bg-purple-600:not([class*="/"]),
+.light .bg-cyan-600:not([class*="/"]),
+.light .bg-cyan-500:not([class*="/"]) {
   color: #ffffff !important;
 }
 
-[data-theme="light"] [class*="bg-blue-600"] *,
-[data-theme="light"] [class*="bg-blue-500"] *,
-[data-theme="light"] [class*="bg-emerald-600"] *,
-[data-theme="light"] [class*="bg-emerald-500"] *,
-[data-theme="light"] [class*="bg-rose-600"] *,
-[data-theme="light"] [class*="bg-rose-500"] *,
-[data-theme="light"] [class*="bg-red-600"] *,
-[data-theme="light"] [class*="bg-red-500"] *,
-[data-theme="light"] [class*="bg-purple-600"] *,
-.light [class*="bg-blue-600"] *,
-.light [class*="bg-blue-500"] *,
-.light [class*="bg-emerald-600"] *,
-.light [class*="bg-emerald-500"] *,
-.light [class*="bg-rose-600"] *,
-.light [class*="bg-rose-500"] *,
-.light [class*="bg-red-600"] *,
-.light [class*="bg-red-500"] *,
-.light [class*="bg-purple-600"] * {
+[data-theme="light"] button.bg-blue-600 *,
+[data-theme="light"] button.bg-blue-500 *,
+[data-theme="light"] button.bg-emerald-600 *,
+[data-theme="light"] button.bg-emerald-500 *,
+[data-theme="light"] button.bg-rose-600 *,
+[data-theme="light"] button.bg-rose-500 *,
+[data-theme="light"] button.bg-red-600 *,
+[data-theme="light"] button.bg-red-500 *,
+[data-theme="light"] button.bg-indigo-600 *,
+[data-theme="light"] button.bg-indigo-500 *,
+[data-theme="light"] button.bg-purple-600 *,
+[data-theme="light"] button.bg-cyan-600 *,
+[data-theme="light"] button.bg-cyan-500 *,
+[data-theme="light"] button.bg-sky-600 *,
+[data-theme="light"] button.bg-sky-500 *,
+[data-theme="light"] a.bg-blue-600 *,
+[data-theme="light"] a.bg-blue-500 *,
+[data-theme="light"] a.bg-emerald-600 *,
+[data-theme="light"] a.bg-emerald-500 *,
+[data-theme="light"] a.bg-indigo-600 *,
+.light button.bg-blue-600 *,
+.light button.bg-blue-500 *,
+.light button.bg-emerald-600 *,
+.light button.bg-emerald-500 *,
+.light button.bg-rose-600 *,
+.light button.bg-rose-500 *,
+.light button.bg-red-600 *,
+.light button.bg-red-500 *,
+.light button.bg-indigo-600 *,
+.light button.bg-indigo-500 *,
+.light button.bg-purple-600 *,
+.light button.bg-cyan-600 *,
+.light button.bg-cyan-500 *,
+.light button.bg-sky-600 *,
+.light button.bg-sky-500 *,
+.light a.bg-blue-600 *,
+.light a.bg-blue-500 *,
+.light a.bg-emerald-600 *,
+.light a.bg-emerald-500 *,
+.light a.bg-indigo-600 *,
+[data-theme="light"] .bg-blue-600:not([class*="/"]) *,
+[data-theme="light"] .bg-blue-500:not([class*="/"]) *,
+[data-theme="light"] .bg-emerald-600:not([class*="/"]) *,
+[data-theme="light"] .bg-emerald-500:not([class*="/"]) *,
+[data-theme="light"] .bg-rose-600:not([class*="/"]) *,
+[data-theme="light"] .bg-rose-500:not([class*="/"]) *,
+[data-theme="light"] .bg-red-600:not([class*="/"]) *,
+[data-theme="light"] .bg-red-500:not([class*="/"]) *,
+[data-theme="light"] .bg-indigo-600:not([class*="/"]) *,
+[data-theme="light"] .bg-indigo-500:not([class*="/"]) *,
+[data-theme="light"] .bg-purple-600:not([class*="/"]) *,
+[data-theme="light"] .bg-cyan-600:not([class*="/"]) *,
+[data-theme="light"] .bg-cyan-500:not([class*="/"]) *,
+.light .bg-blue-600:not([class*="/"]) *,
+.light .bg-blue-500:not([class*="/"]) *,
+.light .bg-emerald-600:not([class*="/"]) *,
+.light .bg-emerald-500:not([class*="/"]) *,
+.light .bg-rose-600:not([class*="/"]) *,
+.light .bg-rose-500:not([class*="/"]) *,
+.light .bg-red-600:not([class*="/"]) *,
+.light .bg-red-500:not([class*="/"]) *,
+.light .bg-indigo-600:not([class*="/"]) *,
+.light .bg-indigo-500:not([class*="/"]) *,
+.light .bg-purple-600:not([class*="/"]) *,
+.light .bg-cyan-600:not([class*="/"]) *,
+.light .bg-cyan-500:not([class*="/"]) * {
   color: #ffffff !important;
+  stroke: #ffffff !important;
 }
 
-[data-theme="light"] .bg-amber-500,
-[data-theme="light"] .bg-amber-400,
-.light .bg-amber-500,
-.light .bg-amber-400 {
+/* Yellow & Amber Solid Buttons (Dark Slate Text/Icons on Yellow/Amber Backgrounds) */
+[data-theme="light"] button.bg-amber-400,
+[data-theme="light"] button.bg-amber-500,
+[data-theme="light"] button.bg-yellow-400,
+[data-theme="light"] button.bg-yellow-500,
+[data-theme="light"] a.bg-amber-400,
+[data-theme="light"] a.bg-amber-500,
+.light button.bg-amber-400,
+.light button.bg-amber-500,
+.light button.bg-yellow-400,
+.light button.bg-yellow-500,
+.light a.bg-amber-400,
+.light a.bg-amber-500,
+[data-theme="light"] .bg-amber-400:not([class*="/"]),
+[data-theme="light"] .bg-amber-500:not([class*="/"]),
+[data-theme="light"] .bg-yellow-400:not([class*="/"]),
+[data-theme="light"] .bg-yellow-500:not([class*="/"]),
+.light .bg-amber-400:not([class*="/"]),
+.light .bg-amber-500:not([class*="/"]),
+.light .bg-yellow-400:not([class*="/"]),
+.light .bg-yellow-500:not([class*="/"]) {
   color: #090d16 !important;
 }
 
-/* 8. Telemetry Signal Accents (Deep, High-Contrast Saturated Hues for Light Mode) */
-/* Amber / Warning -> Deep Rich Amber */
-[data-theme="light"] .text-amber-400,
+[data-theme="light"] button.bg-amber-400 *,
+[data-theme="light"] button.bg-amber-500 *,
+[data-theme="light"] button.bg-yellow-400 *,
+[data-theme="light"] button.bg-yellow-500 *,
+[data-theme="light"] a.bg-amber-400 *,
+[data-theme="light"] a.bg-amber-500 *,
+.light button.bg-amber-400 *,
+.light button.bg-amber-500 *,
+.light button.bg-yellow-400 *,
+.light button.bg-yellow-500 *,
+.light a.bg-amber-400 *,
+.light a.bg-amber-500 *,
+[data-theme="light"] .bg-amber-400:not([class*="/"]) *,
+[data-theme="light"] .bg-amber-500:not([class*="/"]) *,
+[data-theme="light"] .bg-yellow-400:not([class*="/"]) *,
+[data-theme="light"] .bg-yellow-500:not([class*="/"]) *,
+.light .bg-amber-400:not([class*="/"]) *,
+.light .bg-amber-500:not([class*="/"]) *,
+.light .bg-yellow-400:not([class*="/"]) *,
+.light .bg-yellow-500:not([class*="/"]) * {
+  color: #090d16 !important;
+  stroke: #090d16 !important;
+}
+
+/* 10. Telemetry Signal Accents (Deep, High-Contrast Saturated Hues for Light Mode) */
+/* Amber & Yellow / Warning -> Deep Rich Amber (#92400e - 7.6:1 WCAG AAA Contrast) */
+[data-theme="light"] .text-amber-100,
+[data-theme="light"] .text-amber-200,
 [data-theme="light"] .text-amber-300,
+[data-theme="light"] .text-amber-400,
 [data-theme="light"] .text-amber-500,
+[data-theme="light"] .text-amber-400\/80,
+[data-theme="light"] .text-amber-400\/90,
+[data-theme="light"] .text-amber-500\/80,
+[data-theme="light"] .text-amber-300\/80,
+[data-theme="light"] .text-yellow-100,
+[data-theme="light"] .text-yellow-200,
+[data-theme="light"] .text-yellow-300,
 [data-theme="light"] .text-yellow-400,
 [data-theme="light"] .text-yellow-500,
-.light .text-amber-400,
+.light .text-amber-100,
+.light .text-amber-200,
 .light .text-amber-300,
+.light .text-amber-400,
 .light .text-amber-500,
+.light .text-amber-400\/80,
+.light .text-amber-400\/90,
+.light .text-amber-500\/80,
+.light .text-amber-300\/80,
+.light .text-yellow-100,
+.light .text-yellow-200,
+.light .text-yellow-300,
 .light .text-yellow-400,
 .light .text-yellow-500 {
   color: #92400e !important;
+  stroke: #92400e !important;
   font-weight: 600;
 }
 
-/* Emerald / Success -> Deep Forest Green */
-[data-theme="light"] .text-emerald-400,
+/* Orange -> Deep Vivid Orange (#c2410c - 5.7:1 Contrast) */
+[data-theme="light"] .text-orange-100,
+[data-theme="light"] .text-orange-200,
+[data-theme="light"] .text-orange-300,
+[data-theme="light"] .text-orange-400,
+[data-theme="light"] .text-orange-500,
+.light .text-orange-100,
+.light .text-orange-200,
+.light .text-orange-300,
+.light .text-orange-400,
+.light .text-orange-500 {
+  color: #c2410c !important;
+  stroke: #c2410c !important;
+  font-weight: 600;
+}
+
+/* Emerald & Green / Success -> Deep Forest Green (#065f46 - 7.2:1 WCAG AAA Contrast) */
+[data-theme="light"] .text-emerald-100,
+[data-theme="light"] .text-emerald-200,
 [data-theme="light"] .text-emerald-300,
+[data-theme="light"] .text-emerald-400,
 [data-theme="light"] .text-emerald-500,
+[data-theme="light"] .text-emerald-400\/80,
+[data-theme="light"] .text-green-100,
+[data-theme="light"] .text-green-200,
+[data-theme="light"] .text-green-300,
 [data-theme="light"] .text-green-400,
-.light .text-emerald-400,
+[data-theme="light"] .text-green-500,
+.light .text-emerald-100,
+.light .text-emerald-200,
 .light .text-emerald-300,
+.light .text-emerald-400,
 .light .text-emerald-500,
-.light .text-green-400 {
+.light .text-emerald-400\/80,
+.light .text-green-100,
+.light .text-green-200,
+.light .text-green-300,
+.light .text-green-400,
+.light .text-green-500 {
   color: #065f46 !important;
+  stroke: #065f46 !important;
   font-weight: 600;
 }
 
-/* Rose / Critical -> Deep Vivid Crimson */
+/* Rose & Red / Critical -> Deep Vivid Crimson (#9f1239 - 7.4:1 WCAG AAA Contrast) */
+[data-theme="light"] .text-rose-100,
+[data-theme="light"] .text-rose-200,
+[data-theme="light"] .text-rose-300,
 [data-theme="light"] .text-rose-400,
 [data-theme="light"] .text-rose-500,
+[data-theme="light"] .text-rose-400\/80,
+[data-theme="light"] .text-rose-400\/90,
+[data-theme="light"] .text-red-100,
+[data-theme="light"] .text-red-200,
+[data-theme="light"] .text-red-300,
 [data-theme="light"] .text-red-400,
 [data-theme="light"] .text-red-500,
+.light .text-rose-100,
+.light .text-rose-200,
+.light .text-rose-300,
 .light .text-rose-400,
 .light .text-rose-500,
+.light .text-rose-400\/80,
+.light .text-rose-400\/90,
+.light .text-red-100,
+.light .text-red-200,
+.light .text-red-300,
 .light .text-red-400,
 .light .text-red-500 {
   color: #9f1239 !important;
+  stroke: #9f1239 !important;
   font-weight: 600;
 }
 
-/* Blue / Info -> Deep Royal Blue */
-[data-theme="light"] .text-blue-400,
+/* Blue / Info -> Deep Royal Blue (#1e40af - 8.5:1 WCAG AAA Contrast) */
+[data-theme="light"] .text-blue-100,
+[data-theme="light"] .text-blue-200,
 [data-theme="light"] .text-blue-300,
+[data-theme="light"] .text-blue-400,
+[data-theme="light"] .text-blue-500,
+.light .text-blue-100,
+.light .text-blue-200,
+.light .text-blue-300,
 .light .text-blue-400,
-.light .text-blue-300 {
+.light .text-blue-500 {
   color: #1e40af !important;
+  stroke: #1e40af !important;
   font-weight: 600;
 }
 
-/* Cyan / Couriers -> Deep Ocean Teal */
-[data-theme="light"] .text-cyan-400,
+/* Cyan, Sky & Teal / Couriers & Routing -> Deep Ocean Cyan (#155e75 - 7.1:1 WCAG AAA Contrast) */
+[data-theme="light"] .text-cyan-100,
+[data-theme="light"] .text-cyan-200,
 [data-theme="light"] .text-cyan-300,
+[data-theme="light"] .text-cyan-400,
+[data-theme="light"] .text-cyan-500,
+[data-theme="light"] .text-cyan-400\/80,
+[data-theme="light"] .text-sky-100,
+[data-theme="light"] .text-sky-200,
+[data-theme="light"] .text-sky-300,
+[data-theme="light"] .text-sky-400,
+[data-theme="light"] .text-sky-500,
+[data-theme="light"] .text-teal-100,
+[data-theme="light"] .text-teal-200,
+[data-theme="light"] .text-teal-300,
+[data-theme="light"] .text-teal-400,
+[data-theme="light"] .text-teal-500,
+.light .text-cyan-100,
+.light .text-cyan-200,
+.light .text-cyan-300,
 .light .text-cyan-400,
-.light .text-cyan-300 {
+.light .text-cyan-500,
+.light .text-cyan-400\/80,
+.light .text-sky-100,
+.light .text-sky-200,
+.light .text-sky-300,
+.light .text-sky-400,
+.light .text-sky-500,
+.light .text-teal-100,
+.light .text-teal-200,
+.light .text-teal-300,
+.light .text-teal-400,
+.light .text-teal-500 {
   color: #155e75 !important;
+  stroke: #155e75 !important;
   font-weight: 600;
 }
 
-/* Purple / Freight -> Deep Imperial Purple */
-[data-theme="light"] .text-purple-400,
+/* Indigo / Operations -> Deep Indigo (#4338ca - 7.0:1 WCAG AAA Contrast) */
+[data-theme="light"] .text-indigo-100,
+[data-theme="light"] .text-indigo-200,
+[data-theme="light"] .text-indigo-300,
+[data-theme="light"] .text-indigo-400,
+[data-theme="light"] .text-indigo-500,
+.light .text-indigo-100,
+.light .text-indigo-200,
+.light .text-indigo-300,
+.light .text-indigo-400,
+.light .text-indigo-500 {
+  color: #4338ca !important;
+  stroke: #4338ca !important;
+  font-weight: 600;
+}
+
+/* Purple & Violet / Freight -> Deep Imperial Purple (#6b21a8 - 7.3:1 WCAG AAA Contrast) */
+[data-theme="light"] .text-purple-100,
+[data-theme="light"] .text-purple-200,
 [data-theme="light"] .text-purple-300,
+[data-theme="light"] .text-purple-400,
+[data-theme="light"] .text-purple-500,
+[data-theme="light"] .text-violet-100,
+[data-theme="light"] .text-violet-200,
+[data-theme="light"] .text-violet-300,
+[data-theme="light"] .text-violet-400,
+[data-theme="light"] .text-violet-500,
+.light .text-purple-100,
+.light .text-purple-200,
+.light .text-purple-300,
 .light .text-purple-400,
-.light .text-purple-300 {
+.light .text-purple-500,
+.light .text-violet-100,
+.light .text-violet-200,
+.light .text-violet-300,
+.light .text-violet-400,
+.light .text-violet-500 {
   color: #6b21a8 !important;
+  stroke: #6b21a8 !important;
   font-weight: 600;
 }
 
-/* Translucent Badge & Pill Enhancements for Crisp Light Contrast */
-[data-theme="light"] [class*="bg-amber-500/10"],
-[data-theme="light"] [class*="bg-amber-400/10"],
-.light [class*="bg-amber-500/10"],
-.light [class*="bg-amber-400/10"] {
+/* 11. Translucent Badge & Pill Enhancements for Crisp Light Contrast (Exact class selectors — never wildcard) */
+[data-theme="light"] .bg-amber-500\/10,
+[data-theme="light"] .bg-amber-500\/15,
+[data-theme="light"] .bg-amber-500\/20,
+[data-theme="light"] .bg-amber-500\/30,
+[data-theme="light"] .bg-amber-400\/10,
+[data-theme="light"] .bg-amber-50\/50,
+[data-theme="light"] .bg-amber-950\/20,
+[data-theme="light"] .bg-amber-950\/60,
+.light .bg-amber-500\/10,
+.light .bg-amber-500\/15,
+.light .bg-amber-500\/20,
+.light .bg-amber-500\/30,
+.light .bg-amber-400\/10,
+.light .bg-amber-50\/50,
+.light .bg-amber-950\/20,
+.light .bg-amber-950\/60 {
   background-color: #fef3c7 !important;
   border-color: #fcd34d !important;
   color: #78350f !important;
 }
 
-[data-theme="light"] [class*="bg-emerald-500/10"],
-[data-theme="light"] [class*="bg-emerald-400/10"],
-.light [class*="bg-emerald-500/10"],
-.light [class*="bg-emerald-400/10"] {
+[data-theme="light"] .bg-emerald-500\/10,
+[data-theme="light"] .bg-emerald-500\/15,
+[data-theme="light"] .bg-emerald-500\/20,
+[data-theme="light"] .bg-emerald-600\/20,
+[data-theme="light"] .bg-emerald-600\/30,
+[data-theme="light"] .bg-emerald-950\/10,
+[data-theme="light"] .bg-emerald-950\/20,
+[data-theme="light"] .bg-emerald-950\/25,
+[data-theme="light"] .bg-emerald-950\/40,
+[data-theme="light"] .bg-emerald-950\/60,
+[data-theme="light"] .bg-emerald-950\/70,
+[data-theme="light"] .bg-emerald-950\/80,
+[data-theme="light"] .bg-green-500\/10,
+[data-theme="light"] .bg-green-600\/20,
+.light .bg-emerald-500\/10,
+.light .bg-emerald-500\/15,
+.light .bg-emerald-500\/20,
+.light .bg-emerald-600\/20,
+.light .bg-emerald-600\/30,
+.light .bg-emerald-950\/10,
+.light .bg-emerald-950\/20,
+.light .bg-emerald-950\/25,
+.light .bg-emerald-950\/40,
+.light .bg-emerald-950\/60,
+.light .bg-emerald-950\/70,
+.light .bg-emerald-950\/80,
+.light .bg-green-500\/10,
+.light .bg-green-600\/20 {
   background-color: #d1fae5 !important;
   border-color: #6ee7b7 !important;
   color: #065f46 !important;
 }
 
-[data-theme="light"] [class*="bg-blue-500/10"],
-[data-theme="light"] [class*="bg-blue-400/10"],
-.light [class*="bg-blue-500/10"],
-.light [class*="bg-blue-400/10"] {
+[data-theme="light"] .bg-blue-500\/10,
+[data-theme="light"] .bg-blue-500\/15,
+[data-theme="light"] .bg-blue-500\/20,
+[data-theme="light"] .bg-blue-600\/10,
+[data-theme="light"] .bg-blue-600\/15,
+[data-theme="light"] .bg-blue-600\/20,
+[data-theme="light"] .bg-blue-600\/30,
+[data-theme="light"] .bg-blue-950\/20,
+[data-theme="light"] .bg-blue-950\/40,
+[data-theme="light"] .bg-blue-950\/60,
+.light .bg-blue-500\/10,
+.light .bg-blue-500\/15,
+.light .bg-blue-500\/20,
+.light .bg-blue-600\/10,
+.light .bg-blue-600\/15,
+.light .bg-blue-600\/20,
+.light .bg-blue-600\/30,
+.light .bg-blue-950\/20,
+.light .bg-blue-950\/40,
+.light .bg-blue-950\/60 {
   background-color: #dbeafe !important;
   border-color: #93c5fd !important;
   color: #1e40af !important;
 }
 
-[data-theme="light"] [class*="bg-cyan-500/10"],
-[data-theme="light"] [class*="bg-cyan-400/10"],
-.light [class*="bg-cyan-500/10"],
-.light [class*="bg-cyan-400/10"] {
+[data-theme="light"] .bg-cyan-500\/10,
+[data-theme="light"] .bg-cyan-500\/20,
+[data-theme="light"] .bg-cyan-600\/20,
+[data-theme="light"] .bg-cyan-600\/30,
+[data-theme="light"] .bg-cyan-950\/30,
+[data-theme="light"] .bg-cyan-950\/40,
+[data-theme="light"] .bg-sky-500\/10,
+[data-theme="light"] .bg-sky-500\/15,
+[data-theme="light"] .bg-sky-500\/20,
+[data-theme="light"] .bg-sky-600\/20,
+[data-theme="light"] .bg-sky-950\/60,
+[data-theme="light"] .bg-sky-950\/80,
+[data-theme="light"] .bg-teal-500\/10,
+[data-theme="light"] .bg-teal-500\/15,
+[data-theme="light"] .bg-teal-500\/20,
+[data-theme="light"] .bg-teal-600\/20,
+[data-theme="light"] .bg-teal-600\/30,
+.light .bg-cyan-500\/10,
+.light .bg-cyan-500\/20,
+.light .bg-cyan-600\/20,
+.light .bg-cyan-600\/30,
+.light .bg-cyan-950\/30,
+.light .bg-cyan-950\/40,
+.light .bg-sky-500\/10,
+.light .bg-sky-500\/15,
+.light .bg-sky-500\/20,
+.light .bg-sky-600\/20,
+.light .bg-sky-950\/60,
+.light .bg-sky-950\/80,
+.light .bg-teal-500\/10,
+.light .bg-teal-500\/15,
+.light .bg-teal-500\/20,
+.light .bg-teal-600\/20,
+.light .bg-teal-600\/30 {
   background-color: #cffafe !important;
   border-color: #67e8f9 !important;
   color: #155e75 !important;
 }
 
-[data-theme="light"] [class*="bg-rose-500/10"],
-[data-theme="light"] [class*="bg-rose-400/10"],
-[data-theme="light"] [class*="bg-red-500/10"],
-.light [class*="bg-rose-500/10"],
-.light [class*="bg-rose-400/10"],
-.light [class*="bg-red-500/10"] {
+[data-theme="light"] .bg-orange-500\/10,
+[data-theme="light"] .bg-orange-500\/15,
+[data-theme="light"] .bg-orange-500\/20,
+[data-theme="light"] .bg-orange-600\/20,
+[data-theme="light"] .bg-orange-950\/40,
+.light .bg-orange-500\/10,
+.light .bg-orange-500\/15,
+.light .bg-orange-500\/20,
+.light .bg-orange-600\/20,
+.light .bg-orange-950\/40 {
+  background-color: #ffedd5 !important;
+  border-color: #fdba74 !important;
+  color: #9a3412 !important;
+}
+
+[data-theme="light"] .bg-rose-500\/10,
+[data-theme="light"] .bg-rose-500\/15,
+[data-theme="light"] .bg-rose-500\/20,
+[data-theme="light"] .bg-rose-600\/20,
+[data-theme="light"] .bg-rose-600\/30,
+[data-theme="light"] .bg-red-500\/10,
+[data-theme="light"] .bg-red-500\/20,
+[data-theme="light"] .bg-rose-950\/20,
+[data-theme="light"] .bg-rose-950\/40,
+.light .bg-rose-500\/10,
+.light .bg-rose-500\/15,
+.light .bg-rose-500\/20,
+.light .bg-rose-600\/20,
+.light .bg-rose-600\/30,
+.light .bg-red-500\/10,
+.light .bg-red-500\/20,
+.light .bg-rose-950\/20,
+.light .bg-rose-950\/40 {
   background-color: #ffe4e6 !important;
   border-color: #fda4af !important;
   color: #9f1239 !important;
 }
 
-[data-theme="light"] [class*="bg-purple-500/10"],
-[data-theme="light"] [class*="bg-purple-400/10"],
-.light [class*="bg-purple-500/10"],
-.light [class*="bg-purple-400/10"] {
+[data-theme="light"] .bg-purple-500\/10,
+[data-theme="light"] .bg-purple-500\/20,
+[data-theme="light"] .bg-indigo-500\/10,
+[data-theme="light"] .bg-indigo-500\/20,
+[data-theme="light"] .bg-indigo-600\/20,
+[data-theme="light"] .bg-indigo-600\/30,
+[data-theme="light"] .bg-indigo-950\/20,
+[data-theme="light"] .bg-indigo-950\/40,
+.light .bg-purple-500\/10,
+.light .bg-purple-500\/20,
+.light .bg-indigo-500\/10,
+.light .bg-indigo-500\/20,
+.light .bg-indigo-600\/20,
+.light .bg-indigo-600\/30,
+.light .bg-indigo-950\/20,
+.light .bg-indigo-950\/40 {
   background-color: #f3e8ff !important;
   border-color: #d8b4fe !important;
   color: #6b21a8 !important;
 }
 
-/* 9. Interactive Hovers */
+/* 12. Interactive Hovers & Sidebar Nav State */
 [data-theme="light"] .hover\:bg-\[\#181d28\]:hover,
 [data-theme="light"] .hover\:bg-\[\#1a202d\]:hover,
 [data-theme="light"] .hover\:bg-\[\#161b26\]:hover,
 [data-theme="light"] .hover\:bg-\[\#161c28\]:hover,
 [data-theme="light"] .hover\:bg-\[\#141822\]:hover,
 [data-theme="light"] .hover\:bg-\[\#1e2535\]:hover,
+[data-theme="light"] .hover\:bg-\[\#1f2534\]:hover,
+[data-theme="light"] .hover\:bg-\[\#222834\]:hover,
 [data-theme="light"] .hover\:bg-gray-800:hover,
 [data-theme="light"] .hover\:bg-gray-700:hover,
+[data-theme="light"] .hover\:bg-slate-800:hover,
+[data-theme="light"] .hover\:bg-slate-700:hover,
 .light .hover\:bg-\[\#181d28\]:hover,
 .light .hover\:bg-\[\#1a202d\]:hover,
 .light .hover\:bg-\[\#161b26\]:hover,
 .light .hover\:bg-\[\#161c28\]:hover,
 .light .hover\:bg-\[\#141822\]:hover,
 .light .hover\:bg-\[\#1e2535\]:hover,
+.light .hover\:bg-\[\#1f2534\]:hover,
+.light .hover\:bg-\[\#222834\]:hover,
 .light .hover\:bg-gray-800:hover,
-.light .hover\:bg-gray-700:hover {
+.light .hover\:bg-gray-700:hover,
+.light .hover\:bg-slate-800:hover,
+.light .hover\:bg-slate-700:hover {
   background-color: #e2e8f0 !important;
+}
+
+[data-theme="light"] aside .bg-\[\#181f2c\],
+.light aside .bg-\[\#181f2c\] {
+  background-color: #f1f5f9 !important;
+  color: #090d16 !important;
+  font-weight: 600 !important;
+}
+
+[data-theme="light"] aside .bg-amber-400,
+.light aside .bg-amber-400 {
+  background-color: #b45309 !important;
+}
+
+[data-theme="light"] aside button:hover,
+.light aside button:hover {
+  background-color: #f8fafc !important;
 }
 
 [data-theme="light"] .hover\:text-white:hover,
@@ -597,7 +1360,7 @@ dialog::backdrop {
   border-color: #94a3b8 !important;
 }
 
-/* 10. Form Controls, Inputs & Selects */
+/* 13. Form Controls, Inputs & Selects */
 [data-theme="light"] input:not([type="checkbox"]):not([type="radio"]),
 [data-theme="light"] select,
 [data-theme="light"] textarea,
@@ -627,7 +1390,7 @@ dialog::backdrop {
   color: #64748b !important;
 }
 
-/* 11. Tables High-Contrast Styling */
+/* 14. Tables High-Contrast Styling */
 [data-theme="light"] table thead tr,
 .light table thead tr {
   background-color: #f1f5f9 !important;
@@ -650,7 +1413,7 @@ dialog::backdrop {
   background-color: #f8fafc !important;
 }
 
-/* 12. SVG Charts Light Mode Telemetry Optimization */
+/* 15. SVG Charts Light Mode Telemetry Optimization */
 [data-theme="light"] svg text,
 .light svg text {
   fill: #1e293b !important;
@@ -699,7 +1462,7 @@ dialog::backdrop {
   fill: #ffffff !important;
 }
 
-/* 13. Light Mode Scrollbars & Backdrops */
+/* 16. Light Mode Scrollbars & Backdrops */
 [data-theme="light"] ::-webkit-scrollbar-track,
 .light ::-webkit-scrollbar-track {
   background: #f1f5f9;
@@ -715,13 +1478,7 @@ dialog::backdrop {
   background: #94a3b8;
 }
 
-[data-theme="light"] dialog::backdrop,
-.light dialog::backdrop {
-  background: rgba(15, 23, 42, 0.55);
-  backdrop-filter: blur(6px);
-}
-
-/* 14. Toast & Floating Notification Capsules (WCAG AAA High Contrast) */
+/* 17. Toast & Floating Notification Capsules (WCAG AAA High Contrast) */
 [data-theme="light"] .toast-capsule,
 .light .toast-capsule {
   background-color: #ffffff !important;

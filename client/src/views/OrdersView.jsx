@@ -910,7 +910,7 @@ export function OrdersView() {
                       {selectedOrder.status === 'READY_FOR_DISPATCH' && (
                         <button
                           onClick={() => handleTransition('DISPATCHED', 'Outbound driver handoff')}
-                          className="px-3 py-1 rounded bg-cyan-600 hover:bg-cyan-500 text-slate-950 font-bold cursor-pointer"
+                          className="px-3 py-1 rounded bg-cyan-600 hover:bg-cyan-500 text-white font-bold cursor-pointer"
                         >
                           DISPATCH (DEDUCT STOCK)
                         </button>
@@ -927,7 +927,7 @@ export function OrdersView() {
                         <div className="flex items-center gap-1.5">
                           <button
                             onClick={() => handleTransition('DELIVERED', 'POD confirmed')}
-                            className="px-3 py-1 rounded bg-emerald-600 hover:bg-emerald-500 text-slate-950 font-bold cursor-pointer"
+                            className="px-3 py-1 rounded bg-emerald-600 hover:bg-emerald-500 text-white font-bold cursor-pointer"
                           >
                             CONFIRM DELIVERED
                           </button>
@@ -943,7 +943,7 @@ export function OrdersView() {
                         <div className="flex items-center gap-1.5">
                           <button
                             onClick={() => handleTransition('DISPATCHED', 'Re-dispatching after failed delivery')}
-                            className="px-3 py-1 rounded bg-cyan-600 hover:bg-cyan-500 text-slate-950 font-bold cursor-pointer"
+                            className="px-3 py-1 rounded bg-cyan-600 hover:bg-cyan-500 text-white font-bold cursor-pointer"
                           >
                             RE-DISPATCH
                           </button>

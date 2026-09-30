@@ -1791,7 +1791,7 @@ function ReceiveGoodsModal({ po, onClose, onSuccess }) {
             <button
               type="submit"
               disabled={submitting}
-              className="px-4 py-2 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-semibold text-xs transition-colors flex items-center gap-1.5 shadow-md shadow-emerald-500/20"
+              className="px-4 py-2 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white font-semibold text-xs transition-colors flex items-center gap-1.5 shadow-md shadow-emerald-500/20"
             >
               <Check className="w-4 h-4" />
               {submitting ? 'Crediting Stock...' : 'Confirm Receipt & Allocate Stock'}
@@ -2068,7 +2068,7 @@ function RecordPaymentModal({ invoice, onClose, onSuccess }) {
             <button
               type="submit"
               disabled={submitting}
-              className="px-4 py-2 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-semibold text-xs transition-colors shadow-md shadow-emerald-500/20"
+              className="px-4 py-2 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white font-semibold text-xs transition-colors shadow-md shadow-emerald-500/20"
             >
               {submitting ? 'Processing...' : 'Disburse Payment'}
             </button>
@@ -2425,7 +2425,7 @@ function PODetailModal({ po, onClose, onRefresh, isManagerOrAdmin }) {
                   await api.post(`/api/v1/procurement/orders/${po.id}/send`);
                   onRefresh();
                 }}
-                className="px-3 py-1.5 rounded-lg bg-sky-500 hover:bg-sky-600 text-slate-950 font-semibold text-xs flex items-center gap-1.5 transition-colors"
+                className="px-3 py-1.5 rounded-lg bg-sky-500 hover:bg-sky-600 text-white font-semibold text-xs flex items-center gap-1.5 transition-colors"
               >
                 <Send className="w-3.5 h-3.5" /> Send to Vendor
               </button>
@@ -2443,7 +2443,7 @@ function PODetailModal({ po, onClose, onRefresh, isManagerOrAdmin }) {
                   await api.post(`/api/v1/procurement/orders/${po.id}/approve`);
                   onRefresh();
                 }}
-                className="px-3 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-semibold text-xs flex items-center gap-1.5 transition-colors"
+                className="px-3 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white font-semibold text-xs flex items-center gap-1.5 transition-colors"
               >
                 <Check className="w-3.5 h-3.5" /> Approve PO
               </button>

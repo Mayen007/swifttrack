@@ -1417,7 +1417,7 @@ export function PosView() {
                     handleCompleteSale('CASH', `CASH-${Date.now()}`, null, cashTendered, change);
                   }}
                   disabled={cashTendered < totals.grandTotal}
-                  className="flex-1 py-2.5 rounded bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 text-slate-950 font-bold transition-colors cursor-pointer disabled:cursor-not-allowed"
+                  className="flex-1 py-2.5 rounded bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 text-white font-bold transition-colors cursor-pointer disabled:cursor-not-allowed"
                 >
                   CONFIRM CASH TENDER
                 </button>
@@ -1543,7 +1543,7 @@ export function PosView() {
                     handleCompleteSale('SPLIT', null, formatted);
                   }}
                   disabled={remainingSplitDue > 0.05}
-                  className="flex-1 py-2.5 rounded bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 text-slate-950 font-bold transition-colors cursor-pointer disabled:cursor-not-allowed"
+                  className="flex-1 py-2.5 rounded bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 text-white font-bold transition-colors cursor-pointer disabled:cursor-not-allowed"
                 >
                   CONFIRM SPLIT PAYMENT
                 </button>
@@ -1728,7 +1728,7 @@ export function PosView() {
                   <button
                     type="button"
                     onClick={() => window.print()}
-                    className="flex-1 py-2.5 rounded bg-emerald-600 hover:bg-emerald-500 text-slate-950 font-bold transition-colors cursor-pointer flex items-center justify-center gap-1.5"
+                    className="flex-1 py-2.5 rounded bg-emerald-600 hover:bg-emerald-500 text-white font-bold transition-colors cursor-pointer flex items-center justify-center gap-1.5"
                   >
                     <Printer className="w-4 h-4" />
                     <span>PRINT DUPLICATE</span>
@@ -1898,7 +1898,7 @@ export function PosView() {
 
                   <button
                     onClick={triggerMpesaStk}
-                    className="w-full py-2.5 rounded bg-emerald-600 hover:bg-emerald-500 text-slate-950 font-mono font-bold text-xs transition-colors cursor-pointer"
+                    className="w-full py-2.5 rounded bg-emerald-600 hover:bg-emerald-500 text-white font-mono font-bold text-xs transition-colors cursor-pointer"
                   >
                     SEND STK PROMPT
                   </button>

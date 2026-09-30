@@ -147,12 +147,20 @@ export function DriverView() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  // Handle Canvas Drawing for POD Signature
+  // Handle Canvas Drawing for POD Signature with Zero Touch-Scroll Conflicts
   useEffect(() => {
     if (!podModalOpen) return;
 
+    // Body scroll lock while POD modal is active
+    const originalBodyOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+
     const canvas = canvasRef.current;
-    if (!canvas) return;
+    if (!canvas) {
+      return () => {
+        document.body.style.overflow = originalBodyOverflow;
+      };
+    }
     const ctx = canvas.getContext('2d');
 
     // Fill background with light ivory/slate pad for maximum contrast
@@ -168,52 +176,96 @@ export function DriverView() {
       const rect = canvas.getBoundingClientRect();
       const scaleX = canvas.width / rect.width;
       const scaleY = canvas.height / rect.height;
-      const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-      const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+      const clientX = e.touches ? e.touches[0].clientX : (e.clientX ?? 0);
+      const clientY = e.touches ? e.touches[0].clientY : (e.clientY ?? 0);
       return {
         x: (clientX - rect.left) * scaleX,
         y: (clientY - rect.top) * scaleY,
       };
     };
 
-    const startDraw = (e) => {
-      e.preventDefault();
+    // Pointer events implementation with PointerCapture for smooth, unbroken gesture drawing
+    const handlePointerDown = (e) => {
+      if (e.cancelable) e.preventDefault();
+      try {
+        if (canvas.setPointerCapture) {
+          canvas.setPointerCapture(e.pointerId);
+        }
+      } catch {}
       isDrawingRef.current = true;
       const { x, y } = getPos(e);
       ctx.beginPath();
       ctx.moveTo(x, y);
     };
 
-    const draw = (e) => {
+    const handlePointerMove = (e) => {
       if (!isDrawingRef.current) return;
-      e.preventDefault();
+      if (e.cancelable) e.preventDefault();
       const { x, y } = getPos(e);
       ctx.lineTo(x, y);
       ctx.stroke();
     };
 
-    const endDraw = () => {
+    const handlePointerUp = (e) => {
+      if (isDrawingRef.current) {
+        isDrawingRef.current = false;
+        try {
+          if (canvas.hasPointerCapture && canvas.hasPointerCapture(e.pointerId)) {
+            canvas.releasePointerCapture(e.pointerId);
+          }
+        } catch {}
+        setSignatureData(canvas.toDataURL('image/png'));
+      }
+    };
+
+    // Touch event fallbacks for legacy mobile webviews
+    const handleTouchStart = (e) => {
+      if (e.cancelable) e.preventDefault();
+      isDrawingRef.current = true;
+      const { x, y } = getPos(e);
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+    };
+
+    const handleTouchMove = (e) => {
+      if (!isDrawingRef.current) return;
+      if (e.cancelable) e.preventDefault();
+      const { x, y } = getPos(e);
+      ctx.lineTo(x, y);
+      ctx.stroke();
+    };
+
+    const handleTouchEnd = () => {
       if (isDrawingRef.current) {
         isDrawingRef.current = false;
         setSignatureData(canvas.toDataURL('image/png'));
       }
     };
 
-    canvas.addEventListener('mousedown', startDraw);
-    canvas.addEventListener('mousemove', draw);
-    window.addEventListener('mouseup', endDraw);
+    // Attach Pointer Events (W3C standard for unified touch/pen/mouse)
+    canvas.addEventListener('pointerdown', handlePointerDown, { passive: false });
+    canvas.addEventListener('pointermove', handlePointerMove, { passive: false });
+    canvas.addEventListener('pointerup', handlePointerUp);
+    canvas.addEventListener('pointercancel', handlePointerUp);
 
-    canvas.addEventListener('touchstart', startDraw, { passive: false });
-    canvas.addEventListener('touchmove', draw, { passive: false });
-    window.addEventListener('touchend', endDraw);
+    // Attach Touch Events (Explicit passive: false to suppress mobile scrolling)
+    canvas.addEventListener('touchstart', handleTouchStart, { passive: false });
+    canvas.addEventListener('touchmove', handleTouchMove, { passive: false });
+    window.addEventListener('touchend', handleTouchEnd);
+    window.addEventListener('touchcancel', handleTouchEnd);
 
     return () => {
-      canvas.removeEventListener('mousedown', startDraw);
-      canvas.removeEventListener('mousemove', draw);
-      window.removeEventListener('mouseup', endDraw);
-      canvas.removeEventListener('touchstart', startDraw);
-      canvas.removeEventListener('touchmove', draw);
-      window.removeEventListener('touchend', endDraw);
+      document.body.style.overflow = originalBodyOverflow;
+
+      canvas.removeEventListener('pointerdown', handlePointerDown);
+      canvas.removeEventListener('pointermove', handlePointerMove);
+      canvas.removeEventListener('pointerup', handlePointerUp);
+      canvas.removeEventListener('pointercancel', handlePointerUp);
+
+      canvas.removeEventListener('touchstart', handleTouchStart);
+      canvas.removeEventListener('touchmove', handleTouchMove);
+      window.removeEventListener('touchend', handleTouchEnd);
+      window.removeEventListener('touchcancel', handleTouchEnd);
     };
   }, [podModalOpen]);
 
@@ -750,8 +802,8 @@ export function DriverView() {
 
       {/* 5. DIGITAL PROOF OF DELIVERY (POD) CONFIRMATION MODAL */}
       {podModalOpen && activeDelivery && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-xs p-4">
-          <div className="bg-[#12161f] border border-[#222834] rounded p-6 max-w-lg w-full shadow-2xl relative space-y-4 animate-in fade-in zoom-in-95">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-xs p-4 overflow-y-auto overscroll-contain">
+          <div className="bg-[#12161f] border border-[#222834] rounded p-6 max-w-lg w-full shadow-2xl relative space-y-4 animate-in fade-in zoom-in-95 my-auto max-h-[92vh] overflow-y-auto overscroll-contain">
             <button
               onClick={() => setPodModalOpen(false)}
               className="absolute top-4 right-4 text-slate-400 hover:text-white p-1"
@@ -849,12 +901,16 @@ export function DriverView() {
                   </button>
                 </div>
 
-                <div className="rounded border border-[#222834] bg-[#f8fafc] p-1 flex justify-center shadow-inner">
+                <div 
+                  className="rounded border border-[#222834] bg-[#f8fafc] p-1 flex justify-center shadow-inner select-none"
+                  style={{ touchAction: 'none' }}
+                >
                   <canvas
                     ref={canvasRef}
                     width={400}
                     height={130}
-                    className="w-full h-[130px] cursor-crosshair touch-none bg-[#f8fafc] rounded"
+                    style={{ touchAction: 'none' }}
+                    className="w-full h-[130px] cursor-crosshair touch-none bg-[#f8fafc] rounded select-none block"
                   />
                 </div>
                 <span className="text-[10px] text-slate-500 block mt-1 font-mono">
@@ -899,8 +955,8 @@ export function DriverView() {
 
       {/* 6. DELIVERY EXCEPTION / PROBLEM MODAL */}
       {problemModalOpen && problemDelivery && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-xs p-4">
-          <div className="bg-[#12161f] border border-rose-500/40 rounded p-6 max-w-md w-full shadow-2xl relative space-y-4 animate-in fade-in zoom-in-95">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-xs p-4 overflow-y-auto overscroll-contain">
+          <div className="bg-[#12161f] border border-rose-500/40 rounded p-6 max-w-md w-full shadow-2xl relative space-y-4 animate-in fade-in zoom-in-95 my-auto max-h-[92vh] overflow-y-auto overscroll-contain">
             <button
               onClick={() => setProblemModalOpen(false)}
               className="absolute top-4 right-4 text-slate-400 hover:text-white p-1"

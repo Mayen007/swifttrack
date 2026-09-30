@@ -1170,7 +1170,7 @@ export function PaymentsView() {
             <button
               onClick={handleRunReconciliation}
               disabled={reconciling}
-              className="w-full py-2 rounded bg-emerald-600 hover:bg-emerald-500 text-slate-950 font-bold cursor-pointer disabled:opacity-50 flex items-center justify-center gap-2"
+              className="w-full py-2 rounded bg-emerald-600 hover:bg-emerald-500 text-white font-bold cursor-pointer disabled:opacity-50 flex items-center justify-center gap-2"
             >
               {reconciling && <RefreshCw className="w-3.5 h-3.5 animate-spin" />}
               <span>RUN AUTOMATED RECONCILIATION</span>
