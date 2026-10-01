@@ -1,67 +1,33 @@
-// client/src/views/VehiclesView.jsx
-// SwiftTrack Kenya: Phase 9 Logistics & Fleet Management — Vehicle Fleet Engine (9.2)
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext.jsx';
 import { api } from '../services/api.js';
 import { sound } from '../services/sound.js';
 import {
   Truck,
-  Car,
-  Bike,
-  Wrench,
-  Fuel,
-  Gauge,
-  Calendar,
-  AlertTriangle,
-  CheckCircle2,
-  Clock,
-  Plus,
   Search,
-  Filter,
   RefreshCw,
-  Eye,
-  Activity,
-  History,
-  TrendingUp,
-  MapPin,
-  User,
-  ShieldCheck,
-  Zap,
-  X,
-  Layers,
-  FileText,
-  DollarSign,
-  ChevronRight,
-  ArrowRight,
-  Sparkles
+  Plus
 } from 'lucide-react';
+import {
+  VEHICLE_STATUS_OPTIONS,
+  VEHICLE_TYPE_OPTIONS,
+  SERVICE_TYPE_OPTIONS
+} from '../components/vehicles/constants.jsx';
+import { VehicleTelemetryCards } from '../components/vehicles/VehicleTelemetryCards.jsx';
+import { VehicleFilterBar } from '../components/vehicles/VehicleFilterBar.jsx';
+import { VehicleCard } from '../components/vehicles/VehicleCard.jsx';
+import { RegisterVehicleModal } from '../components/vehicles/RegisterVehicleModal.jsx';
+import { RefuelVehicleModal } from '../components/vehicles/RefuelVehicleModal.jsx';
+import { MaintenanceVehicleModal } from '../components/vehicles/MaintenanceVehicleModal.jsx';
+import { VehicleStatusModal } from '../components/vehicles/VehicleStatusModal.jsx';
+import { RecordMileageModal } from '../components/vehicles/RecordMileageModal.jsx';
+import { VehicleDetailModal } from '../components/vehicles/VehicleDetailModal.jsx';
 
-export const VEHICLE_STATUS_OPTIONS = [
-  { key: 'AVAILABLE', label: 'Available', color: 'emerald' },
-  { key: 'IN_TRANSIT', label: 'In Transit', color: 'blue' },
-  { key: 'UNDER_MAINTENANCE', label: 'In Maintenance', color: 'amber' },
-  { key: 'OUT_OF_SERVICE', label: 'Out of Service', color: 'rose' },
-  { key: 'RESERVED', label: 'Reserved', color: 'cyan' }
-];
-
-export const VEHICLE_TYPE_OPTIONS = [
-  { key: 'MOTORCYCLE', label: 'Motorcycle', icon: Bike },
-  { key: 'VAN', label: 'Van', icon: Car },
-  { key: 'TRUCK', label: 'Truck', icon: Truck },
-  { key: 'PICKUP', label: 'Pickup', icon: Truck },
-  { key: 'TUKTUK', label: 'Tuk-Tuk', icon: Bike },
-  { key: 'LORRY', label: 'Heavy Lorry', icon: Truck }
-];
-
-export const SERVICE_TYPE_OPTIONS = [
-  { key: 'PREVENTIVE_SCHEDULED', label: 'Preventive Scheduled Service' },
-  { key: 'OIL_CHANGE', label: 'Routine Oil & Filter Change' },
-  { key: 'TIRE_REPLACEMENT', label: 'Tire Replacement & Balancing' },
-  { key: 'BRAKE_OVERHAUL', label: 'Brake Pads & System Overhaul' },
-  { key: 'INSPECTION_NTSA', label: 'NTSA Annual Inspection Prep' },
-  { key: 'REPAIR_CORRECTIVE', label: 'Corrective Mechanical Repair' },
-  { key: 'ACCIDENT_REPAIR', label: 'Accident & Bodywork Repair' }
-];
+export {
+  VEHICLE_STATUS_OPTIONS,
+  VEHICLE_TYPE_OPTIONS,
+  SERVICE_TYPE_OPTIONS
+};
 
 export function VehiclesView() {
   const { user, selectedBranch } = useAuth();
@@ -71,13 +37,11 @@ export function VehiclesView() {
   const [branches, setBranches] = useState([]);
   const [drivers, setDrivers] = useState([]);
 
-  // Filter States
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [typeFilter, setTypeFilter] = useState('ALL');
   const [branchFilter, setBranchFilter] = useState(selectedBranch?.id || '');
 
-  // Modals & Drawers
   const [registerModalOpen, setRegisterModalOpen] = useState(false);
   const [detailModalOpen, setDetailModalOpen] = useState(false);
   const [refuelModalOpen, setRefuelModalOpen] = useState(false);
@@ -85,81 +49,66 @@ export function VehiclesView() {
   const [statusModalOpen, setStatusModalOpen] = useState(false);
   const [mileageModalOpen, setMileageModalOpen] = useState(false);
 
-  // Selected vehicle & detail sub-states
   const [selectedVehicle, setSelectedVehicle] = useState(null);
   const [vehicleTelemetry, setVehicleTelemetry] = useState(null);
   const [fuelLogs, setFuelLogs] = useState([]);
   const [maintenanceRecords, setMaintenanceRecords] = useState([]);
   const [mileageLogs, setMileageLogs] = useState([]);
-  const [detailTab, setDetailTab] = useState('overview'); // 'overview' | 'fuel' | 'maintenance' | 'mileage'
+  const [detailTab, setDetailTab] = useState('overview');
   const [actionLoading, setActionLoading] = useState(false);
 
-  // Register Vehicle Form State
   const [registerForm, setRegisterForm] = useState({
     registration_number: '',
     vehicle_type: 'VAN',
-    make: 'Toyota',
-    model: 'HiAce',
-    year_of_manufacture: 2023,
+    make: '',
+    model: '',
+    year_of_manufacture: new Date().getFullYear(),
     chassis_number: '',
-    engine_number: '',
-    color: 'White',
+    color: '',
     fuel_type: 'DIESEL',
     fuel_tank_capacity_liters: 65,
-    ownership_type: 'COMPANY_OWNED',
-    capacity_kg: 1200,
+    max_payload_kg: 1200,
     cargo_volume_cbm: 6.5,
-    initial_odometer_km: 15000,
-    current_odometer_km: 15000,
-    branch_id: selectedBranch?.id || 1,
-    assigned_driver_id: '',
-    next_service_odometer_km: 20000,
-    next_service_date: ''
+    current_odometer_km: 0,
+    assigned_branch_id: selectedBranch?.id || 1,
+    assigned_driver_id: ''
   });
 
-  // Refuel Form State
   const [refuelForm, setRefuelForm] = useState({
-    fuel_date: new Date().toISOString().split('T')[0],
-    quantity_liters: '',
-    cost_per_liter: '195.50',
+    liters: '',
+    cost_per_liter: '205.50',
     total_cost: '',
     odometer_km: '',
-    gas_station_vendor: 'TotalEnergies Westlands',
-    fuel_type: 'DIESEL',
-    is_full_tank: 1,
-    voucher_number: '',
+    fuel_station: 'TotalEnergies Nairobi West',
+    fuel_card_number: '',
+    payment_method: 'FUEL_CARD',
+    driver_id: '',
     notes: ''
   });
 
-  // Maintenance Form State
-  const [maintForm, setMaintForm] = useState({
+  const [maintenanceForm, setMaintenanceForm] = useState({
     service_type: 'PREVENTIVE_SCHEDULED',
-    service_date: new Date().toISOString().split('T')[0],
-    service_provider: 'DT Dobie Workshop Nairobi',
+    service_center: 'DT Dobie & Co Kenya Ltd',
     service_odometer_km: '',
-    total_cost: '',
-    labor_cost: '',
-    parts_cost: '',
-    description: '',
+    next_service_odometer_km: '',
+    cost: '',
+    invoice_number: '',
     parts_replaced: '',
-    next_service_target_km: '',
-    next_service_target_date: '',
-    status: 'IN_PROGRESS'
+    service_date: new Date().toISOString().split('T')[0],
+    notes: '',
+    mark_under_maintenance: true
   });
 
-  // Status Change State
-  const [newStatus, setNewStatus] = useState('AVAILABLE');
-  const [statusReason, setStatusReason] = useState('');
+  const [statusForm, setStatusForm] = useState({
+    status: 'AVAILABLE',
+    notes: ''
+  });
 
-  // Trip / Mileage Form State
-  const [tripForm, setTripForm] = useState({
-    log_date: new Date().toISOString().split('T')[0],
-    trip_type: 'DELIVERY_RUN',
-    start_odometer_km: '',
-    end_odometer_km: '',
-    distance_km: '',
-    origin: 'Depot Warehouse',
-    destination: '',
+  const [mileageForm, setMileageForm] = useState({
+    current_odometer_km: '',
+    trip_distance_km: '',
+    purpose: 'DELIVERY_RUN',
+    driver_id: '',
     notes: ''
   });
 
@@ -167,69 +116,38 @@ export function VehiclesView() {
     setLoading(true);
     try {
       const params = new URLSearchParams();
-      if (branchFilter) params.append('branchId', branchFilter);
-      if (statusFilter !== 'ALL') params.append('status', statusFilter);
-      if (typeFilter !== 'ALL') params.append('vehicleType', typeFilter);
       if (searchQuery.trim()) params.append('search', searchQuery.trim());
-      params.append('limit', '50');
+      if (statusFilter !== 'ALL') params.append('status', statusFilter);
+      if (typeFilter !== 'ALL') params.append('vehicle_type', typeFilter);
+      if (branchFilter) params.append('branch_id', branchFilter);
 
-      const [vehRes, telRes] = await Promise.all([
-        api.get(`/api/v1/vehicles?${params.toString()}`).catch(() => ({ vehicles: [] })),
-        api.get(`/api/v1/vehicles/telemetry/summary${branchFilter ? `?branchId=${branchFilter}` : ''}`).catch(() => null)
+      const [vehRes, telRes, branchRes, driverRes] = await Promise.all([
+        api.get(`/api/v1/vehicles?${params.toString()}`),
+        api.get('/api/v1/vehicles/telemetry/summary').catch(() => null),
+        api.get('/api/v1/branches').catch(() => []),
+        api.get('/api/v1/drivers?status=ACTIVE').catch(() => [])
       ]);
 
-      setVehicles(vehRes.vehicles || []);
-      setTelemetry(telRes);
+      setVehicles(Array.isArray(vehRes) ? vehRes : (vehRes?.vehicles || []));
+      if (telRes) setTelemetry(telRes);
+      if (Array.isArray(branchRes)) setBranches(branchRes);
+      if (Array.isArray(driverRes)) setDrivers(driverRes);
     } catch (err) {
-      console.error('Failed to load fleet vehicles data:', err);
-      api.errorToast('Failed to fetch fleet vehicles');
+      console.error('Error fetching fleet vehicles:', err);
+      api.errorToast('Failed to load fleet registry: ' + (err.message || 'Network error'));
     } finally {
       setLoading(false);
     }
   };
 
-  const fetchAuxiliary = async () => {
-    try {
-      const [branchRes, driverRes] = await Promise.all([
-        api.get('/api/v1/branches').catch(() => []),
-        api.get(`/api/v1/drivers?limit=100${branchFilter ? `&branchId=${branchFilter}` : ''}`).catch(() => ({ drivers: [] }))
-      ]);
-      setBranches(branchRes || []);
-      setDrivers(driverRes.drivers || []);
-    } catch (e) {
-      console.warn('Aux fetch notice:', e.message);
-    }
-  };
-
   useEffect(() => {
     fetchData();
-    fetchAuxiliary();
-  }, [branchFilter, statusFilter, typeFilter]);
+  }, [statusFilter, typeFilter, branchFilter]);
 
   const handleSearchSubmit = (e) => {
     e.preventDefault();
+    sound.playClick();
     fetchData();
-  };
-
-  const openVehicleDetail = async (veh) => {
-    setSelectedVehicle(veh);
-    setDetailTab('overview');
-    setDetailModalOpen(true);
-
-    try {
-      const [telRes, fuelRes, maintRes, mileageRes] = await Promise.all([
-        api.get(`/api/v1/vehicles/${veh.id}/telemetry`),
-        api.get(`/api/v1/vehicles/${veh.id}/fuel?limit=20`),
-        api.get(`/api/v1/vehicles/${veh.id}/maintenance?limit=20`),
-        api.get(`/api/v1/vehicles/${veh.id}/mileage?limit=20`)
-      ]);
-      setVehicleTelemetry(telRes);
-      setFuelLogs(fuelRes.fuel_logs || []);
-      setMaintenanceRecords(maintRes.maintenance_records || []);
-      setMileageLogs(mileageRes.mileage_logs || []);
-    } catch (err) {
-      console.error('Failed to load vehicle full dossier:', err);
-    }
   };
 
   const handleRegisterVehicle = async (e) => {
@@ -238,19 +156,35 @@ export function VehiclesView() {
     try {
       const payload = {
         ...registerForm,
-        branch_id: Number(registerForm.branch_id),
-        capacity_kg: Number(registerForm.capacity_kg),
-        cargo_volume_cbm: Number(registerForm.cargo_volume_cbm),
-        fuel_tank_capacity_liters: Number(registerForm.fuel_tank_capacity_liters),
-        initial_odometer_km: Number(registerForm.initial_odometer_km),
-        current_odometer_km: Number(registerForm.current_odometer_km || registerForm.initial_odometer_km),
-        year_of_manufacture: Number(registerForm.year_of_manufacture),
+        year_of_manufacture: Number(registerForm.year_of_manufacture) || new Date().getFullYear(),
+        fuel_tank_capacity_liters: Number(registerForm.fuel_tank_capacity_liters) || 60,
+        max_payload_kg: Number(registerForm.max_payload_kg) || 1000,
+        cargo_volume_cbm: Number(registerForm.cargo_volume_cbm) || 5,
+        current_odometer_km: Number(registerForm.current_odometer_km) || 0,
+        assigned_branch_id: Number(registerForm.assigned_branch_id) || 1,
         assigned_driver_id: registerForm.assigned_driver_id ? Number(registerForm.assigned_driver_id) : null
       };
+
       await api.post('/api/v1/vehicles', payload);
       sound.playSuccess();
-      api.successToast(`Vehicle ${registerForm.registration_number} registered successfully`);
+      api.successToast(`Vehicle ${payload.registration_number} registered successfully`);
       setRegisterModalOpen(false);
+      setRegisterForm({
+        registration_number: '',
+        vehicle_type: 'VAN',
+        make: '',
+        model: '',
+        year_of_manufacture: new Date().getFullYear(),
+        chassis_number: '',
+        color: '',
+        fuel_type: 'DIESEL',
+        fuel_tank_capacity_liters: 65,
+        max_payload_kg: 1200,
+        cargo_volume_cbm: 6.5,
+        current_odometer_km: 0,
+        assigned_branch_id: selectedBranch?.id || 1,
+        assigned_driver_id: ''
+      });
       fetchData();
     } catch (err) {
       sound.playError();
@@ -260,39 +194,60 @@ export function VehiclesView() {
     }
   };
 
-  const openRefuelModal = (veh) => {
-    setSelectedVehicle(veh);
+  const openVehicleDetail = async (vehicle) => {
+    sound.playClick();
+    setSelectedVehicle(vehicle);
+    setDetailModalOpen(true);
+    setDetailTab('overview');
+    try {
+      const [tel, fuel, maint, miles] = await Promise.all([
+        api.get(`/api/v1/vehicles/${vehicle.id}/telemetry`).catch(() => null),
+        api.get(`/api/v1/vehicles/${vehicle.id}/fuel`).catch(() => []),
+        api.get(`/api/v1/vehicles/${vehicle.id}/maintenance`).catch(() => []),
+        api.get(`/api/v1/vehicles/${vehicle.id}/mileage`).catch(() => [])
+      ]);
+      setVehicleTelemetry(tel);
+      setFuelLogs(Array.isArray(fuel) ? fuel : (fuel?.fuel_logs || []));
+      setMaintenanceRecords(Array.isArray(maint) ? maint : (maint?.maintenance_records || []));
+      setMileageLogs(Array.isArray(miles) ? miles : (miles?.mileage_logs || []));
+    } catch (err) {
+      console.error('Failed to load full vehicle dossier:', err);
+    }
+  };
+
+  const openRefuelModal = (vehicle) => {
+    sound.playClick();
+    setSelectedVehicle(vehicle);
     setRefuelForm({
-      fuel_date: new Date().toISOString().split('T')[0],
-      quantity_liters: '',
-      cost_per_liter: veh.fuel_type === 'DIESEL' ? '195.50' : '205.00',
+      liters: '',
+      cost_per_liter: '205.50',
       total_cost: '',
-      odometer_km: veh.current_odometer_km || '',
-      gas_station_vendor: 'TotalEnergies Nairobi Hub',
-      fuel_type: veh.fuel_type || 'DIESEL',
-      is_full_tank: 1,
-      voucher_number: '',
+      odometer_km: vehicle.current_odometer_km || '',
+      fuel_station: 'Rubis Energy Nairobi Central',
+      fuel_card_number: 'FC-NRB-8921',
+      payment_method: 'FUEL_CARD',
+      driver_id: vehicle.assigned_driver_id || '',
       notes: ''
     });
     setRefuelModalOpen(true);
   };
 
-  const handleRecordFuel = async (e) => {
+  const handleLogFuel = async (e) => {
     e.preventDefault();
-    if (!selectedVehicle) return;
     setActionLoading(true);
     try {
       const payload = {
         ...refuelForm,
-        quantity_liters: Number(refuelForm.quantity_liters),
+        liters: Number(refuelForm.liters),
         cost_per_liter: Number(refuelForm.cost_per_liter),
-        total_cost: Number(refuelForm.total_cost || (Number(refuelForm.quantity_liters) * Number(refuelForm.cost_per_liter))),
-        odometer_km: Number(refuelForm.odometer_km),
-        is_full_tank: refuelForm.is_full_tank ? 1 : 0
+        total_cost: Number(refuelForm.total_cost) || (Number(refuelForm.liters) * Number(refuelForm.cost_per_liter)),
+        odometer_km: Number(refuelForm.odometer_km) || Number(selectedVehicle.current_odometer_km),
+        driver_id: refuelForm.driver_id ? Number(refuelForm.driver_id) : null
       };
+
       await api.post(`/api/v1/vehicles/${selectedVehicle.id}/fuel`, payload);
       sound.playSuccess();
-      api.successToast('Refuel entry logged successfully');
+      api.successToast('Fuel log recorded successfully');
       setRefuelModalOpen(false);
       fetchData();
       if (detailModalOpen) {
@@ -306,42 +261,39 @@ export function VehiclesView() {
     }
   };
 
-  const openMaintenanceModal = (veh) => {
-    setSelectedVehicle(veh);
-    const currKm = Number(veh.current_odometer_km) || 0;
-    setMaintForm({
+  const openMaintenanceModal = (vehicle) => {
+    sound.playClick();
+    setSelectedVehicle(vehicle);
+    const curr = Number(vehicle.current_odometer_km) || 0;
+    setMaintenanceForm({
       service_type: 'PREVENTIVE_SCHEDULED',
+      service_center: 'AutoXpress Nairobi HQ Depot',
+      service_odometer_km: curr,
+      next_service_odometer_km: curr + 5000,
+      cost: '',
+      invoice_number: `INV-${Date.now().toString().slice(-6)}`,
+      parts_replaced: 'Engine Oil 5W-30, Oil Filter, Air Filter',
       service_date: new Date().toISOString().split('T')[0],
-      service_provider: 'DT Dobie Authorized Workshop Nairobi',
-      service_odometer_km: currKm,
-      total_cost: '',
-      labor_cost: '',
-      parts_cost: '',
-      description: 'Scheduled preventive service & oil check',
-      parts_replaced: 'Engine oil, oil filter, air filter',
-      next_service_target_km: currKm + 5000,
-      next_service_target_date: '',
-      status: 'IN_PROGRESS'
+      notes: 'Scheduled periodic maintenance completed.',
+      mark_under_maintenance: false
     });
     setMaintenanceModalOpen(true);
   };
 
-  const handleRecordMaintenance = async (e) => {
+  const handleLogMaintenance = async (e) => {
     e.preventDefault();
-    if (!selectedVehicle) return;
     setActionLoading(true);
     try {
       const payload = {
-        ...maintForm,
-        service_odometer_km: Number(maintForm.service_odometer_km),
-        total_cost: Number(maintForm.total_cost),
-        labor_cost: maintForm.labor_cost ? Number(maintForm.labor_cost) : 0,
-        parts_cost: maintForm.parts_cost ? Number(maintForm.parts_cost) : 0,
-        next_service_target_km: maintForm.next_service_target_km ? Number(maintForm.next_service_target_km) : null
+        ...maintenanceForm,
+        service_odometer_km: Number(maintenanceForm.service_odometer_km) || Number(selectedVehicle.current_odometer_km),
+        next_service_odometer_km: Number(maintenanceForm.next_service_odometer_km) || (Number(selectedVehicle.current_odometer_km) + 5000),
+        cost: Number(maintenanceForm.cost) || 0
       };
+
       await api.post(`/api/v1/vehicles/${selectedVehicle.id}/maintenance`, payload);
       sound.playSuccess();
-      api.successToast('Maintenance job scheduled & logged');
+      api.successToast('Maintenance record saved successfully');
       setMaintenanceModalOpen(false);
       fetchData();
       if (detailModalOpen) {
@@ -349,30 +301,29 @@ export function VehiclesView() {
       }
     } catch (err) {
       sound.playError();
-      api.errorToast(err.message || 'Failed to schedule maintenance');
+      api.errorToast(err.message || 'Failed to save maintenance record');
     } finally {
       setActionLoading(false);
     }
   };
 
-  const openStatusModal = (veh) => {
-    setSelectedVehicle(veh);
-    setNewStatus(veh.status);
-    setStatusReason('');
+  const openStatusModal = (vehicle) => {
+    sound.playClick();
+    setSelectedVehicle(vehicle);
+    setStatusForm({
+      status: vehicle.status || 'AVAILABLE',
+      notes: ''
+    });
     setStatusModalOpen(true);
   };
 
   const handleUpdateStatus = async (e) => {
     e.preventDefault();
-    if (!selectedVehicle) return;
     setActionLoading(true);
     try {
-      await api.patch(`/api/v1/vehicles/${selectedVehicle.id}/status`, {
-        status: newStatus,
-        reason: statusReason
-      });
+      await api.patch(`/api/v1/vehicles/${selectedVehicle.id}/status`, statusForm);
       sound.playSuccess();
-      api.successToast(`Vehicle status set to ${newStatus}`);
+      api.successToast(`Vehicle status updated to ${statusForm.status}`);
       setStatusModalOpen(false);
       fetchData();
       if (detailModalOpen) {
@@ -386,32 +337,28 @@ export function VehiclesView() {
     }
   };
 
-  const openMileageModal = (veh) => {
-    setSelectedVehicle(veh);
-    const startKm = Number(veh.current_odometer_km) || 0;
-    setTripForm({
-      log_date: new Date().toISOString().split('T')[0],
-      trip_type: 'DELIVERY_RUN',
-      start_odometer_km: startKm,
-      end_odometer_km: startKm + 45,
-      distance_km: 45,
-      origin: `${veh.branch_name || 'Central Depot'} Hub`,
-      destination: 'Nairobi CBD & Industrial Area Clients',
-      notes: 'Customer dispatch route delivery run'
+  const openMileageModal = (vehicle) => {
+    sound.playClick();
+    setSelectedVehicle(vehicle);
+    setMileageForm({
+      current_odometer_km: vehicle.current_odometer_km || '',
+      trip_distance_km: '',
+      purpose: 'DELIVERY_RUN',
+      driver_id: vehicle.assigned_driver_id || '',
+      notes: ''
     });
     setMileageModalOpen(true);
   };
 
-  const handleRecordMileage = async (e) => {
+  const handleLogMileage = async (e) => {
     e.preventDefault();
-    if (!selectedVehicle) return;
     setActionLoading(true);
     try {
       const payload = {
-        ...tripForm,
-        start_odometer_km: Number(tripForm.start_odometer_km),
-        end_odometer_km: Number(tripForm.end_odometer_km),
-        distance_km: Number(tripForm.distance_km || (Number(tripForm.end_odometer_km) - Number(tripForm.start_odometer_km)))
+        ...mileageForm,
+        current_odometer_km: Number(mileageForm.current_odometer_km),
+        trip_distance_km: Number(mileageForm.trip_distance_km),
+        driver_id: mileageForm.driver_id ? Number(mileageForm.driver_id) : null
       };
       await api.post(`/api/v1/vehicles/${selectedVehicle.id}/mileage`, payload);
       sound.playSuccess();
@@ -429,50 +376,10 @@ export function VehiclesView() {
     }
   };
 
-  const renderStatusBadge = (status) => {
-    const opt = VEHICLE_STATUS_OPTIONS.find(o => o.key === status) || { label: status, color: 'slate' };
-    const colorClasses = {
-      emerald: 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-300 dark:border-emerald-500/30',
-      blue: 'bg-blue-50 dark:bg-blue-500/10 text-blue-700 dark:text-blue-400 border-blue-300 dark:border-blue-500/30',
-      amber: 'bg-amber-50 dark:bg-amber-500/10 text-amber-800 dark:text-amber-400 border-amber-300 dark:border-amber-500/30',
-      rose: 'bg-rose-50 dark:bg-rose-500/10 text-rose-700 dark:text-rose-400 border-rose-300 dark:border-rose-500/30',
-      cyan: 'bg-cyan-50 dark:bg-cyan-500/10 text-cyan-800 dark:text-cyan-400 border-cyan-300 dark:border-cyan-500/30',
-      slate: 'bg-slate-100 dark:bg-slate-500/10 text-slate-700 dark:text-slate-400 border-slate-300 dark:border-slate-500/30'
-    }[opt.color];
-
-    return (
-      <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded text-[11px] font-mono font-semibold border ${colorClasses}`}>
-        <span className={`w-1.5 h-1.5 rounded-full ${opt.color === 'blue' || opt.color === 'emerald' ? 'animate-pulse' : ''} bg-current`} />
-        {opt.label}
-      </span>
-    );
-  };
-
-  const renderVehicleTypeIcon = (type) => {
-    switch (type) {
-      case 'MOTORCYCLE':
-        return <Bike className="w-5 h-5 text-amber-600 dark:text-amber-400" />;
-      case 'VAN':
-        return <Car className="w-5 h-5 text-blue-600 dark:text-blue-400" />;
-      case 'PICKUP':
-        return <Truck className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />;
-      case 'LORRY':
-      case 'TRUCK':
-        return <Truck className="w-5 h-5 text-cyan-600 dark:text-cyan-400" />;
-      case 'TUKTUK':
-        return <Bike className="w-5 h-5 text-orange-600 dark:text-orange-400" />;
-      default:
-        return <Truck className="w-5 h-5 text-slate-600 dark:text-slate-400" />;
-    }
-  };
-
   return (
     <div className="p-4 sm:p-6 lg:p-8 space-y-6 max-w-[1600px] mx-auto min-h-screen text-slate-100">
-      {/* Fleet Vehicles Bento Grid Instrument */}
       <div className="bg-slate-900/60 backdrop-blur-md rounded-2xl p-4 sm:p-5 border border-slate-800/80 shadow-sm space-y-4">
-        {/* Tier 1: Platform Identity & Operational Toolbar Bento Row */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
-          {/* Identity & Subtitle */}
           <div className="lg:col-span-7 xl:col-span-7 flex items-start gap-3">
             <div className="p-2.5 rounded-xl bg-blue-500/10 border border-blue-500/20 text-blue-400 shadow-sm shrink-0 mt-0.5">
               <Truck className="w-6 h-6 sm:w-7 sm:h-7" />
@@ -490,7 +397,6 @@ export function VehiclesView() {
             </div>
           </div>
 
-          {/* Quick Search & Operational Actions (Stacked Bento Toolbar Cell) */}
           <div className="lg:col-span-5 xl:col-span-5 flex flex-col gap-2.5 bg-slate-950/60 border border-slate-800/80 rounded-xl p-3">
             <div className="flex items-center gap-2">
               <form onSubmit={handleSearchSubmit} className="relative flex-1">
@@ -551,160 +457,17 @@ export function VehiclesView() {
           </div>
         </div>
 
-        {/* Tier 2: Responsive Bento Telemetry Tiles */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-3 pt-3.5 border-t border-[#2a3447]">
-          {/* Total Fleet */}
-          <div className="bg-slate-950/40 hover:bg-slate-950/60 rounded-xl p-3 sm:p-3.5 border border-[#2a3447] shadow-sm transition-all group">
-            <div className="flex items-center justify-between text-slate-500 dark:text-slate-400 mb-1.5">
-              <span className="text-[11px] font-semibold uppercase tracking-wider">Total Fleet</span>
-              <div className="w-7 h-7 rounded-lg bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-600 dark:text-blue-400">
-                <Truck className="w-3.5 h-3.5" />
-              </div>
-            </div>
-            <div className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white font-mono">
-              {telemetry?.total_vehicles ?? vehicles.length}
-            </div>
-            <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 truncate">
-              {telemetry?.total_payload_capacity_kg ? `${telemetry.total_payload_capacity_kg.toLocaleString()} kg` : 'Payload capacity'}
-            </div>
-          </div>
+        <VehicleTelemetryCards telemetry={telemetry} vehicles={vehicles} />
 
-          {/* Available */}
-          <div className="bg-slate-950/40 hover:bg-slate-950/60 rounded-xl p-3 sm:p-3.5 border border-[#2a3447] shadow-sm transition-all group">
-            <div className="flex items-center justify-between text-slate-500 dark:text-slate-400 mb-1.5">
-              <span className="text-[11px] font-semibold uppercase tracking-wider">Available</span>
-              <div className="w-7 h-7 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-600 dark:text-emerald-400">
-                <CheckCircle2 className="w-3.5 h-3.5" />
-              </div>
-            </div>
-            <div className="text-xl sm:text-2xl font-bold text-emerald-600 dark:text-emerald-400 font-mono">
-              {telemetry?.available_vehicles ?? vehicles.filter(v => v.status === 'AVAILABLE').length}
-            </div>
-            <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">Ready for dispatch</div>
-          </div>
-
-          {/* In Transit */}
-          <div className="bg-slate-950/40 hover:bg-slate-950/60 rounded-xl p-3 sm:p-3.5 border border-[#2a3447] shadow-sm transition-all group">
-            <div className="flex items-center justify-between text-slate-500 dark:text-slate-400 mb-1.5">
-              <span className="text-[11px] font-semibold uppercase tracking-wider">In Transit</span>
-              <div className="w-7 h-7 rounded-lg bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-600 dark:text-blue-400">
-                <Activity className="w-3.5 h-3.5" />
-              </div>
-            </div>
-            <div className="text-xl sm:text-2xl font-bold text-blue-600 dark:text-blue-400 font-mono">
-              {telemetry?.in_transit_vehicles ?? vehicles.filter(v => v.status === 'IN_TRANSIT').length}
-            </div>
-            <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">Active on delivery runs</div>
-          </div>
-
-          {/* Under Maintenance */}
-          <div className="bg-slate-950/40 hover:bg-slate-950/60 rounded-xl p-3 sm:p-3.5 border border-[#2a3447] shadow-sm transition-all group">
-            <div className="flex items-center justify-between text-slate-500 dark:text-slate-400 mb-1.5">
-              <span className="text-[11px] font-semibold uppercase tracking-wider">Maintenance</span>
-              <div className="w-7 h-7 rounded-lg bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-600 dark:text-amber-400">
-                <Wrench className="w-3.5 h-3.5" />
-              </div>
-            </div>
-            <div className="text-xl sm:text-2xl font-bold text-amber-600 dark:text-amber-400 font-mono">
-              {telemetry?.maintenance_vehicles ?? vehicles.filter(v => v.status === 'UNDER_MAINTENANCE').length}
-            </div>
-            <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">In workshop & repairs</div>
-          </div>
-
-          {/* Total Odometer */}
-          <div className="bg-slate-950/40 hover:bg-slate-950/60 rounded-xl p-3 sm:p-3.5 border border-[#2a3447] shadow-sm transition-all group">
-            <div className="flex items-center justify-between text-slate-500 dark:text-slate-400 mb-1.5">
-              <span className="text-[11px] font-semibold uppercase tracking-wider">Total Odometer</span>
-              <div className="w-7 h-7 rounded-lg bg-sky-500/10 border border-sky-500/20 flex items-center justify-center text-sky-600 dark:text-sky-400">
-                <Gauge className="w-3.5 h-3.5" />
-              </div>
-            </div>
-            <div className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white font-mono truncate">
-              {telemetry?.total_fleet_distance_km ? `${Number(telemetry.total_fleet_distance_km).toLocaleString()} km` : '0 km'}
-            </div>
-            <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">Fleet logged distance</div>
-          </div>
-
-          {/* Fuel Economy & Spend */}
-          <div className="bg-slate-950/40 hover:bg-slate-950/60 rounded-xl p-3 sm:p-3.5 border border-[#2a3447] shadow-sm transition-all group">
-            <div className="flex items-center justify-between text-slate-500 dark:text-slate-400 mb-1.5">
-              <span className="text-[11px] font-semibold uppercase tracking-wider">Fuel Spend</span>
-              <div className="w-7 h-7 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-600 dark:text-emerald-400">
-                <Fuel className="w-3.5 h-3.5" />
-              </div>
-            </div>
-            <div className="text-xl sm:text-2xl font-bold text-emerald-600 dark:text-emerald-400 font-mono truncate">
-              KES {telemetry?.monthly_fuel_spend ? Number(telemetry.monthly_fuel_spend).toLocaleString() : '0'}
-            </div>
-            <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 truncate">
-              Avg {telemetry?.fleet_avg_consumption_kml || '8.5'} km/L
-            </div>
-          </div>
-        </div>
-
-        {/* Tier 3: Filter Pills Bento Strip */}
-        <div className="pt-3 border-t border-[#2a3447] flex flex-wrap items-center justify-between gap-3 text-xs">
-          {/* Status Pills */}
-          <div className="flex flex-wrap items-center gap-1.5">
-            <span className="text-slate-700 dark:text-slate-400 font-bold uppercase tracking-wider text-[11px] mr-1 flex items-center gap-1">
-              <Filter className="w-3.5 h-3.5" /> Status:
-            </span>
-            <button
-              onClick={() => setStatusFilter('ALL')}
-              className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer border ${
-                statusFilter === 'ALL'
-                  ? 'bg-blue-600 text-white border-blue-600 shadow-xs font-bold'
-                  : 'bg-slate-100 dark:bg-slate-800/80 text-slate-700 dark:text-slate-300 border-slate-300 dark:border-[#2a3447] hover:bg-slate-200 dark:hover:bg-slate-700/60'
-              }`}
-            >
-              All ({vehicles.length})
-            </button>
-            {VEHICLE_STATUS_OPTIONS.map(opt => (
-              <button
-                key={opt.key}
-                onClick={() => setStatusFilter(opt.key)}
-                className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer border ${
-                  statusFilter === opt.key
-                    ? 'bg-blue-600 text-white border-blue-600 shadow-xs font-bold'
-                    : 'bg-slate-100 dark:bg-slate-800/80 text-slate-700 dark:text-slate-300 border-slate-300 dark:border-[#2a3447] hover:bg-slate-200 dark:hover:bg-slate-700/60'
-                }`}
-              >
-                {opt.label}
-              </button>
-            ))}
-          </div>
-
-          {/* Vehicle Type Pills */}
-          <div className="flex flex-wrap items-center gap-1.5">
-            <span className="text-slate-700 dark:text-slate-400 font-bold uppercase tracking-wider text-[11px] mr-1">Type:</span>
-            <button
-              onClick={() => setTypeFilter('ALL')}
-              className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer border ${
-                typeFilter === 'ALL'
-                  ? 'bg-blue-600 text-white border-blue-600 shadow-xs font-bold'
-                  : 'bg-slate-100 dark:bg-slate-800/80 text-slate-700 dark:text-slate-300 border-slate-300 dark:border-[#2a3447] hover:bg-slate-200 dark:hover:bg-slate-700/60'
-              }`}
-            >
-              All Types
-            </button>
-            {VEHICLE_TYPE_OPTIONS.map(opt => (
-              <button
-                key={opt.key}
-                onClick={() => setTypeFilter(opt.key)}
-                className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer border ${
-                  typeFilter === opt.key
-                    ? 'bg-blue-600 text-white border-blue-600 shadow-xs font-bold'
-                    : 'bg-slate-100 dark:bg-slate-800/80 text-slate-700 dark:text-slate-300 border-slate-300 dark:border-[#2a3447] hover:bg-slate-200 dark:hover:bg-slate-700/60'
-                }`}
-              >
-                {opt.label}
-              </button>
-            ))}
-          </div>
-        </div>
+        <VehicleFilterBar
+          statusFilter={statusFilter}
+          setStatusFilter={setStatusFilter}
+          typeFilter={typeFilter}
+          setTypeFilter={setTypeFilter}
+          vehicles={vehicles}
+        />
       </div>
 
-      {/* Vehicle Registry Cards Grid */}
       {loading ? (
         <div className="flex flex-col items-center justify-center py-24 space-y-4">
           <div className="w-10 h-10 border-3 border-blue-500 border-t-transparent rounded-full animate-spin" />
@@ -720,1390 +483,88 @@ export function VehiclesView() {
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 2xl:grid-cols-3 gap-4 sm:gap-5">
-          {vehicles.map((veh) => {
-            const isDue = veh.is_service_due;
-            const currentOdo = Number(veh.current_odometer_km) || 0;
-            const nextOdo = Number(veh.next_service_odometer_km) || (currentOdo + 5000);
-
-            return (
-              <div
-                key={veh.id}
-                className="bg-slate-900/60 backdrop-blur-md rounded-2xl p-4 sm:p-5 border border-[#2a3447] hover:border-blue-500/50 transition-all shadow-sm flex flex-col justify-between group relative overflow-hidden"
-              >
-                {/* Top Badge Row */}
-                <div>
-                  <div className="flex items-start justify-between gap-2 mb-3">
-                    {/* Kenya Registration Plate Graphic */}
-                    <div className="flex items-center gap-2 min-w-0">
-                      <div className="px-2.5 py-1 bg-amber-400 text-black font-black tracking-widest text-xs sm:text-sm rounded-lg border-2 border-black shadow-sm font-mono flex items-center gap-1.5 shrink-0">
-                        <span className="w-1.5 h-3 bg-black/40 rounded-xs" />
-                        {veh.registration_number}
-                      </div>
-                      <div className="p-1.5 bg-slate-100 dark:bg-slate-800/80 rounded-lg text-slate-700 dark:text-slate-300 shrink-0 border border-slate-300 dark:border-[#2a3447]" title={veh.vehicle_type}>
-                        {renderVehicleTypeIcon(veh.vehicle_type)}
-                      </div>
-                    </div>
-
-                    {/* Operational Status */}
-                    <div className="shrink-0">
-                      {renderStatusBadge(veh.status)}
-                    </div>
-                  </div>
-
-                  {/* Make, Model, Year & Branch */}
-                  <div className="mb-3.5">
-                    <h3 className="text-base font-bold text-slate-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors truncate">
-                      {veh.make || 'Toyota'} {veh.model || ''} {veh.year_of_manufacture ? `(${veh.year_of_manufacture})` : ''}
-                    </h3>
-                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-600 dark:text-slate-400 mt-1">
-                      <div className="flex items-center gap-1">
-                        <MapPin className="w-3.5 h-3.5 text-slate-500 shrink-0" />
-                        <span>{veh.branch_name} Depot</span>
-                      </div>
-                      <span className="text-slate-400 dark:text-slate-600 hidden sm:inline">•</span>
-                      <span className="capitalize">{veh.fuel_type?.toLowerCase() || 'diesel'}</span>
-                      <span className="text-slate-400 dark:text-slate-600 hidden sm:inline">•</span>
-                      <span className="capitalize">{veh.ownership_type?.replace(/_/g, ' ')?.toLowerCase()}</span>
-                    </div>
-                  </div>
-
-                  {/* Specs & Capacity Grid */}
-                  <div className="grid grid-cols-2 gap-2.5 p-3 bg-slate-50 dark:bg-slate-950/60 rounded-xl border border-slate-200 dark:border-[#2a3447] text-xs mb-3.5">
-                    <div className="min-w-0">
-                      <span className="text-slate-600 dark:text-slate-400 block text-[11px]">Payload Capacity</span>
-                      <span className="font-semibold text-slate-800 dark:text-slate-200 block truncate">
-                        {veh.capacity_kg ? `${Number(veh.capacity_kg).toLocaleString()} kg` : 'N/A'}
-                      </span>
-                    </div>
-                    <div className="min-w-0">
-                      <span className="text-slate-600 dark:text-slate-400 block text-[11px]">Cargo Volume</span>
-                      <span className="font-semibold text-slate-800 dark:text-slate-200 block truncate">
-                        {veh.cargo_volume_cbm ? `${veh.cargo_volume_cbm} m³` : 'N/A'}
-                      </span>
-                    </div>
-                    <div className="min-w-0">
-                      <span className="text-slate-600 dark:text-slate-400 block text-[11px]">Current Odometer</span>
-                      <span className="font-semibold text-slate-800 dark:text-slate-200 flex items-center gap-1 truncate">
-                        <Gauge className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400 shrink-0" />
-                        <span className="truncate">{currentOdo.toLocaleString()} km</span>
-                      </span>
-                    </div>
-                    <div className="min-w-0">
-                      <span className="text-slate-600 dark:text-slate-400 block text-[11px]">Active Deliveries</span>
-                      <span className="font-semibold text-blue-600 dark:text-blue-400 block truncate">
-                        {veh.active_deliveries_count || 0} active runs
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Assigned Driver Chip */}
-                  <div className="flex items-center justify-between gap-2 p-2.5 rounded-xl bg-slate-100 dark:bg-slate-800/40 border border-slate-200 dark:border-[#2a3447] mb-3.5 text-xs min-w-0">
-                    <div className="flex items-center gap-2 min-w-0">
-                      <div className="w-7 h-7 rounded-full bg-blue-500/20 text-blue-600 dark:text-blue-400 flex items-center justify-center font-bold text-xs shrink-0">
-                        <User className="w-3.5 h-3.5" />
-                      </div>
-                      <div className="min-w-0">
-                        <span className="text-[10px] text-slate-600 dark:text-slate-400 block leading-none">Designated Driver</span>
-                        <span className="font-medium text-slate-800 dark:text-slate-200 block truncate">
-                          {veh.driver_name ? veh.driver_name : 'No Driver Assigned'}
-                        </span>
-                      </div>
-                    </div>
-                    {veh.driver_phone && (
-                      <span className="text-[11px] text-slate-600 dark:text-slate-400 font-mono shrink-0">
-                        {veh.driver_phone}
-                      </span>
-                    )}
-                  </div>
-
-                  {/* Service Target Alert */}
-                  {isDue && (
-                    <div className="flex items-start gap-2 p-2.5 rounded-xl bg-amber-50 dark:bg-amber-500/10 border border-amber-300 dark:border-amber-500/30 text-amber-800 dark:text-amber-400 text-xs mb-3.5">
-                      <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
-                      <span className="font-medium leading-tight">
-                        Service Due in {veh.km_until_service} km (Target: {nextOdo.toLocaleString()} km)
-                      </span>
-                    </div>
-                  )}
-                </div>
-
-                {/* Card Actions Bento Footer */}
-                <div className="pt-3 border-t border-slate-200 dark:border-[#2a3447] space-y-2">
-                  {/* Row 1: Operational Logging Action Grid */}
-                  <div className="grid grid-cols-3 gap-2">
-                    <button
-                      onClick={() => {
-                        sound.playClick();
-                        openRefuelModal(veh);
-                      }}
-                      className="py-1.5 px-2 rounded-lg bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-500/10 dark:hover:bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 border border-emerald-300 dark:border-emerald-500/30 font-semibold transition-all flex items-center justify-center gap-1.5 text-xs cursor-pointer"
-                      title="Log Fuel Receipt"
-                    >
-                      <Fuel className="w-3.5 h-3.5 shrink-0" />
-                      <span className="truncate">Refuel</span>
-                    </button>
-
-                    <button
-                      onClick={() => {
-                        sound.playClick();
-                        openMaintenanceModal(veh);
-                      }}
-                      className="py-1.5 px-2 rounded-lg bg-amber-50 hover:bg-amber-100 dark:bg-amber-500/10 dark:hover:bg-amber-500/20 text-amber-800 dark:text-amber-400 border border-amber-300 dark:border-amber-500/30 font-semibold transition-all flex items-center justify-center gap-1.5 text-xs cursor-pointer"
-                      title="Log / Schedule Maintenance"
-                    >
-                      <Wrench className="w-3.5 h-3.5 shrink-0" />
-                      <span className="truncate">Service</span>
-                    </button>
-
-                    <button
-                      onClick={() => {
-                        sound.playClick();
-                        openMileageModal(veh);
-                      }}
-                      className="py-1.5 px-2 rounded-lg bg-sky-50 hover:bg-sky-100 dark:bg-sky-500/10 dark:hover:bg-sky-500/20 text-sky-800 dark:text-sky-400 border border-sky-300 dark:border-sky-500/30 font-semibold transition-all flex items-center justify-center gap-1.5 text-xs cursor-pointer"
-                      title="Log Trip Mileage"
-                    >
-                      <Gauge className="w-3.5 h-3.5 shrink-0" />
-                      <span className="truncate">Trip</span>
-                    </button>
-                  </div>
-
-                  {/* Row 2: Status Quick-Change & Dossier Inspection */}
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => {
-                        sound.playClick();
-                        openStatusModal(veh);
-                      }}
-                      className="py-1.5 px-2.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800/80 dark:hover:bg-slate-700/80 text-slate-700 dark:text-slate-300 border border-slate-300 dark:border-[#2a3447] transition-all flex items-center justify-center gap-1.5 text-xs font-semibold cursor-pointer shrink-0"
-                      title="Change Operational Status"
-                    >
-                      <RefreshCw className="w-3.5 h-3.5" />
-                      <span>Status</span>
-                    </button>
-
-                    <button
-                      onClick={() => {
-                        sound.playClick();
-                        openVehicleDetail(veh);
-                      }}
-                      className="flex-1 py-1.5 px-3 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-semibold transition-all flex items-center justify-center gap-1.5 text-xs shadow-sm cursor-pointer"
-                      title="Full Dossier & Telemetry"
-                    >
-                      <span>View Vehicle Dossier</span>
-                      <ChevronRight className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                </div>
-              </div>
-            );
-          })}
+          {vehicles.map((veh) => (
+            <VehicleCard
+              key={veh.id}
+              veh={veh}
+              onOpenDetail={openVehicleDetail}
+              onOpenStatus={openStatusModal}
+              onOpenRefuel={openRefuelModal}
+              onOpenMaintenance={openMaintenanceModal}
+              onOpenMileage={openMileageModal}
+            />
+          ))}
         </div>
       )}
 
-      {/* ---------------- MODALS & DRAWERS ---------------- */}
-
-      {/* MODAL 1: REGISTER VEHICLE */}
-      {registerModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-2xl overflow-hidden shadow-2xl my-8">
-            <div className="p-6 border-b border-slate-800 flex items-center justify-between bg-slate-900/90">
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-xl bg-blue-500/20 text-blue-400 border border-blue-500/30">
-                  <Truck className="w-6 h-6" />
-                </div>
-                <div>
-                  <h2 className="text-xl font-bold text-white">Register Fleet Vehicle</h2>
-                  <p className="text-xs text-slate-400">Onboard a vehicle into the SwiftTrack Kenya fleet registry</p>
-                </div>
-              </div>
-              <button
-                onClick={() => setRegisterModalOpen(false)}
-                className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-all"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <form onSubmit={handleRegisterVehicle} className="p-6 space-y-4 max-h-[75vh] overflow-y-auto">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {/* Registration Number */}
-                <div>
-                  <label className="block text-xs font-semibold text-slate-300 uppercase mb-1">
-                    Registration Number (Kenya Plate) *
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="e.g. KDL 456X or KBZ 789C"
-                    value={registerForm.registration_number}
-                    onChange={(e) => setRegisterForm({ ...registerForm, registration_number: e.target.value.toUpperCase() })}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-sm text-slate-100 uppercase font-mono font-bold placeholder-slate-600 focus:outline-none focus:border-blue-500"
-                  />
-                </div>
-
-                {/* Vehicle Type */}
-                <div>
-                  <label className="block text-xs font-semibold text-slate-300 uppercase mb-1">
-                    Vehicle Type *
-                  </label>
-                  <select
-                    value={registerForm.vehicle_type}
-                    onChange={(e) => setRegisterForm({ ...registerForm, vehicle_type: e.target.value })}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-sm text-slate-100 focus:outline-none focus:border-blue-500"
-                  >
-                    {VEHICLE_TYPE_OPTIONS.map(opt => (
-                      <option key={opt.key} value={opt.key}>{opt.label}</option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* Make & Model */}
-                <div>
-                  <label className="block text-xs font-semibold text-slate-300 uppercase mb-1">
-                    Make *
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="e.g. Toyota, Isuzu, Bajaj, Nissan"
-                    value={registerForm.make}
-                    onChange={(e) => setRegisterForm({ ...registerForm, make: e.target.value })}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-sm text-slate-100 focus:outline-none focus:border-blue-500"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-slate-300 uppercase mb-1">
-                    Model & Year *
-                  </label>
-                  <div className="grid grid-cols-3 gap-2">
-                    <input
-                      type="text"
-                      required
-                      placeholder="HiAce, Boxer..."
-                      value={registerForm.model}
-                      onChange={(e) => setRegisterForm({ ...registerForm, model: e.target.value })}
-                      className="col-span-2 bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-blue-500"
-                    />
-                    <input
-                      type="number"
-                      required
-                      placeholder="2023"
-                      value={registerForm.year_of_manufacture}
-                      onChange={(e) => setRegisterForm({ ...registerForm, year_of_manufacture: e.target.value })}
-                      className="bg-slate-950 border border-slate-800 rounded-xl px-2 py-2 text-sm text-slate-100 focus:outline-none focus:border-blue-500 font-mono"
-                    />
-                  </div>
-                </div>
-
-                {/* Chassis Number & Engine Number */}
-                <div>
-                  <label className="block text-xs font-semibold text-slate-300 uppercase mb-1">
-                    Chassis / VIN Number
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="e.g. JTFHL22P500129482"
-                    value={registerForm.chassis_number}
-                    onChange={(e) => setRegisterForm({ ...registerForm, chassis_number: e.target.value.toUpperCase() })}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-sm text-slate-100 font-mono focus:outline-none focus:border-blue-500"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-slate-300 uppercase mb-1">
-                    Color
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="e.g. White, Silver, Navy"
-                    value={registerForm.color}
-                    onChange={(e) => setRegisterForm({ ...registerForm, color: e.target.value })}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-sm text-slate-100 focus:outline-none focus:border-blue-500"
-                  />
-                </div>
-
-                {/* Fuel Type & Fuel Tank */}
-                <div>
-                  <label className="block text-xs font-semibold text-slate-300 uppercase mb-1">
-                    Fuel Type
-                  </label>
-                  <select
-                    value={registerForm.fuel_type}
-                    onChange={(e) => setRegisterForm({ ...registerForm, fuel_type: e.target.value })}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-sm text-slate-100 focus:outline-none focus:border-blue-500"
-                  >
-                    <option value="DIESEL">Diesel</option>
-                    <option value="PETROL">Petrol</option>
-                    <option value="ELECTRIC">Electric</option>
-                    <option value="HYBRID">Hybrid</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-slate-300 uppercase mb-1">
-                    Tank Capacity (Liters)
-                  </label>
-                  <input
-                    type="number"
-                    value={registerForm.fuel_tank_capacity_liters}
-                    onChange={(e) => setRegisterForm({ ...registerForm, fuel_tank_capacity_liters: e.target.value })}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-sm text-slate-100 focus:outline-none focus:border-blue-500"
-                  />
-                </div>
-
-                {/* Capacity (kg) & Cargo Volume (m3) */}
-                <div>
-                  <label className="block text-xs font-semibold text-slate-300 uppercase mb-1">
-                    Payload Capacity (kg) *
-                  </label>
-                  <input
-                    type="number"
-                    required
-                    placeholder="e.g. 1200"
-                    value={registerForm.capacity_kg}
-                    onChange={(e) => setRegisterForm({ ...registerForm, capacity_kg: e.target.value })}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-sm text-slate-100 focus:outline-none focus:border-blue-500"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-slate-300 uppercase mb-1">
-                    Cargo Volume (m³)
-                  </label>
-                  <input
-                    type="number"
-                    step="0.1"
-                    placeholder="e.g. 6.5"
-                    value={registerForm.cargo_volume_cbm}
-                    onChange={(e) => setRegisterForm({ ...registerForm, cargo_volume_cbm: e.target.value })}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-sm text-slate-100 focus:outline-none focus:border-blue-500"
-                  />
-                </div>
-
-                {/* Initial Odometer & Current Odometer */}
-                <div>
-                  <label className="block text-xs font-semibold text-slate-300 uppercase mb-1">
-                    Initial / Current Odometer (km) *
-                  </label>
-                  <input
-                    type="number"
-                    required
-                    value={registerForm.initial_odometer_km}
-                    onChange={(e) => setRegisterForm({
-                      ...registerForm,
-                      initial_odometer_km: e.target.value,
-                      current_odometer_km: e.target.value
-                    })}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-sm text-slate-100 focus:outline-none focus:border-blue-500 font-mono"
-                  />
-                </div>
-
-                {/* Ownership Type */}
-                <div>
-                  <label className="block text-xs font-semibold text-slate-300 uppercase mb-1">
-                    Ownership Type
-                  </label>
-                  <select
-                    value={registerForm.ownership_type}
-                    onChange={(e) => setRegisterForm({ ...registerForm, ownership_type: e.target.value })}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-sm text-slate-100 focus:outline-none focus:border-blue-500"
-                  >
-                    <option value="COMPANY_OWNED">Company Owned</option>
-                    <option value="LEASED">Leased</option>
-                    <option value="THIRD_PARTY">Third Party Contractor</option>
-                  </select>
-                </div>
-
-                {/* Branch Assignment */}
-                <div>
-                  <label className="block text-xs font-semibold text-slate-300 uppercase mb-1">
-                    Depot Branch *
-                  </label>
-                  <select
-                    required
-                    value={registerForm.branch_id}
-                    onChange={(e) => setRegisterForm({ ...registerForm, branch_id: e.target.value })}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-sm text-slate-100 focus:outline-none focus:border-blue-500"
-                  >
-                    {branches.map(b => (
-                      <option key={b.id} value={b.id}>{b.name} ({b.code})</option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* Driver Pairing */}
-                <div>
-                  <label className="block text-xs font-semibold text-slate-300 uppercase mb-1">
-                    Assigned Driver (Optional)
-                  </label>
-                  <select
-                    value={registerForm.assigned_driver_id}
-                    onChange={(e) => setRegisterForm({ ...registerForm, assigned_driver_id: e.target.value })}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-sm text-slate-100 focus:outline-none focus:border-blue-500"
-                  >
-                    <option value="">-- No Driver Assigned --</option>
-                    {drivers.map(d => (
-                      <option key={d.id} value={d.id}>{d.full_name} ({d.employee_code || d.phone})</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              <div className="pt-4 border-t border-slate-800 flex items-center justify-end gap-3">
-                <button
-                  type="button"
-                  onClick={() => setRegisterModalOpen(false)}
-                  className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-sm font-semibold transition-all"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={actionLoading}
-                  className="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-sm font-bold shadow-lg shadow-blue-600/30 transition-all flex items-center gap-2"
-                >
-                  {actionLoading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
-                  <span>Save Vehicle</span>
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL 2: REFUEL LOG ENTRY */}
-      {refuelModalOpen && selectedVehicle && (
-        <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl">
-            <div className="p-6 border-b border-slate-800 flex items-center justify-between bg-slate-900/90">
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
-                  <Fuel className="w-6 h-6" />
-                </div>
-                <div>
-                  <h2 className="text-xl font-bold text-white">Log Refuel Voucher</h2>
-                  <p className="text-xs text-slate-400 font-mono">
-                    {selectedVehicle.registration_number} • {selectedVehicle.make} {selectedVehicle.model}
-                  </p>
-                </div>
-              </div>
-              <button
-                onClick={() => setRefuelModalOpen(false)}
-                className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-all"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <form onSubmit={handleRecordFuel} className="p-6 space-y-4">
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-300 uppercase mb-1">
-                    Fuel Quantity (Liters) *
-                  </label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    required
-                    placeholder="e.g. 45.0"
-                    value={refuelForm.quantity_liters}
-                    onChange={(e) => {
-                      const liters = e.target.value;
-                      const price = refuelForm.cost_per_liter;
-                      setRefuelForm({
-                        ...refuelForm,
-                        quantity_liters: liters,
-                        total_cost: liters && price ? (Number(liters) * Number(price)).toFixed(2) : refuelForm.total_cost
-                      });
-                    }}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-sm text-slate-100 font-mono focus:outline-none focus:border-emerald-500"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-slate-300 uppercase mb-1">
-                    Price / Liter (KES) *
-                  </label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    required
-                    value={refuelForm.cost_per_liter}
-                    onChange={(e) => {
-                      const price = e.target.value;
-                      const liters = refuelForm.quantity_liters;
-                      setRefuelForm({
-                        ...refuelForm,
-                        cost_per_liter: price,
-                        total_cost: liters && price ? (Number(liters) * Number(price)).toFixed(2) : refuelForm.total_cost
-                      });
-                    }}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-sm text-slate-100 font-mono focus:outline-none focus:border-emerald-500"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-slate-300 uppercase mb-1">
-                    Total Amount (KES) *
-                  </label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    required
-                    value={refuelForm.total_cost}
-                    onChange={(e) => setRefuelForm({ ...refuelForm, total_cost: e.target.value })}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-sm text-emerald-400 font-bold font-mono focus:outline-none focus:border-emerald-500"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-slate-300 uppercase mb-1">
-                    Odometer at Refuel (km) *
-                  </label>
-                  <input
-                    type="number"
-                    required
-                    placeholder={selectedVehicle.current_odometer_km}
-                    value={refuelForm.odometer_km}
-                    onChange={(e) => setRefuelForm({ ...refuelForm, odometer_km: e.target.value })}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-sm text-slate-100 font-mono focus:outline-none focus:border-emerald-500"
-                  />
-                </div>
-
-                <div className="col-span-2">
-                  <label className="block text-xs font-semibold text-slate-300 uppercase mb-1">
-                    Gas Station / Petrol Vendor
-                  </label>
-                  <input
-                    type="text"
-                    value={refuelForm.gas_station_vendor}
-                    onChange={(e) => setRefuelForm({ ...refuelForm, gas_station_vendor: e.target.value })}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-sm text-slate-100 focus:outline-none focus:border-emerald-500"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-slate-300 uppercase mb-1">
-                    Receipt / Voucher Ref
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="e.g. VCH-98124"
-                    value={refuelForm.voucher_number}
-                    onChange={(e) => setRefuelForm({ ...refuelForm, voucher_number: e.target.value })}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-sm text-slate-100 uppercase font-mono focus:outline-none focus:border-emerald-500"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-slate-300 uppercase mb-1">
-                    Full Tank Refill?
-                  </label>
-                  <select
-                    value={refuelForm.is_full_tank}
-                    onChange={(e) => setRefuelForm({ ...refuelForm, is_full_tank: Number(e.target.value) })}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-sm text-slate-100 focus:outline-none focus:border-emerald-500"
-                  >
-                    <option value={1}>Yes (Full Tank — Calibrate km/L)</option>
-                    <option value={0}>No (Partial Top-up)</option>
-                  </select>
-                </div>
-              </div>
-
-              <div className="pt-4 border-t border-slate-800 flex items-center justify-end gap-3">
-                <button
-                  type="button"
-                  onClick={() => setRefuelModalOpen(false)}
-                  className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-sm font-semibold transition-all"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={actionLoading}
-                  className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-bold shadow-lg shadow-emerald-600/30 transition-all flex items-center gap-2"
-                >
-                  {actionLoading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
-                  <span>Confirm Refuel</span>
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL 3: MAINTENANCE RECORD & SCHEDULE */}
-      {maintenanceModalOpen && selectedVehicle && (
-        <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-xl overflow-hidden shadow-2xl my-6">
-            <div className="p-6 border-b border-slate-800 flex items-center justify-between bg-slate-900/90">
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-xl bg-amber-500/20 text-amber-400 border border-amber-500/30">
-                  <Wrench className="w-6 h-6" />
-                </div>
-                <div>
-                  <h2 className="text-xl font-bold text-white">Log Vehicle Service / Maintenance</h2>
-                  <p className="text-xs text-slate-400 font-mono">
-                    {selectedVehicle.registration_number} • {selectedVehicle.make} {selectedVehicle.model}
-                  </p>
-                </div>
-              </div>
-              <button
-                onClick={() => setMaintenanceModalOpen(false)}
-                className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-all"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <form onSubmit={handleRecordMaintenance} className="p-6 space-y-4 max-h-[75vh] overflow-y-auto">
-              <div className="grid grid-cols-2 gap-3">
-                <div className="col-span-2">
-                  <label className="block text-xs font-semibold text-slate-300 uppercase mb-1">
-                    Service Type *
-                  </label>
-                  <select
-                    value={maintForm.service_type}
-                    onChange={(e) => setMaintForm({ ...maintForm, service_type: e.target.value })}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-sm text-slate-100 focus:outline-none focus:border-amber-500"
-                  >
-                    {SERVICE_TYPE_OPTIONS.map(opt => (
-                      <option key={opt.key} value={opt.key}>{opt.label}</option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-slate-300 uppercase mb-1">
-                    Service Date *
-                  </label>
-                  <input
-                    type="date"
-                    required
-                    value={maintForm.service_date}
-                    onChange={(e) => setMaintForm({ ...maintForm, service_date: e.target.value })}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-sm text-slate-100 focus:outline-none focus:border-amber-500"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-slate-300 uppercase mb-1">
-                    Odometer at Service (km) *
-                  </label>
-                  <input
-                    type="number"
-                    required
-                    value={maintForm.service_odometer_km}
-                    onChange={(e) => setMaintForm({ ...maintForm, service_odometer_km: e.target.value })}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-sm text-slate-100 font-mono focus:outline-none focus:border-amber-500"
-                  />
-                </div>
-
-                <div className="col-span-2">
-                  <label className="block text-xs font-semibold text-slate-300 uppercase mb-1">
-                    Service Provider / Workshop *
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={maintForm.service_provider}
-                    onChange={(e) => setMaintForm({ ...maintForm, service_provider: e.target.value })}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-sm text-slate-100 focus:outline-none focus:border-amber-500"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-slate-300 uppercase mb-1">
-                    Total Cost (KES) *
-                  </label>
-                  <input
-                    type="number"
-                    required
-                    placeholder="e.g. 18500"
-                    value={maintForm.total_cost}
-                    onChange={(e) => setMaintForm({ ...maintForm, total_cost: e.target.value })}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-sm text-amber-400 font-bold font-mono focus:outline-none focus:border-amber-500"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-slate-300 uppercase mb-1">
-                    Labor Cost (KES)
-                  </label>
-                  <input
-                    type="number"
-                    placeholder="e.g. 5000"
-                    value={maintForm.labor_cost}
-                    onChange={(e) => setMaintForm({ ...maintForm, labor_cost: e.target.value })}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-sm text-slate-100 font-mono focus:outline-none focus:border-amber-500"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-slate-300 uppercase mb-1">
-                    Next Target Odometer (km)
-                  </label>
-                  <input
-                    type="number"
-                    value={maintForm.next_service_target_km}
-                    onChange={(e) => setMaintForm({ ...maintForm, next_service_target_km: e.target.value })}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-sm text-slate-100 font-mono focus:outline-none focus:border-amber-500"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-slate-300 uppercase mb-1">
-                    Initial Status
-                  </label>
-                  <select
-                    value={maintForm.status}
-                    onChange={(e) => setMaintForm({ ...maintForm, status: e.target.value })}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-sm text-slate-100 focus:outline-none focus:border-amber-500"
-                  >
-                    <option value="IN_PROGRESS">In Progress (Sets vehicle to UNDER_MAINTENANCE)</option>
-                    <option value="SCHEDULED">Scheduled</option>
-                    <option value="COMPLETED">Already Completed</option>
-                  </select>
-                </div>
-
-                <div className="col-span-2">
-                  <label className="block text-xs font-semibold text-slate-300 uppercase mb-1">
-                    Description & Diagnostic Notes
-                  </label>
-                  <textarea
-                    rows={2}
-                    value={maintForm.description}
-                    onChange={(e) => setMaintForm({ ...maintForm, description: e.target.value })}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-sm text-slate-100 focus:outline-none focus:border-amber-500"
-                  />
-                </div>
-
-                <div className="col-span-2">
-                  <label className="block text-xs font-semibold text-slate-300 uppercase mb-1">
-                    Parts Replaced / Installed
-                  </label>
-                  <input
-                    type="text"
-                    value={maintForm.parts_replaced}
-                    onChange={(e) => setMaintForm({ ...maintForm, parts_replaced: e.target.value })}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-sm text-slate-100 focus:outline-none focus:border-amber-500"
-                  />
-                </div>
-              </div>
-
-              <div className="pt-4 border-t border-slate-800 flex items-center justify-end gap-3">
-                <button
-                  type="button"
-                  onClick={() => setMaintenanceModalOpen(false)}
-                  className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-sm font-semibold transition-all"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={actionLoading}
-                  className="px-5 py-2 rounded-xl bg-amber-600 hover:bg-amber-500 text-white text-sm font-bold shadow-lg shadow-amber-600/30 transition-all flex items-center gap-2"
-                >
-                  {actionLoading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
-                  <span>Save Service Record</span>
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL 4: OPERATIONAL STATUS CHANGER */}
-      {statusModalOpen && selectedVehicle && (
-        <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-md overflow-hidden shadow-2xl">
-            <div className="p-6 border-b border-slate-800 flex items-center justify-between bg-slate-900/90">
-              <div>
-                <h2 className="text-lg font-bold text-white">Update Vehicle Status</h2>
-                <p className="text-xs text-slate-400 font-mono">{selectedVehicle.registration_number}</p>
-              </div>
-              <button
-                onClick={() => setStatusModalOpen(false)}
-                className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <form onSubmit={handleUpdateStatus} className="p-6 space-y-4">
-              <div>
-                <label className="block text-xs font-semibold text-slate-300 uppercase mb-2">
-                  Select New Operational State
-                </label>
-                <div className="grid grid-cols-1 gap-2">
-                  {VEHICLE_STATUS_OPTIONS.map(opt => (
-                    <button
-                      key={opt.key}
-                      type="button"
-                      onClick={() => setNewStatus(opt.key)}
-                      className={`p-3 rounded-xl border text-left transition-all flex items-center justify-between ${
-                        newStatus === opt.key
-                          ? 'bg-blue-600/20 border-blue-500 text-white font-semibold'
-                          : 'bg-slate-950/60 border-slate-800 text-slate-400 hover:border-slate-700'
-                      }`}
-                    >
-                      <span>{opt.label}</span>
-                      {newStatus === opt.key && <CheckCircle2 className="w-4 h-4 text-blue-400" />}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-300 uppercase mb-1">
-                  Reason / State Change Notes
-                </label>
-                <input
-                  type="text"
-                  placeholder="e.g. Cleared workshop inspection, ready for dispatch"
-                  value={statusReason}
-                  onChange={(e) => setStatusReason(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-sm text-slate-100 focus:outline-none focus:border-blue-500"
-                />
-              </div>
-
-              <div className="pt-3 border-t border-slate-800 flex items-center justify-end gap-3">
-                <button
-                  type="button"
-                  onClick={() => setStatusModalOpen(false)}
-                  className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-sm font-semibold"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={actionLoading}
-                  className="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-sm font-bold shadow-lg shadow-blue-600/30 flex items-center gap-2"
-                >
-                  {actionLoading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
-                  <span>Save Status</span>
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL 5: TRIP MILEAGE LOGGING */}
-      {mileageModalOpen && selectedVehicle && (
-        <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl">
-            <div className="p-6 border-b border-slate-800 flex items-center justify-between bg-slate-900/90">
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-xl bg-sky-500/10 text-sky-400 border border-sky-500/20">
-                  <Gauge className="w-6 h-6" />
-                </div>
-                <div>
-                  <h2 className="text-xl font-bold text-white">Log Trip & Advance Mileage</h2>
-                  <p className="text-xs text-slate-400 font-mono">
-                    {selectedVehicle.registration_number} • Current: {Number(selectedVehicle.current_odometer_km).toLocaleString()} km
-                  </p>
-                </div>
-              </div>
-              <button
-                onClick={() => setMileageModalOpen(false)}
-                className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <form onSubmit={handleRecordMileage} className="p-6 space-y-4">
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-300 uppercase mb-1">
-                    Trip Date
-                  </label>
-                  <input
-                    type="date"
-                    required
-                    value={tripForm.log_date}
-                    onChange={(e) => setTripForm({ ...tripForm, log_date: e.target.value })}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-sm text-slate-100 focus:outline-none focus:border-sky-500"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-slate-300 uppercase mb-1">
-                    Trip Type
-                  </label>
-                  <select
-                    value={tripForm.trip_type}
-                    onChange={(e) => setTripForm({ ...tripForm, trip_type: e.target.value })}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-sm text-slate-100 focus:outline-none focus:border-sky-500"
-                  >
-                    <option value="DELIVERY_RUN">Delivery Run</option>
-                    <option value="RELOCATION">Depot Transfer / Relocation</option>
-                    <option value="MAINTENANCE">Garage Service Trip</option>
-                    <option value="TEST_DRIVE">Post-Repair Test Run</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-slate-300 uppercase mb-1">
-                    Start Odometer (km) *
-                  </label>
-                  <input
-                    type="number"
-                    required
-                    value={tripForm.start_odometer_km}
-                    onChange={(e) => {
-                      const start = Number(e.target.value);
-                      const end = Number(tripForm.end_odometer_km);
-                      setTripForm({
-                        ...tripForm,
-                        start_odometer_km: e.target.value,
-                        distance_km: end > start ? end - start : tripForm.distance_km
-                      });
-                    }}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-sm text-slate-100 font-mono focus:outline-none focus:border-sky-500"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-slate-300 uppercase mb-1">
-                    End Odometer (km) *
-                  </label>
-                  <input
-                    type="number"
-                    required
-                    value={tripForm.end_odometer_km}
-                    onChange={(e) => {
-                      const end = Number(e.target.value);
-                      const start = Number(tripForm.start_odometer_km);
-                      setTripForm({
-                        ...tripForm,
-                        end_odometer_km: e.target.value,
-                        distance_km: end > start ? end - start : tripForm.distance_km
-                      });
-                    }}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-sm text-sky-400 font-bold font-mono focus:outline-none focus:border-sky-500"
-                  />
-                </div>
-
-                <div className="col-span-2">
-                  <label className="block text-xs font-semibold text-slate-300 uppercase mb-1">
-                    Destination / Route
-                  </label>
-                  <input
-                    type="text"
-                    value={tripForm.destination}
-                    onChange={(e) => setTripForm({ ...tripForm, destination: e.target.value })}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-sm text-slate-100 focus:outline-none focus:border-sky-500"
-                  />
-                </div>
-              </div>
-
-              <div className="pt-4 border-t border-slate-800 flex items-center justify-end gap-3">
-                <button
-                  type="button"
-                  onClick={() => setMileageModalOpen(false)}
-                  className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-sm font-semibold"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={actionLoading}
-                  className="px-5 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 text-white text-sm font-semibold shadow-sm flex items-center gap-2"
-                >
-                  {actionLoading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
-                  <span>Record Trip</span>
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* DRAWER / MODAL 6: FULL VEHICLE DOSSIER WITH 4 TABS */}
-      {detailModalOpen && selectedVehicle && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-4xl overflow-hidden shadow-2xl my-4 flex flex-col max-h-[90vh]">
-            {/* Header banner */}
-            <div className="p-6 border-b border-slate-800 flex items-center justify-between bg-slate-950/70">
-              <div className="flex items-center gap-4">
-                <div className="px-3.5 py-1.5 bg-amber-400 text-black font-black tracking-widest text-base rounded border-2 border-black font-mono shadow-md">
-                  {selectedVehicle.registration_number}
-                </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <h2 className="text-xl font-bold text-white">
-                      {selectedVehicle.make} {selectedVehicle.model} {selectedVehicle.year_of_manufacture ? `(${selectedVehicle.year_of_manufacture})` : ''}
-                    </h2>
-                    {renderStatusBadge(selectedVehicle.status)}
-                  </div>
-                  <p className="text-xs text-slate-400 mt-0.5">
-                    {selectedVehicle.branch_name} Depot • {selectedVehicle.vehicle_type} • {selectedVehicle.ownership_type?.replace('_', ' ')}
-                  </p>
-                </div>
-              </div>
-
-              <button
-                onClick={() => setDetailModalOpen(false)}
-                className="p-2.5 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-all"
-              >
-                <X className="w-6 h-6" />
-              </button>
-            </div>
-
-            {/* Tab navigation bar */}
-            <div className="flex items-center gap-1 px-6 border-b border-slate-800 bg-slate-950/40 text-xs font-semibold overflow-x-auto">
-              <button
-                onClick={() => setDetailTab('overview')}
-                className={`py-3 px-4 border-b-2 transition-all flex items-center gap-2 ${
-                  detailTab === 'overview'
-                    ? 'border-blue-500 text-blue-400 font-bold'
-                    : 'border-transparent text-slate-400 hover:text-slate-200'
-                }`}
-              >
-                <Layers className="w-4 h-4" />
-                <span>Overview & Specs</span>
-              </button>
-
-              <button
-                onClick={() => setDetailTab('fuel')}
-                className={`py-3 px-4 border-b-2 transition-all flex items-center gap-2 ${
-                  detailTab === 'fuel'
-                    ? 'border-emerald-500 text-emerald-400 font-bold'
-                    : 'border-transparent text-slate-400 hover:text-slate-200'
-                }`}
-              >
-                <Fuel className="w-4 h-4" />
-                <span>Fuel Logs & Efficiency ({fuelLogs.length})</span>
-              </button>
-
-              <button
-                onClick={() => setDetailTab('maintenance')}
-                className={`py-3 px-4 border-b-2 transition-all flex items-center gap-2 ${
-                  detailTab === 'maintenance'
-                    ? 'border-amber-500 text-amber-400 font-bold'
-                    : 'border-transparent text-slate-400 hover:text-slate-200'
-                }`}
-              >
-                <Wrench className="w-4 h-4" />
-                <span>Maintenance & Repairs ({maintenanceRecords.length})</span>
-              </button>
-
-              <button
-                onClick={() => setDetailTab('mileage')}
-                className={`py-3 px-4 border-b-2 transition-all flex items-center gap-2 ${
-                  detailTab === 'mileage'
-                    ? 'border-sky-500 text-sky-400 font-bold'
-                    : 'border-transparent text-slate-400 hover:text-slate-200'
-                }`}
-              >
-                <Gauge className="w-4 h-4" />
-                <span>Mileage & Trips ({mileageLogs.length})</span>
-              </button>
-            </div>
-
-            {/* Tab content area */}
-            <div className="p-6 overflow-y-auto space-y-6 flex-1">
-              {/* TAB 1: OVERVIEW & SPECS */}
-              {detailTab === 'overview' && (
-                <div className="space-y-6">
-                  {/* Telemetry Stat Cards */}
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                    <div className="p-3.5 bg-slate-950/70 rounded-2xl border border-slate-800">
-                      <span className="text-[11px] text-slate-400 uppercase tracking-wider block font-semibold">Total Distance</span>
-                      <div className="text-xl font-black text-white mt-1">
-                        {vehicleTelemetry?.total_distance_km ? `${Number(vehicleTelemetry.total_distance_km).toLocaleString()} km` : '0 km'}
-                      </div>
-                      <span className="text-[10px] text-slate-500">Logged since onboarding</span>
-                    </div>
-
-                    <div className="p-3.5 bg-slate-950/70 rounded-2xl border border-slate-800">
-                      <span className="text-[11px] text-slate-400 uppercase tracking-wider block font-semibold">Fuel Spend</span>
-                      <div className="text-xl font-black text-emerald-400 mt-1">
-                        KES {vehicleTelemetry?.total_fuel_spend ? Number(vehicleTelemetry.total_fuel_spend).toLocaleString() : '0'}
-                      </div>
-                      <span className="text-[10px] text-slate-500">{vehicleTelemetry?.fuel_logs_count || 0} refuel entries</span>
-                    </div>
-
-                    <div className="p-3.5 bg-slate-950/70 rounded-2xl border border-slate-800">
-                      <span className="text-[11px] text-slate-400 uppercase tracking-wider block font-semibold">Maintenance Spend</span>
-                      <div className="text-xl font-black text-amber-400 mt-1">
-                        KES {vehicleTelemetry?.total_maintenance_spend ? Number(vehicleTelemetry.total_maintenance_spend).toLocaleString() : '0'}
-                      </div>
-                      <span className="text-[10px] text-slate-500">{vehicleTelemetry?.maintenance_records_count || 0} service jobs</span>
-                    </div>
-
-                    <div className="p-3.5 bg-slate-950/70 rounded-2xl border border-slate-800">
-                      <span className="text-[11px] text-slate-400 uppercase tracking-wider block font-semibold">Operating Cost / km</span>
-                      <div className="text-xl font-black text-sky-400 mt-1">
-                        KES {vehicleTelemetry?.operating_cost_per_km || '0.00'}
-                      </div>
-                      <span className="text-[10px] text-slate-500">Total cost per km traveled</span>
-                    </div>
-                  </div>
-
-                  {/* Technical Specifications */}
-                  <div className="bg-slate-950/50 rounded-2xl p-5 border border-slate-800">
-                    <h3 className="text-sm font-bold text-white mb-3 flex items-center gap-2">
-                      <FileText className="w-4 h-4 text-blue-400" />
-                      <span>Technical Registry Specifications</span>
-                    </h3>
-
-                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 text-xs">
-                      <div>
-                        <span className="text-slate-500 block">Registration Plate</span>
-                        <span className="font-bold text-white font-mono">{selectedVehicle.registration_number}</span>
-                      </div>
-                      <div>
-                        <span className="text-slate-500 block">Vehicle Type</span>
-                        <span className="font-semibold text-slate-200">{selectedVehicle.vehicle_type}</span>
-                      </div>
-                      <div>
-                        <span className="text-slate-500 block">Make & Model</span>
-                        <span className="font-semibold text-slate-200">{selectedVehicle.make} {selectedVehicle.model}</span>
-                      </div>
-                      <div>
-                        <span className="text-slate-500 block">Chassis / VIN</span>
-                        <span className="font-mono text-slate-300">{selectedVehicle.chassis_number || 'N/A'}</span>
-                      </div>
-                      <div>
-                        <span className="text-slate-500 block">Engine Number</span>
-                        <span className="font-mono text-slate-300">{selectedVehicle.engine_number || 'N/A'}</span>
-                      </div>
-                      <div>
-                        <span className="text-slate-500 block">Color</span>
-                        <span className="font-semibold text-slate-200">{selectedVehicle.color || 'White'}</span>
-                      </div>
-                      <div>
-                        <span className="text-slate-500 block">Payload Capacity</span>
-                        <span className="font-semibold text-slate-200">{selectedVehicle.capacity_kg ? `${selectedVehicle.capacity_kg} kg` : 'N/A'}</span>
-                      </div>
-                      <div>
-                        <span className="text-slate-500 block">Cargo Volume</span>
-                        <span className="font-semibold text-slate-200">{selectedVehicle.cargo_volume_cbm ? `${selectedVehicle.cargo_volume_cbm} m³` : 'N/A'}</span>
-                      </div>
-                      <div>
-                        <span className="text-slate-500 block">Fuel Tank Capacity</span>
-                        <span className="font-semibold text-slate-200">{selectedVehicle.fuel_tank_capacity_liters ? `${selectedVehicle.fuel_tank_capacity_liters} Liters` : 'N/A'}</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Service Target Countdown Card */}
-                  <div className="p-4 rounded-xl bg-slate-950/60 border border-slate-800/80 flex items-center justify-between">
-                    <div>
-                      <span className="text-xs text-blue-400 font-semibold uppercase tracking-wider block">Preventive Service Target</span>
-                      <div className="text-lg font-bold text-white mt-0.5">
-                        Next Target: {selectedVehicle.next_service_odometer_km ? `${Number(selectedVehicle.next_service_odometer_km).toLocaleString()} km` : 'Unset'}
-                      </div>
-                      <p className="text-xs text-slate-400">
-                        {vehicleTelemetry?.km_until_service !== undefined ? (
-                          vehicleTelemetry.km_until_service <= 0
-                            ? 'Overdue for scheduled maintenance'
-                            : `${vehicleTelemetry.km_until_service.toLocaleString()} km remaining before scheduled service`
-                        ) : 'Pending schedule calculation'}
-                      </p>
-                    </div>
-
-                    <button
-                      onClick={() => openMaintenanceModal(selectedVehicle)}
-                      className="px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs shadow-md transition-all flex items-center gap-1.5"
-                    >
-                      <Wrench className="w-3.5 h-3.5" />
-                      <span>Schedule Service</span>
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {/* TAB 2: FUEL LOGS & EFFICIENCY */}
-              {detailTab === 'fuel' && (
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h3 className="text-sm font-bold text-white">Fuel Consumption & Refill History</h3>
-                      <p className="text-xs text-slate-400">Voucher numbers, station vendors, and calculated km/L efficiency</p>
-                    </div>
-                    <button
-                      onClick={() => openRefuelModal(selectedVehicle)}
-                      className="px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition-all flex items-center gap-1.5"
-                    >
-                      <Plus className="w-3.5 h-3.5" />
-                      <span>Log Refuel</span>
-                    </button>
-                  </div>
-
-                  {fuelLogs.length === 0 ? (
-                    <div className="p-8 text-center text-slate-400 bg-slate-950/40 rounded-2xl border border-slate-800">
-                      No fuel logs recorded yet for this vehicle.
-                    </div>
-                  ) : (
-                    <div className="overflow-x-auto rounded-2xl border border-slate-800">
-                      <table className="w-full text-left text-xs text-slate-300">
-                        <thead className="bg-slate-950 text-slate-400 uppercase font-semibold border-b border-slate-800">
-                          <tr>
-                            <th className="p-3">Date</th>
-                            <th className="p-3">Station</th>
-                            <th className="p-3">Liters</th>
-                            <th className="p-3">Price/L</th>
-                            <th className="p-3">Total Cost</th>
-                            <th className="p-3">Odometer</th>
-                            <th className="p-3">Economy</th>
-                            <th className="p-3">Voucher</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-800/60 bg-slate-900/40">
-                          {fuelLogs.map((log) => (
-                            <tr key={log.id} className="hover:bg-slate-800/40">
-                              <td className="p-3 font-mono">{log.fuel_date}</td>
-                              <td className="p-3 font-medium text-white">{log.gas_station_vendor || 'N/A'}</td>
-                              <td className="p-3 font-mono">{log.quantity_liters} L</td>
-                              <td className="p-3 font-mono">KES {log.cost_per_liter}</td>
-                              <td className="p-3 font-bold text-emerald-400 font-mono">KES {Number(log.total_cost).toLocaleString()}</td>
-                              <td className="p-3 font-mono">{Number(log.odometer_km).toLocaleString()} km</td>
-                              <td className="p-3">
-                                {log.calculated_consumption_kml ? (
-                                  <span className="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 font-bold font-mono text-[11px]">
-                                    {log.calculated_consumption_kml} km/L
-                                  </span>
-                                ) : (
-                                  <span className="text-slate-500 text-[10px]">
-                                    {log.is_full_tank ? 'Base Full' : 'Partial'}
-                                  </span>
-                                )}
-                              </td>
-                              <td className="p-3 font-mono uppercase">{log.voucher_number || '-'}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* TAB 3: MAINTENANCE & REPAIRS */}
-              {detailTab === 'maintenance' && (
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h3 className="text-sm font-bold text-white">Workshop & Preventative Maintenance Records</h3>
-                      <p className="text-xs text-slate-400">Scheduled repairs, parts replaced, and labor expenses</p>
-                    </div>
-                    <button
-                      onClick={() => openMaintenanceModal(selectedVehicle)}
-                      className="px-3.5 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-500 text-white text-xs font-bold transition-all flex items-center gap-1.5"
-                    >
-                      <Plus className="w-3.5 h-3.5" />
-                      <span>Log Service</span>
-                    </button>
-                  </div>
-
-                  {maintenanceRecords.length === 0 ? (
-                    <div className="p-8 text-center text-slate-400 bg-slate-950/40 rounded-2xl border border-slate-800">
-                      No maintenance records recorded yet for this vehicle.
-                    </div>
-                  ) : (
-                    <div className="space-y-3">
-                      {maintenanceRecords.map((rec) => (
-                        <div key={rec.id} className="p-4 rounded-2xl bg-slate-950/60 border border-slate-800 flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs">
-                          <div>
-                            <div className="flex items-center gap-2">
-                              <span className="px-2 py-0.5 rounded-md bg-amber-500/20 text-amber-400 border border-amber-500/30 font-mono font-bold">
-                                {rec.service_number}
-                              </span>
-                              <span className="font-bold text-white text-sm">{rec.service_type?.replace(/_/g, ' ')}</span>
-                              <span className={`px-2 py-0.5 rounded text-[10px] font-bold font-mono ${
-                                rec.status === 'COMPLETED' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-blue-500/20 text-blue-400 animate-pulse'
-                              }`}>
-                                {rec.status}
-                              </span>
-                            </div>
-                            <p className="text-slate-400 mt-1">
-                              Garage: <strong className="text-slate-200">{rec.service_provider}</strong> • Date: {rec.service_date} • Odometer: {Number(rec.service_odometer_km).toLocaleString()} km
-                            </p>
-                            {rec.parts_replaced && (
-                              <p className="text-slate-500 mt-0.5">
-                                Parts: {rec.parts_replaced}
-                              </p>
-                            )}
-                          </div>
-
-                          <div className="text-right">
-                            <span className="text-slate-400 block text-[10px]">Total Service Cost</span>
-                            <span className="text-base font-black text-amber-400 font-mono">
-                              KES {Number(rec.total_cost).toLocaleString()}
-                            </span>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* TAB 4: MILEAGE & TRIPS */}
-              {detailTab === 'mileage' && (
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h3 className="text-sm font-bold text-white">Trip Logs & Mileage History</h3>
-                      <p className="text-xs text-slate-400">Routes, dispatch runs, and odometer progression</p>
-                    </div>
-                    <button
-                      onClick={() => openMileageModal(selectedVehicle)}
-                      className="px-3.5 py-1.5 rounded-xl bg-sky-600 hover:bg-sky-500 text-white text-xs font-semibold shadow-sm transition-all flex items-center gap-1.5"
-                    >
-                      <Plus className="w-3.5 h-3.5" />
-                      <span>Log Trip</span>
-                    </button>
-                  </div>
-
-                  {mileageLogs.length === 0 ? (
-                    <div className="p-8 text-center text-slate-400 bg-slate-950/40 rounded-2xl border border-slate-800">
-                      No mileage logs recorded yet for this vehicle.
-                    </div>
-                  ) : (
-                    <div className="overflow-x-auto rounded-2xl border border-slate-800">
-                      <table className="w-full text-left text-xs text-slate-300">
-                        <thead className="bg-slate-950 text-slate-400 uppercase font-semibold border-b border-slate-800">
-                          <tr>
-                            <th className="p-3">Date</th>
-                            <th className="p-3">Type</th>
-                            <th className="p-3">Start Odo</th>
-                            <th className="p-3">End Odo</th>
-                            <th className="p-3">Distance</th>
-                            <th className="p-3">Route</th>
-                            <th className="p-3">Driver</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-800/60 bg-slate-900/40">
-                          {mileageLogs.map((log) => (
-                            <tr key={log.id} className="hover:bg-slate-800/40">
-                              <td className="p-3 font-mono">{log.log_date}</td>
-                              <td className="p-3 font-semibold text-white">{log.trip_type?.replace(/_/g, ' ')}</td>
-                              <td className="p-3 font-mono">{Number(log.start_odometer_km).toLocaleString()} km</td>
-                              <td className="p-3 font-mono">{Number(log.end_odometer_km).toLocaleString()} km</td>
-                              <td className="p-3 font-bold text-sky-400 font-mono">{log.distance_km} km</td>
-                              <td className="p-3 text-slate-300">{log.origin || 'Depot'} → {log.destination || 'CBD'}</td>
-                              <td className="p-3 text-slate-400">{log.driver_name || 'Assigned'}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
+      <RegisterVehicleModal
+        isOpen={registerModalOpen}
+        onClose={() => setRegisterModalOpen(false)}
+        registerForm={registerForm}
+        setRegisterForm={setRegisterForm}
+        onSubmit={handleRegisterVehicle}
+        actionLoading={actionLoading}
+        branches={branches}
+        drivers={drivers}
+      />
+
+      <RefuelVehicleModal
+        isOpen={refuelModalOpen}
+        selectedVehicle={selectedVehicle}
+        onClose={() => setRefuelModalOpen(false)}
+        refuelForm={refuelForm}
+        setRefuelForm={setRefuelForm}
+        onSubmit={handleLogFuel}
+        actionLoading={actionLoading}
+        drivers={drivers}
+      />
+
+      <MaintenanceVehicleModal
+        isOpen={maintenanceModalOpen}
+        selectedVehicle={selectedVehicle}
+        onClose={() => setMaintenanceModalOpen(false)}
+        maintenanceForm={maintenanceForm}
+        setMaintenanceForm={setMaintenanceForm}
+        onSubmit={handleLogMaintenance}
+        actionLoading={actionLoading}
+      />
+
+      <VehicleStatusModal
+        isOpen={statusModalOpen}
+        selectedVehicle={selectedVehicle}
+        onClose={() => setStatusModalOpen(false)}
+        statusForm={statusForm}
+        setStatusForm={setStatusForm}
+        onSubmit={handleUpdateStatus}
+        actionLoading={actionLoading}
+      />
+
+      <RecordMileageModal
+        isOpen={mileageModalOpen}
+        selectedVehicle={selectedVehicle}
+        onClose={() => setMileageModalOpen(false)}
+        mileageForm={mileageForm}
+        setMileageForm={setMileageForm}
+        onSubmit={handleLogMileage}
+        actionLoading={actionLoading}
+        drivers={drivers}
+      />
+
+      <VehicleDetailModal
+        isOpen={detailModalOpen}
+        selectedVehicle={selectedVehicle}
+        onClose={() => setDetailModalOpen(false)}
+        vehicleTelemetry={vehicleTelemetry}
+        detailTab={detailTab}
+        setDetailTab={setDetailTab}
+        fuelLogs={fuelLogs}
+        maintenanceRecords={maintenanceRecords}
+        mileageLogs={mileageLogs}
+        onOpenRefuel={() => setRefuelModalOpen(true)}
+        onOpenMaintenance={() => setMaintenanceModalOpen(true)}
+        onOpenMileage={() => setMileageModalOpen(true)}
+        onOpenStatus={() => setStatusModalOpen(true)}
+      />
     </div>
   );
 }
-
-export default VehiclesView;

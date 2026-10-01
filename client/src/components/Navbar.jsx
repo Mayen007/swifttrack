@@ -320,9 +320,9 @@ export function Navbar({
 
         {/* Mobile 1-Tap Theme Flip Button (< sm) */}
         <button
-          onClick={() => {
+          onClick={(e) => {
             sound.playScan();
-            setTheme(resolvedTheme === 'dark' ? 'light' : 'dark');
+            setTheme(resolvedTheme === 'dark' ? 'light' : 'dark', e);
           }}
           title={resolvedTheme === 'dark' ? 'Switch to Light Mode (Braun Porcelain)' : 'Switch to Dark Mode (Obsidian Matte)'}
           aria-label={resolvedTheme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
@@ -342,9 +342,9 @@ export function Navbar({
           aria-label="Theme selector"
         >
           <button
-            onClick={() => {
+            onClick={(e) => {
               if (!audioMuted) sound.playScan();
-              setTheme('light');
+              setTheme('light', e);
             }}
             title="Light Mode (Braun Porcelain)"
             aria-label="Light mode"
@@ -356,9 +356,9 @@ export function Navbar({
             <Sun className="w-3.5 h-3.5" />
           </button>
           <button
-            onClick={() => {
+            onClick={(e) => {
               if (!audioMuted) sound.playScan();
-              setTheme('dark');
+              setTheme('dark', e);
             }}
             title="Dark Mode (Obsidian Matte)"
             aria-label="Dark mode"
@@ -370,9 +370,9 @@ export function Navbar({
             <Moon className="w-3.5 h-3.5" />
           </button>
           <button
-            onClick={() => {
+            onClick={(e) => {
               if (!audioMuted) sound.playScan();
-              setTheme('system');
+              setTheme('system', e);
             }}
             title={`System Mode (${resolvedTheme === 'dark' ? 'Dark OS' : 'Light OS'})`}
             aria-label="System theme"
