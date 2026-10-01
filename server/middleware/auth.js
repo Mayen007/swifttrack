@@ -221,6 +221,19 @@ function authorize(resource, action, options = {}) {
             return res.status(401).json({ error: 'Authentication required' });
         }
 
+        // 1. Role-level baseline check: if the user's role is strictly denied this action,
+        // reject immediately with 403 Forbidden before entity resolution (preventing ID enumeration).
+        const baselineCheck = checkPermission(req.user, resource, action, {});
+        if (!baselineCheck.granted && baselineCheck.scope === SCOPES.DENIED) {
+            return res.status(403).json({
+                error: baselineCheck.reason,
+                code: 'FORBIDDEN_AUTHORIZATION',
+                resource,
+                action,
+                scope: baselineCheck.scope
+            });
+        }
+
         const context = {};
         let targetBranchId = req.query.branch_id || req.params.branchId || req.params.branch_id || (req.body && req.body.branch_id);
         let entityOwnerUserId = null;
