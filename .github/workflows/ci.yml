@@ -39,6 +39,9 @@ jobs:
       - name: Run Core System Verification Suite
         run: node tests/verify-system.js
 
+      - name: Verify API Documentation Parity
+        run: node tests/docs/test-api-doc-parity.js
+
       - name: Run Logistics Domain Test Suites
         run: |
           node tests/logistics/test-shipments-core.js

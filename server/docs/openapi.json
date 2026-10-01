@@ -42,66 +42,150 @@
       "SuccessEnvelope": {
         "type": "object",
         "properties": {
-          "success": { "type": "boolean", "example": true },
-          "data": { "type": "object" },
+          "success": {
+            "type": "boolean",
+            "example": true
+          },
+          "data": {
+            "type": "object"
+          },
           "meta": {
             "type": "object",
             "properties": {
-              "requestId": { "type": "string", "example": "req_1789754_a9b1c2" },
-              "timestamp": { "type": "string", "format": "date-time", "example": "2026-09-19T09:00:00.000Z" }
+              "requestId": {
+                "type": "string",
+                "example": "req_1789754_a9b1c2"
+              },
+              "timestamp": {
+                "type": "string",
+                "format": "date-time",
+                "example": "2026-09-19T09:00:00.000Z"
+              }
             }
           }
         },
-        "required": ["success", "data", "meta"]
+        "description": "Prospective standardized response envelope. In current v1 production handlers, endpoints return raw domain objects and arrays directly; mandatory envelope adoption is deferred to a future major release to preserve client backward compatibility."
       },
       "ErrorEnvelope": {
         "type": "object",
         "properties": {
-          "success": { "type": "boolean", "example": false },
+          "success": {
+            "type": "boolean",
+            "example": false
+          },
           "error": {
             "type": "object",
             "properties": {
-              "code": { "type": "string", "example": "VALIDATION_ERROR" },
-              "message": { "type": "string", "example": "Validation failed: 1 error(s) detected" },
+              "code": {
+                "type": "string",
+                "example": "VALIDATION_ERROR"
+              },
+              "message": {
+                "type": "string",
+                "example": "Validation failed: 1 error(s) detected"
+              },
               "details": {
                 "type": "array",
                 "items": {
                   "type": "object",
                   "properties": {
-                    "field": { "type": "string", "example": "amount" },
-                    "issue": { "type": "string", "example": "'amount' must be at least 1" }
+                    "field": {
+                      "type": "string",
+                      "example": "amount"
+                    },
+                    "issue": {
+                      "type": "string",
+                      "example": "'amount' must be at least 1"
+                    }
                   }
                 }
               },
-              "requestId": { "type": "string", "example": "req_1789754_a9b1c2" },
-              "timestamp": { "type": "string", "format": "date-time", "example": "2026-09-19T09:00:00.000Z" }
+              "requestId": {
+                "type": "string",
+                "example": "req_1789754_a9b1c2"
+              },
+              "timestamp": {
+                "type": "string",
+                "format": "date-time",
+                "example": "2026-09-19T09:00:00.000Z"
+              }
             },
-            "required": ["code", "message", "details", "requestId", "timestamp"]
+            "required": [
+              "code",
+              "message",
+              "details",
+              "requestId",
+              "timestamp"
+            ]
           },
-          "code": { "type": "string", "example": "VALIDATION_ERROR" },
-          "message": { "type": "string", "example": "Validation failed: 1 error(s) detected" }
+          "code": {
+            "type": "string",
+            "example": "VALIDATION_ERROR"
+          },
+          "message": {
+            "type": "string",
+            "example": "Validation failed: 1 error(s) detected"
+          }
         },
-        "required": ["success", "error"]
+        "required": [
+          "success",
+          "error"
+        ]
       },
       "PaginationMeta": {
         "type": "object",
         "properties": {
-          "page": { "type": "integer", "example": 1 },
-          "limit": { "type": "integer", "example": 20 },
-          "totalRecords": { "type": "integer", "example": 145 },
-          "totalPages": { "type": "integer", "example": 8 },
-          "hasNextPage": { "type": "boolean", "example": true },
-          "hasPrevPage": { "type": "boolean", "example": false }
+          "page": {
+            "type": "integer",
+            "example": 1
+          },
+          "limit": {
+            "type": "integer",
+            "example": 20
+          },
+          "totalRecords": {
+            "type": "integer",
+            "example": 145
+          },
+          "totalPages": {
+            "type": "integer",
+            "example": 8
+          },
+          "hasNextPage": {
+            "type": "boolean",
+            "example": true
+          },
+          "hasPrevPage": {
+            "type": "boolean",
+            "example": false
+          }
         },
-        "required": ["page", "limit", "totalRecords", "totalPages", "hasNextPage", "hasPrevPage"]
+        "required": [
+          "page",
+          "limit",
+          "totalRecords",
+          "totalPages",
+          "hasNextPage",
+          "hasPrevPage"
+        ]
       },
       "LoginRequest": {
         "type": "object",
         "properties": {
-          "username": { "type": "string", "example": "superadmin" },
-          "password": { "type": "string", "format": "password", "example": "Admin123!" }
+          "username": {
+            "type": "string",
+            "example": "superadmin"
+          },
+          "password": {
+            "type": "string",
+            "format": "password",
+            "example": "Admin123!"
+          }
         },
-        "required": ["username", "password"]
+        "required": [
+          "username",
+          "password"
+        ]
       },
       "CheckoutRequest": {
         "type": "object",
@@ -111,31 +195,101 @@
             "items": {
               "type": "object",
               "properties": {
-                "id": { "type": "integer", "example": 1 },
-                "quantity": { "type": "integer", "example": 2 }
+                "id": {
+                  "type": "integer",
+                  "example": 1
+                },
+                "quantity": {
+                  "type": "integer",
+                  "example": 2
+                }
               },
-              "required": ["id", "quantity"]
+              "required": [
+                "id",
+                "quantity"
+              ]
             }
           },
-          "payment_method": { "type": "string", "enum": ["CASH", "MPESA", "CARD", "BANK_TRANSFER"], "example": "MPESA" },
-          "mpesa_phone": { "type": "string", "example": "0711000001" },
-          "discount_amount": { "type": "number", "example": 0 },
-          "delivery_required": { "type": "boolean", "example": false }
+          "payment_method": {
+            "type": "string",
+            "enum": [
+              "CASH",
+              "MPESA",
+              "CARD",
+              "BANK_TRANSFER"
+            ],
+            "example": "MPESA"
+          },
+          "mpesa_phone": {
+            "type": "string",
+            "example": "0711000001"
+          },
+          "discount_amount": {
+            "type": "number",
+            "example": 0
+          },
+          "delivery_required": {
+            "type": "boolean",
+            "example": false
+          }
         },
-        "required": ["items", "payment_method"]
+        "required": [
+          "items",
+          "payment_method"
+        ]
       }
     }
   },
   "paths": {
+    "/audit": {
+      "get": {
+        "summary": "Inspect immutable enterprise audit trail with role and date filters",
+        "tags": [
+          "Audit & Compliance"
+        ],
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 1
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 50
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Paginated audit logs"
+          }
+        }
+      }
+    },
     "/auth/login": {
       "post": {
         "summary": "Authenticate user operator and issue access + refresh tokens",
-        "tags": ["Authentication"],
+        "tags": [
+          "Authentication"
+        ],
         "requestBody": {
           "required": true,
           "content": {
             "application/json": {
-              "schema": { "$ref": "#/components/schemas/LoginRequest" }
+              "schema": {
+                "$ref": "#/components/schemas/LoginRequest"
+              }
             }
           }
         },
@@ -147,23 +301,62 @@
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "token": { "type": "string", "description": "15-minute JWT Bearer token" },
-                    "refreshToken": { "type": "string", "description": "Rotating single-use refresh token" },
-                    "user": { "type": "object" }
+                    "token": {
+                      "type": "string",
+                      "description": "15-minute JWT Bearer token"
+                    },
+                    "refreshToken": {
+                      "type": "string",
+                      "description": "Rotating single-use refresh token"
+                    },
+                    "user": {
+                      "type": "object"
+                    }
                   }
                 }
               }
             }
           },
-          "401": { "description": "Invalid credentials", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } } },
-          "423": { "description": "Account locked due to 5 consecutive failed login attempts" }
+          "401": {
+            "description": "Invalid credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "423": {
+            "description": "Account locked due to 5 consecutive failed login attempts"
+          }
+        }
+      }
+    },
+    "/auth/logout": {
+      "post": {
+        "summary": "Revoke active session and blacklist JWT access token",
+        "tags": [
+          "Authentication"
+        ],
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Logged out and tokens revoked"
+          }
         }
       }
     },
     "/auth/refresh": {
       "post": {
         "summary": "Rotate refresh token and issue fresh 15-minute access token",
-        "tags": ["Authentication"],
+        "tags": [
+          "Authentication"
+        ],
         "requestBody": {
           "required": true,
           "content": {
@@ -171,165 +364,972 @@
               "schema": {
                 "type": "object",
                 "properties": {
-                  "refreshToken": { "type": "string" }
+                  "refreshToken": {
+                    "type": "string"
+                  }
                 },
-                "required": ["refreshToken"]
+                "required": [
+                  "refreshToken"
+                ]
               }
             }
           }
         },
         "responses": {
-          "200": { "description": "Token rotation successful" },
-          "401": { "description": "Invalid, expired, or replayed refresh token" }
-        }
-      }
-    },
-    "/auth/logout": {
-      "post": {
-        "summary": "Revoke active session and blacklist JWT access token",
-        "tags": ["Authentication"],
-        "security": [{ "BearerAuth": [] }],
-        "responses": {
-          "200": { "description": "Logged out and tokens revoked" }
+          "200": {
+            "description": "Token rotation successful"
+          },
+          "401": {
+            "description": "Invalid, expired, or replayed refresh token"
+          }
         }
       }
     },
     "/branches": {
       "get": {
         "summary": "List all active company branches and regional hubs",
-        "tags": ["Branches"],
-        "security": [{ "BearerAuth": [] }],
-        "responses": {
-          "200": { "description": "List of regional branches" }
-        }
-      }
-    },
-    "/products": {
-      "get": {
-        "summary": "Search product catalog with pricing, category, and real-time stock balances",
-        "tags": ["Products & Catalog"],
-        "security": [{ "BearerAuth": [] }],
-        "parameters": [
-          { "name": "category_id", "in": "query", "schema": { "type": "integer" } },
-          { "name": "search", "in": "query", "schema": { "type": "string" }, "description": "Search by product name, SKU, or barcode" },
-          { "name": "page", "in": "query", "schema": { "type": "integer", "default": 1 } },
-          { "name": "limit", "in": "query", "schema": { "type": "integer", "default": 20 } },
-          { "name": "sort", "in": "query", "schema": { "type": "string", "default": "name:asc" } }
+        "tags": [
+          "Branches"
+        ],
+        "security": [
+          {
+            "BearerAuth": []
+          }
         ],
         "responses": {
-          "200": { "description": "Array of products matching search criteria" }
+          "200": {
+            "description": "List of regional branches"
+          }
         }
       }
     },
-    "/pos/checkout": {
+    "/cod/settlements/{id}/reconcile": {
       "post": {
-        "summary": "Process retail counter sale checkout with KRA 16% VAT computation",
-        "tags": ["Point of Sale (POS)"],
-        "security": [{ "BearerAuth": [] }, { "IdempotencyKey": [] }],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": { "$ref": "#/components/schemas/CheckoutRequest" }
+        "summary": "Branch Manager reconciles COD batch with discrepancy audit memo (BR-010)",
+        "tags": [
+          "Cash on Delivery (COD)"
+        ],
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
             }
           }
-        },
-        "responses": {
-          "200": { "description": "Sale completed and receipt recorded" },
-          "400": { "description": "Invalid checkout payload or insufficient inventory" },
-          "409": { "description": "Idempotent request conflict (concurrent execution)" },
-          "422": { "description": "Idempotency key payload mismatch" }
-        }
-      }
-    },
-    "/inventory": {
-      "get": {
-        "summary": "Retrieve multi-warehouse stock balances for operator's assigned branch",
-        "tags": ["Warehouse Inventory"],
-        "security": [{ "BearerAuth": [] }],
-        "parameters": [
-          { "name": "warehouse_id", "in": "query", "schema": { "type": "integer" } },
-          { "name": "low_stock", "in": "query", "schema": { "type": "boolean" } }
         ],
         "responses": {
-          "200": { "description": "Warehouse stock levels" }
+          "200": {
+            "description": "Batch reconciled"
+          },
+          "400": {
+            "description": "Discrepancy missing variance justification memo"
+          }
         }
       }
     },
-    "/inventory/transfers": {
+    "/cod/settlements/{id}/remit": {
       "post": {
-        "summary": "Initiate inter-branch stock transfer request",
-        "tags": ["Warehouse Inventory"],
-        "security": [{ "BearerAuth": [] }, { "IdempotencyKey": [] }],
+        "summary": "Driver remits collected COD cash/M-Pesa float to hub cashier",
+        "tags": [
+          "Cash on Delivery (COD)"
+        ],
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
         "responses": {
-          "200": { "description": "Stock transfer request created" }
+          "200": {
+            "description": "Remittance recorded"
+          }
         }
       }
     },
-    "/dispatch/board": {
+    "/control-tower/active-corridors": {
       "get": {
-        "summary": "Fetch real-time logistics dispatch board and delivery pipeline",
-        "tags": ["Fleet Logistics & Dispatch"],
-        "security": [{ "BearerAuth": [] }],
+        "summary": "Active transport runs and corridor transit movements",
+        "tags": [
+          "Operations Control Tower"
+        ],
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
         "responses": {
-          "200": { "description": "Active dispatch tasks and available couriers" }
+          "200": {
+            "description": "Corridor movements"
+          }
+        }
+      }
+    },
+    "/control-tower/alerts": {
+      "get": {
+        "summary": "Actionable prioritized bottleneck and dwell SLA alerts queue",
+        "tags": [
+          "Operations Control Tower"
+        ],
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of active alerts"
+          }
+        }
+      }
+    },
+    "/control-tower/hub-telemetry": {
+      "get": {
+        "summary": "Station-by-station hub throughput, queue lengths, and bottleneck telemetry",
+        "tags": [
+          "Operations Control Tower"
+        ],
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Hub telemetry"
+          }
+        }
+      }
+    },
+    "/control-tower/summary": {
+      "get": {
+        "summary": "Live network telemetry summary (Now, Attention, Movement, KPIs)",
+        "tags": [
+          "Operations Control Tower"
+        ],
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Operational summary data"
+          }
+        }
+      }
+    },
+    "/custody/discrepancies": {
+      "get": {
+        "summary": "List custody and manifest discrepancy exception records",
+        "tags": [
+          "Physical Chain of Custody"
+        ],
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of discrepancies"
+          }
+        }
+      }
+    },
+    "/custody/receiving-sessions": {
+      "get": {
+        "summary": "List hub inbound receiving sessions",
+        "tags": [
+          "Physical Chain of Custody"
+        ],
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of receiving sessions"
+          }
+        }
+      },
+      "post": {
+        "summary": "Open inbound receiving session at hub unloading bay",
+        "tags": [
+          "Physical Chain of Custody"
+        ],
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Receiving session opened"
+          }
+        }
+      }
+    },
+    "/custody/receiving-sessions/{id}/complete": {
+      "post": {
+        "summary": "Finalize receiving session and audit manifest shortage/overage discrepancies",
+        "tags": [
+          "Physical Chain of Custody"
+        ],
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Receiving session completed"
+          }
+        }
+      }
+    },
+    "/custody/receiving-sessions/{id}/scan": {
+      "post": {
+        "summary": "Scan individual parcel into an open receiving session",
+        "tags": [
+          "Physical Chain of Custody"
+        ],
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Parcel scanned into session"
+          }
+        }
+      }
+    },
+    "/custody/scans": {
+      "get": {
+        "summary": "List custody barcode scan events with hub and barcode filters",
+        "tags": [
+          "Physical Chain of Custody"
+        ],
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Array of scan events"
+          }
+        }
+      },
+      "post": {
+        "summary": "Record physical barcode scan event (intake, sort, stage, load)",
+        "tags": [
+          "Physical Chain of Custody"
+        ],
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Scan event recorded"
+          }
         }
       }
     },
     "/deliveries/my": {
       "get": {
         "summary": "Mobile driver portal endpoint to retrieve assigned deliveries",
-        "tags": ["Mobile Courier Fulfillment"],
-        "security": [{ "BearerAuth": [] }],
+        "tags": [
+          "Mobile Courier Fulfillment"
+        ],
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
         "responses": {
-          "200": { "description": "Active assigned delivery route" }
+          "200": {
+            "description": "Active assigned delivery route"
+          }
         }
       }
     },
     "/deliveries/{id}/pod": {
       "post": {
         "summary": "Submit digital Proof of Delivery with OTP, signature, and GPS coordinates",
-        "tags": ["Mobile Courier Fulfillment"],
-        "security": [{ "BearerAuth": [] }, { "IdempotencyKey": [] }],
+        "tags": [
+          "Mobile Courier Fulfillment"
+        ],
+        "security": [
+          {
+            "BearerAuth": []
+          },
+          {
+            "IdempotencyKey": []
+          }
+        ],
         "parameters": [
-          { "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
         ],
         "responses": {
-          "200": { "description": "Proof of delivery recorded and delivery finalized" }
+          "200": {
+            "description": "Proof of delivery recorded and delivery finalized"
+          }
+        }
+      }
+    },
+    "/deliveries/{id}/problem": {
+      "post": {
+        "summary": "Driver or supervisor reports delivery failure exception with reason code (BR-008)",
+        "tags": [
+          "Mobile Courier Fulfillment"
+        ],
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Problem recorded and delivery marked FAILED"
+          },
+          "400": {
+            "description": "Missing required failure_reason"
+          }
+        }
+      }
+    },
+    "/delivery-tasks/tasks": {
+      "get": {
+        "summary": "List assigned delivery tasks for courier execution",
+        "tags": [
+          "Delivery Tasks"
+        ],
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Active delivery tasks queue"
+          }
+        }
+      }
+    },
+    "/dispatch/board": {
+      "get": {
+        "summary": "Fetch real-time logistics dispatch board and delivery pipeline",
+        "tags": [
+          "Fleet Logistics & Dispatch"
+        ],
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Active dispatch tasks and available couriers"
+          }
+        }
+      }
+    },
+    "/drivers/{id}/incidents": {
+      "get": {
+        "summary": "Driver safety incidents and compliance audit history",
+        "tags": [
+          "Fleet Vehicles & Drivers"
+        ],
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of driver incidents"
+          }
+        }
+      }
+    },
+    "/drivers/{id}/performance": {
+      "get": {
+        "summary": "Driver performance scorecard (on-time rate, completion rate, rating)",
+        "tags": [
+          "Fleet Vehicles & Drivers"
+        ],
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Driver performance scorecard"
+          }
+        }
+      }
+    },
+    "/inventory": {
+      "get": {
+        "summary": "Retrieve multi-warehouse stock balances for operator's assigned branch",
+        "tags": [
+          "Warehouse Inventory"
+        ],
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "warehouse_id",
+            "in": "query",
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "low_stock",
+            "in": "query",
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Warehouse stock levels"
+          }
+        }
+      }
+    },
+    "/inventory/transfers": {
+      "post": {
+        "summary": "Initiate inter-branch stock transfer request",
+        "tags": [
+          "Warehouse Inventory"
+        ],
+        "security": [
+          {
+            "BearerAuth": []
+          },
+          {
+            "IdempotencyKey": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Stock transfer request created"
+          }
+        }
+      }
+    },
+    "/kenya/mpesa/stk-push": {
+      "post": {
+        "summary": "Initiate simulated Safaricom M-Pesa Daraja STK push payment prompt",
+        "tags": [
+          "Statutory Reports & Kenya Payments"
+        ],
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "STK push initiated"
+          }
+        }
+      }
+    },
+    "/offline/sync": {
+      "post": {
+        "summary": "Batch synchronize offline edge scan mutations with UUID idempotency",
+        "tags": [
+          "Offline Edge Sync"
+        ],
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Sync processed"
+          }
+        }
+      }
+    },
+    "/pos/checkout": {
+      "post": {
+        "summary": "Process retail counter sale checkout with KRA 16% VAT computation",
+        "tags": [
+          "Point of Sale (POS)"
+        ],
+        "security": [
+          {
+            "BearerAuth": []
+          },
+          {
+            "IdempotencyKey": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CheckoutRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Sale completed and receipt recorded"
+          },
+          "400": {
+            "description": "Invalid checkout payload or insufficient inventory"
+          },
+          "409": {
+            "description": "Idempotent request conflict (concurrent execution)"
+          },
+          "422": {
+            "description": "Idempotency key payload mismatch"
+          }
+        }
+      }
+    },
+    "/products": {
+      "get": {
+        "summary": "Search product catalog with pricing, category, and real-time stock balances",
+        "tags": [
+          "Products & Catalog"
+        ],
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "category_id",
+            "in": "query",
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Search by product name, SKU, or barcode"
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 1
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 20
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "default": "name:asc"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Array of products matching search criteria"
+          }
         }
       }
     },
     "/refunds/request": {
       "post": {
         "summary": "Submit customer refund request requiring Branch Manager approval",
-        "tags": ["Governance & Approvals"],
-        "security": [{ "BearerAuth": [] }, { "IdempotencyKey": [] }],
+        "tags": [
+          "Governance & Approvals"
+        ],
+        "security": [
+          {
+            "BearerAuth": []
+          },
+          {
+            "IdempotencyKey": []
+          }
+        ],
         "responses": {
-          "200": { "description": "Refund request entered into approval queue" }
+          "200": {
+            "description": "Refund request entered into approval queue"
+          }
         }
       }
     },
     "/reports/vat": {
       "get": {
         "summary": "Generate statutory KRA 16% Fiscal Output VAT breakdown",
-        "tags": ["Statutory Reports & Analytics"],
-        "security": [{ "BearerAuth": [] }],
+        "tags": [
+          "Statutory Reports & Analytics"
+        ],
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
         "responses": {
-          "200": { "description": "KRA VAT Remittance schedule" }
+          "200": {
+            "description": "KRA VAT Remittance schedule"
+          }
         }
       }
     },
-    "/audit": {
-      "get": {
-        "summary": "Inspect immutable enterprise audit trail with role and date filters",
-        "tags": ["Audit & Compliance"],
-        "security": [{ "BearerAuth": [] }],
-        "parameters": [
-          { "name": "page", "in": "query", "schema": { "type": "integer", "default": 1 } },
-          { "name": "limit", "in": "query", "schema": { "type": "integer", "default": 50 } }
+    "/shipments": {
+      "post": {
+        "summary": "Book a new parcel consignment and generate waybill with parcel barcodes",
+        "tags": [
+          "Shipments & Consignments"
+        ],
+        "security": [
+          {
+            "BearerAuth": []
+          }
         ],
         "responses": {
-          "200": { "description": "Paginated audit logs" }
+          "201": {
+            "description": "Shipment booked and initial leg scheduled"
+          },
+          "400": {
+            "description": "Validation error or negative parcel dimensions"
+          }
+        }
+      }
+    },
+    "/shipments/quote": {
+      "post": {
+        "summary": "Calculate rated pricing quote with billable weight, volumetric rating, and VAT",
+        "tags": [
+          "Shipments & Consignments"
+        ],
+        "responses": {
+          "200": {
+            "description": "Rating quote breakdown in KES"
+          }
+        }
+      }
+    },
+    "/tracking/{trackingNumber}": {
+      "get": {
+        "summary": "Public milestone tracking lookup by waybill number or parcel barcode",
+        "tags": [
+          "Shipments & Consignments"
+        ],
+        "parameters": [
+          {
+            "name": "trackingNumber",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Waybill number or parcel tracking barcode"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Public shipment milestones and status"
+          },
+          "404": {
+            "description": "Tracking number not found"
+          }
+        }
+      }
+    },
+    "/transport/runs": {
+      "get": {
+        "summary": "List linehaul transport runs with corridor and status filters",
+        "tags": [
+          "Transport & Linehaul"
+        ],
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of transport runs"
+          }
+        }
+      },
+      "post": {
+        "summary": "Create a new linehaul transport run and auto-generate manifest",
+        "tags": [
+          "Transport & Linehaul"
+        ],
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Transport run created with empty manifest"
+          },
+          "400": {
+            "description": "Driver or vehicle schedule conflict"
+          }
+        }
+      }
+    },
+    "/transport/runs/{id}/arrive": {
+      "post": {
+        "summary": "Record arrival of transport run at destination hub receiving bay",
+        "tags": [
+          "Transport & Linehaul"
+        ],
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Arrival recorded"
+          }
+        }
+      }
+    },
+    "/transport/runs/{id}/checkpoints": {
+      "post": {
+        "summary": "Log a linehaul waypoint inspection or checkpoint event",
+        "tags": [
+          "Transport & Linehaul"
+        ],
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Checkpoint recorded"
+          }
+        }
+      }
+    },
+    "/transport/runs/{id}/dispatch": {
+      "post": {
+        "summary": "Dispatch transport run onto corridor and mark shipments IN_TRANSIT",
+        "tags": [
+          "Transport & Linehaul"
+        ],
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Transport run dispatched"
+          }
+        }
+      }
+    },
+    "/transport/runs/{id}/manifest/lock": {
+      "post": {
+        "summary": "Lock and seal manifest for transport run and transition items to LOADED (BR-005)",
+        "tags": [
+          "Transport & Linehaul"
+        ],
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Manifest locked and shipments frozen"
+          }
+        }
+      }
+    },
+    "/transport/runs/{id}/receive": {
+      "post": {
+        "summary": "Destination hub receiving & discrepancy check against locked manifest (BR-006)",
+        "tags": [
+          "Transport & Linehaul"
+        ],
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Manifest receiving completed with discrepancy count"
+          }
+        }
+      }
+    },
+    "/vehicles": {
+      "get": {
+        "summary": "List fleet vehicles with status, branch, and capacity filters",
+        "tags": [
+          "Fleet Vehicles & Drivers"
+        ],
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Array of vehicles"
+          }
         }
       }
     }

@@ -1,0 +1,2326 @@
+[
+  {
+    "method": "GET",
+    "path": "/api/v1",
+    "sourceFile": "server/routes/docs.js",
+    "sourceLine": 20,
+    "source": "server/routes/docs.js:20"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/audit",
+    "sourceFile": "server/routes/audit.js",
+    "sourceLine": 8,
+    "source": "server/routes/audit.js:8"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/audit/failed-logins",
+    "sourceFile": "server/routes/audit.js",
+    "sourceLine": 66,
+    "source": "server/routes/audit.js:66"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/auth/2fa/disable",
+    "sourceFile": "server/routes/auth/totp.js",
+    "sourceLine": 185,
+    "source": "server/routes/auth/totp.js:185"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/auth/2fa/enable",
+    "sourceFile": "server/routes/auth/totp.js",
+    "sourceLine": 145,
+    "source": "server/routes/auth/totp.js:145"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/auth/2fa/recovery-codes",
+    "sourceFile": "server/routes/auth/totp.js",
+    "sourceLine": 231,
+    "source": "server/routes/auth/totp.js:231"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/auth/2fa/setup",
+    "sourceFile": "server/routes/auth/totp.js",
+    "sourceLine": 125,
+    "source": "server/routes/auth/totp.js:125"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/auth/2fa/verify",
+    "sourceFile": "server/routes/auth/totp.js",
+    "sourceLine": 27,
+    "source": "server/routes/auth/totp.js:27"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/auth/change-password",
+    "sourceFile": "server/routes/auth/passwords.js",
+    "sourceLine": 20,
+    "source": "server/routes/auth/passwords.js:20"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/auth/config",
+    "sourceFile": "server/routes/auth.js",
+    "sourceLine": 39,
+    "source": "server/routes/auth.js:39"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/auth/demo-switch",
+    "sourceFile": "server/routes/auth.js",
+    "sourceLine": 343,
+    "source": "server/routes/auth.js:343"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/auth/forgot-password",
+    "sourceFile": "server/routes/auth/passwords.js",
+    "sourceLine": 112,
+    "source": "server/routes/auth/passwords.js:112"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/auth/login",
+    "sourceFile": "server/routes/auth.js",
+    "sourceLine": 54,
+    "source": "server/routes/auth.js:54"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/auth/login-history",
+    "sourceFile": "server/routes/auth/sessions.js",
+    "sourceLine": 55,
+    "source": "server/routes/auth/sessions.js:55"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/auth/logout",
+    "sourceFile": "server/routes/auth.js",
+    "sourceLine": 297,
+    "source": "server/routes/auth.js:297"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/auth/me",
+    "sourceFile": "server/routes/auth.js",
+    "sourceLine": 326,
+    "source": "server/routes/auth.js:326"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/auth/refresh",
+    "sourceFile": "server/routes/auth.js",
+    "sourceLine": 231,
+    "source": "server/routes/auth.js:231"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/auth/reset-password",
+    "sourceFile": "server/routes/auth/passwords.js",
+    "sourceLine": 158,
+    "source": "server/routes/auth/passwords.js:158"
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/v1/auth/sessions",
+    "sourceFile": "server/routes/auth/sessions.js",
+    "sourceLine": 42,
+    "source": "server/routes/auth/sessions.js:42"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/auth/sessions",
+    "sourceFile": "server/routes/auth/sessions.js",
+    "sourceLine": 11,
+    "source": "server/routes/auth/sessions.js:11"
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/v1/auth/sessions/:id",
+    "sourceFile": "server/routes/auth/sessions.js",
+    "sourceLine": 31,
+    "source": "server/routes/auth/sessions.js:31"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/branches",
+    "sourceFile": "server/routes/branches.js",
+    "sourceLine": 9,
+    "source": "server/routes/branches.js:9"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/branches",
+    "sourceFile": "server/routes/branches.js",
+    "sourceLine": 99,
+    "source": "server/routes/branches.js:99"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/branches/:id",
+    "sourceFile": "server/routes/branches.js",
+    "sourceLine": 72,
+    "source": "server/routes/branches.js:72"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/v1/branches/:id",
+    "sourceFile": "server/routes/branches.js",
+    "sourceLine": 143,
+    "source": "server/routes/branches.js:143"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/branches/:id/warehouses",
+    "sourceFile": "server/routes/branches.js",
+    "sourceLine": 186,
+    "source": "server/routes/branches.js:186"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/branches/:id/warehouses",
+    "sourceFile": "server/routes/branches.js",
+    "sourceLine": 198,
+    "source": "server/routes/branches.js:198"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/brands",
+    "sourceFile": "server/routes/brands.js",
+    "sourceLine": 9,
+    "source": "server/routes/brands.js:9"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/brands",
+    "sourceFile": "server/routes/brands.js",
+    "sourceLine": 21,
+    "source": "server/routes/brands.js:21"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/v1/brands/:id",
+    "sourceFile": "server/routes/brands.js",
+    "sourceLine": 44,
+    "source": "server/routes/brands.js:44"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/cod",
+    "sourceFile": "server/routes/cod.js",
+    "sourceLine": 22,
+    "source": "server/routes/cod.js:22"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/cod/settlements",
+    "sourceFile": "server/routes/cod.js",
+    "sourceLine": 33,
+    "source": "server/routes/cod.js:33"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/cod/settlements",
+    "sourceFile": "server/routes/cod.js",
+    "sourceLine": 58,
+    "source": "server/routes/cod.js:58"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/cod/settlements/:id",
+    "sourceFile": "server/routes/cod.js",
+    "sourceLine": 44,
+    "source": "server/routes/cod.js:44"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/cod/settlements/:id/collect",
+    "sourceFile": "server/routes/cod.js",
+    "sourceLine": 69,
+    "source": "server/routes/cod.js:69"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/cod/settlements/:id/reconcile",
+    "sourceFile": "server/routes/cod.js",
+    "sourceLine": 91,
+    "source": "server/routes/cod.js:91"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/cod/settlements/:id/remit",
+    "sourceFile": "server/routes/cod.js",
+    "sourceLine": 80,
+    "source": "server/routes/cod.js:80"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/control-tower/active-corridors",
+    "sourceFile": "server/routes/controlTower.js",
+    "sourceLine": 40,
+    "source": "server/routes/controlTower.js:40"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/control-tower/alerts",
+    "sourceFile": "server/routes/controlTower.js",
+    "sourceLine": 29,
+    "source": "server/routes/controlTower.js:29"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/control-tower/alerts/:type/:id/resolve",
+    "sourceFile": "server/routes/controlTower.js",
+    "sourceLine": 62,
+    "source": "server/routes/controlTower.js:62"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/control-tower/hub-telemetry",
+    "sourceFile": "server/routes/controlTower.js",
+    "sourceLine": 51,
+    "source": "server/routes/controlTower.js:51"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/control-tower/summary",
+    "sourceFile": "server/routes/controlTower.js",
+    "sourceLine": 18,
+    "source": "server/routes/controlTower.js:18"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/custody/discrepancies",
+    "sourceFile": "server/routes/custody.js",
+    "sourceLine": 159,
+    "source": "server/routes/custody.js:159"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/custody/discrepancies",
+    "sourceFile": "server/routes/custody.js",
+    "sourceLine": 148,
+    "source": "server/routes/custody.js:148"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/custody/discrepancies/:id",
+    "sourceFile": "server/routes/custody.js",
+    "sourceLine": 170,
+    "source": "server/routes/custody.js:170"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/custody/discrepancies/:id/resolve",
+    "sourceFile": "server/routes/custody.js",
+    "sourceLine": 182,
+    "source": "server/routes/custody.js:182"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/custody/handoffs",
+    "sourceFile": "server/routes/custody.js",
+    "sourceLine": 61,
+    "source": "server/routes/custody.js:61"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/custody/handoffs",
+    "sourceFile": "server/routes/custody.js",
+    "sourceLine": 50,
+    "source": "server/routes/custody.js:50"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/custody/handoffs/:id",
+    "sourceFile": "server/routes/custody.js",
+    "sourceLine": 72,
+    "source": "server/routes/custody.js:72"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/custody/receiving-sessions",
+    "sourceFile": "server/routes/custody.js",
+    "sourceLine": 99,
+    "source": "server/routes/custody.js:99"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/custody/receiving-sessions",
+    "sourceFile": "server/routes/custody.js",
+    "sourceLine": 88,
+    "source": "server/routes/custody.js:88"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/custody/receiving-sessions/:id",
+    "sourceFile": "server/routes/custody.js",
+    "sourceLine": 110,
+    "source": "server/routes/custody.js:110"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/custody/receiving-sessions/:id/complete",
+    "sourceFile": "server/routes/custody.js",
+    "sourceLine": 133,
+    "source": "server/routes/custody.js:133"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/custody/receiving-sessions/:id/scan",
+    "sourceFile": "server/routes/custody.js",
+    "sourceLine": 122,
+    "source": "server/routes/custody.js:122"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/custody/scans",
+    "sourceFile": "server/routes/custody.js",
+    "sourceLine": 35,
+    "source": "server/routes/custody.js:35"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/custody/scans",
+    "sourceFile": "server/routes/custody.js",
+    "sourceLine": 13,
+    "source": "server/routes/custody.js:13"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/custody/scans/batch",
+    "sourceFile": "server/routes/custody.js",
+    "sourceLine": 24,
+    "source": "server/routes/custody.js:24"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/customers",
+    "sourceFile": "server/routes/customers.js",
+    "sourceLine": 9,
+    "source": "server/routes/customers.js:9"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/customers",
+    "sourceFile": "server/routes/customers.js",
+    "sourceLine": 43,
+    "source": "server/routes/customers.js:43"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/customers/:id",
+    "sourceFile": "server/routes/customers.js",
+    "sourceLine": 30,
+    "source": "server/routes/customers.js:30"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/v1/customers/:id",
+    "sourceFile": "server/routes/customers.js",
+    "sourceLine": 56,
+    "source": "server/routes/customers.js:56"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/customers/:id/addresses",
+    "sourceFile": "server/routes/customers.js",
+    "sourceLine": 86,
+    "source": "server/routes/customers.js:86"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/customers/:id/addresses",
+    "sourceFile": "server/routes/customers.js",
+    "sourceLine": 99,
+    "source": "server/routes/customers.js:99"
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/v1/customers/:id/addresses/:addressId",
+    "sourceFile": "server/routes/customers.js",
+    "sourceLine": 125,
+    "source": "server/routes/customers.js:125"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/v1/customers/:id/addresses/:addressId",
+    "sourceFile": "server/routes/customers.js",
+    "sourceLine": 112,
+    "source": "server/routes/customers.js:112"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/customers/:id/addresses/:addressId/default",
+    "sourceFile": "server/routes/customers.js",
+    "sourceLine": 138,
+    "source": "server/routes/customers.js:138"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/customers/:id/notes",
+    "sourceFile": "server/routes/customers.js",
+    "sourceLine": 151,
+    "source": "server/routes/customers.js:151"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/customers/:id/notes",
+    "sourceFile": "server/routes/customers.js",
+    "sourceLine": 164,
+    "source": "server/routes/customers.js:164"
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/v1/customers/:id/notes/:noteId",
+    "sourceFile": "server/routes/customers.js",
+    "sourceLine": 177,
+    "source": "server/routes/customers.js:177"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/customers/:id/orders",
+    "sourceFile": "server/routes/customers.js",
+    "sourceLine": 190,
+    "source": "server/routes/customers.js:190"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/customers/:id/payments",
+    "sourceFile": "server/routes/customers.js",
+    "sourceLine": 203,
+    "source": "server/routes/customers.js:203"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/customers/:id/refunds",
+    "sourceFile": "server/routes/customers.js",
+    "sourceLine": 216,
+    "source": "server/routes/customers.js:216"
+  },
+  {
+    "method": "PATCH",
+    "path": "/api/v1/customers/:id/status",
+    "sourceFile": "server/routes/customers.js",
+    "sourceLine": 69,
+    "source": "server/routes/customers.js:69"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/deliveries/:id/pod",
+    "sourceFile": "server/routes/deliveries.js",
+    "sourceLine": 195,
+    "source": "server/routes/deliveries.js:195"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/deliveries/:id/problem",
+    "sourceFile": "server/routes/deliveries.js",
+    "sourceLine": 296,
+    "source": "server/routes/deliveries.js:296"
+  },
+  {
+    "method": "PATCH",
+    "path": "/api/v1/deliveries/:id/start",
+    "sourceFile": "server/routes/deliveries.js",
+    "sourceLine": 147,
+    "source": "server/routes/deliveries.js:147"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/deliveries/driver/active",
+    "sourceFile": "server/routes/deliveries.js",
+    "sourceLine": 9,
+    "source": "server/routes/deliveries.js:9"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/deliveries/history",
+    "sourceFile": "server/routes/deliveries.js",
+    "sourceLine": 120,
+    "source": "server/routes/deliveries.js:120"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/deliveries/my",
+    "sourceFile": "server/routes/deliveries.js",
+    "sourceLine": 59,
+    "source": "server/routes/deliveries.js:59"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/delivery-tasks/exceptions",
+    "sourceFile": "server/routes/deliveryTasks.js",
+    "sourceLine": 117,
+    "source": "server/routes/deliveryTasks.js:117"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/delivery-tasks/exceptions",
+    "sourceFile": "server/routes/deliveryTasks.js",
+    "sourceLine": 106,
+    "source": "server/routes/deliveryTasks.js:106"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/delivery-tasks/exceptions/:id",
+    "sourceFile": "server/routes/deliveryTasks.js",
+    "sourceLine": 128,
+    "source": "server/routes/deliveryTasks.js:128"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/delivery-tasks/exceptions/:id/resolve",
+    "sourceFile": "server/routes/deliveryTasks.js",
+    "sourceLine": 140,
+    "source": "server/routes/deliveryTasks.js:140"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/delivery-tasks/tasks",
+    "sourceFile": "server/routes/deliveryTasks.js",
+    "sourceLine": 24,
+    "source": "server/routes/deliveryTasks.js:24"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/delivery-tasks/tasks",
+    "sourceFile": "server/routes/deliveryTasks.js",
+    "sourceLine": 13,
+    "source": "server/routes/deliveryTasks.js:13"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/delivery-tasks/tasks/:id",
+    "sourceFile": "server/routes/deliveryTasks.js",
+    "sourceLine": 35,
+    "source": "server/routes/deliveryTasks.js:35"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/delivery-tasks/tasks/:id/assign",
+    "sourceFile": "server/routes/deliveryTasks.js",
+    "sourceLine": 47,
+    "source": "server/routes/deliveryTasks.js:47"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/delivery-tasks/tasks/:id/attempt",
+    "sourceFile": "server/routes/deliveryTasks.js",
+    "sourceLine": 69,
+    "source": "server/routes/deliveryTasks.js:69"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/delivery-tasks/tasks/:id/complete",
+    "sourceFile": "server/routes/deliveryTasks.js",
+    "sourceLine": 80,
+    "source": "server/routes/deliveryTasks.js:80"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/delivery-tasks/tasks/:id/return-to-hub",
+    "sourceFile": "server/routes/deliveryTasks.js",
+    "sourceLine": 91,
+    "source": "server/routes/deliveryTasks.js:91"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/delivery-tasks/tasks/:id/start",
+    "sourceFile": "server/routes/deliveryTasks.js",
+    "sourceLine": 58,
+    "source": "server/routes/deliveryTasks.js:58"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/dispatch/:id/fail",
+    "sourceFile": "server/routes/dispatch.js",
+    "sourceLine": 206,
+    "source": "server/routes/dispatch.js:206"
+  },
+  {
+    "method": "PATCH",
+    "path": "/api/v1/dispatch/:id/priority",
+    "sourceFile": "server/routes/dispatch.js",
+    "sourceLine": 190,
+    "source": "server/routes/dispatch.js:190"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/v1/dispatch/:id/status",
+    "sourceFile": "server/routes/dispatch.js",
+    "sourceLine": 266,
+    "source": "server/routes/dispatch.js:266"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/dispatch/assign",
+    "sourceFile": "server/routes/dispatch.js",
+    "sourceLine": 118,
+    "source": "server/routes/dispatch.js:118"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/dispatch/board",
+    "sourceFile": "server/routes/dispatch.js",
+    "sourceLine": 37,
+    "source": "server/routes/dispatch.js:37"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/dispatch/kanban",
+    "sourceFile": "server/routes/dispatch.js",
+    "sourceLine": 9,
+    "source": "server/routes/dispatch.js:9"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/docs",
+    "sourceFile": "server/routes/docs.js",
+    "sourceLine": 20,
+    "source": "server/routes/docs.js:20"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/docs/openapi.json",
+    "sourceFile": "server/routes/docs.js",
+    "sourceLine": 11,
+    "source": "server/routes/docs.js:11"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/drivers",
+    "sourceFile": "server/routes/drivers.js",
+    "sourceLine": 23,
+    "source": "server/routes/drivers.js:23"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/drivers",
+    "sourceFile": "server/routes/drivers.js",
+    "sourceLine": 64,
+    "source": "server/routes/drivers.js:64"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/drivers/:id",
+    "sourceFile": "server/routes/drivers.js",
+    "sourceLine": 47,
+    "source": "server/routes/drivers.js:47"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/v1/drivers/:id",
+    "sourceFile": "server/routes/drivers.js",
+    "sourceLine": 83,
+    "source": "server/routes/drivers.js:83"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/drivers/:id/assign-vehicle",
+    "sourceFile": "server/routes/drivers.js",
+    "sourceLine": 139,
+    "source": "server/routes/drivers.js:139"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/drivers/:id/deliveries",
+    "sourceFile": "server/routes/drivers.js",
+    "sourceLine": 161,
+    "source": "server/routes/drivers.js:161"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/drivers/:id/incidents",
+    "sourceFile": "server/routes/drivers.js",
+    "sourceLine": 196,
+    "source": "server/routes/drivers.js:196"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/drivers/:id/incidents",
+    "sourceFile": "server/routes/drivers.js",
+    "sourceLine": 213,
+    "source": "server/routes/drivers.js:213"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/drivers/:id/performance",
+    "sourceFile": "server/routes/drivers.js",
+    "sourceLine": 179,
+    "source": "server/routes/drivers.js:179"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/drivers/:id/reassign-branch",
+    "sourceFile": "server/routes/drivers.js",
+    "sourceLine": 122,
+    "source": "server/routes/drivers.js:122"
+  },
+  {
+    "method": "PATCH",
+    "path": "/api/v1/drivers/:id/status",
+    "sourceFile": "server/routes/drivers.js",
+    "sourceLine": 100,
+    "source": "server/routes/drivers.js:100"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/drivers/:id/status-history",
+    "sourceFile": "server/routes/drivers.js",
+    "sourceLine": 230,
+    "source": "server/routes/drivers.js:230"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/drivers/telemetry/summary",
+    "sourceFile": "server/routes/drivers.js",
+    "sourceLine": 9,
+    "source": "server/routes/drivers.js:9"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/e2e/simulate-acceptance-run",
+    "sourceFile": "server/routes/e2eAcceptance.js",
+    "sourceLine": 45,
+    "source": "server/routes/e2eAcceptance.js:45"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/e2e/steps",
+    "sourceFile": "server/routes/e2eAcceptance.js",
+    "sourceLine": 12,
+    "source": "server/routes/e2eAcceptance.js:12"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/expenses",
+    "sourceFile": "server/routes/expenses.js",
+    "sourceLine": 9,
+    "source": "server/routes/expenses.js:9"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/expenses",
+    "sourceFile": "server/routes/expenses.js",
+    "sourceLine": 38,
+    "source": "server/routes/expenses.js:38"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/expenses/:id/approve",
+    "sourceFile": "server/routes/expenses.js",
+    "sourceLine": 85,
+    "source": "server/routes/expenses.js:85"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/health",
+    "sourceFile": "server/routes/v1/index.js",
+    "sourceLine": 16,
+    "source": "server/routes/v1/index.js:16"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/inventory",
+    "sourceFile": "server/routes/inventory/matrix.js",
+    "sourceLine": 12,
+    "source": "server/routes/inventory/matrix.js:12"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/inventory/adjust",
+    "sourceFile": "server/routes/inventory/adjustments.js",
+    "sourceLine": 41,
+    "source": "server/routes/inventory/adjustments.js:41"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/inventory/adjustments",
+    "sourceFile": "server/routes/inventory/adjustments.js",
+    "sourceLine": 13,
+    "source": "server/routes/inventory/adjustments.js:13"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/inventory/batches",
+    "sourceFile": "server/routes/inventory/advanced.js",
+    "sourceLine": 24,
+    "source": "server/routes/inventory/advanced.js:24"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/inventory/batches",
+    "sourceFile": "server/routes/inventory/advanced.js",
+    "sourceLine": 109,
+    "source": "server/routes/inventory/advanced.js:109"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/inventory/batches/evaluate-expiries",
+    "sourceFile": "server/routes/inventory/advanced.js",
+    "sourceLine": 70,
+    "source": "server/routes/inventory/advanced.js:70"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/inventory/batches/expiring",
+    "sourceFile": "server/routes/inventory/advanced.js",
+    "sourceLine": 48,
+    "source": "server/routes/inventory/advanced.js:48"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/inventory/movements",
+    "sourceFile": "server/routes/inventory/matrix.js",
+    "sourceLine": 62,
+    "source": "server/routes/inventory/matrix.js:62"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/inventory/receiving",
+    "sourceFile": "server/routes/inventory/receiving.js",
+    "sourceLine": 14,
+    "source": "server/routes/inventory/receiving.js:14"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/inventory/receiving",
+    "sourceFile": "server/routes/inventory/receiving.js",
+    "sourceLine": 86,
+    "source": "server/routes/inventory/receiving.js:86"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/inventory/receiving/:id",
+    "sourceFile": "server/routes/inventory/receiving.js",
+    "sourceLine": 54,
+    "source": "server/routes/inventory/receiving.js:54"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/inventory/reorder-alerts",
+    "sourceFile": "server/routes/inventory/advanced.js",
+    "sourceLine": 248,
+    "source": "server/routes/inventory/advanced.js:248"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/inventory/reservations",
+    "sourceFile": "server/routes/inventory/reservations.js",
+    "sourceLine": 14,
+    "source": "server/routes/inventory/reservations.js:14"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/inventory/reservations/release",
+    "sourceFile": "server/routes/inventory/reservations.js",
+    "sourceLine": 85,
+    "source": "server/routes/inventory/reservations.js:85"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/inventory/reservations/reserve",
+    "sourceFile": "server/routes/inventory/reservations.js",
+    "sourceLine": 42,
+    "source": "server/routes/inventory/reservations.js:42"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/inventory/serials",
+    "sourceFile": "server/routes/inventory/advanced.js",
+    "sourceLine": 158,
+    "source": "server/routes/inventory/advanced.js:158"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/inventory/serials",
+    "sourceFile": "server/routes/inventory/advanced.js",
+    "sourceLine": 182,
+    "source": "server/routes/inventory/advanced.js:182"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/inventory/states/expire",
+    "sourceFile": "server/routes/inventory/states.js",
+    "sourceLine": 72,
+    "source": "server/routes/inventory/states.js:72"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/inventory/states/quarantine",
+    "sourceFile": "server/routes/inventory/states.js",
+    "sourceLine": 34,
+    "source": "server/routes/inventory/states.js:34"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/inventory/states/restore",
+    "sourceFile": "server/routes/inventory/states.js",
+    "sourceLine": 110,
+    "source": "server/routes/inventory/states.js:110"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/inventory/states/summary",
+    "sourceFile": "server/routes/inventory/states.js",
+    "sourceLine": 21,
+    "source": "server/routes/inventory/states.js:21"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/inventory/states/write-off",
+    "sourceFile": "server/routes/inventory/states.js",
+    "sourceLine": 138,
+    "source": "server/routes/inventory/states.js:138"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/inventory/stocktakes",
+    "sourceFile": "server/routes/inventory/stocktakes.js",
+    "sourceLine": 17,
+    "source": "server/routes/inventory/stocktakes.js:17"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/inventory/stocktakes",
+    "sourceFile": "server/routes/inventory/stocktakes.js",
+    "sourceLine": 78,
+    "source": "server/routes/inventory/stocktakes.js:78"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/inventory/stocktakes/:id",
+    "sourceFile": "server/routes/inventory/stocktakes.js",
+    "sourceLine": 43,
+    "source": "server/routes/inventory/stocktakes.js:43"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/inventory/stocktakes/:id/cancel",
+    "sourceFile": "server/routes/inventory/stocktakes.js",
+    "sourceLine": 161,
+    "source": "server/routes/inventory/stocktakes.js:161"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/inventory/stocktakes/:id/counts",
+    "sourceFile": "server/routes/inventory/stocktakes.js",
+    "sourceLine": 119,
+    "source": "server/routes/inventory/stocktakes.js:119"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/inventory/stocktakes/:id/reconcile",
+    "sourceFile": "server/routes/inventory/stocktakes.js",
+    "sourceLine": 138,
+    "source": "server/routes/inventory/stocktakes.js:138"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/inventory/transfers",
+    "sourceFile": "server/routes/inventory/transfers.js",
+    "sourceLine": 19,
+    "source": "server/routes/inventory/transfers.js:19"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/inventory/transfers",
+    "sourceFile": "server/routes/inventory/transfers.js",
+    "sourceLine": 62,
+    "source": "server/routes/inventory/transfers.js:62"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/inventory/transfers/:id/status",
+    "sourceFile": "server/routes/inventory/transfers.js",
+    "sourceLine": 122,
+    "source": "server/routes/inventory/transfers.js:122"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/inventory/valuation",
+    "sourceFile": "server/routes/inventory/advanced.js",
+    "sourceLine": 227,
+    "source": "server/routes/inventory/advanced.js:227"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/inventory/write-offs",
+    "sourceFile": "server/routes/inventory/writeoffs.js",
+    "sourceLine": 14,
+    "source": "server/routes/inventory/writeoffs.js:14"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/inventory/write-offs",
+    "sourceFile": "server/routes/inventory/writeoffs.js",
+    "sourceLine": 43,
+    "source": "server/routes/inventory/writeoffs.js:43"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/inventory/write-offs/found",
+    "sourceFile": "server/routes/inventory/writeoffs.js",
+    "sourceLine": 148,
+    "source": "server/routes/inventory/writeoffs.js:148"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/inventory/write-offs/lost",
+    "sourceFile": "server/routes/inventory/writeoffs.js",
+    "sourceLine": 114,
+    "source": "server/routes/inventory/writeoffs.js:114"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/kenya/etims/invoice/:saleNumber",
+    "sourceFile": "server/routes/kenya.js",
+    "sourceLine": 55,
+    "source": "server/routes/kenya.js:55"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/kenya/mpesa/stk-push",
+    "sourceFile": "server/routes/kenya.js",
+    "sourceLine": 20,
+    "source": "server/routes/kenya.js:20"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/notifications",
+    "sourceFile": "server/routes/notifications.js",
+    "sourceLine": 8,
+    "source": "server/routes/notifications.js:8"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/notifications-engine/outbox",
+    "sourceFile": "server/routes/notificationsLogistics.js",
+    "sourceLine": 28,
+    "source": "server/routes/notificationsLogistics.js:28"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/notifications-engine/outbox/:id/retry",
+    "sourceFile": "server/routes/notificationsLogistics.js",
+    "sourceLine": 70,
+    "source": "server/routes/notificationsLogistics.js:70"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/notifications-engine/process-queue",
+    "sourceFile": "server/routes/notificationsLogistics.js",
+    "sourceLine": 83,
+    "source": "server/routes/notificationsLogistics.js:83"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/notifications-engine/stats",
+    "sourceFile": "server/routes/notificationsLogistics.js",
+    "sourceLine": 15,
+    "source": "server/routes/notificationsLogistics.js:15"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/notifications-engine/templates",
+    "sourceFile": "server/routes/notificationsLogistics.js",
+    "sourceLine": 44,
+    "source": "server/routes/notificationsLogistics.js:44"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/v1/notifications-engine/templates/:code",
+    "sourceFile": "server/routes/notificationsLogistics.js",
+    "sourceLine": 57,
+    "source": "server/routes/notificationsLogistics.js:57"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/notifications-engine/test-send",
+    "sourceFile": "server/routes/notificationsLogistics.js",
+    "sourceLine": 97,
+    "source": "server/routes/notificationsLogistics.js:97"
+  },
+  {
+    "method": "PATCH",
+    "path": "/api/v1/notifications/:id/read",
+    "sourceFile": "server/routes/notifications.js",
+    "sourceLine": 30,
+    "source": "server/routes/notifications.js:30"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/notifications/read-all",
+    "sourceFile": "server/routes/notifications.js",
+    "sourceLine": 37,
+    "source": "server/routes/notifications.js:37"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/offline/status",
+    "sourceFile": "server/routes/offline.js",
+    "sourceLine": 36,
+    "source": "server/routes/offline.js:36"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/offline/sync",
+    "sourceFile": "server/routes/offline.js",
+    "sourceLine": 9,
+    "source": "server/routes/offline.js:9"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/openapi.json",
+    "sourceFile": "server/routes/docs.js",
+    "sourceLine": 11,
+    "source": "server/routes/docs.js:11"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/orders",
+    "sourceFile": "server/routes/orders.js",
+    "sourceLine": 21,
+    "source": "server/routes/orders.js:21"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/orders",
+    "sourceFile": "server/routes/orders.js",
+    "sourceLine": 61,
+    "source": "server/routes/orders.js:61"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/orders/:id",
+    "sourceFile": "server/routes/orders.js",
+    "sourceLine": 36,
+    "source": "server/routes/orders.js:36"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/v1/orders/:id",
+    "sourceFile": "server/routes/orders.js",
+    "sourceLine": 75,
+    "source": "server/routes/orders.js:75"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/orders/:id/cancel",
+    "sourceFile": "server/routes/orders.js",
+    "sourceLine": 135,
+    "source": "server/routes/orders.js:135"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/orders/:id/invoice",
+    "sourceFile": "server/routes/orders.js",
+    "sourceLine": 50,
+    "source": "server/routes/orders.js:50"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/orders/:id/notes",
+    "sourceFile": "server/routes/orders.js",
+    "sourceLine": 153,
+    "source": "server/routes/orders.js:153"
+  },
+  {
+    "method": "PATCH",
+    "path": "/api/v1/orders/:id/status",
+    "sourceFile": "server/routes/orders.js",
+    "sourceLine": 113,
+    "source": "server/routes/orders.js:113"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/orders/:id/transition",
+    "sourceFile": "server/routes/orders.js",
+    "sourceLine": 92,
+    "source": "server/routes/orders.js:92"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/orders/export",
+    "sourceFile": "server/routes/orders.js",
+    "sourceLine": 8,
+    "source": "server/routes/orders.js:8"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/payments/callbacks/mpesa",
+    "sourceFile": "server/routes/payments.js",
+    "sourceLine": 10,
+    "source": "server/routes/payments.js:10"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/payments/export",
+    "sourceFile": "server/routes/payments.js",
+    "sourceLine": 30,
+    "source": "server/routes/payments.js:30"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/payments/intents",
+    "sourceFile": "server/routes/payments.js",
+    "sourceLine": 66,
+    "source": "server/routes/payments.js:66"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/payments/intents",
+    "sourceFile": "server/routes/payments.js",
+    "sourceLine": 43,
+    "source": "server/routes/payments.js:43"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/payments/intents/:id",
+    "sourceFile": "server/routes/payments.js",
+    "sourceLine": 85,
+    "source": "server/routes/payments.js:85"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/payments/intents/:id/cancel",
+    "sourceFile": "server/routes/payments.js",
+    "sourceLine": 116,
+    "source": "server/routes/payments.js:116"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/payments/intents/:id/process",
+    "sourceFile": "server/routes/payments.js",
+    "sourceLine": 102,
+    "source": "server/routes/payments.js:102"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/payments/intents/:id/query-status",
+    "sourceFile": "server/routes/payments.js",
+    "sourceLine": 130,
+    "source": "server/routes/payments.js:130"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/payments/reconcile",
+    "sourceFile": "server/routes/payments.js",
+    "sourceLine": 144,
+    "source": "server/routes/payments.js:144"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/payments/refund",
+    "sourceFile": "server/routes/payments.js",
+    "sourceLine": 158,
+    "source": "server/routes/payments.js:158"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/pos/checkout",
+    "sourceFile": "server/routes/pos.js",
+    "sourceLine": 158,
+    "source": "server/routes/pos.js:158"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/pos/counter/book",
+    "sourceFile": "server/routes/pos.js",
+    "sourceLine": 883,
+    "source": "server/routes/pos.js:883"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/pos/counter/quote",
+    "sourceFile": "server/routes/pos.js",
+    "sourceLine": 865,
+    "source": "server/routes/pos.js:865"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/pos/counter/waybill/:identifier",
+    "sourceFile": "server/routes/pos.js",
+    "sourceLine": 905,
+    "source": "server/routes/pos.js:905"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/pos/exchange",
+    "sourceFile": "server/routes/pos.js",
+    "sourceLine": 636,
+    "source": "server/routes/pos.js:636"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/pos/held",
+    "sourceFile": "server/routes/pos.js",
+    "sourceLine": 834,
+    "source": "server/routes/pos.js:834"
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/v1/pos/held/:id",
+    "sourceFile": "server/routes/pos.js",
+    "sourceLine": 853,
+    "source": "server/routes/pos.js:853"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/pos/hold",
+    "sourceFile": "server/routes/pos.js",
+    "sourceLine": 809,
+    "source": "server/routes/pos.js:809"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/pos/products",
+    "sourceFile": "server/routes/pos.js",
+    "sourceLine": 114,
+    "source": "server/routes/pos.js:114"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/pos/receipt/:id",
+    "sourceFile": "server/routes/pos.js",
+    "sourceLine": 528,
+    "source": "server/routes/pos.js:528"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/pos/shift/:id/reconcile",
+    "sourceFile": "server/routes/pos.js",
+    "sourceLine": 76,
+    "source": "server/routes/pos.js:76"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/pos/shift/close",
+    "sourceFile": "server/routes/pos.js",
+    "sourceLine": 40,
+    "source": "server/routes/pos.js:40"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/pos/shift/current",
+    "sourceFile": "server/routes/pos.js",
+    "sourceLine": 16,
+    "source": "server/routes/pos.js:16"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/pos/shift/history",
+    "sourceFile": "server/routes/pos.js",
+    "sourceLine": 87,
+    "source": "server/routes/pos.js:87"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/pos/shift/movement",
+    "sourceFile": "server/routes/pos.js",
+    "sourceLine": 58,
+    "source": "server/routes/pos.js:58"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/pos/shift/open",
+    "sourceFile": "server/routes/pos.js",
+    "sourceLine": 29,
+    "source": "server/routes/pos.js:29"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/pos/void",
+    "sourceFile": "server/routes/pos.js",
+    "sourceLine": 613,
+    "source": "server/routes/pos.js:613"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/procurement/grns",
+    "sourceFile": "server/routes/procurement.js",
+    "sourceLine": 307,
+    "source": "server/routes/procurement.js:307"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/procurement/grns/:id",
+    "sourceFile": "server/routes/procurement.js",
+    "sourceLine": 356,
+    "source": "server/routes/procurement.js:356"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/procurement/history",
+    "sourceFile": "server/routes/procurement.js",
+    "sourceLine": 575,
+    "source": "server/routes/procurement.js:575"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/procurement/invoices",
+    "sourceFile": "server/routes/procurement.js",
+    "sourceLine": 391,
+    "source": "server/routes/procurement.js:391"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/procurement/invoices",
+    "sourceFile": "server/routes/procurement.js",
+    "sourceLine": 450,
+    "source": "server/routes/procurement.js:450"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/procurement/invoices/:id",
+    "sourceFile": "server/routes/procurement.js",
+    "sourceLine": 430,
+    "source": "server/routes/procurement.js:430"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/procurement/invoices/:id/pay",
+    "sourceFile": "server/routes/procurement.js",
+    "sourceLine": 474,
+    "source": "server/routes/procurement.js:474"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/procurement/orders",
+    "sourceFile": "server/routes/procurement.js",
+    "sourceLine": 173,
+    "source": "server/routes/procurement.js:173"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/procurement/orders",
+    "sourceFile": "server/routes/procurement.js",
+    "sourceLine": 232,
+    "source": "server/routes/procurement.js:232"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/procurement/orders/:id",
+    "sourceFile": "server/routes/procurement.js",
+    "sourceLine": 216,
+    "source": "server/routes/procurement.js:216"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/procurement/orders/:id/approve",
+    "sourceFile": "server/routes/procurement.js",
+    "sourceLine": 255,
+    "source": "server/routes/procurement.js:255"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/procurement/orders/:id/cancel",
+    "sourceFile": "server/routes/procurement.js",
+    "sourceLine": 275,
+    "source": "server/routes/procurement.js:275"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/procurement/orders/:id/receive",
+    "sourceFile": "server/routes/procurement.js",
+    "sourceLine": 285,
+    "source": "server/routes/procurement.js:285"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/procurement/orders/:id/send",
+    "sourceFile": "server/routes/procurement.js",
+    "sourceLine": 265,
+    "source": "server/routes/procurement.js:265"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/procurement/requisitions",
+    "sourceFile": "server/routes/procurement.js",
+    "sourceLine": 27,
+    "source": "server/routes/procurement.js:27"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/procurement/requisitions",
+    "sourceFile": "server/routes/procurement.js",
+    "sourceLine": 81,
+    "source": "server/routes/procurement.js:81"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/procurement/requisitions/:id",
+    "sourceFile": "server/routes/procurement.js",
+    "sourceLine": 65,
+    "source": "server/routes/procurement.js:65"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/procurement/requisitions/:id/approve",
+    "sourceFile": "server/routes/procurement.js",
+    "sourceLine": 109,
+    "source": "server/routes/procurement.js:109"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/procurement/requisitions/:id/convert-to-po",
+    "sourceFile": "server/routes/procurement.js",
+    "sourceLine": 129,
+    "source": "server/routes/procurement.js:129"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/procurement/requisitions/:id/reject",
+    "sourceFile": "server/routes/procurement.js",
+    "sourceLine": 119,
+    "source": "server/routes/procurement.js:119"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/procurement/requisitions/:id/submit",
+    "sourceFile": "server/routes/procurement.js",
+    "sourceLine": 99,
+    "source": "server/routes/procurement.js:99"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/procurement/returns",
+    "sourceFile": "server/routes/procurement.js",
+    "sourceLine": 496,
+    "source": "server/routes/procurement.js:496"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/procurement/returns",
+    "sourceFile": "server/routes/procurement.js",
+    "sourceLine": 542,
+    "source": "server/routes/procurement.js:542"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/procurement/returns/:id",
+    "sourceFile": "server/routes/procurement.js",
+    "sourceLine": 531,
+    "source": "server/routes/procurement.js:531"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/procurement/returns/:id/approve",
+    "sourceFile": "server/routes/procurement.js",
+    "sourceLine": 563,
+    "source": "server/routes/procurement.js:563"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/procurement/telemetry",
+    "sourceFile": "server/routes/procurement.js",
+    "sourceLine": 12,
+    "source": "server/routes/procurement.js:12"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/products",
+    "sourceFile": "server/routes/products/catalog.js",
+    "sourceLine": 11,
+    "source": "server/routes/products/catalog.js:11"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/products",
+    "sourceFile": "server/routes/products/catalog.js",
+    "sourceLine": 129,
+    "source": "server/routes/products/catalog.js:129"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/products/:id",
+    "sourceFile": "server/routes/products/catalog.js",
+    "sourceLine": 105,
+    "source": "server/routes/products/catalog.js:105"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/v1/products/:id",
+    "sourceFile": "server/routes/products/catalog.js",
+    "sourceLine": 201,
+    "source": "server/routes/products/catalog.js:201"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/products/:id/archive",
+    "sourceFile": "server/routes/products/catalog.js",
+    "sourceLine": 247,
+    "source": "server/routes/products/catalog.js:247"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/products/:id/pricing",
+    "sourceFile": "server/routes/products/pricing.js",
+    "sourceLine": 10,
+    "source": "server/routes/products/pricing.js:10"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/products/:id/pricing/branch",
+    "sourceFile": "server/routes/products/pricing.js",
+    "sourceLine": 43,
+    "source": "server/routes/products/pricing.js:43"
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/v1/products/:id/pricing/branch/:priceId",
+    "sourceFile": "server/routes/products/pricing.js",
+    "sourceLine": 90,
+    "source": "server/routes/products/pricing.js:90"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/products/:id/pricing/bulk",
+    "sourceFile": "server/routes/products/pricing.js",
+    "sourceLine": 96,
+    "source": "server/routes/products/pricing.js:96"
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/v1/products/:id/pricing/bulk/:tierId",
+    "sourceFile": "server/routes/products/pricing.js",
+    "sourceLine": 127,
+    "source": "server/routes/products/pricing.js:127"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/products/:id/pricing/customer",
+    "sourceFile": "server/routes/products/pricing.js",
+    "sourceLine": 133,
+    "source": "server/routes/products/pricing.js:133"
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/v1/products/:id/pricing/customer/:custPriceId",
+    "sourceFile": "server/routes/products/pricing.js",
+    "sourceLine": 166,
+    "source": "server/routes/products/pricing.js:166"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/products/:id/restore",
+    "sourceFile": "server/routes/products/catalog.js",
+    "sourceLine": 257,
+    "source": "server/routes/products/catalog.js:257"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/products/:id/variants",
+    "sourceFile": "server/routes/products/variants.js",
+    "sourceLine": 10,
+    "source": "server/routes/products/variants.js:10"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/products/:id/variants",
+    "sourceFile": "server/routes/products/variants.js",
+    "sourceLine": 27,
+    "source": "server/routes/products/variants.js:27"
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/v1/products/:id/variants/:variantId",
+    "sourceFile": "server/routes/products/variants.js",
+    "sourceLine": 120,
+    "source": "server/routes/products/variants.js:120"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/v1/products/:id/variants/:variantId",
+    "sourceFile": "server/routes/products/variants.js",
+    "sourceLine": 77,
+    "source": "server/routes/products/variants.js:77"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/products/barcode/:barcode",
+    "sourceFile": "server/routes/products/index.js",
+    "sourceLine": 26,
+    "source": "server/routes/products/index.js:26"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/products/categories",
+    "sourceFile": "server/routes/products/index.js",
+    "sourceLine": 14,
+    "source": "server/routes/products/index.js:14"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/products/resolve-price",
+    "sourceFile": "server/routes/products/index.js",
+    "sourceLine": 93,
+    "source": "server/routes/products/index.js:93"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/products/variant-barcode/:barcode",
+    "sourceFile": "server/routes/products/index.js",
+    "sourceLine": 60,
+    "source": "server/routes/products/index.js:60"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/promotions",
+    "sourceFile": "server/routes/promotions.js",
+    "sourceLine": 10,
+    "source": "server/routes/promotions.js:10"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/promotions",
+    "sourceFile": "server/routes/promotions.js",
+    "sourceLine": 38,
+    "source": "server/routes/promotions.js:38"
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/v1/promotions/:id",
+    "sourceFile": "server/routes/promotions.js",
+    "sourceLine": 141,
+    "source": "server/routes/promotions.js:141"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/promotions/:id",
+    "sourceFile": "server/routes/promotions.js",
+    "sourceLine": 31,
+    "source": "server/routes/promotions.js:31"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/v1/promotions/:id",
+    "sourceFile": "server/routes/promotions.js",
+    "sourceLine": 94,
+    "source": "server/routes/promotions.js:94"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/refunds",
+    "sourceFile": "server/routes/refunds.js",
+    "sourceLine": 9,
+    "source": "server/routes/refunds.js:9"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/refunds/:id/approve",
+    "sourceFile": "server/routes/refunds.js",
+    "sourceLine": 104,
+    "source": "server/routes/refunds.js:104"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/refunds/:id/reject",
+    "sourceFile": "server/routes/refunds.js",
+    "sourceLine": 200,
+    "source": "server/routes/refunds.js:200"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/refunds/request",
+    "sourceFile": "server/routes/refunds.js",
+    "sourceLine": 42,
+    "source": "server/routes/refunds.js:42"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/reports/dashboard",
+    "sourceFile": "server/routes/reports.js",
+    "sourceLine": 8,
+    "source": "server/routes/reports.js:8"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/reports/dashboard-charts",
+    "sourceFile": "server/routes/reports.js",
+    "sourceLine": 247,
+    "source": "server/routes/reports.js:247"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/reports/payments",
+    "sourceFile": "server/routes/reports.js",
+    "sourceLine": 754,
+    "source": "server/routes/reports.js:754"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/reports/pnl",
+    "sourceFile": "server/routes/reports.js",
+    "sourceLine": 705,
+    "source": "server/routes/reports.js:705"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/reports/vat",
+    "sourceFile": "server/routes/reports.js",
+    "sourceLine": 644,
+    "source": "server/routes/reports.js:644"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/shipments",
+    "sourceFile": "server/routes/shipments.js",
+    "sourceLine": 47,
+    "source": "server/routes/shipments.js:47"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/shipments",
+    "sourceFile": "server/routes/shipments.js",
+    "sourceLine": 27,
+    "source": "server/routes/shipments.js:27"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/shipments/:id",
+    "sourceFile": "server/routes/shipments.js",
+    "sourceLine": 58,
+    "source": "server/routes/shipments.js:58"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/shipments/:id/active-leg",
+    "sourceFile": "server/routes/shipments.js",
+    "sourceLine": 130,
+    "source": "server/routes/shipments.js:130"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/shipments/:id/legs",
+    "sourceFile": "server/routes/shipments.js",
+    "sourceLine": 119,
+    "source": "server/routes/shipments.js:119"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/shipments/:id/transition",
+    "sourceFile": "server/routes/shipments.js",
+    "sourceLine": 72,
+    "source": "server/routes/shipments.js:72"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/shipments/:id/waybill",
+    "sourceFile": "server/routes/shipments.js",
+    "sourceLine": 101,
+    "source": "server/routes/shipments.js:101"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/shipments/awaiting-manifest/:hubId",
+    "sourceFile": "server/routes/shipments.js",
+    "sourceLine": 142,
+    "source": "server/routes/shipments.js:142"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/shipments/quote",
+    "sourceFile": "server/routes/shipments.js",
+    "sourceLine": 10,
+    "source": "server/routes/shipments.js:10"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/suppliers",
+    "sourceFile": "server/routes/suppliers.js",
+    "sourceLine": 10,
+    "source": "server/routes/suppliers.js:10"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/suppliers",
+    "sourceFile": "server/routes/suppliers.js",
+    "sourceLine": 81,
+    "source": "server/routes/suppliers.js:81"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/suppliers/:id",
+    "sourceFile": "server/routes/suppliers.js",
+    "sourceLine": 25,
+    "source": "server/routes/suppliers.js:25"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/v1/suppliers/:id",
+    "sourceFile": "server/routes/suppliers.js",
+    "sourceLine": 134,
+    "source": "server/routes/suppliers.js:134"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/suppliers/:id/contacts",
+    "sourceFile": "server/routes/suppliers.js",
+    "sourceLine": 183,
+    "source": "server/routes/suppliers.js:183"
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/v1/suppliers/:id/contacts/:contactId",
+    "sourceFile": "server/routes/suppliers.js",
+    "sourceLine": 202,
+    "source": "server/routes/suppliers.js:202"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/suppliers/:id/history",
+    "sourceFile": "server/routes/suppliers.js",
+    "sourceLine": 71,
+    "source": "server/routes/suppliers.js:71"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/suppliers/:id/performance",
+    "sourceFile": "server/routes/suppliers.js",
+    "sourceLine": 61,
+    "source": "server/routes/suppliers.js:61"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/suppliers/:id/products",
+    "sourceFile": "server/routes/suppliers.js",
+    "sourceLine": 212,
+    "source": "server/routes/suppliers.js:212"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/suppliers/:id/products",
+    "sourceFile": "server/routes/suppliers.js",
+    "sourceLine": 224,
+    "source": "server/routes/suppliers.js:224"
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/v1/suppliers/:id/products/:productId",
+    "sourceFile": "server/routes/suppliers.js",
+    "sourceLine": 263,
+    "source": "server/routes/suppliers.js:263"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/tracking/:trackingNumber",
+    "sourceFile": "server/routes/tracking.js",
+    "sourceLine": 8,
+    "source": "server/routes/tracking.js:8"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/transport/cross-border/legs",
+    "sourceFile": "server/routes/transport.js",
+    "sourceLine": 191,
+    "source": "server/routes/transport.js:191"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/transport/legs/:id/customs/clear",
+    "sourceFile": "server/routes/transport.js",
+    "sourceLine": 235,
+    "source": "server/routes/transport.js:235"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/transport/legs/:id/customs/hold",
+    "sourceFile": "server/routes/transport.js",
+    "sourceLine": 224,
+    "source": "server/routes/transport.js:224"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/transport/legs/:id/customs/inspect",
+    "sourceFile": "server/routes/transport.js",
+    "sourceLine": 213,
+    "source": "server/routes/transport.js:213"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/transport/legs/:id/customs/release",
+    "sourceFile": "server/routes/transport.js",
+    "sourceLine": 246,
+    "source": "server/routes/transport.js:246"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/transport/legs/:id/customs/submit",
+    "sourceFile": "server/routes/transport.js",
+    "sourceLine": 202,
+    "source": "server/routes/transport.js:202"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/transport/manifests",
+    "sourceFile": "server/routes/transport.js",
+    "sourceLine": 166,
+    "source": "server/routes/transport.js:166"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/transport/manifests/:id",
+    "sourceFile": "server/routes/transport.js",
+    "sourceLine": 177,
+    "source": "server/routes/transport.js:177"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/transport/routes",
+    "sourceFile": "server/routes/transport.js",
+    "sourceLine": 11,
+    "source": "server/routes/transport.js:11"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/transport/routes",
+    "sourceFile": "server/routes/transport.js",
+    "sourceLine": 22,
+    "source": "server/routes/transport.js:22"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/transport/routes/:id",
+    "sourceFile": "server/routes/transport.js",
+    "sourceLine": 33,
+    "source": "server/routes/transport.js:33"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/transport/runs",
+    "sourceFile": "server/routes/transport.js",
+    "sourceLine": 47,
+    "source": "server/routes/transport.js:47"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/transport/runs",
+    "sourceFile": "server/routes/transport.js",
+    "sourceLine": 58,
+    "source": "server/routes/transport.js:58"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/transport/runs/:id",
+    "sourceFile": "server/routes/transport.js",
+    "sourceLine": 69,
+    "source": "server/routes/transport.js:69"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/transport/runs/:id/arrive",
+    "sourceFile": "server/routes/transport.js",
+    "sourceLine": 138,
+    "source": "server/routes/transport.js:138"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/transport/runs/:id/checkpoints",
+    "sourceFile": "server/routes/transport.js",
+    "sourceLine": 127,
+    "source": "server/routes/transport.js:127"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/transport/runs/:id/dispatch",
+    "sourceFile": "server/routes/transport.js",
+    "sourceLine": 116,
+    "source": "server/routes/transport.js:116"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/transport/runs/:id/manifest/items",
+    "sourceFile": "server/routes/transport.js",
+    "sourceLine": 81,
+    "source": "server/routes/transport.js:81"
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/v1/transport/runs/:id/manifest/items/:shipmentId",
+    "sourceFile": "server/routes/transport.js",
+    "sourceLine": 94,
+    "source": "server/routes/transport.js:94"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/transport/runs/:id/manifest/lock",
+    "sourceFile": "server/routes/transport.js",
+    "sourceLine": 105,
+    "source": "server/routes/transport.js:105"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/transport/runs/:id/receive",
+    "sourceFile": "server/routes/transport.js",
+    "sourceLine": 149,
+    "source": "server/routes/transport.js:149"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/users",
+    "sourceFile": "server/routes/users.js",
+    "sourceLine": 12,
+    "source": "server/routes/users.js:12"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/users",
+    "sourceFile": "server/routes/users.js",
+    "sourceLine": 41,
+    "source": "server/routes/users.js:41"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/v1/users/:id",
+    "sourceFile": "server/routes/users.js",
+    "sourceLine": 136,
+    "source": "server/routes/users.js:136"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/users/:id/force-logout",
+    "sourceFile": "server/routes/users.js",
+    "sourceLine": 208,
+    "source": "server/routes/users.js:208"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/users/:id/login-history",
+    "sourceFile": "server/routes/users.js",
+    "sourceLine": 351,
+    "source": "server/routes/users.js:351"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/users/:id/reset-password",
+    "sourceFile": "server/routes/users.js",
+    "sourceLine": 251,
+    "source": "server/routes/users.js:251"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/users/:id/unlock",
+    "sourceFile": "server/routes/users.js",
+    "sourceLine": 316,
+    "source": "server/routes/users.js:316"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/users/roles",
+    "sourceFile": "server/routes/users.js",
+    "sourceLine": 398,
+    "source": "server/routes/users.js:398"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/users/security/failed-logins",
+    "sourceFile": "server/routes/users.js",
+    "sourceLine": 375,
+    "source": "server/routes/users.js:375"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/vehicles",
+    "sourceFile": "server/routes/vehicles.js",
+    "sourceLine": 23,
+    "source": "server/routes/vehicles.js:23"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/vehicles",
+    "sourceFile": "server/routes/vehicles.js",
+    "sourceLine": 64,
+    "source": "server/routes/vehicles.js:64"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/vehicles/:id",
+    "sourceFile": "server/routes/vehicles.js",
+    "sourceLine": 47,
+    "source": "server/routes/vehicles.js:47"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/v1/vehicles/:id",
+    "sourceFile": "server/routes/vehicles.js",
+    "sourceLine": 83,
+    "source": "server/routes/vehicles.js:83"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/vehicles/:id/fuel",
+    "sourceFile": "server/routes/vehicles.js",
+    "sourceLine": 122,
+    "source": "server/routes/vehicles.js:122"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/vehicles/:id/fuel",
+    "sourceFile": "server/routes/vehicles.js",
+    "sourceLine": 140,
+    "source": "server/routes/vehicles.js:140"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/vehicles/:id/maintenance",
+    "sourceFile": "server/routes/vehicles.js",
+    "sourceLine": 157,
+    "source": "server/routes/vehicles.js:157"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/vehicles/:id/maintenance",
+    "sourceFile": "server/routes/vehicles.js",
+    "sourceLine": 175,
+    "source": "server/routes/vehicles.js:175"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/vehicles/:id/mileage",
+    "sourceFile": "server/routes/vehicles.js",
+    "sourceLine": 216,
+    "source": "server/routes/vehicles.js:216"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/vehicles/:id/mileage",
+    "sourceFile": "server/routes/vehicles.js",
+    "sourceLine": 234,
+    "source": "server/routes/vehicles.js:234"
+  },
+  {
+    "method": "PATCH",
+    "path": "/api/v1/vehicles/:id/status",
+    "sourceFile": "server/routes/vehicles.js",
+    "sourceLine": 100,
+    "source": "server/routes/vehicles.js:100"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/vehicles/:id/telemetry",
+    "sourceFile": "server/routes/vehicles.js",
+    "sourceLine": 251,
+    "source": "server/routes/vehicles.js:251"
+  },
+  {
+    "method": "PATCH",
+    "path": "/api/v1/vehicles/maintenance/:recordId/status",
+    "sourceFile": "server/routes/vehicles.js",
+    "sourceLine": 192,
+    "source": "server/routes/vehicles.js:192"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/vehicles/telemetry/summary",
+    "sourceFile": "server/routes/vehicles.js",
+    "sourceLine": 9,
+    "source": "server/routes/vehicles.js:9"
+  }
+]
