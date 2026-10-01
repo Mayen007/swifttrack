@@ -329,68 +329,68 @@ export function DriversView() {
       {/* 2. Executive Telemetry KPI Cards */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
         {/* Active on Road */}
-        <div className="bg-[#12161f] p-3.5 rounded-xl border border-[#222834]">
-          <div className="flex items-center justify-between text-blue-600 mb-1">
-            <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">Active on Road</span>
+        <div className="bg-[#12161f] p-3.5 rounded-xl border border-[#2a3447]">
+          <div className="flex items-center justify-between text-blue-600 dark:text-blue-400 mb-1">
+            <span className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Active on Road</span>
             <Activity className="w-4 h-4" />
           </div>
-          <div className="text-2xl font-bold text-white tracking-tight">{telemetry?.on_delivery_drivers ?? 0}</div>
-          <p className="text-xs text-slate-500 mt-0.5">En route with parcels</p>
+          <div className="text-2xl font-bold text-slate-900 dark:text-white tracking-tight">{telemetry?.on_delivery_drivers ?? 0}</div>
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">En route with parcels</p>
         </div>
 
         {/* Available in Yard */}
-        <div className="bg-[#12161f] p-3.5 rounded-xl border border-[#222834]">
-          <div className="flex items-center justify-between text-emerald-600 mb-1">
-            <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">Available Yard</span>
+        <div className="bg-[#12161f] p-3.5 rounded-xl border border-[#2a3447]">
+          <div className="flex items-center justify-between text-emerald-600 dark:text-emerald-400 mb-1">
+            <span className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Available Yard</span>
             <CheckCircle2 className="w-4 h-4" />
           </div>
-          <div className="text-2xl font-bold text-white tracking-tight">{telemetry?.available_drivers ?? 0}</div>
-          <p className="text-xs text-slate-500 mt-0.5">Ready for dispatch</p>
+          <div className="text-2xl font-bold text-slate-900 dark:text-white tracking-tight">{telemetry?.available_drivers ?? 0}</div>
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Ready for dispatch</p>
         </div>
 
         {/* Off Duty / Leave */}
-        <div className="bg-[#12161f] p-3.5 rounded-xl border border-[#222834]">
-          <div className="flex items-center justify-between text-slate-600 mb-1">
-            <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">Off-Duty / Leave</span>
+        <div className="bg-[#12161f] p-3.5 rounded-xl border border-[#2a3447]">
+          <div className="flex items-center justify-between text-slate-600 dark:text-slate-400 mb-1">
+            <span className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Off-Duty / Leave</span>
             <Clock className="w-4 h-4" />
           </div>
-          <div className="text-2xl font-bold text-white tracking-tight">{telemetry?.off_duty_drivers ?? 0}</div>
-          <p className="text-xs text-slate-500 mt-0.5">Rest or annual leave</p>
+          <div className="text-2xl font-bold text-slate-900 dark:text-white tracking-tight">{telemetry?.off_duty_drivers ?? 0}</div>
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Rest or annual leave</p>
         </div>
 
         {/* Expiry Warnings */}
-        <div className="bg-[#12161f] p-3.5 rounded-xl border border-amber-500/20 bg-amber-500/5">
-          <div className="flex items-center justify-between text-amber-600 mb-1">
-            <span className="text-xs font-semibold uppercase tracking-wider text-amber-700">Expiry Alert</span>
+        <div className="bg-amber-50 dark:bg-[#12161f] p-3.5 rounded-xl border border-amber-300 dark:border-amber-500/30">
+          <div className="flex items-center justify-between text-amber-600 dark:text-amber-400 mb-1">
+            <span className="text-xs font-bold uppercase tracking-wider text-amber-800 dark:text-amber-400">Expiry Alert</span>
             <AlertTriangle className="w-4 h-4" />
           </div>
-          <div className="text-2xl font-bold text-amber-400 tracking-tight">{telemetry?.expiring_licenses_count ?? 0}</div>
-          <p className="text-xs text-amber-700 mt-0.5">License expires &lt;30d</p>
+          <div className="text-2xl font-bold text-amber-800 dark:text-amber-400 tracking-tight">{telemetry?.expiring_licenses_count ?? 0}</div>
+          <p className="text-xs text-amber-800 dark:text-amber-400/90 mt-0.5 font-medium">License expires &lt;30d</p>
         </div>
 
         {/* Fleet On-Time Rate */}
-        <div className="bg-[#12161f] p-3.5 rounded-xl border border-[#222834]">
-          <div className="flex items-center justify-between text-indigo-600 mb-1">
-            <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">On-Time Rate</span>
+        <div className="bg-[#12161f] p-3.5 rounded-xl border border-[#2a3447]">
+          <div className="flex items-center justify-between text-indigo-600 dark:text-indigo-400 mb-1">
+            <span className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">On-Time Rate</span>
             <TrendingUp className="w-4 h-4" />
           </div>
-          <div className="text-2xl font-bold text-white tracking-tight">{telemetry?.fleet_on_time_rate_pct ?? 0}%</div>
-          <p className="text-xs text-slate-500 mt-0.5">Fleet delivery target</p>
+          <div className="text-2xl font-bold text-slate-900 dark:text-white tracking-tight">{telemetry?.fleet_on_time_rate_pct ?? 0}%</div>
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Fleet delivery target</p>
         </div>
 
         {/* Avg Rating */}
-        <div className="bg-[#12161f] p-3.5 rounded-xl border border-[#222834]">
+        <div className="bg-[#12161f] p-3.5 rounded-xl border border-[#2a3447]">
           <div className="flex items-center justify-between text-amber-500 mb-1">
-            <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">Fleet Rating</span>
+            <span className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Fleet Rating</span>
             <Star className="w-4 h-4 fill-amber-400 text-amber-400" />
           </div>
-          <div className="text-2xl font-bold text-white tracking-tight">{telemetry?.fleet_avg_rating ?? '5.0'} / 5</div>
-          <p className="text-xs text-slate-500 mt-0.5">Customer satisfaction</p>
+          <div className="text-2xl font-bold text-slate-900 dark:text-white tracking-tight">{telemetry?.fleet_avg_rating ?? '5.0'} / 5</div>
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Customer satisfaction</p>
         </div>
       </div>
 
       {/* 3. Filters & Search Bar */}
-      <div className="bg-[#12161f] p-3 rounded-xl border border-[#222834] flex flex-col md:flex-row items-center justify-between gap-3">
+      <div className="bg-[#12161f] p-3 rounded-xl border border-[#2a3447] flex flex-col md:flex-row items-center justify-between gap-3">
         {/* Search */}
         <form onSubmit={handleSearchSubmit} className="relative w-full md:w-80">
           <Search className="w-4 h-4 absolute left-3.5 top-3 text-slate-400" />
@@ -399,7 +399,7 @@ export function DriversView() {
             placeholder="Search name, code, phone, license..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-9 pr-4 py-1.5 bg-[#0c0e12] border border-[#222834] rounded-lg text-xs text-white placeholder:text-slate-500 focus:outline-none focus:border-blue-500 transition-all"
+            className="w-full pl-9 pr-4 py-1.5 bg-slate-50 dark:bg-[#0c0e12] border border-slate-300 dark:border-[#2a3447] rounded-lg text-xs text-slate-900 dark:text-white placeholder:text-slate-500 focus:outline-none focus:border-blue-500 transition-all"
           />
         </form>
 
@@ -410,7 +410,7 @@ export function DriversView() {
             <select
               value={branchFilter}
               onChange={(e) => setBranchFilter(e.target.value)}
-              className="px-3 py-1.5 bg-[#0c0e12] border border-[#222834] rounded-lg text-xs text-slate-300 font-medium focus:outline-none focus:border-blue-500"
+              className="px-3 py-1.5 bg-slate-50 dark:bg-[#0c0e12] border border-slate-300 dark:border-[#2a3447] rounded-lg text-xs text-slate-800 dark:text-slate-300 font-medium focus:outline-none focus:border-blue-500 cursor-pointer"
             >
               <option value="">All Branches</option>
               {branches.map(b => (
@@ -423,7 +423,7 @@ export function DriversView() {
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
-            className="px-3 py-1.5 bg-[#0c0e12] border border-[#222834] rounded-lg text-xs text-slate-300 font-medium focus:outline-none focus:border-blue-500"
+            className="px-3 py-1.5 bg-slate-50 dark:bg-[#0c0e12] border border-slate-300 dark:border-[#2a3447] rounded-lg text-xs text-slate-800 dark:text-slate-300 font-medium focus:outline-none focus:border-blue-500 cursor-pointer"
           >
             <option value="ALL">All Statuses</option>
             {DRIVER_STATUS_OPTIONS.map(opt => (
@@ -435,7 +435,7 @@ export function DriversView() {
           <select
             value={complianceFilter}
             onChange={(e) => setComplianceFilter(e.target.value)}
-            className="px-3 py-1.5 bg-[#0c0e12] border border-[#222834] rounded-lg text-xs text-slate-300 font-medium focus:outline-none focus:border-blue-500"
+            className="px-3 py-1.5 bg-slate-50 dark:bg-[#0c0e12] border border-slate-300 dark:border-[#2a3447] rounded-lg text-xs text-slate-800 dark:text-slate-300 font-medium focus:outline-none focus:border-blue-500 cursor-pointer"
           >
             <option value="ALL">All Compliance</option>
             {COMPLIANCE_STATUS_OPTIONS.map(opt => (
@@ -446,10 +446,10 @@ export function DriversView() {
       </div>
 
       {/* 4. Drivers Table / Roster */}
-      <div className="bg-[#12161f] rounded-xl border border-[#222834] overflow-hidden">
+      <div className="bg-[#12161f] rounded-xl border border-[#2a3447] overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs text-slate-300">
-            <thead className="bg-[#181d28] border-b border-[#222834] text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+          <table className="w-full text-left text-xs text-slate-800 dark:text-slate-300">
+            <thead className="bg-slate-100 dark:bg-[#181d28] border-b border-[#2a3447] text-[11px] font-semibold uppercase tracking-wider text-slate-700 dark:text-slate-400">
               <tr>
                 <th className="py-3 px-4">Driver Profile</th>
                 <th className="py-3 px-4">Contact & Depot</th>
@@ -460,20 +460,20 @@ export function DriversView() {
                 <th className="py-3 px-4 text-right">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-[#1b212c]">
+            <tbody className="divide-y divide-slate-200 dark:divide-[#1b212c]">
               {loading ? (
                 <tr>
-                  <td colSpan="7" className="py-12 text-center text-slate-400">
+                  <td colSpan="7" className="py-12 text-center text-slate-500 dark:text-slate-400">
                     <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2 text-blue-600" />
                     <span>Loading driver fleet roster...</span>
                   </td>
                 </tr>
               ) : drivers.length === 0 ? (
                 <tr>
-                  <td colSpan="7" className="py-12 text-center text-slate-400">
-                    <Truck className="w-8 h-8 mx-auto mb-2 text-slate-300" />
-                    <p className="font-medium text-slate-600">No drivers found matching criteria</p>
-                    <p className="text-xs text-slate-400 mt-1">Adjust filters or onboard new drivers above</p>
+                  <td colSpan="7" className="py-12 text-center text-slate-500 dark:text-slate-400">
+                    <Truck className="w-8 h-8 mx-auto mb-2 text-slate-400" />
+                    <p className="font-medium text-slate-700 dark:text-slate-300">No drivers found matching criteria</p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Adjust filters or onboard new drivers above</p>
                   </td>
                 </tr>
               ) : (
@@ -482,11 +482,11 @@ export function DriversView() {
                   const isExpired = drv.compliance?.status === 'EXPIRED';
 
                   return (
-                    <tr key={drv.id} className="hover:bg-white/[0.02] transition-colors">
+                    <tr key={drv.id} className="hover:bg-slate-50 dark:hover:bg-white/[0.02] transition-colors">
                       {/* Driver Profile */}
                       <td className="py-3.5 px-4">
                         <div className="flex items-center gap-3">
-                          <div className="w-9 h-9 rounded-full bg-[#181d28] border border-[#222834] text-slate-200 flex items-center justify-center font-bold text-xs">
+                          <div className="w-9 h-9 rounded-full bg-slate-100 dark:bg-[#181d28] border border-slate-300 dark:border-[#2a3447] text-slate-700 dark:text-slate-200 flex items-center justify-center font-bold text-xs">
                             {drv.avatar_url ? (
                               <img src={drv.avatar_url} alt={drv.full_name} className="w-full h-full rounded-full object-cover" />
                             ) : (
@@ -494,13 +494,13 @@ export function DriversView() {
                             )}
                           </div>
                           <div>
-                            <div className="font-semibold text-white flex items-center gap-2">
+                            <div className="font-semibold text-slate-900 dark:text-white flex items-center gap-2">
                               <span>{drv.full_name}</span>
-                              <span className="px-1.5 py-0.5 rounded text-[10px] font-mono font-medium bg-[#181d28] text-slate-400 border border-[#222834]">
+                              <span className="px-1.5 py-0.5 rounded text-[10px] font-mono font-medium bg-slate-100 dark:bg-[#181d28] text-slate-700 dark:text-slate-400 border border-slate-300 dark:border-[#2a3447]">
                                 {drv.employee_code || `DRV-${String(drv.id).padStart(4, '0')}`}
                               </span>
                             </div>
-                            <div className="text-xs text-slate-500 flex items-center gap-2 mt-0.5">
+                            <div className="text-xs text-slate-600 dark:text-slate-400 flex items-center gap-2 mt-0.5">
                               <span>ID: {drv.national_id || 'N/A'}</span>
                               <span>•</span>
                               <span>KRA: {drv.kra_pin || 'N/A'}</span>
@@ -511,12 +511,12 @@ export function DriversView() {
 
                       {/* Contact & Depot */}
                       <td className="py-3.5 px-4">
-                        <div className="text-slate-200 font-medium text-xs flex items-center gap-1.5">
-                          <Phone className="w-3.5 h-3.5 text-slate-400" />
+                        <div className="text-slate-800 dark:text-slate-200 font-medium text-xs flex items-center gap-1.5">
+                          <Phone className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400" />
                           <span>{drv.phone}</span>
                         </div>
-                        <div className="text-xs text-slate-500 flex items-center gap-1.5 mt-0.5">
-                          <MapPin className="w-3.5 h-3.5 text-slate-400" />
+                        <div className="text-xs text-slate-600 dark:text-slate-400 flex items-center gap-1.5 mt-0.5">
+                          <MapPin className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400" />
                           <span>{drv.branch_name} ({drv.city || 'Nairobi'})</span>
                         </div>
                       </td>
@@ -525,16 +525,16 @@ export function DriversView() {
                       <td className="py-3.5 px-4">
                         {drv.vehicle_reg ? (
                           <div className="flex items-center gap-2">
-                            <span className="p-1 rounded bg-blue-500/10 text-blue-400 border border-blue-500/20">
+                            <span className="p-1 rounded bg-blue-50 dark:bg-blue-500/10 text-blue-700 dark:text-blue-400 border border-blue-200 dark:border-blue-500/20">
                               <Truck className="w-3.5 h-3.5" />
                             </span>
                             <div>
-                              <div className="font-semibold text-white text-xs font-mono">{drv.vehicle_reg}</div>
-                              <div className="text-[11px] text-slate-500">{drv.vehicle_model || drv.vehicle_type || 'Fleet Vehicle'}</div>
+                              <div className="font-semibold text-slate-900 dark:text-white text-xs font-mono">{drv.vehicle_reg}</div>
+                              <div className="text-[11px] text-slate-600 dark:text-slate-400">{drv.vehicle_model || drv.vehicle_type || 'Fleet Vehicle'}</div>
                             </div>
                           </div>
                         ) : (
-                          <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-[#181d28] text-slate-400 border border-[#222834]">
+                          <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-slate-100 dark:bg-[#181d28] text-slate-700 dark:text-slate-400 border border-slate-300 dark:border-[#2a3447]">
                             Unassigned
                           </span>
                         )}
@@ -542,17 +542,17 @@ export function DriversView() {
 
                       {/* NTSA License & Expiry */}
                       <td className="py-3.5 px-4">
-                        <div className="flex items-center gap-1.5 font-mono text-xs font-semibold text-slate-200">
+                        <div className="flex items-center gap-1.5 font-mono text-xs font-semibold text-slate-800 dark:text-slate-200">
                           <span>{drv.license_number}</span>
                           <span className="text-[10px] font-normal text-slate-500 font-sans">({drv.license_classes || 'B, C1'})</span>
                         </div>
                         <div className="mt-1 flex items-center gap-2">
-                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium ${
+                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-semibold border ${
                             isExpired
-                              ? 'bg-rose-500/10 text-rose-400 border border-rose-500/20'
+                              ? 'bg-rose-50 dark:bg-rose-500/10 text-rose-700 dark:text-rose-400 border-rose-300 dark:border-rose-500/20'
                               : isExpiringSoon
-                              ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
-                              : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                              ? 'bg-amber-50 dark:bg-amber-500/10 text-amber-800 dark:text-amber-400 border-amber-300 dark:border-amber-500/20'
+                              : 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-300 dark:border-emerald-500/20'
                           }`}>
                             {isExpired ? (
                               <XCircle className="w-3 h-3 text-rose-500" />
@@ -568,14 +568,14 @@ export function DriversView() {
 
                       {/* Operational Status */}
                       <td className="py-3.5 px-4">
-                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ${
+                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border ${
                           drv.status === 'AVAILABLE'
-                            ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                            ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-300 dark:border-emerald-500/20'
                             : drv.status === 'ON_DELIVERY'
-                            ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20'
+                            ? 'bg-blue-50 dark:bg-blue-500/10 text-blue-700 dark:text-blue-400 border-blue-300 dark:border-blue-500/20'
                             : drv.status === 'SUSPENDED'
-                            ? 'bg-rose-500/10 text-rose-400 border border-rose-500/20'
-                            : 'bg-[#181d28] text-slate-400 border border-[#222834]'
+                            ? 'bg-rose-50 dark:bg-rose-500/10 text-rose-700 dark:text-rose-400 border-rose-300 dark:border-rose-500/20'
+                            : 'bg-slate-100 dark:bg-[#181d28] text-slate-700 dark:text-slate-400 border-slate-300 dark:border-[#2a3447]'
                         }`}>
                           <span className={`w-1.5 h-1.5 rounded-full ${
                             drv.status === 'AVAILABLE' ? 'bg-emerald-600 animate-pulse' :
@@ -588,14 +588,14 @@ export function DriversView() {
 
                       {/* Scorecard & Active Jobs */}
                       <td className="py-3.5 px-4">
-                        <div className="flex items-center gap-1 text-xs font-semibold text-slate-200">
+                        <div className="flex items-center gap-1 text-xs font-semibold text-slate-800 dark:text-slate-200">
                           <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
                           <span>{drv.rating ? drv.rating.toFixed(1) : '5.0'}</span>
                         </div>
-                        <div className="text-[11px] text-slate-500 mt-0.5">
+                        <div className="text-[11px] text-slate-600 dark:text-slate-400 mt-0.5">
                           <span>{drv.completed_deliveries_count || 0} completed</span>
                           {drv.active_deliveries_count > 0 && (
-                            <span className="ml-1 text-blue-600 font-medium">({drv.active_deliveries_count} active)</span>
+                            <span className="ml-1 text-blue-600 dark:text-blue-400 font-semibold">({drv.active_deliveries_count} active)</span>
                           )}
                         </div>
                       </td>
@@ -605,7 +605,7 @@ export function DriversView() {
                         <div className="flex items-center justify-end gap-1.5">
                           <button
                             onClick={() => openDriverDetail(drv)}
-                            className="p-1.5 rounded-lg bg-[#181d28] hover:bg-[#1f2534] border border-[#222834] text-slate-400 hover:text-white transition-colors"
+                            className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-[#181d28] dark:hover:bg-[#1f2534] border border-slate-300 dark:border-[#2a3447] text-slate-700 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white transition-colors"
                             title="View Scorecard & Deep Dive"
                           >
                             <Eye className="w-4 h-4" />
@@ -617,7 +617,7 @@ export function DriversView() {
                               setNewStatus(drv.status);
                               setStatusModalOpen(true);
                             }}
-                            className="p-1.5 rounded-lg bg-[#181d28] hover:bg-[#1f2534] border border-[#222834] text-slate-400 hover:text-blue-400 transition-colors"
+                            className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-[#181d28] dark:hover:bg-[#1f2534] border border-slate-300 dark:border-[#2a3447] text-slate-700 hover:text-blue-600 dark:text-slate-400 dark:hover:text-blue-400 transition-colors"
                             title="Update Duty Status"
                           >
                             <Activity className="w-4 h-4" />
@@ -629,7 +629,7 @@ export function DriversView() {
                               setSelectedVehicleId(drv.vehicle_id || '');
                               setVehicleModalOpen(true);
                             }}
-                            className="p-1.5 rounded-lg bg-[#181d28] hover:bg-[#1f2534] border border-[#222834] text-slate-400 hover:text-emerald-400 transition-colors"
+                            className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-[#181d28] dark:hover:bg-[#1f2534] border border-slate-300 dark:border-[#2a3447] text-slate-700 hover:text-emerald-600 dark:text-slate-400 dark:hover:text-emerald-400 transition-colors"
                             title="Assign Vehicle"
                           >
                             <Truck className="w-4 h-4" />
@@ -640,7 +640,7 @@ export function DriversView() {
                               setSelectedDriver(drv);
                               setIncidentModalOpen(true);
                             }}
-                            className="p-1.5 rounded-lg bg-[#181d28] hover:bg-[#1f2534] border border-[#222834] text-slate-400 hover:text-rose-400 transition-colors"
+                            className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-[#181d28] dark:hover:bg-[#1f2534] border border-slate-300 dark:border-[#2a3447] text-slate-700 hover:text-rose-600 dark:text-slate-400 dark:hover:text-rose-400 transition-colors"
                             title="Log Safety Incident"
                           >
                             <AlertTriangle className="w-4 h-4" />

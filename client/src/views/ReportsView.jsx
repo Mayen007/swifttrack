@@ -112,13 +112,13 @@ export function ReportsView() {
                   setActiveTab('vat');
                   sound.playScan();
                 }}
-                className={`px-3 py-1.5 rounded text-[11px] font-bold transition-colors cursor-pointer flex items-center gap-1.5 ${
+                className={`px-3 py-1.5 rounded text-[11px] font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
                   activeTab === 'vat'
-                    ? 'bg-[#181d28] text-white border border-[#222834]'
-                    : 'text-slate-400 hover:text-slate-200'
+                    ? 'bg-blue-600 text-white font-bold shadow-xs'
+                    : 'text-slate-700 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
                 }`}
               >
-                <Receipt className="w-3.5 h-3.5 text-emerald-400" />
+                <Receipt className={`w-3.5 h-3.5 ${activeTab === 'vat' ? 'text-white' : 'text-emerald-600 dark:text-emerald-400'}`} />
                 <span>KRA 16% VAT</span>
               </button>
 
@@ -127,13 +127,13 @@ export function ReportsView() {
                   setActiveTab('pnl');
                   sound.playScan();
                 }}
-                className={`px-3 py-1.5 rounded text-[11px] font-bold transition-colors cursor-pointer flex items-center gap-1.5 ${
+                className={`px-3 py-1.5 rounded text-[11px] font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
                   activeTab === 'pnl'
-                    ? 'bg-[#181d28] text-white border border-[#222834]'
-                    : 'text-slate-400 hover:text-slate-200'
+                    ? 'bg-blue-600 text-white font-bold shadow-xs'
+                    : 'text-slate-700 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
                 }`}
               >
-                <BarChart3 className="w-3.5 h-3.5 text-blue-400" />
+                <BarChart3 className={`w-3.5 h-3.5 ${activeTab === 'pnl' ? 'text-white' : 'text-blue-600 dark:text-blue-400'}`} />
                 <span>WATERFALL P&L</span>
               </button>
 
@@ -142,13 +142,13 @@ export function ReportsView() {
                   setActiveTab('payments');
                   sound.playScan();
                 }}
-                className={`px-3 py-1.5 rounded text-[11px] font-bold transition-colors cursor-pointer flex items-center gap-1.5 ${
+                className={`px-3 py-1.5 rounded text-[11px] font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
                   activeTab === 'payments'
-                    ? 'bg-[#181d28] text-white border border-[#222834]'
-                    : 'text-slate-400 hover:text-slate-200'
+                    ? 'bg-blue-600 text-white font-bold shadow-xs'
+                    : 'text-slate-700 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
                 }`}
               >
-                <CreditCard className="w-3.5 h-3.5 text-indigo-400" />
+                <CreditCard className={`w-3.5 h-3.5 ${activeTab === 'payments' ? 'text-white' : 'text-indigo-600 dark:text-indigo-400'}`} />
                 <span>CHANNELS</span>
               </button>
             </div>
@@ -158,10 +158,10 @@ export function ReportsView() {
                 sound.playSuccess();
                 window.print();
               }}
-              className="h-8 px-3 rounded bg-[#0c0e12] hover:bg-[#181d28] border border-[#222834] text-slate-300 hover:text-white text-xs font-mono font-medium flex items-center gap-1.5 transition-colors cursor-pointer"
+              className="h-8 px-3 rounded bg-slate-100 hover:bg-slate-200 dark:bg-[#0c0e12] dark:hover:bg-[#181d28] border border-slate-300 dark:border-[#2a3447] text-slate-800 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white text-xs font-mono font-medium flex items-center gap-1.5 transition-colors cursor-pointer"
               title="Print Statutory Schedule"
             >
-              <Printer className="w-3.5 h-3.5 text-slate-400" />
+              <Printer className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400" />
               <span>PRINT</span>
             </button>
 
@@ -171,31 +171,31 @@ export function ReportsView() {
                 sound.playScan();
               }}
               disabled={loading}
-              className="h-8 px-3 rounded bg-[#0c0e12] hover:bg-[#181d28] border border-[#222834] text-slate-300 hover:text-white text-xs font-mono font-medium flex items-center gap-1.5 transition-colors cursor-pointer disabled:opacity-50"
+              className="h-8 px-3 rounded bg-slate-100 hover:bg-slate-200 dark:bg-[#0c0e12] dark:hover:bg-[#181d28] border border-slate-300 dark:border-[#2a3447] text-slate-800 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white text-xs font-mono font-medium flex items-center gap-1.5 transition-colors cursor-pointer disabled:opacity-50"
               title="Refresh financial analytics"
             >
-              <RotateCcw className={`w-3.5 h-3.5 ${loading ? 'animate-spin text-blue-400' : 'text-slate-400'}`} />
+              <RotateCcw className={`w-3.5 h-3.5 ${loading ? 'animate-spin text-blue-600 dark:text-blue-400' : 'text-slate-500 dark:text-slate-400'}`} />
               <span>SYNC</span>
             </button>
           </div>
         </div>
 
         {/* 2. UNIFIED HARDWARE TELEMETRY STRIP (Dieter Rams Matrix) */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-px bg-[#222834] border border-[#222834] rounded overflow-hidden">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-px bg-slate-300 dark:bg-[#2a3447] border border-slate-300 dark:border-[#2a3447] rounded overflow-hidden">
           <div className="bg-[#0c0e12] p-2.5 flex items-center justify-between min-w-0">
             <div className="min-w-0">
-              <span className="text-[10px] text-slate-500 font-mono uppercase tracking-wider block truncate">Gross Turnover</span>
-              <span className="text-base sm:text-lg font-mono font-bold text-slate-100 tabular-nums truncate block" title={api.formatKES(grossTurnover)}>
+              <span className="text-[10px] text-slate-500 dark:text-slate-400 font-mono uppercase tracking-wider block truncate">Gross Turnover</span>
+              <span className="text-base sm:text-lg font-mono font-bold text-slate-900 dark:text-slate-100 tabular-nums truncate block" title={api.formatKES(grossTurnover)}>
                 {grossTurnover >= 1000000 ? api.formatCompactKES(grossTurnover) : api.formatKES(grossTurnover)}
               </span>
             </div>
-            <Receipt className="w-4 h-4 text-slate-500 shrink-0 ml-1" />
+            <Receipt className="w-4 h-4 text-slate-400 dark:text-slate-500 shrink-0 ml-1" />
           </div>
 
           <div className="bg-[#0c0e12] p-2.5 flex items-center justify-between min-w-0">
             <div className="min-w-0">
-              <span className="text-[10px] text-emerald-400 font-mono uppercase tracking-wider block truncate">Output VAT (16%)</span>
-              <span className="text-base sm:text-lg font-mono font-bold text-emerald-400 tabular-nums truncate block" title={api.formatKES(vatCollected)}>
+              <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-mono uppercase tracking-wider block truncate">Output VAT (16%)</span>
+              <span className="text-base sm:text-lg font-mono font-bold text-emerald-600 dark:text-emerald-400 tabular-nums truncate block" title={api.formatKES(vatCollected)}>
                 {vatCollected >= 1000000 ? api.formatCompactKES(vatCollected) : api.formatKES(vatCollected)}
               </span>
             </div>
@@ -204,8 +204,8 @@ export function ReportsView() {
 
           <div className="bg-[#0c0e12] p-2.5 flex items-center justify-between min-w-0">
             <div className="min-w-0">
-              <span className="text-[10px] text-blue-400 font-mono uppercase tracking-wider block truncate">Gross Profit Margin</span>
-              <span className="text-base sm:text-lg font-mono font-bold text-blue-400 tabular-nums whitespace-nowrap block">
+              <span className="text-[10px] text-blue-600 dark:text-blue-400 font-mono uppercase tracking-wider block truncate">Gross Profit Margin</span>
+              <span className="text-base sm:text-lg font-mono font-bold text-blue-600 dark:text-blue-400 tabular-nums whitespace-nowrap block">
                 {grossMarginPct}%
               </span>
             </div>
@@ -214,22 +214,22 @@ export function ReportsView() {
 
           <div className="bg-[#0c0e12] p-2.5 flex items-center justify-between min-w-0">
             <div className="min-w-0">
-              <span className="text-[10px] text-emerald-400 font-mono uppercase tracking-wider block truncate">Net Operating Income</span>
-              <span className="text-base sm:text-lg font-mono font-bold text-emerald-400 tabular-nums truncate block" title={api.formatKES(netIncome)}>
+              <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-mono uppercase tracking-wider block truncate">Net Operating Income</span>
+              <span className="text-base sm:text-lg font-mono font-bold text-emerald-600 dark:text-emerald-400 tabular-nums truncate block" title={api.formatKES(netIncome)}>
                 {netIncome >= 1000000 ? api.formatCompactKES(netIncome) : api.formatKES(netIncome)}
               </span>
             </div>
-            <span className="text-xs font-mono font-bold text-slate-400 shrink-0 ml-1">({netMarginPct}%)</span>
+            <span className="text-xs font-mono font-bold text-slate-500 dark:text-slate-400 shrink-0 ml-1">({netMarginPct}%)</span>
           </div>
 
           <div className="bg-[#0c0e12] p-2.5 flex items-center justify-between min-w-0 col-span-2 sm:col-span-1">
             <div className="min-w-0">
-              <span className="text-[10px] text-green-400 font-mono uppercase tracking-wider block truncate">M-Pesa Penetration</span>
-              <span className="text-base sm:text-lg font-mono font-bold text-green-400 tabular-nums whitespace-nowrap block">
+              <span className="text-[10px] text-emerald-600 dark:text-green-400 font-mono uppercase tracking-wider block truncate">M-Pesa Penetration</span>
+              <span className="text-base sm:text-lg font-mono font-bold text-emerald-600 dark:text-green-400 tabular-nums whitespace-nowrap block">
                 {mpesaRatio}%
               </span>
             </div>
-            <Smartphone className="w-4 h-4 text-green-500 shrink-0 ml-1" />
+            <Smartphone className="w-4 h-4 text-emerald-500 shrink-0 ml-1" />
           </div>
         </div>
       </div>
@@ -238,18 +238,18 @@ export function ReportsView() {
       {activeTab === 'vat' && (
         <div className="space-y-4">
           {/* Statutory Declaration Card */}
-          <div className="bg-[#12161f] border border-[#222834] rounded p-5 space-y-4">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-[#222834] pb-3">
+          <div className="bg-[#12161f] border border-[#2a3447] rounded p-5 space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-[#2a3447] pb-3">
               <div>
-                <h2 className="text-xs font-bold text-slate-100 uppercase tracking-wider font-mono flex items-center gap-2">
-                  <Receipt className="w-4 h-4 text-emerald-400" />
+                <h2 className="text-xs font-bold text-slate-900 dark:text-slate-100 uppercase tracking-wider font-mono flex items-center gap-2">
+                  <Receipt className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
                   Kenya Revenue Authority (KRA) Fiscal Output VAT Schedule
                 </h2>
-                <p className="text-[11px] text-slate-400 mt-0.5 font-mono">
+                <p className="text-[11px] text-slate-600 dark:text-slate-400 mt-0.5 font-mono">
                   Standard VAT statutory rate of 16.0% applied to all taxable vended inventory supplies
                 </p>
               </div>
-              <span className="px-2.5 py-1 rounded bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-mono font-bold flex items-center gap-1.5 self-start sm:self-auto">
+              <span className="px-2.5 py-1 rounded bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-300 dark:border-emerald-500/30 text-emerald-700 dark:text-emerald-400 text-xs font-mono font-bold flex items-center gap-1.5 self-start sm:self-auto">
                 <ShieldCheck className="w-3.5 h-3.5" />
                 ETR AUDIT VERIFIED
               </span>
@@ -257,38 +257,38 @@ export function ReportsView() {
 
             {/* Statutory Tripartite Split */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <div className="bg-[#0c0e12] border border-[#222834] rounded p-4 space-y-1">
-                <span className="text-[10px] font-mono text-slate-500 uppercase tracking-wider block font-semibold">
+              <div className="bg-slate-50 dark:bg-[#0c0e12] border border-slate-200 dark:border-[#2a3447] rounded p-4 space-y-1">
+                <span className="text-[10px] font-mono text-slate-600 dark:text-slate-400 uppercase tracking-wider block font-semibold">
                   1. Gross Retail Turnover (VAT Inclusive)
                 </span>
-                <span className="text-xl font-mono font-black text-slate-100 tabular-nums block">
+                <span className="text-xl font-mono font-black text-slate-900 dark:text-slate-100 tabular-nums block">
                   {api.formatKES(grossTurnover)}
                 </span>
-                <span className="text-[10px] text-slate-500 font-mono block mt-1">
+                <span className="text-[10px] text-slate-500 dark:text-slate-400 font-mono block mt-1">
                   Settled across POS registers and courier dispatches
                 </span>
               </div>
 
-              <div className="bg-[#0c0e12] border border-[#222834] rounded p-4 space-y-1">
-                <span className="text-[10px] font-mono text-blue-400 uppercase tracking-wider block font-semibold">
+              <div className="bg-slate-50 dark:bg-[#0c0e12] border border-slate-200 dark:border-[#2a3447] rounded p-4 space-y-1">
+                <span className="text-[10px] font-mono text-blue-700 dark:text-blue-400 uppercase tracking-wider block font-semibold">
                   2. Taxable Sales Base (Net of Tax)
                 </span>
-                <span className="text-xl font-mono font-black text-blue-400 tabular-nums block">
+                <span className="text-xl font-mono font-black text-blue-700 dark:text-blue-400 tabular-nums block">
                   {api.formatKES(taxableBase)}
                 </span>
-                <span className="text-[10px] text-slate-500 font-mono block mt-1">
+                <span className="text-[10px] text-slate-500 dark:text-slate-400 font-mono block mt-1">
                   Calculated as: Turnover ÷ 1.16 Statutory Divisor
                 </span>
               </div>
 
-              <div className="bg-[#0c0e12] border border-[#222834] rounded p-4 space-y-1">
-                <span className="text-[10px] font-mono text-emerald-400 uppercase tracking-wider block font-semibold">
+              <div className="bg-slate-50 dark:bg-[#0c0e12] border border-slate-200 dark:border-[#2a3447] rounded p-4 space-y-1">
+                <span className="text-[10px] font-mono text-emerald-700 dark:text-emerald-400 uppercase tracking-wider block font-semibold">
                   3. Output VAT (16%) Payable to KRA
                 </span>
-                <span className="text-xl font-mono font-black text-emerald-400 tabular-nums block">
+                <span className="text-xl font-mono font-black text-emerald-700 dark:text-emerald-400 tabular-nums block">
                   {api.formatKES(vatCollected)}
                 </span>
-                <span className="text-[10px] text-slate-500 font-mono block mt-1">
+                <span className="text-[10px] text-slate-500 dark:text-slate-400 font-mono block mt-1">
                   Statutory remittance obligation for current period
                 </span>
               </div>
@@ -297,13 +297,13 @@ export function ReportsView() {
 
           {/* Monthly Filing Trend Ledger */}
           {vatReport?.monthly_trend && vatReport.monthly_trend.length > 0 && (
-            <div className="bg-[#12161f] border border-[#222834] rounded overflow-hidden">
-              <div className="p-3 bg-[#0c0e12] border-b border-[#222834] flex items-center justify-between">
-                <h3 className="text-xs font-bold text-slate-200 uppercase tracking-wider font-mono flex items-center gap-2">
-                  <Calendar className="w-3.5 h-3.5 text-blue-400" />
+            <div className="bg-[#12161f] border border-[#2a3447] rounded overflow-hidden">
+              <div className="p-3 bg-slate-100 dark:bg-[#0c0e12] border-b border-[#2a3447] flex items-center justify-between">
+                <h3 className="text-xs font-bold text-slate-900 dark:text-slate-200 uppercase tracking-wider font-mono flex items-center gap-2">
+                  <Calendar className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
                   Monthly Fiscal Filing & Remittance Cadence
                 </h3>
-                <span className="text-[10px] font-mono text-slate-400">
+                <span className="text-[10px] font-mono text-slate-600 dark:text-slate-400">
                   {vatReport.monthly_trend.length} Recorded Fiscal Periods
                 </span>
               </div>
@@ -311,7 +311,7 @@ export function ReportsView() {
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-xs font-mono border-collapse">
                   <thead>
-                    <tr className="border-b border-[#222834] text-[10px] text-slate-400 uppercase tracking-wider bg-[#0c0e12]">
+                    <tr className="border-b border-[#2a3447] text-[10px] text-slate-700 dark:text-slate-400 uppercase tracking-wider bg-slate-100 dark:bg-[#0c0e12]">
                       <th className="p-3">Filing Month</th>
                       <th className="p-3 text-right">Invoices Filed</th>
                       <th className="p-3 text-right">Taxable Turnover (KES)</th>
@@ -320,16 +320,16 @@ export function ReportsView() {
                       <th className="p-3 text-center">Filing Status</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-[#222834]">
+                  <tbody className="divide-y divide-slate-200 dark:divide-[#2a3447]">
                     {vatReport.monthly_trend.map((row, idx) => (
-                      <tr key={idx} className="hover:bg-[#181d28]/40 transition-colors">
-                        <td className="p-3 font-bold text-blue-400">{row.month}</td>
-                        <td className="p-3 text-right text-slate-300 tabular-nums">{row.invoice_count}</td>
-                        <td className="p-3 text-right text-slate-300 tabular-nums">{api.formatKES(row.taxable_sales)}</td>
-                        <td className="p-3 text-right font-bold text-emerald-400 tabular-nums">{api.formatKES(row.output_vat)}</td>
-                        <td className="p-3 text-right text-slate-100 tabular-nums font-semibold">{api.formatKES(row.gross_sales)}</td>
+                      <tr key={idx} className="hover:bg-slate-50 dark:hover:bg-[#181d28]/40 transition-colors">
+                        <td className="p-3 font-bold text-blue-600 dark:text-blue-400">{row.month}</td>
+                        <td className="p-3 text-right text-slate-800 dark:text-slate-300 tabular-nums">{row.invoice_count}</td>
+                        <td className="p-3 text-right text-slate-800 dark:text-slate-300 tabular-nums">{api.formatKES(row.taxable_sales)}</td>
+                        <td className="p-3 text-right font-bold text-emerald-600 dark:text-emerald-400 tabular-nums">{api.formatKES(row.output_vat)}</td>
+                        <td className="p-3 text-right text-slate-900 dark:text-slate-100 tabular-nums font-semibold">{api.formatKES(row.gross_sales)}</td>
                         <td className="p-3 text-center">
-                          <span className="px-2 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-[9px] font-bold uppercase">
+                          <span className="px-2 py-0.5 rounded bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-300 dark:border-emerald-500/30 text-emerald-700 dark:text-emerald-400 text-[9px] font-bold uppercase">
                             DECLARED
                           </span>
                         </td>
@@ -343,10 +343,10 @@ export function ReportsView() {
 
           {/* Regional Hub Tax Contribution */}
           {vatReport?.branch_breakdown && vatReport.branch_breakdown.length > 0 && (
-            <div className="bg-[#12161f] border border-[#222834] rounded overflow-hidden">
-              <div className="p-3 bg-[#0c0e12] border-b border-[#222834] flex items-center justify-between">
-                <h3 className="text-xs font-bold text-slate-200 uppercase tracking-wider font-mono flex items-center gap-2">
-                  <Building2 className="w-3.5 h-3.5 text-indigo-400" />
+            <div className="bg-[#12161f] border border-[#2a3447] rounded overflow-hidden">
+              <div className="p-3 bg-slate-100 dark:bg-[#0c0e12] border-b border-[#2a3447] flex items-center justify-between">
+                <h3 className="text-xs font-bold text-slate-900 dark:text-slate-200 uppercase tracking-wider font-mono flex items-center gap-2">
+                  <Building2 className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
                   Regional Station Tax Contribution Breakdown
                 </h3>
               </div>
@@ -354,7 +354,7 @@ export function ReportsView() {
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-xs font-mono border-collapse">
                   <thead>
-                    <tr className="border-b border-[#222834] text-[10px] text-slate-400 uppercase tracking-wider bg-[#0c0e12]">
+                    <tr className="border-b border-[#2a3447] text-[10px] text-slate-700 dark:text-slate-400 uppercase tracking-wider bg-slate-100 dark:bg-[#0c0e12]">
                       <th className="p-3">Station Code & Name</th>
                       <th className="p-3 text-right">Invoices</th>
                       <th className="p-3 text-right">Gross Sales Turnover (KES)</th>
@@ -362,19 +362,19 @@ export function ReportsView() {
                       <th className="p-3 text-right">Contribution Share</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-[#222834]">
+                  <tbody className="divide-y divide-slate-200 dark:divide-[#2a3447]">
                     {vatReport.branch_breakdown.map((b) => {
                       const share = grossTurnover > 0 ? ((b.gross_sales / grossTurnover) * 100).toFixed(1) : 0;
                       return (
-                        <tr key={b.id} className="hover:bg-[#181d28]/40 transition-colors">
+                        <tr key={b.id} className="hover:bg-slate-50 dark:hover:bg-[#181d28]/40 transition-colors">
                           <td className="p-3">
-                            <span className="font-bold text-slate-200 block">{b.name}</span>
-                            <span className="text-slate-500 text-[10px] font-mono">{b.code || `HUB-0${b.id}`}</span>
+                            <span className="font-bold text-slate-900 dark:text-slate-200 block">{b.name}</span>
+                            <span className="text-slate-500 dark:text-slate-400 text-[10px] font-mono">{b.code || `HUB-0${b.id}`}</span>
                           </td>
-                          <td className="p-3 text-right text-slate-300 tabular-nums">{b.invoice_count}</td>
-                          <td className="p-3 text-right text-slate-100 font-semibold tabular-nums">{api.formatKES(b.gross_sales)}</td>
-                          <td className="p-3 text-right font-bold text-emerald-400 tabular-nums">{api.formatKES(b.output_vat)}</td>
-                          <td className="p-3 text-right text-blue-400 font-bold tabular-nums">{share}%</td>
+                          <td className="p-3 text-right text-slate-800 dark:text-slate-300 tabular-nums">{b.invoice_count}</td>
+                          <td className="p-3 text-right text-slate-900 dark:text-slate-100 font-semibold tabular-nums">{api.formatKES(b.gross_sales)}</td>
+                          <td className="p-3 text-right font-bold text-emerald-600 dark:text-emerald-400 tabular-nums">{api.formatKES(b.output_vat)}</td>
+                          <td className="p-3 text-right text-blue-600 dark:text-blue-400 font-bold tabular-nums">{share}%</td>
                         </tr>
                       );
                     })}
@@ -390,13 +390,13 @@ export function ReportsView() {
       {activeTab === 'pnl' && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 items-start">
           {/* Waterfall Financial Cockpit */}
-          <div className="lg:col-span-2 bg-[#12161f] border border-[#222834] rounded p-5 space-y-4">
-            <div className="border-b border-[#222834] pb-3">
-              <h2 className="text-xs font-bold text-slate-100 uppercase tracking-wider font-mono flex items-center gap-2">
-                <BarChart3 className="w-4 h-4 text-blue-400" />
+          <div className="lg:col-span-2 bg-[#12161f] border border-[#2a3447] rounded p-5 space-y-4">
+            <div className="border-b border-[#2a3447] pb-3">
+              <h2 className="text-xs font-bold text-slate-900 dark:text-slate-100 uppercase tracking-wider font-mono flex items-center gap-2">
+                <BarChart3 className="w-4 h-4 text-blue-600 dark:text-blue-400" />
                 Waterfall Profit & Loss Accounting Strip
               </h2>
-              <p className="text-[11px] text-slate-400 mt-0.5 font-mono">
+              <p className="text-[11px] text-slate-600 dark:text-slate-400 mt-0.5 font-mono">
                 Sequential margin deduction from gross inventory turnover down to EBITDA
               </p>
             </div>
@@ -404,70 +404,70 @@ export function ReportsView() {
             {/* Waterfall Ledger Steps */}
             <div className="space-y-2 text-xs font-mono">
               {/* Gross Revenue */}
-              <div className="p-3.5 rounded bg-[#0c0e12] border border-[#222834] flex items-center justify-between">
+              <div className="p-3.5 rounded bg-slate-50 dark:bg-[#0c0e12] border border-slate-200 dark:border-[#2a3447] flex items-center justify-between">
                 <div>
-                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
+                  <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block">
                     (+) STEP 1: GROSS INVENTORY REVENUE
                   </span>
-                  <span className="font-bold text-slate-200 text-sm">Settled Customer Sales</span>
+                  <span className="font-bold text-slate-800 dark:text-slate-200 text-sm">Settled Customer Sales</span>
                 </div>
-                <span className="text-base font-bold text-emerald-400 tabular-nums">
+                <span className="text-base font-bold text-emerald-700 dark:text-emerald-400 tabular-nums">
                   +{api.formatKES(pnlReport?.gross_revenue || grossTurnover)}
                 </span>
               </div>
 
               {/* COGS */}
-              <div className="p-3.5 rounded bg-[#0c0e12] border border-[#222834] flex items-center justify-between">
+              <div className="p-3.5 rounded bg-slate-50 dark:bg-[#0c0e12] border border-slate-200 dark:border-[#2a3447] flex items-center justify-between">
                 <div>
-                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
+                  <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block">
                     (-) STEP 2: COST OF GOODS SOLD (COGS)
                   </span>
-                  <span className="font-medium text-slate-300">Supplier inventory acquisition cost</span>
+                  <span className="font-medium text-slate-700 dark:text-slate-300">Supplier inventory acquisition cost</span>
                 </div>
-                <span className="text-base font-bold text-rose-400 tabular-nums">
+                <span className="text-base font-bold text-rose-700 dark:text-rose-400 tabular-nums">
                   -{api.formatKES(pnlReport?.cogs || 0)}
                 </span>
               </div>
 
               {/* Gross Operating Profit */}
-              <div className="p-3.5 rounded bg-blue-950/20 border border-blue-900/40 flex items-center justify-between">
+              <div className="p-3.5 rounded bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-900/40 flex items-center justify-between">
                 <div>
-                  <span className="text-[10px] font-bold text-blue-400 uppercase tracking-wider block">
+                  <span className="text-[10px] font-bold text-blue-700 dark:text-blue-400 uppercase tracking-wider block">
                     (=) STEP 3: GROSS OPERATING MARGIN
                   </span>
-                  <span className="font-bold text-blue-200 text-sm">
+                  <span className="font-bold text-blue-900 dark:text-blue-200 text-sm">
                     Trading Margin: {grossMarginPct}%
                   </span>
                 </div>
-                <span className="text-base font-black text-blue-400 tabular-nums">
+                <span className="text-base font-black text-blue-700 dark:text-blue-400 tabular-nums">
                   {api.formatKES(pnlReport?.gross_profit || 0)}
                 </span>
               </div>
 
               {/* Operating Expenses */}
-              <div className="p-3.5 rounded bg-[#0c0e12] border border-[#222834] flex items-center justify-between">
+              <div className="p-3.5 rounded bg-slate-50 dark:bg-[#0c0e12] border border-slate-200 dark:border-[#2a3447] flex items-center justify-between">
                 <div>
-                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
+                  <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block">
                     (-) STEP 4: OPERATING LOGISTICS OVERHEAD
                   </span>
-                  <span className="font-medium text-slate-300">Fuel, maintenance, utilities, staff welfare</span>
+                  <span className="font-medium text-slate-700 dark:text-slate-300">Fuel, maintenance, utilities, staff welfare</span>
                 </div>
-                <span className="text-base font-bold text-rose-400 tabular-nums">
+                <span className="text-base font-bold text-rose-700 dark:text-rose-400 tabular-nums">
                   -{api.formatKES(pnlReport?.total_operating_expenses || 0)}
                 </span>
               </div>
 
               {/* Net Operating Income */}
-              <div className="p-4 rounded bg-emerald-950/25 border border-emerald-500/40 flex items-center justify-between">
+              <div className="p-4 rounded bg-emerald-50 dark:bg-emerald-950/25 border border-emerald-300 dark:border-emerald-500/40 flex items-center justify-between">
                 <div>
-                  <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-wider block">
+                  <span className="text-[10px] font-bold text-emerald-800 dark:text-emerald-400 uppercase tracking-wider block">
                     (=) FINAL SETTLEMENT: NET OPERATING INCOME (EBITDA)
                   </span>
-                  <span className="font-bold text-white text-sm">
+                  <span className="font-bold text-slate-900 dark:text-white text-sm">
                     Net Margin: {netMarginPct}% of gross turnover
                   </span>
                 </div>
-                <span className="text-xl font-black text-emerald-400 tabular-nums">
+                <span className="text-xl font-black text-emerald-700 dark:text-emerald-400 tabular-nums">
                   {api.formatKES(pnlReport?.net_income || 0)}
                 </span>
               </div>
@@ -475,13 +475,13 @@ export function ReportsView() {
           </div>
 
           {/* Operating Overhead Breakdown */}
-          <div className="bg-[#12161f] border border-[#222834] rounded p-5 space-y-4">
-            <div className="border-b border-[#222834] pb-3">
-              <h2 className="text-xs font-bold text-slate-100 uppercase tracking-wider font-mono flex items-center gap-2">
-                <PieChart className="w-4 h-4 text-indigo-400" />
+          <div className="bg-[#12161f] border border-[#2a3447] rounded p-5 space-y-4">
+            <div className="border-b border-[#2a3447] pb-3">
+              <h2 className="text-xs font-bold text-slate-900 dark:text-slate-100 uppercase tracking-wider font-mono flex items-center gap-2">
+                <PieChart className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
                 Overhead Category Distribution
               </h2>
-              <p className="text-[11px] text-slate-400 mt-0.5 font-mono">
+              <p className="text-[11px] text-slate-600 dark:text-slate-400 mt-0.5 font-mono">
                 Logistics expenditure allocation by operational area
               </p>
             </div>
@@ -496,18 +496,18 @@ export function ReportsView() {
                     : 0;
 
                   return (
-                    <div key={idx} className="bg-[#0c0e12] border border-[#222834] rounded p-3 space-y-1.5">
+                    <div key={idx} className="bg-slate-50 dark:bg-[#0c0e12] border border-slate-200 dark:border-[#2a3447] rounded p-3 space-y-1.5">
                       <div className="flex justify-between items-center">
-                        <span className="font-bold text-slate-200">{cat.category}</span>
-                        <span className="font-bold text-rose-400 tabular-nums">
+                        <span className="font-bold text-slate-900 dark:text-slate-200">{cat.category}</span>
+                        <span className="font-bold text-rose-700 dark:text-rose-400 tabular-nums">
                           -{api.formatKES(cat.total)}
                         </span>
                       </div>
-                      <div className="flex items-center gap-2 text-[10px] text-slate-400">
-                        <div className="flex-1 bg-[#181d28] rounded h-1.5 overflow-hidden border border-[#222834]">
+                      <div className="flex items-center gap-2 text-[10px] text-slate-500 dark:text-slate-400">
+                        <div className="flex-1 bg-slate-200 dark:bg-[#181d28] rounded h-1.5 overflow-hidden border border-slate-300 dark:border-[#2a3447]">
                           <div className="h-full bg-indigo-500 rounded" style={{ width: `${share}%` }} />
                         </div>
-                        <span className="tabular-nums font-bold text-indigo-300">{share}%</span>
+                        <span className="tabular-nums font-bold text-indigo-700 dark:text-indigo-300">{share}%</span>
                       </div>
                     </div>
                   );
@@ -521,19 +521,19 @@ export function ReportsView() {
       {/* 5. TAB 3: PAYMENT CHANNELS MATRIX */}
       {activeTab === 'payments' && (
         <div className="space-y-4">
-          <div className="bg-[#12161f] border border-[#222834] rounded p-5 space-y-4">
-            <div className="border-b border-[#222834] pb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <div className="bg-[#12161f] border border-[#2a3447] rounded p-5 space-y-4">
+            <div className="border-b border-[#2a3447] pb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
               <div>
-                <h2 className="text-xs font-bold text-slate-100 uppercase tracking-wider font-mono flex items-center gap-2">
-                  <CreditCard className="w-4 h-4 text-blue-400" />
+                <h2 className="text-xs font-bold text-slate-900 dark:text-slate-100 uppercase tracking-wider font-mono flex items-center gap-2">
+                  <CreditCard className="w-4 h-4 text-blue-600 dark:text-blue-400" />
                   Settlement Channel Velocity & Penetration Matrix
                 </h2>
-                <p className="text-[11px] text-slate-400 mt-0.5 font-mono">
+                <p className="text-[11px] text-slate-600 dark:text-slate-400 mt-0.5 font-mono">
                   Analysis of consumer tender preferences across M-Pesa, Cash register, and Cards
                 </p>
               </div>
-              <span className="text-xs font-mono text-slate-400">
-                Total Volume: <strong className="text-emerald-400 tabular-nums">{api.formatKES(totalPaymentVol)}</strong>
+              <span className="text-xs font-mono text-slate-600 dark:text-slate-400">
+                Total Volume: <strong className="text-emerald-700 dark:text-emerald-400 tabular-nums">{api.formatKES(totalPaymentVol)}</strong>
               </span>
             </div>
 
@@ -547,24 +547,24 @@ export function ReportsView() {
                 const pct = totalPaymentVol > 0 ? Math.round((vol / totalPaymentVol) * 100) : 0;
 
                 return (
-                  <div className="bg-[#0c0e12] border border-[#222834] rounded p-4 space-y-2">
+                  <div className="bg-slate-50 dark:bg-[#0c0e12] border border-slate-200 dark:border-[#2a3447] rounded p-4 space-y-2">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
-                        <Smartphone className="w-4 h-4 text-green-400" />
-                        <span className="text-xs font-bold text-green-400 uppercase font-mono">Safaricom M-Pesa</span>
+                        <Smartphone className="w-4 h-4 text-emerald-600 dark:text-green-400" />
+                        <span className="text-xs font-bold text-emerald-700 dark:text-green-400 uppercase font-mono">Safaricom M-Pesa</span>
                       </div>
-                      <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-green-500/10 text-green-400 border border-green-500/30">
+                      <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-emerald-50 dark:bg-green-500/10 text-emerald-800 dark:text-green-400 border border-emerald-300 dark:border-green-500/30">
                         {pct}% SHARE
                       </span>
                     </div>
 
-                    <div className="text-2xl font-mono font-black text-slate-100 tabular-nums mt-1">
+                    <div className="text-2xl font-mono font-black text-slate-900 dark:text-slate-100 tabular-nums mt-1">
                       {api.formatKES(vol)}
                     </div>
 
-                    <div className="pt-2 border-t border-[#222834] flex justify-between text-[10px] font-mono text-slate-400">
-                      <span>Transactions: <strong className="text-slate-200">{cnt}</strong></span>
-                      <span>Avg Ticket: <strong className="text-slate-200">{api.formatKES(cnt > 0 ? vol / cnt : 0)}</strong></span>
+                    <div className="pt-2 border-t border-slate-200 dark:border-[#2a3447] flex justify-between text-[10px] font-mono text-slate-600 dark:text-slate-400">
+                      <span>Transactions: <strong className="text-slate-800 dark:text-slate-200">{cnt}</strong></span>
+                      <span>Avg Ticket: <strong className="text-slate-800 dark:text-slate-200">{api.formatKES(cnt > 0 ? vol / cnt : 0)}</strong></span>
                     </div>
                   </div>
                 );
@@ -578,24 +578,24 @@ export function ReportsView() {
                 const pct = totalPaymentVol > 0 ? Math.round((vol / totalPaymentVol) * 100) : 0;
 
                 return (
-                  <div className="bg-[#0c0e12] border border-[#222834] rounded p-4 space-y-2">
+                  <div className="bg-slate-50 dark:bg-[#0c0e12] border border-slate-200 dark:border-[#2a3447] rounded p-4 space-y-2">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
-                        <Banknote className="w-4 h-4 text-blue-400" />
-                        <span className="text-xs font-bold text-blue-400 uppercase font-mono">Cash at Till</span>
+                        <Banknote className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                        <span className="text-xs font-bold text-blue-700 dark:text-blue-400 uppercase font-mono">Cash at Till</span>
                       </div>
-                      <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-blue-500/10 text-blue-400 border border-blue-500/30">
+                      <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-blue-50 dark:bg-blue-500/10 text-blue-700 dark:text-blue-400 border border-blue-300 dark:border-blue-500/30">
                         {pct}% SHARE
                       </span>
                     </div>
 
-                    <div className="text-2xl font-mono font-black text-slate-100 tabular-nums mt-1">
+                    <div className="text-2xl font-mono font-black text-slate-900 dark:text-slate-100 tabular-nums mt-1">
                       {api.formatKES(vol)}
                     </div>
 
-                    <div className="pt-2 border-t border-[#222834] flex justify-between text-[10px] font-mono text-slate-400">
-                      <span>Transactions: <strong className="text-slate-200">{cnt}</strong></span>
-                      <span>Avg Ticket: <strong className="text-slate-200">{api.formatKES(cnt > 0 ? vol / cnt : 0)}</strong></span>
+                    <div className="pt-2 border-t border-slate-200 dark:border-[#2a3447] flex justify-between text-[10px] font-mono text-slate-600 dark:text-slate-400">
+                      <span>Transactions: <strong className="text-slate-800 dark:text-slate-200">{cnt}</strong></span>
+                      <span>Avg Ticket: <strong className="text-slate-800 dark:text-slate-200">{api.formatKES(cnt > 0 ? vol / cnt : 0)}</strong></span>
                     </div>
                   </div>
                 );
@@ -609,24 +609,24 @@ export function ReportsView() {
                 const pct = totalPaymentVol > 0 ? Math.round((vol / totalPaymentVol) * 100) : 0;
 
                 return (
-                  <div className="bg-[#0c0e12] border border-[#222834] rounded p-4 space-y-2">
+                  <div className="bg-slate-50 dark:bg-[#0c0e12] border border-slate-200 dark:border-[#2a3447] rounded p-4 space-y-2">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
-                        <CreditCard className="w-4 h-4 text-indigo-400" />
-                        <span className="text-xs font-bold text-indigo-400 uppercase font-mono">Visa / Mastercard</span>
+                        <CreditCard className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+                        <span className="text-xs font-bold text-indigo-700 dark:text-indigo-400 uppercase font-mono">Visa / Mastercard</span>
                       </div>
-                      <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-indigo-500/10 text-indigo-400 border border-indigo-500/30">
+                      <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-indigo-50 dark:bg-indigo-500/10 text-indigo-700 dark:text-indigo-400 border border-indigo-300 dark:border-indigo-500/30">
                         {pct}% SHARE
                       </span>
                     </div>
 
-                    <div className="text-2xl font-mono font-black text-slate-100 tabular-nums mt-1">
+                    <div className="text-2xl font-mono font-black text-slate-900 dark:text-slate-100 tabular-nums mt-1">
                       {api.formatKES(vol)}
                     </div>
 
-                    <div className="pt-2 border-t border-[#222834] flex justify-between text-[10px] font-mono text-slate-400">
-                      <span>Transactions: <strong className="text-slate-200">{cnt}</strong></span>
-                      <span>Avg Ticket: <strong className="text-slate-200">{api.formatKES(cnt > 0 ? vol / cnt : 0)}</strong></span>
+                    <div className="pt-2 border-t border-slate-200 dark:border-[#2a3447] flex justify-between text-[10px] font-mono text-slate-600 dark:text-slate-400">
+                      <span>Transactions: <strong className="text-slate-800 dark:text-slate-200">{cnt}</strong></span>
+                      <span>Avg Ticket: <strong className="text-slate-800 dark:text-slate-200">{api.formatKES(cnt > 0 ? vol / cnt : 0)}</strong></span>
                     </div>
                   </div>
                 );

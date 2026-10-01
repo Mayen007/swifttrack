@@ -432,12 +432,12 @@ export function VehiclesView() {
   const renderStatusBadge = (status) => {
     const opt = VEHICLE_STATUS_OPTIONS.find(o => o.key === status) || { label: status, color: 'slate' };
     const colorClasses = {
-      emerald: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30',
-      blue: 'bg-blue-500/10 text-blue-400 border-blue-500/30',
-      amber: 'bg-amber-500/10 text-amber-400 border-amber-500/30',
-      rose: 'bg-rose-500/10 text-rose-400 border-rose-500/30',
-      cyan: 'bg-cyan-500/10 text-cyan-400 border-cyan-500/30',
-      slate: 'bg-slate-500/10 text-slate-400 border-slate-500/30'
+      emerald: 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-300 dark:border-emerald-500/30',
+      blue: 'bg-blue-50 dark:bg-blue-500/10 text-blue-700 dark:text-blue-400 border-blue-300 dark:border-blue-500/30',
+      amber: 'bg-amber-50 dark:bg-amber-500/10 text-amber-800 dark:text-amber-400 border-amber-300 dark:border-amber-500/30',
+      rose: 'bg-rose-50 dark:bg-rose-500/10 text-rose-700 dark:text-rose-400 border-rose-300 dark:border-rose-500/30',
+      cyan: 'bg-cyan-50 dark:bg-cyan-500/10 text-cyan-800 dark:text-cyan-400 border-cyan-300 dark:border-cyan-500/30',
+      slate: 'bg-slate-100 dark:bg-slate-500/10 text-slate-700 dark:text-slate-400 border-slate-300 dark:border-slate-500/30'
     }[opt.color];
 
     return (
@@ -451,18 +451,18 @@ export function VehiclesView() {
   const renderVehicleTypeIcon = (type) => {
     switch (type) {
       case 'MOTORCYCLE':
-        return <Bike className="w-5 h-5 text-amber-400" />;
+        return <Bike className="w-5 h-5 text-amber-600 dark:text-amber-400" />;
       case 'VAN':
-        return <Car className="w-5 h-5 text-blue-400" />;
+        return <Car className="w-5 h-5 text-blue-600 dark:text-blue-400" />;
       case 'PICKUP':
-        return <Truck className="w-5 h-5 text-emerald-400" />;
+        return <Truck className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />;
       case 'LORRY':
       case 'TRUCK':
-        return <Truck className="w-5 h-5 text-cyan-400" />;
+        return <Truck className="w-5 h-5 text-cyan-600 dark:text-cyan-400" />;
       case 'TUKTUK':
-        return <Bike className="w-5 h-5 text-orange-400" />;
+        return <Bike className="w-5 h-5 text-orange-600 dark:text-orange-400" />;
       default:
-        return <Truck className="w-5 h-5 text-gray-400" />;
+        return <Truck className="w-5 h-5 text-slate-600 dark:text-slate-400" />;
     }
   };
 
@@ -552,109 +552,109 @@ export function VehiclesView() {
         </div>
 
         {/* Tier 2: Responsive Bento Telemetry Tiles */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-3 pt-3.5 border-t border-slate-800/80">
+        <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-3 pt-3.5 border-t border-[#2a3447]">
           {/* Total Fleet */}
-          <div className="bg-slate-950/40 hover:bg-slate-950/60 rounded-xl p-3 sm:p-3.5 border border-slate-800/80 shadow-sm transition-all group">
-            <div className="flex items-center justify-between text-slate-400 mb-1.5">
+          <div className="bg-slate-950/40 hover:bg-slate-950/60 rounded-xl p-3 sm:p-3.5 border border-[#2a3447] shadow-sm transition-all group">
+            <div className="flex items-center justify-between text-slate-500 dark:text-slate-400 mb-1.5">
               <span className="text-[11px] font-semibold uppercase tracking-wider">Total Fleet</span>
-              <div className="w-7 h-7 rounded-lg bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400">
+              <div className="w-7 h-7 rounded-lg bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-600 dark:text-blue-400">
                 <Truck className="w-3.5 h-3.5" />
               </div>
             </div>
-            <div className="text-xl sm:text-2xl font-bold text-white font-mono">
+            <div className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white font-mono">
               {telemetry?.total_vehicles ?? vehicles.length}
             </div>
-            <div className="text-[11px] text-slate-400 mt-1 truncate">
+            <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 truncate">
               {telemetry?.total_payload_capacity_kg ? `${telemetry.total_payload_capacity_kg.toLocaleString()} kg` : 'Payload capacity'}
             </div>
           </div>
 
           {/* Available */}
-          <div className="bg-slate-950/40 hover:bg-slate-950/60 rounded-xl p-3 sm:p-3.5 border border-slate-800/80 shadow-sm transition-all group">
-            <div className="flex items-center justify-between text-slate-400 mb-1.5">
+          <div className="bg-slate-950/40 hover:bg-slate-950/60 rounded-xl p-3 sm:p-3.5 border border-[#2a3447] shadow-sm transition-all group">
+            <div className="flex items-center justify-between text-slate-500 dark:text-slate-400 mb-1.5">
               <span className="text-[11px] font-semibold uppercase tracking-wider">Available</span>
-              <div className="w-7 h-7 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
+              <div className="w-7 h-7 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-600 dark:text-emerald-400">
                 <CheckCircle2 className="w-3.5 h-3.5" />
               </div>
             </div>
-            <div className="text-xl sm:text-2xl font-bold text-emerald-400 font-mono">
+            <div className="text-xl sm:text-2xl font-bold text-emerald-600 dark:text-emerald-400 font-mono">
               {telemetry?.available_vehicles ?? vehicles.filter(v => v.status === 'AVAILABLE').length}
             </div>
-            <div className="text-[11px] text-slate-400 mt-1">Ready for dispatch</div>
+            <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">Ready for dispatch</div>
           </div>
 
           {/* In Transit */}
-          <div className="bg-slate-950/40 hover:bg-slate-950/60 rounded-xl p-3 sm:p-3.5 border border-slate-800/80 shadow-sm transition-all group">
-            <div className="flex items-center justify-between text-slate-400 mb-1.5">
+          <div className="bg-slate-950/40 hover:bg-slate-950/60 rounded-xl p-3 sm:p-3.5 border border-[#2a3447] shadow-sm transition-all group">
+            <div className="flex items-center justify-between text-slate-500 dark:text-slate-400 mb-1.5">
               <span className="text-[11px] font-semibold uppercase tracking-wider">In Transit</span>
-              <div className="w-7 h-7 rounded-lg bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400">
+              <div className="w-7 h-7 rounded-lg bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-600 dark:text-blue-400">
                 <Activity className="w-3.5 h-3.5" />
               </div>
             </div>
-            <div className="text-xl sm:text-2xl font-bold text-blue-400 font-mono">
+            <div className="text-xl sm:text-2xl font-bold text-blue-600 dark:text-blue-400 font-mono">
               {telemetry?.in_transit_vehicles ?? vehicles.filter(v => v.status === 'IN_TRANSIT').length}
             </div>
-            <div className="text-[11px] text-slate-400 mt-1">Active on delivery runs</div>
+            <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">Active on delivery runs</div>
           </div>
 
           {/* Under Maintenance */}
-          <div className="bg-slate-950/40 hover:bg-slate-950/60 rounded-xl p-3 sm:p-3.5 border border-slate-800/80 shadow-sm transition-all group">
-            <div className="flex items-center justify-between text-slate-400 mb-1.5">
+          <div className="bg-slate-950/40 hover:bg-slate-950/60 rounded-xl p-3 sm:p-3.5 border border-[#2a3447] shadow-sm transition-all group">
+            <div className="flex items-center justify-between text-slate-500 dark:text-slate-400 mb-1.5">
               <span className="text-[11px] font-semibold uppercase tracking-wider">Maintenance</span>
-              <div className="w-7 h-7 rounded-lg bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400">
+              <div className="w-7 h-7 rounded-lg bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-600 dark:text-amber-400">
                 <Wrench className="w-3.5 h-3.5" />
               </div>
             </div>
-            <div className="text-xl sm:text-2xl font-bold text-amber-400 font-mono">
+            <div className="text-xl sm:text-2xl font-bold text-amber-600 dark:text-amber-400 font-mono">
               {telemetry?.maintenance_vehicles ?? vehicles.filter(v => v.status === 'UNDER_MAINTENANCE').length}
             </div>
-            <div className="text-[11px] text-slate-400 mt-1">In workshop & repairs</div>
+            <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">In workshop & repairs</div>
           </div>
 
           {/* Total Odometer */}
-          <div className="bg-slate-950/40 hover:bg-slate-950/60 rounded-xl p-3 sm:p-3.5 border border-slate-800/80 shadow-sm transition-all group">
-            <div className="flex items-center justify-between text-slate-400 mb-1.5">
+          <div className="bg-slate-950/40 hover:bg-slate-950/60 rounded-xl p-3 sm:p-3.5 border border-[#2a3447] shadow-sm transition-all group">
+            <div className="flex items-center justify-between text-slate-500 dark:text-slate-400 mb-1.5">
               <span className="text-[11px] font-semibold uppercase tracking-wider">Total Odometer</span>
-              <div className="w-7 h-7 rounded-lg bg-sky-500/10 border border-sky-500/20 flex items-center justify-center text-sky-400">
+              <div className="w-7 h-7 rounded-lg bg-sky-500/10 border border-sky-500/20 flex items-center justify-center text-sky-600 dark:text-sky-400">
                 <Gauge className="w-3.5 h-3.5" />
               </div>
             </div>
-            <div className="text-xl sm:text-2xl font-bold text-white font-mono truncate">
+            <div className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white font-mono truncate">
               {telemetry?.total_fleet_distance_km ? `${Number(telemetry.total_fleet_distance_km).toLocaleString()} km` : '0 km'}
             </div>
-            <div className="text-[11px] text-slate-400 mt-1">Fleet logged distance</div>
+            <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">Fleet logged distance</div>
           </div>
 
           {/* Fuel Economy & Spend */}
-          <div className="bg-slate-950/40 hover:bg-slate-950/60 rounded-xl p-3 sm:p-3.5 border border-slate-800/80 shadow-sm transition-all group">
-            <div className="flex items-center justify-between text-slate-400 mb-1.5">
+          <div className="bg-slate-950/40 hover:bg-slate-950/60 rounded-xl p-3 sm:p-3.5 border border-[#2a3447] shadow-sm transition-all group">
+            <div className="flex items-center justify-between text-slate-500 dark:text-slate-400 mb-1.5">
               <span className="text-[11px] font-semibold uppercase tracking-wider">Fuel Spend</span>
-              <div className="w-7 h-7 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
+              <div className="w-7 h-7 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-600 dark:text-emerald-400">
                 <Fuel className="w-3.5 h-3.5" />
               </div>
             </div>
-            <div className="text-xl sm:text-2xl font-bold text-emerald-400 font-mono truncate">
+            <div className="text-xl sm:text-2xl font-bold text-emerald-600 dark:text-emerald-400 font-mono truncate">
               KES {telemetry?.monthly_fuel_spend ? Number(telemetry.monthly_fuel_spend).toLocaleString() : '0'}
             </div>
-            <div className="text-[11px] text-slate-400 mt-1 truncate">
+            <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 truncate">
               Avg {telemetry?.fleet_avg_consumption_kml || '8.5'} km/L
             </div>
           </div>
         </div>
 
         {/* Tier 3: Filter Pills Bento Strip */}
-        <div className="pt-3 border-t border-slate-800/80 flex flex-wrap items-center justify-between gap-3 text-xs">
+        <div className="pt-3 border-t border-[#2a3447] flex flex-wrap items-center justify-between gap-3 text-xs">
           {/* Status Pills */}
           <div className="flex flex-wrap items-center gap-1.5">
-            <span className="text-slate-400 font-medium mr-1 flex items-center gap-1">
+            <span className="text-slate-700 dark:text-slate-400 font-bold uppercase tracking-wider text-[11px] mr-1 flex items-center gap-1">
               <Filter className="w-3.5 h-3.5" /> Status:
             </span>
             <button
               onClick={() => setStatusFilter('ALL')}
-              className={`px-2.5 py-1 rounded-lg font-medium transition-all cursor-pointer ${
+              className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer border ${
                 statusFilter === 'ALL'
-                  ? 'bg-blue-600 text-white shadow-sm'
-                  : 'bg-slate-800/80 text-slate-400 hover:text-white'
+                  ? 'bg-blue-600 text-white border-blue-600 shadow-xs font-bold'
+                  : 'bg-slate-100 dark:bg-slate-800/80 text-slate-700 dark:text-slate-300 border-slate-300 dark:border-[#2a3447] hover:bg-slate-200 dark:hover:bg-slate-700/60'
               }`}
             >
               All ({vehicles.length})
@@ -663,10 +663,10 @@ export function VehiclesView() {
               <button
                 key={opt.key}
                 onClick={() => setStatusFilter(opt.key)}
-                className={`px-2.5 py-1 rounded-lg font-medium transition-all cursor-pointer ${
+                className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer border ${
                   statusFilter === opt.key
-                    ? 'bg-blue-600 text-white shadow-sm'
-                    : 'bg-slate-800/80 text-slate-400 hover:text-white'
+                    ? 'bg-blue-600 text-white border-blue-600 shadow-xs font-bold'
+                    : 'bg-slate-100 dark:bg-slate-800/80 text-slate-700 dark:text-slate-300 border-slate-300 dark:border-[#2a3447] hover:bg-slate-200 dark:hover:bg-slate-700/60'
                 }`}
               >
                 {opt.label}
@@ -676,13 +676,13 @@ export function VehiclesView() {
 
           {/* Vehicle Type Pills */}
           <div className="flex flex-wrap items-center gap-1.5">
-            <span className="text-slate-400 font-medium mr-1">Type:</span>
+            <span className="text-slate-700 dark:text-slate-400 font-bold uppercase tracking-wider text-[11px] mr-1">Type:</span>
             <button
               onClick={() => setTypeFilter('ALL')}
-              className={`px-2.5 py-1 rounded-lg font-medium transition-all cursor-pointer ${
+              className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer border ${
                 typeFilter === 'ALL'
-                  ? 'bg-indigo-600 text-white shadow-sm'
-                  : 'bg-slate-800/80 text-slate-400 hover:text-white'
+                  ? 'bg-blue-600 text-white border-blue-600 shadow-xs font-bold'
+                  : 'bg-slate-100 dark:bg-slate-800/80 text-slate-700 dark:text-slate-300 border-slate-300 dark:border-[#2a3447] hover:bg-slate-200 dark:hover:bg-slate-700/60'
               }`}
             >
               All Types
@@ -691,10 +691,10 @@ export function VehiclesView() {
               <button
                 key={opt.key}
                 onClick={() => setTypeFilter(opt.key)}
-                className={`px-2.5 py-1 rounded-lg font-medium transition-all cursor-pointer ${
+                className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer border ${
                   typeFilter === opt.key
-                    ? 'bg-indigo-600 text-white shadow-sm'
-                    : 'bg-slate-800/80 text-slate-400 hover:text-white'
+                    ? 'bg-blue-600 text-white border-blue-600 shadow-xs font-bold'
+                    : 'bg-slate-100 dark:bg-slate-800/80 text-slate-700 dark:text-slate-300 border-slate-300 dark:border-[#2a3447] hover:bg-slate-200 dark:hover:bg-slate-700/60'
                 }`}
               >
                 {opt.label}
@@ -728,7 +728,7 @@ export function VehiclesView() {
             return (
               <div
                 key={veh.id}
-                className="bg-slate-900/60 backdrop-blur-md rounded-2xl p-4 sm:p-5 border border-slate-800/80 hover:border-slate-700/80 transition-all shadow-sm flex flex-col justify-between group relative overflow-hidden"
+                className="bg-slate-900/60 backdrop-blur-md rounded-2xl p-4 sm:p-5 border border-[#2a3447] hover:border-blue-500/50 transition-all shadow-sm flex flex-col justify-between group relative overflow-hidden"
               >
                 {/* Top Badge Row */}
                 <div>
@@ -739,7 +739,7 @@ export function VehiclesView() {
                         <span className="w-1.5 h-3 bg-black/40 rounded-xs" />
                         {veh.registration_number}
                       </div>
-                      <div className="p-1.5 bg-slate-800/80 rounded-lg text-slate-300 shrink-0" title={veh.vehicle_type}>
+                      <div className="p-1.5 bg-slate-100 dark:bg-slate-800/80 rounded-lg text-slate-700 dark:text-slate-300 shrink-0 border border-slate-300 dark:border-[#2a3447]" title={veh.vehicle_type}>
                         {renderVehicleTypeIcon(veh.vehicle_type)}
                       </div>
                     </div>
@@ -752,65 +752,65 @@ export function VehiclesView() {
 
                   {/* Make, Model, Year & Branch */}
                   <div className="mb-3.5">
-                    <h3 className="text-base font-bold text-white group-hover:text-blue-400 transition-colors truncate">
+                    <h3 className="text-base font-bold text-slate-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors truncate">
                       {veh.make || 'Toyota'} {veh.model || ''} {veh.year_of_manufacture ? `(${veh.year_of_manufacture})` : ''}
                     </h3>
-                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-400 mt-1">
+                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-600 dark:text-slate-400 mt-1">
                       <div className="flex items-center gap-1">
                         <MapPin className="w-3.5 h-3.5 text-slate-500 shrink-0" />
                         <span>{veh.branch_name} Depot</span>
                       </div>
-                      <span className="text-slate-600 hidden sm:inline">•</span>
+                      <span className="text-slate-400 dark:text-slate-600 hidden sm:inline">•</span>
                       <span className="capitalize">{veh.fuel_type?.toLowerCase() || 'diesel'}</span>
-                      <span className="text-slate-600 hidden sm:inline">•</span>
+                      <span className="text-slate-400 dark:text-slate-600 hidden sm:inline">•</span>
                       <span className="capitalize">{veh.ownership_type?.replace(/_/g, ' ')?.toLowerCase()}</span>
                     </div>
                   </div>
 
                   {/* Specs & Capacity Grid */}
-                  <div className="grid grid-cols-2 gap-2.5 p-3 bg-slate-950/60 rounded-xl border border-slate-800/60 text-xs mb-3.5">
+                  <div className="grid grid-cols-2 gap-2.5 p-3 bg-slate-50 dark:bg-slate-950/60 rounded-xl border border-slate-200 dark:border-[#2a3447] text-xs mb-3.5">
                     <div className="min-w-0">
-                      <span className="text-slate-400 block text-[11px]">Payload Capacity</span>
-                      <span className="font-semibold text-slate-200 block truncate">
+                      <span className="text-slate-600 dark:text-slate-400 block text-[11px]">Payload Capacity</span>
+                      <span className="font-semibold text-slate-800 dark:text-slate-200 block truncate">
                         {veh.capacity_kg ? `${Number(veh.capacity_kg).toLocaleString()} kg` : 'N/A'}
                       </span>
                     </div>
                     <div className="min-w-0">
-                      <span className="text-slate-400 block text-[11px]">Cargo Volume</span>
-                      <span className="font-semibold text-slate-200 block truncate">
+                      <span className="text-slate-600 dark:text-slate-400 block text-[11px]">Cargo Volume</span>
+                      <span className="font-semibold text-slate-800 dark:text-slate-200 block truncate">
                         {veh.cargo_volume_cbm ? `${veh.cargo_volume_cbm} m³` : 'N/A'}
                       </span>
                     </div>
                     <div className="min-w-0">
-                      <span className="text-slate-400 block text-[11px]">Current Odometer</span>
-                      <span className="font-semibold text-slate-200 flex items-center gap-1 truncate">
-                        <Gauge className="w-3.5 h-3.5 text-sky-400 shrink-0" />
+                      <span className="text-slate-600 dark:text-slate-400 block text-[11px]">Current Odometer</span>
+                      <span className="font-semibold text-slate-800 dark:text-slate-200 flex items-center gap-1 truncate">
+                        <Gauge className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400 shrink-0" />
                         <span className="truncate">{currentOdo.toLocaleString()} km</span>
                       </span>
                     </div>
                     <div className="min-w-0">
-                      <span className="text-slate-400 block text-[11px]">Active Deliveries</span>
-                      <span className="font-semibold text-blue-400 block truncate">
+                      <span className="text-slate-600 dark:text-slate-400 block text-[11px]">Active Deliveries</span>
+                      <span className="font-semibold text-blue-600 dark:text-blue-400 block truncate">
                         {veh.active_deliveries_count || 0} active runs
                       </span>
                     </div>
                   </div>
 
                   {/* Assigned Driver Chip */}
-                  <div className="flex items-center justify-between gap-2 p-2.5 rounded-xl bg-slate-800/40 border border-slate-800/60 mb-3.5 text-xs min-w-0">
+                  <div className="flex items-center justify-between gap-2 p-2.5 rounded-xl bg-slate-100 dark:bg-slate-800/40 border border-slate-200 dark:border-[#2a3447] mb-3.5 text-xs min-w-0">
                     <div className="flex items-center gap-2 min-w-0">
-                      <div className="w-7 h-7 rounded-full bg-blue-500/20 text-blue-400 flex items-center justify-center font-bold text-xs shrink-0">
+                      <div className="w-7 h-7 rounded-full bg-blue-500/20 text-blue-600 dark:text-blue-400 flex items-center justify-center font-bold text-xs shrink-0">
                         <User className="w-3.5 h-3.5" />
                       </div>
                       <div className="min-w-0">
-                        <span className="text-[10px] text-slate-400 block leading-none">Designated Driver</span>
-                        <span className="font-medium text-slate-200 block truncate">
+                        <span className="text-[10px] text-slate-600 dark:text-slate-400 block leading-none">Designated Driver</span>
+                        <span className="font-medium text-slate-800 dark:text-slate-200 block truncate">
                           {veh.driver_name ? veh.driver_name : 'No Driver Assigned'}
                         </span>
                       </div>
                     </div>
                     {veh.driver_phone && (
-                      <span className="text-[11px] text-slate-400 font-mono shrink-0">
+                      <span className="text-[11px] text-slate-600 dark:text-slate-400 font-mono shrink-0">
                         {veh.driver_phone}
                       </span>
                     )}
@@ -818,7 +818,7 @@ export function VehiclesView() {
 
                   {/* Service Target Alert */}
                   {isDue && (
-                    <div className="flex items-start gap-2 p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-400 text-xs mb-3.5">
+                    <div className="flex items-start gap-2 p-2.5 rounded-xl bg-amber-50 dark:bg-amber-500/10 border border-amber-300 dark:border-amber-500/30 text-amber-800 dark:text-amber-400 text-xs mb-3.5">
                       <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
                       <span className="font-medium leading-tight">
                         Service Due in {veh.km_until_service} km (Target: {nextOdo.toLocaleString()} km)
@@ -828,7 +828,7 @@ export function VehiclesView() {
                 </div>
 
                 {/* Card Actions Bento Footer */}
-                <div className="pt-3 border-t border-slate-800/80 space-y-2">
+                <div className="pt-3 border-t border-slate-200 dark:border-[#2a3447] space-y-2">
                   {/* Row 1: Operational Logging Action Grid */}
                   <div className="grid grid-cols-3 gap-2">
                     <button
@@ -836,7 +836,7 @@ export function VehiclesView() {
                         sound.playClick();
                         openRefuelModal(veh);
                       }}
-                      className="py-1.5 px-2 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 font-medium transition-all flex items-center justify-center gap-1.5 text-xs cursor-pointer"
+                      className="py-1.5 px-2 rounded-lg bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-500/10 dark:hover:bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 border border-emerald-300 dark:border-emerald-500/30 font-semibold transition-all flex items-center justify-center gap-1.5 text-xs cursor-pointer"
                       title="Log Fuel Receipt"
                     >
                       <Fuel className="w-3.5 h-3.5 shrink-0" />
@@ -848,7 +848,7 @@ export function VehiclesView() {
                         sound.playClick();
                         openMaintenanceModal(veh);
                       }}
-                      className="py-1.5 px-2 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/30 font-medium transition-all flex items-center justify-center gap-1.5 text-xs cursor-pointer"
+                      className="py-1.5 px-2 rounded-lg bg-amber-50 hover:bg-amber-100 dark:bg-amber-500/10 dark:hover:bg-amber-500/20 text-amber-800 dark:text-amber-400 border border-amber-300 dark:border-amber-500/30 font-semibold transition-all flex items-center justify-center gap-1.5 text-xs cursor-pointer"
                       title="Log / Schedule Maintenance"
                     >
                       <Wrench className="w-3.5 h-3.5 shrink-0" />
@@ -860,7 +860,7 @@ export function VehiclesView() {
                         sound.playClick();
                         openMileageModal(veh);
                       }}
-                      className="py-1.5 px-2 rounded-lg bg-sky-500/10 hover:bg-sky-500/20 text-sky-400 border border-sky-500/30 font-medium transition-all flex items-center justify-center gap-1.5 text-xs cursor-pointer"
+                      className="py-1.5 px-2 rounded-lg bg-sky-50 hover:bg-sky-100 dark:bg-sky-500/10 dark:hover:bg-sky-500/20 text-sky-800 dark:text-sky-400 border border-sky-300 dark:border-sky-500/30 font-semibold transition-all flex items-center justify-center gap-1.5 text-xs cursor-pointer"
                       title="Log Trip Mileage"
                     >
                       <Gauge className="w-3.5 h-3.5 shrink-0" />
@@ -875,7 +875,7 @@ export function VehiclesView() {
                         sound.playClick();
                         openStatusModal(veh);
                       }}
-                      className="py-1.5 px-2.5 rounded-lg bg-slate-800/80 hover:bg-slate-700/80 text-slate-300 border border-slate-700/80 transition-all flex items-center justify-center gap-1.5 text-xs font-medium cursor-pointer shrink-0"
+                      className="py-1.5 px-2.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800/80 dark:hover:bg-slate-700/80 text-slate-700 dark:text-slate-300 border border-slate-300 dark:border-[#2a3447] transition-all flex items-center justify-center gap-1.5 text-xs font-semibold cursor-pointer shrink-0"
                       title="Change Operational Status"
                     >
                       <RefreshCw className="w-3.5 h-3.5" />
