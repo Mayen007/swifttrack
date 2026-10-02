@@ -22,12 +22,14 @@ export function DriverView() {
 
   const [podModalOpen, setPodModalOpen] = useState(false);
   const [activeDelivery, setActiveDelivery] = useState(null);
-  const [otpCode, setOtpCode] = useState('1234');
+  const [otpCode, setOtpCode] = useState('');
   const [recipientConfirmedName, setRecipientConfirmedName] = useState('');
   const [recipientPhone, setRecipientPhone] = useState('');
   const [recipientRelation, setRecipientRelation] = useState('Self / Customer');
   const [podNotes, setPodNotes] = useState('');
   const [signatureData, setSignatureData] = useState('');
+  const [photoData, setPhotoData] = useState('');
+  const [codCollected, setCodCollected] = useState(false);
 
   const [problemModalOpen, setProblemModalOpen] = useState(false);
   const [problemDelivery, setProblemDelivery] = useState(null);
@@ -143,7 +145,9 @@ export function DriverView() {
     setRecipientConfirmedName(delivery.recipient_name || '');
     setRecipientPhone(delivery.recipient_phone || '');
     setRecipientRelation('Self / Customer');
-    setOtpCode('1234');
+    setOtpCode('');
+    setCodCollected(false);
+    setPhotoData('');
     setPodNotes('');
     setSignatureData('');
     setPodModalOpen(true);
@@ -163,12 +167,22 @@ export function DriverView() {
       return;
     }
 
+    const codAmt = Number(activeDelivery.cod_amount || activeDelivery.expected_amount || 0);
+    const isCod = codAmt > 0 || activeDelivery.payment_type === 'COD' || activeDelivery.is_cod;
+    if (isCod && !codCollected) {
+      api.toast(`Please verify collection of COD amount (KES ${codAmt.toLocaleString()}) before sealing delivery`, 'error');
+      sound.playError();
+      return;
+    }
+
     try {
       await api.post(`/api/deliveries/${activeDelivery.id}/pod`, {
         recipient_name: recipientConfirmedName.trim(),
         recipient_phone: recipientPhone.trim(),
         otp_code: otpCode.trim(),
         signature_data: signatureData || 'data:image/svg+xml;base64,mock-signature',
+        photo_data: photoData || undefined,
+        cod_collected: isCod ? true : undefined,
         latitude: gpsCoords.latitude,
         longitude: gpsCoords.longitude,
         notes: `${recipientRelation ? `[Received by: ${recipientRelation}] ` : ''}${podNotes}`.trim(),
@@ -291,6 +305,10 @@ export function DriverView() {
         setPodNotes={setPodNotes}
         signatureData={signatureData}
         setSignatureData={setSignatureData}
+        photoData={photoData}
+        setPhotoData={setPhotoData}
+        codCollected={codCollected}
+        setCodCollected={setCodCollected}
         onSubmit={handleSubmitPod}
       />
 

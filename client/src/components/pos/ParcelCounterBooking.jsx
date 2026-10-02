@@ -83,6 +83,7 @@ export function ParcelCounterBooking({ user, activeShift, onRefreshShift, onOpen
   const [mpesaPhone, setMpesaPhone] = useState('');
   const [mpesaReceipt, setMpesaReceipt] = useState('');
   const [cardRef, setCardRef] = useState('');
+  const [accountPoRef, setAccountPoRef] = useState('');
   const [splitCash, setSplitCash] = useState('');
   const [splitMpesa, setSplitMpesa] = useState('');
   const [submittingBooking, setSubmittingBooking] = useState(false);
@@ -345,8 +346,14 @@ export function ParcelCounterBooking({ user, activeShift, onRefreshShift, onOpen
           card_ref: cardRef || `CRD-${Date.now().toString().slice(-6)}`
         };
       } else if (paymentMethod === 'ACCOUNT') {
+        if (!senderCustomerId) {
+          api.toast('Account tender requires a registered corporate customer. Please select one in Step 2.', 'error');
+          setSubmittingBooking(false);
+          return;
+        }
         paymentPayload = {
-          payment_method: 'ACCOUNT'
+          payment_method: 'ACCOUNT',
+          account_po_ref: accountPoRef.trim() || undefined
         };
       }
 
@@ -406,6 +413,7 @@ export function ParcelCounterBooking({ user, activeShift, onRefreshShift, onOpen
   const handleResetForm = () => {
     setSenderCustomerId(null);
     setQuoteError(null);
+    setAccountPoRef('');
     setSenderName('');
     setSenderPhone('');
     setSenderEmail('');
@@ -1241,19 +1249,76 @@ export function ParcelCounterBooking({ user, activeShift, onRefreshShift, onOpen
                 </div>
               )}
 
+              {/* ACCOUNT Tender */}
+              {paymentMethod === 'ACCOUNT' && (
+                <div className="space-y-3">
+                  {!senderCustomerId ? (
+                    <div className="p-3.5 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-300 space-y-2">
+                      <div className="flex items-center gap-2 font-bold text-xs uppercase tracking-wider">
+                        <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
+                        <span>Corporate Credit Account Required</span>
+                      </div>
+                      <p className="text-[11px] text-amber-200/90 leading-relaxed font-mono">
+                        Account billing (Net 30) is restricted to pre-approved corporate clients. This booking is currently set to a walk-in shipper.
+                      </p>
+                      <div className="pt-1 text-[10px] text-slate-400 border-t border-amber-500/20">
+                        Please close this modal and use the <strong className="text-white">Customer Search</strong> in Step 2 to link a corporate account before charging.
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      <div className="p-3.5 rounded-lg bg-[#080a0e] border border-blue-500/30 space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] font-mono text-blue-400 uppercase tracking-wider font-bold">Authorized Account</span>
+                          <span className="text-[9px] font-mono px-2 py-0.5 rounded bg-blue-500/20 text-blue-300 border border-blue-500/30 font-bold">NET 30 INVOICED</span>
+                        </div>
+                        <div>
+                          <div className="text-sm font-bold text-white font-mono">{senderName}</div>
+                          <div className="text-[11px] text-slate-400 font-mono mt-0.5">Account ID: #{senderCustomerId} • {senderPhone}</div>
+                          {senderEmail && <div className="text-[10px] text-slate-500 font-mono">{senderEmail}</div>}
+                        </div>
+                      </div>
+                      <div>
+                        <label className="block text-[11px] text-slate-400 mb-1">
+                          Purchase Order / Cost Center Reference (Optional)
+                        </label>
+                        <input
+                          type="text"
+                          value={accountPoRef}
+                          onChange={(e) => setAccountPoRef(e.target.value.toUpperCase())}
+                          placeholder="e.g. PO-2026-NBO-8812"
+                          className="w-full px-3 py-2 rounded-lg bg-[#080a0e] border border-[#222834] text-white text-xs font-mono uppercase focus:border-blue-500 focus:outline-none"
+                        />
+                        <p className="text-[10px] text-slate-500 font-mono mt-1">
+                          This reference will be attached to the consolidated monthly invoice.
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* Submit Payment & Issue Waybill */}
               <button
                 type="button"
                 onClick={handleExecuteBooking}
-                disabled={submittingBooking}
-                className="w-full py-3 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/20 cursor-pointer disabled:opacity-50"
+                disabled={submittingBooking || (paymentMethod === 'ACCOUNT' && !senderCustomerId)}
+                className={`w-full py-3 rounded-lg font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
+                  paymentMethod === 'ACCOUNT'
+                    ? 'bg-blue-600 hover:bg-blue-500 text-white shadow-blue-600/20'
+                    : 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-600/20'
+                }`}
               >
                 {submittingBooking ? (
-                  <span>Processing Consignment...</span>
+                  <span>{paymentMethod === 'ACCOUNT' ? 'Charging Corporate Account...' : 'Processing Consignment...'}</span>
                 ) : (
                   <>
                     <CheckCircle2 className="w-4 h-4" />
-                    <span>CONFIRM & ISSUE OFFICIAL WAYBILL</span>
+                    <span>
+                      {paymentMethod === 'ACCOUNT'
+                        ? (senderCustomerId ? 'CHARGE TO CORPORATE ACCOUNT' : 'SELECT CORPORATE ACCOUNT FIRST')
+                        : 'CONFIRM & ISSUE OFFICIAL WAYBILL'}
+                    </span>
                   </>
                 )}
               </button>

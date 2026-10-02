@@ -70,17 +70,29 @@ export function HubOperationsView() {
   const fetchHubData = async () => {
     setLoading(true);
     try {
-      const [mRes, dRes, cbRes, awRes] = await Promise.all([
+      const [mRes, dRes, cbRes, awRes, scansRes] = await Promise.all([
         api.get('/api/transport/manifests').catch(() => []),
         api.get('/api/custody/discrepancies').catch(() => []),
         api.get('/api/transport/cross-border/legs').catch(() => []),
-        api.get(`/api/shipments/awaiting-manifest/${currentHubId}`).catch(() => [])
+        api.get(`/api/shipments/awaiting-manifest/${currentHubId}`).catch(() => []),
+        api.get(`/api/custody/scans?hub_id=${currentHubId}&limit=20`).catch(() => null)
       ]);
 
       setManifests(Array.isArray(mRes) ? mRes : mRes?.data || []);
       setDiscrepancies(Array.isArray(dRes) ? dRes : dRes?.data || []);
       setCrossBorderLegs(Array.isArray(cbRes) ? cbRes : cbRes?.data || []);
       setAwaitingShipments(Array.isArray(awRes) ? awRes : awRes?.data || []);
+
+      if (scansRes?.scan_events && Array.isArray(scansRes.scan_events) && scansRes.scan_events.length > 0) {
+        const formatted = scansRes.scan_events.map((s) => ({
+          id: s.id,
+          barcode: s.barcode,
+          scanned_at: s.scanned_at ? new Date(s.scanned_at).toLocaleTimeString() : new Date().toLocaleTimeString(),
+          is_damaged: !!s.is_damaged,
+          status: s.condition_status || (s.is_damaged ? 'DAMAGED' : 'INTACT')
+        }));
+        setSessionScannedItems(formatted);
+      }
 
       setSessions([
         {
@@ -170,60 +182,113 @@ export function HubOperationsView() {
 
       await api.post(endpoint, payload);
       sound.playSuccess();
+      api.toast('Customs regulatory action submitted successfully', 'success');
       setSelectedLegForCustoms(null);
       setCustomsModalAction(null);
       fetchHubData();
     } catch (err) {
       sound.playError();
-      alert(`Customs action failed: ${err.message}`);
+      api.toast(`Customs action failed: ${err.message}`, 'error');
     } finally {
       setCustomsSubmitting(false);
     }
   };
 
-  const handleReceivingScan = (e) => {
+  const handleReceivingScan = async (e) => {
     e.preventDefault();
     if (!scanInput.trim()) return;
 
     const barcode = scanInput.trim().toUpperCase();
     sound.playBeep();
 
-    const newItem = {
-      id: Date.now(),
-      barcode,
-      scanned_at: new Date().toLocaleTimeString(),
-      is_damaged: isDamagedScan,
-      status: isDamagedScan ? 'DAMAGED' : 'INTACT'
-    };
+    try {
+      const scanRes = await api.post('/api/custody/scans', {
+        barcode,
+        scan_type: 'HUB_RECEIVING',
+        hub_id: currentHubId,
+        is_damaged: isDamagedScan,
+        condition_status: isDamagedScan ? 'DAMAGED' : 'INTACT',
+        notes: isDamagedScan ? 'Flagged as damaged during inbound hub intake' : 'Inbound physical intake scan'
+      });
 
-    setSessionScannedItems((prev) => [newItem, ...prev]);
-    setScanInput('');
-    setIsDamagedScan(false);
-    sound.playSuccess();
+      const newItem = {
+        id: scanRes?.id || Date.now(),
+        barcode,
+        scanned_at: new Date().toLocaleTimeString(),
+        is_damaged: isDamagedScan,
+        status: isDamagedScan ? 'DAMAGED' : 'INTACT'
+      };
+
+      setSessionScannedItems((prev) => [newItem, ...prev]);
+      setScanInput('');
+      setIsDamagedScan(false);
+      sound.playScan();
+      api.toast(`Custody intake scan logged for ${barcode}`, 'success');
+    } catch (err) {
+      sound.playError();
+      api.toast(`Intake scan failed: ${err.message}`, 'error');
+    }
   };
 
-  const handleSortScan = (e) => {
+  const handleSortScan = async (e) => {
     e.preventDefault();
     if (!sortScanInput.trim()) return;
     const barcode = sortScanInput.trim().toUpperCase();
     sound.playBeep();
 
-    const bays = ['BAY-01 (Mombasa Linehaul)', 'BAY-02 (Nakuru Transfer)', 'BAY-03 (Kisumu Express)', 'BAY-04 (Local Doorstep)'];
-    const chosenBay = bays[Math.abs(barcode.split('').reduce((a, b) => a + b.charCodeAt(0), 0)) % bays.length];
+    try {
+      // Look up shipment by tracking number / barcode
+      const searchRes = await api.get(`/api/shipments?search=${encodeURIComponent(barcode)}`).catch(() => []);
+      const shipmentList = Array.isArray(searchRes) ? searchRes : (searchRes?.data || []);
+      const matchedShipment = shipmentList.find((s) => 
+        s.tracking_number === barcode || 
+        s.waybill_number === barcode ||
+        barcode.startsWith(s.tracking_number)
+      ) || shipmentList[0];
 
-    setSortedItem({
-      barcode,
-      status: 'SORTED',
-      allocatedBay: chosenBay,
-      timestamp: new Date().toLocaleTimeString()
-    });
-    setSortScanInput('');
-    sound.playSuccess();
+      let chosenBay = '';
+      if (!matchedShipment) {
+        // Fallback staging bay
+        chosenBay = 'BAY-00 (Staging & Manual Audit)';
+      } else if (matchedShipment.destination_hub_id === currentHubId) {
+        if (matchedShipment.delivery_type === 'PICKUP_AT_HUB') {
+          chosenBay = 'BAY-05 (Customer Counter Pickup)';
+        } else {
+          chosenBay = 'BAY-04 (Local Courier Outbound / Doorstep)';
+        }
+      } else {
+        const destName = matchedShipment.destination_hub_name || 'Regional';
+        chosenBay = `BAY-01 (${destName} Linehaul)`;
+      }
+
+      // Record sort custody scan in background
+      api.post('/api/custody/scans', {
+        barcode,
+        scan_type: 'SORT',
+        hub_id: currentHubId,
+        location_desc: chosenBay,
+        notes: `Allocated to ${chosenBay}`
+      }).catch((err) => console.warn('Sort custody scan notice:', err.message));
+
+      setSortedItem({
+        barcode,
+        status: 'SORTED',
+        allocatedBay: chosenBay,
+        timestamp: new Date().toLocaleTimeString(),
+        shipment: matchedShipment || null
+      });
+      setSortScanInput('');
+      sound.playSuccess();
+      api.toast(`Allocated to ${chosenBay}`, 'success');
+    } catch (err) {
+      sound.playError();
+      api.toast(`Sortation scan failed: ${err.message}`, 'error');
+    }
   };
 
   const handleReconcileSession = () => {
     sound.playSuccess();
-    alert(`Receiving Session Reconciled! ${sessionScannedItems.length} packages confirmed into Hub inventory.`);
+    api.toast(`Receiving Session Reconciled! ${sessionScannedItems.length} packages confirmed into Hub inventory.`, 'success');
     setSessionScannedItems([]);
   };
 
@@ -236,10 +301,12 @@ export function HubOperationsView() {
         notes: resolutionNotes
       });
       sound.playSuccess();
+      api.toast(`Discrepancy #${selectedDiscrepancy.discrepancy_number || selectedDiscrepancy.id} successfully resolved`, 'success');
       setResolvingModalOpen(false);
       fetchHubData();
     } catch (err) {
-      alert(`Resolution completed for ticket ${selectedDiscrepancy.discrepancy_number || selectedDiscrepancy.id}`);
+      sound.playError();
+      api.toast(`Resolution failed: ${err.message}`, 'error');
       setResolvingModalOpen(false);
     }
   };

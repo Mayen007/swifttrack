@@ -89,11 +89,12 @@ export function CodReconciliationView() {
         remittance_reference: remitReference
       });
       sound.playSuccess();
+      api.toast(`Remittance of KES ${Number(remitAmount).toLocaleString()} recorded successfully`, 'success');
       setRemitModalOpen(false);
       fetchSettlements();
     } catch (err) {
-      alert(`Remittance failed: ${err.message}`);
       sound.playAlert();
+      api.toast(`Remittance failed: ${err.message}`, 'error');
     } finally {
       setSubmitting(false);
     }
@@ -115,7 +116,8 @@ export function CodReconciliationView() {
 
     const variance = (selectedSettlement.collected_amount || 0) - (selectedSettlement.expected_amount || 0);
     if (variance !== 0 && !reconcileVarianceReason.trim()) {
-      alert('Rule BR-010: You must provide a formal variance reason to reconcile this settlement.');
+      sound.playAlert();
+      api.toast('Rule BR-010: You must provide a formal variance reason to reconcile this settlement.', 'error');
       return;
     }
 
@@ -126,11 +128,12 @@ export function CodReconciliationView() {
         notes: reconcileNotes
       });
       sound.playSuccess();
+      api.toast(`Settlement #${selectedSettlement.settlement_number} successfully reconciled`, 'success');
       setReconcileModalOpen(false);
       fetchSettlements();
     } catch (err) {
-      alert(`Reconciliation failed: ${err.message}`);
       sound.playAlert();
+      api.toast(`Reconciliation failed: ${err.message}`, 'error');
     } finally {
       setSubmitting(false);
     }

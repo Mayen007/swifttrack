@@ -142,6 +142,15 @@ function bookCounterShipment(data, user = {}) {
         }
     } else {
         const method = String(data.payment_method || 'CASH').toUpperCase();
+        if (method === 'ACCOUNT') {
+            const custId = data.sender_customer_id || data.sender?.customer_id;
+            if (!custId) {
+                const err = new Error('Account tender (Net 30) is restricted to registered corporate customer accounts. Please select or register a corporate client first.');
+                err.statusCode = 400;
+                err.code = 'CORPORATE_ACCOUNT_REQUIRED';
+                throw err;
+            }
+        }
         let tendered = Number(data.amount_tendered || totalDue);
         if (method === 'CASH' && tendered < totalDue) {
             throw new Error(`Insufficient cash tendered: ${tendered} < total required: ${totalDue}`);
@@ -152,7 +161,8 @@ function bookCounterShipment(data, user = {}) {
             tendered,
             mpesa_phone: data.mpesa_phone || null,
             mpesa_receipt: data.mpesa_receipt || null,
-            card_ref: data.card_ref || null
+            card_ref: data.card_ref || null,
+            account_po_ref: data.account_po_ref || null
         });
     }
 
@@ -367,14 +377,17 @@ function bookCounterShipment(data, user = {}) {
             const paymentNumber = `PAY-SHP-${Date.now().toString().slice(-6)}-${i + 1}`;
             const refCode = p.card_ref || (p.method === 'MPESA'
                 ? (p.mpesa_receipt || `MP-${Date.now().toString().slice(-6)}`)
-                : `CSH-${Date.now().toString().slice(-6)}`);
+                : (p.method === 'ACCOUNT'
+                    ? (p.account_po_ref || `ACC-PO-${Date.now().toString().slice(-6)}`)
+                    : `CSH-${Date.now().toString().slice(-6)}`));
+            const payStatus = p.method === 'ACCOUNT' ? 'PENDING' : 'COMPLETED';
 
             db.prepare(`
                 INSERT INTO payments (
                     branch_id, shipment_id, payment_number, payment_method,
                     amount, currency, reference_code, mpesa_receipt_number, mpesa_phone_number,
                     status, cashier_user_id, notes
-                ) VALUES (?, ?, ?, ?, ?, 'KES', ?, ?, ?, 'COMPLETED', ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, 'KES', ?, ?, ?, ?, ?, ?)
             `).run(
                 originHubId,
                 shipmentId,
@@ -384,8 +397,9 @@ function bookCounterShipment(data, user = {}) {
                 refCode,
                 p.mpesa_receipt || null,
                 p.mpesa_phone || null,
+                payStatus,
                 user.id || 1,
-                data.notes || 'POS Counter Parcel Booking Tender'
+                data.notes || (p.method === 'ACCOUNT' ? `Corporate Account Billed: PO Ref ${p.account_po_ref || 'None'}` : 'POS Counter Parcel Booking Tender')
             );
 
             createdPayments.push({

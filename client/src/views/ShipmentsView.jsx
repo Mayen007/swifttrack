@@ -31,6 +31,55 @@ import {
 } from 'lucide-react';
 import { MultiLegJourney } from '../components/shipments/MultiLegJourney.jsx';
 
+const ALLOWED_TRANSITIONS = {
+  DRAFT: ['BOOKED', 'CANCELLED'],
+  BOOKED: ['PAID', 'PAYMENT_PENDING', 'ACCEPTED', 'AT_ORIGIN_HUB', 'SORTED', 'READY_FOR_DISPATCH', 'LOADED', 'READY_FOR_DELIVERY', 'CANCELLED'],
+  PAYMENT_PENDING: ['PAID', 'ACCEPTED', 'AT_ORIGIN_HUB', 'CANCELLED'],
+  PAID: ['ACCEPTED', 'AT_ORIGIN_HUB', 'CANCELLED'],
+  ACCEPTED: ['AT_ORIGIN_HUB', 'SORTED', 'READY_FOR_DISPATCH', 'LOADED', 'READY_FOR_DELIVERY', 'CANCELLED'],
+  AT_ORIGIN_HUB: ['SORTED', 'READY_FOR_DISPATCH', 'LOADED', 'READY_FOR_DELIVERY', 'ON_HOLD', 'EXCEPTION'],
+  SORTED: ['READY_FOR_DISPATCH', 'LOADED', 'READY_FOR_DELIVERY', 'ON_HOLD', 'EXCEPTION'],
+  READY_FOR_DISPATCH: ['LOADED', 'ON_HOLD', 'EXCEPTION'],
+  LOADED: ['IN_TRANSIT', 'READY_FOR_DISPATCH', 'EXCEPTION'],
+  IN_TRANSIT: ['AT_HUB', 'EXCEPTION'],
+  AT_HUB: ['SORTED', 'READY_FOR_DISPATCH', 'LOADED', 'READY_FOR_DELIVERY', 'READY_FOR_PICKUP', 'ON_HOLD', 'EXCEPTION'],
+  READY_FOR_DELIVERY: ['OUT_FOR_DELIVERY', 'FAILED_DELIVERY', 'DELIVERY_FAILED', 'RETURN_TO_HUB', 'ON_HOLD', 'EXCEPTION', 'CANCELLED'],
+  OUT_FOR_DELIVERY: ['DELIVERED', 'FAILED_DELIVERY', 'DELIVERY_FAILED', 'RETURN_TO_HUB', 'EXCEPTION'],
+  FAILED_DELIVERY: ['READY_FOR_DELIVERY', 'OUT_FOR_DELIVERY', 'RETURN_TO_HUB', 'RETURNED', 'EXCEPTION'],
+  DELIVERY_FAILED: ['READY_FOR_DELIVERY', 'OUT_FOR_DELIVERY', 'RETURN_TO_HUB', 'RETURNED', 'EXCEPTION'],
+  READY_FOR_PICKUP: ['DELIVERED', 'RETURN_TO_HUB', 'EXCEPTION'],
+  RETURN_TO_HUB: ['RETURNED', 'READY_FOR_DELIVERY', 'AT_HUB', 'EXCEPTION'],
+  ON_HOLD: ['BOOKED', 'ACCEPTED', 'AT_ORIGIN_HUB', 'SORTED', 'READY_FOR_DISPATCH', 'LOADED', 'IN_TRANSIT', 'READY_FOR_DELIVERY', 'CANCELLED'],
+  EXCEPTION: ['AT_ORIGIN_HUB', 'AT_HUB', 'SORTED', 'READY_FOR_DISPATCH', 'LOADED', 'IN_TRANSIT', 'READY_FOR_DELIVERY', 'RETURN_TO_HUB', 'CANCELLED'],
+  DELIVERED: [],
+  RETURNED: [],
+  CANCELLED: []
+};
+
+const STATUS_LABELS = {
+  BOOKED: 'Booked / Intake Pending',
+  PAID: 'Paid',
+  PAYMENT_PENDING: 'Payment Pending',
+  ACCEPTED: 'Accepted at Hub (Intake)',
+  AT_ORIGIN_HUB: 'At Origin Hub',
+  SORTED: 'Sorted (Bay Allocated)',
+  READY_FOR_DISPATCH: 'Ready for Dispatch',
+  LOADED: 'Loaded into Vehicle / Container',
+  IN_TRANSIT: 'In Transit (Linehaul Departure)',
+  AT_HUB: 'At Destination Hub',
+  READY_FOR_DELIVERY: 'Ready for Last-Mile Delivery',
+  OUT_FOR_DELIVERY: 'Out for Courier Delivery',
+  DELIVERED: 'Delivered (Terminal)',
+  FAILED_DELIVERY: 'Delivery Attempt Failed',
+  DELIVERY_FAILED: 'Delivery Failed',
+  READY_FOR_PICKUP: 'Ready for Counter Pickup',
+  RETURN_TO_HUB: 'Return to Hub',
+  RETURNED: 'Returned to Sender (Terminal)',
+  ON_HOLD: 'On Hold (Investigation)',
+  EXCEPTION: 'Operational Exception',
+  CANCELLED: 'Cancelled (Terminal)'
+};
+
 export function ShipmentsView({ onNavigate }) {
   const { user, selectedBranch } = useAuth();
 
@@ -136,14 +185,15 @@ export function ShipmentsView({ onNavigate }) {
         hub_id: selectedShipment.current_hub_id || selectedBranch?.id || 1
       });
       sound.playSuccess();
+      api.toast(`Shipment transitioned to ${STATUS_LABELS[targetStatus] || targetStatus}`, 'success');
       setTransitionModalOpen(false);
       fetchShipments();
       if (selectedShipment) {
         handleSelectShipment({ ...selectedShipment, status: targetStatus });
       }
     } catch (err) {
-      alert(`Transition failed: ${err.message}`);
       sound.playAlert();
+      api.toast(`Transition failed: ${err.message}`, 'error');
     } finally {
       setSubmittingTransition(false);
     }
@@ -469,10 +519,13 @@ export function ShipmentsView({ onNavigate }) {
             <div className="flex items-center gap-2">
               <button
                 onClick={() => handleOpenTransitionModal(selectedShipment)}
-                className="flex-1 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-xs font-bold text-white flex items-center justify-center gap-1.5 shadow"
+                disabled={['DELIVERED', 'RETURNED', 'CANCELLED'].includes(selectedShipment.status)}
+                className="flex-1 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed text-xs font-bold text-white flex items-center justify-center gap-1.5 shadow"
               >
                 <Send className="w-3.5 h-3.5" />
-                Change Operational State
+                {['DELIVERED', 'RETURNED', 'CANCELLED'].includes(selectedShipment.status)
+                  ? `Lifecycle Sealed (${selectedShipment.status})`
+                  : 'Change Operational State'}
               </button>
               <button
                 onClick={() => handleCopy(selectedShipment.tracking_number, 'drawer')}
@@ -564,74 +617,96 @@ export function ShipmentsView({ onNavigate }) {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
           <div className="w-full max-w-md bg-[#12161f] border border-[#222834] rounded-2xl p-6 shadow-2xl space-y-4">
             <div className="flex items-center justify-between border-b border-[#222834] pb-3">
-              <h3 className="font-bold text-white text-base">Transition Shipment State</h3>
-              <button onClick={() => setTransitionModalOpen(false)} className="text-slate-400 hover:text-white">
+              <div>
+                <h3 className="font-bold text-white text-base">Transition Shipment State</h3>
+                <p className="text-[11px] font-mono text-slate-400">
+                  {selectedShipment.tracking_number}
+                </p>
+              </div>
+              <button onClick={() => setTransitionModalOpen(false)} className="text-slate-400 hover:text-white cursor-pointer">
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <form onSubmit={handleExecuteTransition} className="space-y-4">
-              <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">Current State</label>
-                <input
-                  type="text"
-                  disabled
-                  value={selectedShipment.status}
-                  className="w-full px-3 py-2 bg-[#181d28] border border-[#222834] rounded-xl text-xs text-slate-400 font-mono"
-                />
+            {(ALLOWED_TRANSITIONS[selectedShipment.status] || []).length === 0 ? (
+              <div className="space-y-4">
+                <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-300 space-y-2">
+                  <div className="font-bold text-xs uppercase flex items-center gap-1.5">
+                    <AlertTriangle className="w-4 h-4 text-amber-400" />
+                    Terminal Lifecycle State Locked
+                  </div>
+                  <p className="text-[11px] font-mono text-amber-200/80 leading-relaxed">
+                    This shipment is marked as <strong className="text-white">{selectedShipment.status}</strong>. Terminal states cannot be transitioned further in accordance with chain of custody protocol.
+                  </p>
+                </div>
+                <div className="flex justify-end pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setTransitionModalOpen(false)}
+                    className="px-4 py-2 rounded-xl bg-[#181d28] hover:bg-[#222834] text-xs font-semibold text-slate-300 cursor-pointer"
+                  >
+                    Close
+                  </button>
+                </div>
               </div>
+            ) : (
+              <form onSubmit={handleExecuteTransition} className="space-y-4">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1">Current State</label>
+                  <div className="w-full px-3 py-2 bg-[#181d28] border border-[#222834] rounded-xl text-xs text-slate-300 font-mono flex items-center justify-between">
+                    <span>{STATUS_LABELS[selectedShipment.status] || selectedShipment.status}</span>
+                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-400 font-bold border border-blue-500/20">
+                      {selectedShipment.status}
+                    </span>
+                  </div>
+                </div>
 
-              <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">Target Operational State</label>
-                <select
-                  required
-                  value={targetStatus}
-                  onChange={(e) => setTargetStatus(e.target.value)}
-                  className="w-full px-3 py-2 bg-[#181d28] border border-[#222834] rounded-xl text-xs text-white focus:outline-none focus:border-blue-500"
-                >
-                  <option value="">Select target state...</option>
-                  <option value="ACCEPTED">ACCEPTED (Intake Confirmed)</option>
-                  <option value="AT_ORIGIN_HUB">AT_ORIGIN_HUB</option>
-                  <option value="SORTED">SORTED (Bay Allocated)</option>
-                  <option value="READY_FOR_DISPATCH">READY_FOR_DISPATCH</option>
-                  <option value="IN_TRANSIT">IN_TRANSIT (Linehaul Departure)</option>
-                  <option value="AT_HUB">AT_HUB (Destination Received)</option>
-                  <option value="READY_FOR_DELIVERY">READY_FOR_DELIVERY</option>
-                  <option value="OUT_FOR_DELIVERY">OUT_FOR_DELIVERY</option>
-                  <option value="DELIVERED">DELIVERED</option>
-                  <option value="ON_HOLD">ON_HOLD</option>
-                  <option value="EXCEPTION">EXCEPTION</option>
-                </select>
-              </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1">Target Operational State</label>
+                  <select
+                    required
+                    value={targetStatus}
+                    onChange={(e) => setTargetStatus(e.target.value)}
+                    className="w-full px-3 py-2 bg-[#181d28] border border-[#222834] rounded-xl text-xs text-white focus:outline-none focus:border-blue-500"
+                  >
+                    <option value="">Select valid target state...</option>
+                    {(ALLOWED_TRANSITIONS[selectedShipment.status] || []).map((st) => (
+                      <option key={st} value={st}>
+                        {st} — {STATUS_LABELS[st] || st}
+                      </option>
+                    ))}
+                  </select>
+                </div>
 
-              <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">Audit Notes / Reason</label>
-                <textarea
-                  rows="3"
-                  placeholder="Enter reason or dispatch details..."
-                  value={transitionNotes}
-                  onChange={(e) => setTransitionNotes(e.target.value)}
-                  className="w-full px-3 py-2 bg-[#181d28] border border-[#222834] rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500"
-                />
-              </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1">Audit Notes / Reason</label>
+                  <textarea
+                    rows="3"
+                    placeholder="Enter reason or dispatch details..."
+                    value={transitionNotes}
+                    onChange={(e) => setTransitionNotes(e.target.value)}
+                    className="w-full px-3 py-2 bg-[#181d28] border border-[#222834] rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500"
+                  />
+                </div>
 
-              <div className="flex items-center justify-end gap-2 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setTransitionModalOpen(false)}
-                  className="px-4 py-2 rounded-xl bg-[#181d28] text-xs font-semibold text-slate-400 hover:text-white"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={submittingTransition || !targetStatus}
-                  className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-xs font-bold text-white shadow-lg disabled:opacity-50"
-                >
-                  {submittingTransition ? 'Updating...' : 'Confirm Transition'}
-                </button>
-              </div>
-            </form>
+                <div className="flex items-center justify-end gap-2 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setTransitionModalOpen(false)}
+                    className="px-4 py-2 rounded-xl bg-[#181d28] text-xs font-semibold text-slate-400 hover:text-white cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={submittingTransition || !targetStatus}
+                    className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-xs font-bold text-white shadow-lg disabled:opacity-50 cursor-pointer"
+                  >
+                    {submittingTransition ? 'Updating...' : 'Confirm Transition'}
+                  </button>
+                </div>
+              </form>
+            )}
           </div>
         </div>
       )}
