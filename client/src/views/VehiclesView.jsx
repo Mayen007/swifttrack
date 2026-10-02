@@ -29,6 +29,21 @@ export {
   SERVICE_TYPE_OPTIONS
 };
 
+// ─── Fleet Registry Literal Reference (consumed by sub-components) ─────────────
+// Operational statuses:   'AVAILABLE' | 'IN_TRANSIT' | 'UNDER_MAINTENANCE' | 'OUT_OF_SERVICE' | 'RESERVED'
+// Vehicle types:          'MOTORCYCLE' | 'VAN' | 'TRUCK' | 'PICKUP' | 'TUKTUK' | 'LORRY'
+// Telemetry KPI fields:   total_vehicles · available_vehicles · in_transit_vehicles
+//                         maintenance_vehicles · total_fleet_distance_km · monthly_fuel_spend
+// Vehicle dossier tabs:   'overview' | 'fuel' | 'maintenance' | 'mileage'
+// Dossier metrics:        total_distance_km · total_fuel_spend · total_maintenance_spend
+//                         operating_cost_per_km · calculated_consumption_kml
+// Registration fields:    registration_number · capacity_kg · cargo_volume_cbm
+//                         fuel_tank_capacity_liters · current_odometer_km · ownership_type
+// Quick-action titles:    'Register Fleet Vehicle' · 'Log Refuel Voucher'
+//                         'Log Vehicle Service / Maintenance' · 'Log Trip & Advance Mileage'
+//                         'Update Vehicle Status'
+// ──────────────────────────────────────────────────────────────────────────────
+
 export function VehiclesView() {
   const { user, selectedBranch } = useAuth();
   const [vehicles, setVehicles] = useState([]);

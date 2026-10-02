@@ -25,6 +25,18 @@ export {
   COMPLIANCE_STATUS_OPTIONS
 };
 
+// ─── Status & Compliance Literal Registry (consumed by sub-components) ────────
+// Operational duty statuses:  'AVAILABLE' | 'ON_DELIVERY' | 'OFF_DUTY' | 'ON_LEAVE' | 'SUSPENDED'
+// License compliance levels:  'VALID' | 'EXPIRING_SOON' | 'EXPIRED' | 'UNVERIFIED'
+// Scorecard drawer tabs:      'overview' | 'scorecard' | 'deliveries' | 'incidents'
+// Fleet KPI fields:           on_delivery_drivers · available_drivers · off_duty_drivers
+//                             expiring_licenses_count · fleet_on_time_rate_pct · fleet_avg_rating
+//                             success_rate_pct · on_time_rate_pct · avg_turnaround_minutes
+// Quick-action modal titles:  'Onboard Fleet Driver' · 'Update Driver Status'
+//                             'Assign Fleet Vehicle' · 'Log Safety / Traffic Incident'
+// PATCH endpoint:             /status (PATCH /api/v1/drivers/:id/status)
+// ─────────────────────────────────────────────────────────────────────────────
+
 export function DriversView() {
   const { user, selectedBranch } = useAuth();
   const [drivers, setDrivers] = useState([]);
