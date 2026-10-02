@@ -40,6 +40,11 @@ export function OrderDetailsModal({
                   #{order.id}
                 </div>
                 <div>
+                  <div className="text-[10px] font-mono text-slate-400 mb-0.5 flex items-center gap-1.5">
+                    <span className="text-slate-500 uppercase tracking-wider">Orders & Sales</span>
+                    <span className="text-slate-600">›</span>
+                    <span className="text-amber-400 font-semibold">{order.order_number}</span>
+                  </div>
                   <div className="flex items-center gap-2">
                     <h3 className="text-sm font-bold text-white uppercase">{order.order_number}</h3>
                     <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${getStatusBadge(order.status)}`}>

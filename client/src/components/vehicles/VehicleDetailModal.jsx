@@ -33,6 +33,11 @@ export function VehicleDetailModal({
                   {selectedVehicle.registration_number}
                 </div>
                 <div>
+                  <div className="text-[11px] font-mono text-slate-400 mb-1 flex items-center gap-1.5">
+                    <span className="text-slate-500 uppercase tracking-wider">Fleet Vehicles</span>
+                    <span className="text-slate-600">›</span>
+                    <span className="text-amber-400 font-semibold">{selectedVehicle.registration_number}</span>
+                  </div>
                   <div className="flex items-center gap-2">
                     <h2 className="text-xl font-bold text-white">
                       {selectedVehicle.make} {selectedVehicle.model} {selectedVehicle.year_of_manufacture ? `(${selectedVehicle.year_of_manufacture})` : ''}

@@ -7,6 +7,7 @@ import { Navbar } from './components/Navbar.jsx';
 import { Sidebar } from './components/Sidebar.jsx';
 import { NotificationsDrawer } from './components/NotificationsDrawer.jsx';
 import { ToastContainer } from './components/ToastContainer.jsx';
+import { ShieldOff } from 'lucide-react';
 import { api } from './services/api.js';
 
 import { DashboardView } from './views/DashboardView.jsx';
@@ -33,6 +34,55 @@ import { ShipmentsView } from './views/ShipmentsView.jsx';
 import { HubOperationsView } from './views/HubOperationsView.jsx';
 import { CodReconciliationView } from './views/CodReconciliationView.jsx';
 import { LoginView } from './views/LoginView.jsx';
+const VIEW_PERMISSIONS = {
+  audit: ['SUPER_ADMIN'],
+  users: ['SUPER_ADMIN'],
+  branches: ['SUPER_ADMIN'],
+  reports: ['SUPER_ADMIN', 'BRANCH_MANAGER'],
+  procurement: ['SUPER_ADMIN', 'BRANCH_MANAGER'],
+  approvals: ['SUPER_ADMIN', 'BRANCH_MANAGER'],
+  'control-tower': ['SUPER_ADMIN', 'BRANCH_MANAGER', 'DISPATCHER'],
+  dashboard: ['SUPER_ADMIN', 'BRANCH_MANAGER', 'DISPATCHER'],
+  'hub-operations': ['SUPER_ADMIN', 'BRANCH_MANAGER', 'DISPATCHER'],
+  communications: ['SUPER_ADMIN', 'BRANCH_MANAGER', 'DISPATCHER'],
+  dispatch: ['SUPER_ADMIN', 'BRANCH_MANAGER', 'DISPATCHER'],
+  drivers: ['SUPER_ADMIN', 'BRANCH_MANAGER', 'DISPATCHER'],
+  vehicles: ['SUPER_ADMIN', 'BRANCH_MANAGER', 'DISPATCHER'],
+  driver: ['DRIVER', 'SUPER_ADMIN', 'DISPATCHER'],
+  pos: ['CASHIER', 'SUPER_ADMIN', 'BRANCH_MANAGER'],
+  'cod-finance': ['SUPER_ADMIN', 'BRANCH_MANAGER', 'CASHIER'],
+  shipments: ['SUPER_ADMIN', 'BRANCH_MANAGER', 'DISPATCHER', 'CASHIER'],
+  payments: ['SUPER_ADMIN', 'BRANCH_MANAGER', 'CASHIER'],
+  expenses: ['SUPER_ADMIN', 'BRANCH_MANAGER', 'CASHIER'],
+  products: ['SUPER_ADMIN', 'BRANCH_MANAGER', 'DISPATCHER', 'CASHIER'],
+  inventory: ['SUPER_ADMIN', 'BRANCH_MANAGER', 'DISPATCHER', 'CASHIER'],
+  orders: ['SUPER_ADMIN', 'BRANCH_MANAGER', 'DISPATCHER', 'CASHIER'],
+  customers: ['SUPER_ADMIN', 'BRANCH_MANAGER', 'DISPATCHER', 'CASHIER'],
+};
+
+function AccessDeniedView({ currentView, userRole, onNavigateHome }) {
+  return (
+    <div className="flex-1 flex flex-col items-center justify-center p-8 text-center space-y-4 min-h-[420px]">
+      <div className="w-16 h-16 rounded-2xl bg-rose-500/10 border border-rose-500/30 flex items-center justify-center text-rose-400 shadow-xl shadow-rose-500/10">
+        <ShieldOff className="w-8 h-8" />
+      </div>
+      <div className="space-y-1.5 max-w-sm">
+        <h2 className="text-lg font-bold text-white tracking-tight font-mono uppercase">Access Restricted</h2>
+        <p className="text-xs text-slate-400 font-mono leading-relaxed">
+          Your role (<span className="text-amber-400 font-bold">{userRole || 'ANONYMOUS'}</span>) does not have permission to view the{' '}
+          <span className="text-white font-bold">{currentView}</span> module.
+        </p>
+      </div>
+      <button
+        type="button"
+        onClick={onNavigateHome}
+        className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#1c2230] hover:bg-[#252d40] border border-[#2c3548] text-slate-200 hover:text-white text-xs font-mono font-bold transition-all cursor-pointer"
+      >
+        <span>Return to Workspace</span>
+      </button>
+    </div>
+  );
+}
 
 function MainApp() {
   const { user, loading, quickSwitch } = useAuth();
@@ -118,6 +168,14 @@ function MainApp() {
     try {
       const urlView = new URLSearchParams(window.location.search).get('view');
       if (urlView) {
+        if (urlView === 'dashboard' && user.role === 'CASHIER') {
+          setCurrentView('pos');
+          return;
+        }
+        if (urlView === 'dashboard' && user.role === 'DRIVER') {
+          setCurrentView('driver');
+          return;
+        }
         setCurrentView(urlView);
         return;
       }
@@ -143,7 +201,27 @@ function MainApp() {
     return <LoginView />;
   }
 
+  const getDefaultHomeView = (role) => {
+    if (role === 'CASHIER') return 'pos';
+    if (role === 'DRIVER') return 'driver';
+    if (role === 'DISPATCHER') return 'dispatch';
+    return 'dashboard';
+  };
+
   const renderView = () => {
+    if (user?.role !== 'SUPER_ADMIN') {
+      const allowedRoles = VIEW_PERMISSIONS[currentView];
+      if (allowedRoles && !allowedRoles.includes(user?.role)) {
+        return (
+          <AccessDeniedView
+            currentView={currentView}
+            userRole={user?.role}
+            onNavigateHome={() => setCurrentView(getDefaultHomeView(user?.role))}
+          />
+        );
+      }
+    }
+
     switch (currentView) {
       case 'dashboard':
         return <DashboardView onNavigate={setCurrentView} />;
@@ -158,7 +236,7 @@ function MainApp() {
       case 'communications':
         return <CommunicationsView />;
       case 'pos':
-        return <PosView />;
+        return <PosView onNavigate={setCurrentView} />;
       case 'dispatch':
         return <DispatchView />;
       case 'drivers':

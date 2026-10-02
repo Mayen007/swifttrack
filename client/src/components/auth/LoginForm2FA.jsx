@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Smartphone, ArrowRight, ArrowLeft } from 'lucide-react';
 
 export function LoginForm2FA({
@@ -8,6 +8,23 @@ export function LoginForm2FA({
   onBack,
   onSubmit
 }) {
+  const [secondsRemaining, setSecondsRemaining] = useState(() => {
+    return 30 - (Math.floor(Date.now() / 1000) % 30);
+  });
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setSecondsRemaining(30 - (Math.floor(Date.now() / 1000) % 30));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const ringColor = secondsRemaining > 15
+    ? 'text-emerald-400'
+    : secondsRemaining >= 10
+    ? 'text-amber-400'
+    : 'text-rose-400';
+
   return (
     <form onSubmit={onSubmit} className="space-y-4">
       <div className="space-y-1.5">
@@ -25,14 +42,45 @@ export function LoginForm2FA({
             value={twoFactorCode}
             onChange={(e) => setTwoFactorCode(e.target.value)}
             placeholder="e.g. 123456 or a1b2c3d4"
-            className="w-full pl-9 pr-3 py-2.5 bg-[#161c28] border border-[#252f44] focus:border-blue-400 focus:ring-1 focus:ring-blue-400 rounded-lg text-sm text-white placeholder-slate-500 font-mono tracking-widest text-center transition-colors outline-none uppercase"
+            className="w-full pl-9 pr-10 py-2.5 bg-[#161c28] border border-[#252f44] focus:border-blue-400 focus:ring-1 focus:ring-blue-400 rounded-lg text-sm text-white placeholder-slate-500 font-mono tracking-widest text-center transition-colors outline-none uppercase"
             autoComplete="one-time-code"
             maxLength={12}
           />
+          {/* Dynamic SVG Countdown Ring inside Input */}
+          <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+            <div className="relative w-5 h-5 flex items-center justify-center">
+              <svg className="w-5 h-5 -rotate-90 transform" viewBox="0 0 24 24">
+                <circle
+                  cx="12"
+                  cy="12"
+                  r="9"
+                  fill="transparent"
+                  stroke="currentColor"
+                  strokeWidth="2.5"
+                  className="text-slate-800"
+                />
+                <circle
+                  cx="12"
+                  cy="12"
+                  r="9"
+                  fill="transparent"
+                  stroke="currentColor"
+                  strokeWidth="2.5"
+                  strokeDasharray={56.55}
+                  strokeDashoffset={56.55 * (1 - secondsRemaining / 30)}
+                  strokeLinecap="round"
+                  className={`transition-all duration-300 ${ringColor}`}
+                />
+              </svg>
+            </div>
+          </div>
         </div>
-        <p className="text-[10px] font-mono text-slate-400">
-          Codes refresh every 30 seconds. Time drift tolerance: ±30s.
-        </p>
+
+        <div className="flex items-center justify-between text-[11px] font-mono pt-1 text-slate-400">
+          <span>
+            Code refreshes in <strong className={`font-bold ${ringColor}`}>{secondsRemaining}s</strong> — check your authenticator app
+          </span>
+        </div>
       </div>
 
       <div className="pt-2 flex flex-col gap-2">

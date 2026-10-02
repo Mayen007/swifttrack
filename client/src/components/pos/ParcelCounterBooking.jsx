@@ -1,5 +1,5 @@
 // client/src/components/pos/ParcelCounterBooking.jsx
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   Package,
   MapPin,
@@ -23,13 +23,14 @@ import {
   Clock,
   Layers,
   FileText,
+  RefreshCw,
   X
 } from 'lucide-react';
 import { api } from '../../services/api.js';
 import { sound } from '../../services/sound.js';
 import { PrintableWaybillModal } from './PrintableWaybillModal.jsx';
 
-export function ParcelCounterBooking({ user, activeShift, onRefreshShift, onOpenShiftRequest }) {
+export function ParcelCounterBooking({ user, activeShift, onRefreshShift, onOpenShiftRequest, onNavigate }) {
   // Destination Hubs
   const [hubs, setHubs] = useState([]);
   const [loadingHubs, setLoadingHubs] = useState(true);
@@ -99,6 +100,8 @@ export function ParcelCounterBooking({ user, activeShift, onRefreshShift, onOpen
   const [customerSearch, setCustomerSearch] = useState('');
   const [customerResults, setCustomerResults] = useState([]);
   const [searchingCustomer, setSearchingCustomer] = useState(false);
+  const [senderCustomerId, setSenderCustomerId] = useState(null);
+  const [quoteError, setQuoteError] = useState(null);
 
   // Fetch regional hubs on mount
   useEffect(() => {
@@ -148,6 +151,7 @@ export function ParcelCounterBooking({ user, activeShift, onRefreshShift, onOpen
   };
 
   const selectSenderCustomer = (c) => {
+    setSenderCustomerId(c.id || null);
     setSenderName(c.name || `${c.first_name || ''} ${c.last_name || ''}`.trim());
     setSenderPhone(c.phone || '');
     setSenderEmail(c.email || '');
@@ -219,46 +223,47 @@ export function ParcelCounterBooking({ user, activeShift, onRefreshShift, onOpen
     };
   }, [parcels]);
 
-  // Request Quote from Backend with Debounce
+  // Request Quote from Backend
+  const fetchQuote = useCallback(async () => {
+    if (!destinationHubId || parcels.length === 0) return;
+    try {
+      setCalculatingQuote(true);
+      setQuoteError(null);
+      const originId = user?.branchId || 1;
+      const payload = {
+        origin_hub_id: originId,
+        destination_hub_id: Number(destinationHubId),
+        service_type: serviceType,
+        parcels: parcels.map(p => ({
+          weight_kg: Number(p.weight_kg) || 0.1,
+          length_cm: Number(p.length_cm) || 0,
+          width_cm: Number(p.width_cm) || 0,
+          height_cm: Number(p.height_cm) || 0,
+          package_type: p.package_type
+        })),
+        declared_value: Number(declaredValue) || 0,
+        cod_amount: Number(codAmount) || 0
+      };
+
+      const res = await api.post('/api/pos/counter/quote', payload);
+      if (res) {
+        setQuote(res);
+      }
+    } catch (err) {
+      console.error('Quote calculation error:', err);
+      setQuoteError(err?.message || 'Failed to calculate freight quote');
+    } finally {
+      setCalculatingQuote(false);
+    }
+  }, [destinationHubId, parcels, serviceType, declaredValue, codAmount, user?.branchId]);
+
   useEffect(() => {
     if (!destinationHubId || parcels.length === 0) return;
-
-    let isCurrent = true;
-    const timer = setTimeout(async () => {
-      try {
-        setCalculatingQuote(true);
-        const originId = user?.branchId || 1;
-        const payload = {
-          origin_hub_id: originId,
-          destination_hub_id: Number(destinationHubId),
-          service_type: serviceType,
-          parcels: parcels.map(p => ({
-            weight_kg: Number(p.weight_kg) || 0.1,
-            length_cm: Number(p.length_cm) || 0,
-            width_cm: Number(p.width_cm) || 0,
-            height_cm: Number(p.height_cm) || 0,
-            package_type: p.package_type
-          })),
-          declared_value: Number(declaredValue) || 0,
-          cod_amount: Number(codAmount) || 0
-        };
-
-        const res = await api.post('/api/pos/counter/quote', payload);
-        if (isCurrent && res) {
-          setQuote(res);
-        }
-      } catch (err) {
-        console.error('Quote calculation error:', err);
-      } finally {
-        if (isCurrent) setCalculatingQuote(false);
-      }
+    const timer = setTimeout(() => {
+      fetchQuote();
     }, 300);
-
-    return () => {
-      isCurrent = false;
-      clearTimeout(timer);
-    };
-  }, [destinationHubId, serviceType, parcels, declaredValue, codAmount, user?.branchId]);
+    return () => clearTimeout(timer);
+  }, [fetchQuote]);
 
   // Total Due
   const totalAmountDue = quote?.total_amount || 0;
@@ -350,6 +355,7 @@ export function ParcelCounterBooking({ user, activeShift, onRefreshShift, onOpen
         destination_hub_id: Number(destinationHubId),
         service_type: serviceType,
         delivery_type: deliveryType,
+        sender_customer_id: senderCustomerId || undefined,
         sender: {
           name: senderName,
           phone: senderPhone,
@@ -398,6 +404,8 @@ export function ParcelCounterBooking({ user, activeShift, onRefreshShift, onOpen
 
   // Reset form for next booking
   const handleResetForm = () => {
+    setSenderCustomerId(null);
+    setQuoteError(null);
     setSenderName('');
     setSenderPhone('');
     setSenderEmail('');
@@ -639,9 +647,20 @@ export function ParcelCounterBooking({ user, activeShift, onRefreshShift, onOpen
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {/* Shipper Column */}
               <div className="space-y-2.5 bg-[#0b0e14]/60 border border-[#1e2433] rounded-lg p-3">
-                <div className="flex items-center gap-1.5 text-blue-400 font-mono text-[11px] font-bold uppercase">
-                  <Building2 className="w-3.5 h-3.5" />
-                  <span>Shipper / Sender</span>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5 text-blue-400 font-mono text-[11px] font-bold uppercase">
+                    <Building2 className="w-3.5 h-3.5" />
+                    <span>Shipper / Sender</span>
+                  </div>
+                  {senderCustomerId ? (
+                    <span className="text-[10px] font-mono text-emerald-400 bg-emerald-950/40 border border-emerald-800/40 px-1.5 py-0.5 rounded">
+                      Linked Account
+                    </span>
+                  ) : (
+                    <span className="text-[10px] font-mono text-slate-500 bg-slate-800/40 px-1.5 py-0.5 rounded">
+                      Walk-in
+                    </span>
+                  )}
                 </div>
                 <div>
                   <input
@@ -957,39 +976,76 @@ export function ParcelCounterBooking({ user, activeShift, onRefreshShift, onOpen
             </div>
 
             {/* Itemized Charges Breakdown */}
-            <div className="space-y-2 text-xs font-mono">
-              <div className="flex justify-between text-slate-400">
-                <span>Base Tariff (First 5kg):</span>
-                <span className="text-white font-bold">KES {quote?.base_rate || '—'}</span>
-              </div>
-              <div className="flex justify-between text-slate-400">
-                <span>Additional Weight Fee:</span>
-                <span className="text-white font-bold">KES {quote?.weight_charge || '—'}</span>
-              </div>
-              {Number(quote?.surcharges) > 0 && (
-                <div className="flex justify-between text-slate-400">
-                  <span>Priority Surcharge:</span>
-                  <span className="text-amber-400 font-bold">+KES {quote?.surcharges}</span>
+            {calculatingQuote ? (
+              <div className="space-y-2 py-1 font-mono text-xs animate-pulse">
+                <div className="flex justify-between items-center py-1">
+                  <span className="h-3 w-28 bg-slate-800 rounded" />
+                  <span className="h-3 w-16 bg-slate-800 rounded" />
                 </div>
-              )}
-              {Number(quote?.cod_fee) > 0 && (
-                <div className="flex justify-between text-slate-400">
-                  <span>COD Collection Fee:</span>
-                  <span className="text-amber-400 font-bold">+KES {quote?.cod_fee}</span>
+                <div className="flex justify-between items-center py-1">
+                  <span className="h-3 w-32 bg-slate-800 rounded" />
+                  <span className="h-3 w-16 bg-slate-800 rounded" />
                 </div>
-              )}
-              <div className="flex justify-between text-slate-400">
-                <span>VAT (16% KRA Standard):</span>
-                <span className="text-slate-300 font-bold">KES {quote?.tax_amount || '—'}</span>
+                <div className="flex justify-between items-center py-1">
+                  <span className="h-3 w-24 bg-slate-800 rounded" />
+                  <span className="h-3 w-14 bg-slate-800 rounded" />
+                </div>
+                <div className="border-t border-[#222834] pt-3 flex items-baseline justify-between">
+                  <span className="h-4 w-20 bg-slate-800 rounded" />
+                  <span className="h-6 w-28 bg-slate-800 rounded" />
+                </div>
               </div>
+            ) : quoteError ? (
+              <div className="p-3 rounded-lg bg-amber-950/25 border border-amber-800/40 text-amber-300 text-xs font-mono space-y-2">
+                <div className="flex items-center gap-1.5 font-bold text-amber-400">
+                  <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                  <span>Quote Calculation Pending</span>
+                </div>
+                <p className="text-[11px] text-amber-300/80 leading-relaxed">{quoteError}</p>
+                <button
+                  type="button"
+                  onClick={fetchQuote}
+                  className="inline-flex items-center gap-1 text-[11px] font-bold text-amber-400 hover:text-amber-300 cursor-pointer underline underline-offset-2"
+                >
+                  <RefreshCw className="w-3 h-3" />
+                  <span>Re-calculate quote</span>
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-2 text-xs font-mono">
+                <div className="flex justify-between text-slate-400">
+                  <span>Base Tariff (First 5kg):</span>
+                  <span className="text-white font-bold">KES {quote?.base_rate ? Number(quote.base_rate).toFixed(2) : '—'}</span>
+                </div>
+                <div className="flex justify-between text-slate-400">
+                  <span>Additional Weight Fee:</span>
+                  <span className="text-white font-bold">KES {quote?.weight_charge ? Number(quote.weight_charge).toFixed(2) : '—'}</span>
+                </div>
+                {Number(quote?.surcharges) > 0 && (
+                  <div className="flex justify-between text-slate-400">
+                    <span>Priority Surcharge:</span>
+                    <span className="text-amber-400 font-bold">+KES {Number(quote?.surcharges).toFixed(2)}</span>
+                  </div>
+                )}
+                {Number(quote?.cod_fee) > 0 && (
+                  <div className="flex justify-between text-slate-400">
+                    <span>COD Collection Fee:</span>
+                    <span className="text-amber-400 font-bold">+KES {Number(quote?.cod_fee).toFixed(2)}</span>
+                  </div>
+                )}
+                <div className="flex justify-between text-slate-400">
+                  <span>VAT (16% KRA Standard):</span>
+                  <span className="text-slate-300 font-bold">KES {quote?.tax_amount ? Number(quote.tax_amount).toFixed(2) : '—'}</span>
+                </div>
 
-              <div className="border-t border-[#222834] pt-3 flex items-baseline justify-between">
-                <span className="text-sm font-bold text-white uppercase">Total Due:</span>
-                <span className="text-xl font-black text-emerald-400 tabular-nums">
-                  KES {quote?.total_amount ? Number(quote.total_amount).toLocaleString() : '0.00'}
-                </span>
+                <div className="border-t border-[#222834] pt-3 flex items-baseline justify-between">
+                  <span className="text-sm font-bold text-white uppercase">Total Due:</span>
+                  <span className="text-2xl font-black text-emerald-400 tabular-nums">
+                    KES {quote?.total_amount ? Number(quote.total_amount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0.00'}
+                  </span>
+                </div>
               </div>
-            </div>
+            )}
 
             {/* Shift Guard Warning */}
             {!activeShift && (
@@ -1006,15 +1062,15 @@ export function ParcelCounterBooking({ user, activeShift, onRefreshShift, onOpen
             <button
               type="button"
               onClick={handleOpenPayment}
-              disabled={!activeShift || calculatingQuote || !destinationHubId || !senderName || !recipientName}
+              disabled={!activeShift || calculatingQuote || !quote?.total_amount || quote?.total_amount <= 0 || !destinationHubId || !senderName || !recipientName}
               className={`w-full py-3.5 rounded-xl font-mono font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg transition-all ${
-                activeShift && destinationHubId && senderName && recipientName
-                  ? 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-600/20 cursor-pointer'
+                activeShift && !calculatingQuote && quote?.total_amount > 0 && destinationHubId && senderName && recipientName
+                  ? 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-600/20 cursor-pointer hover:scale-[1.01]'
                   : 'bg-slate-800 text-slate-500 cursor-not-allowed border border-slate-700'
               }`}
             >
               <CheckCircle2 className="w-4 h-4" />
-              <span>ACCEPT & COLLECT PAYMENT</span>
+              <span>PROCEED TO PAYMENT</span>
             </button>
           </div>
         </div>
@@ -1212,6 +1268,7 @@ export function ParcelCounterBooking({ user, activeShift, onRefreshShift, onOpen
         onClose={() => setWaybillModalOpen(false)}
         waybillData={waybillData}
         onNewBooking={handleResetForm}
+        onNavigate={onNavigate}
       />
 
       {/* Reprint Waybill Modal */}

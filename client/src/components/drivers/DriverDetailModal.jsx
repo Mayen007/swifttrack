@@ -32,6 +32,11 @@ export function DriverDetailModal({
                   {selectedDriver.full_name?.split(' ').map(n => n[0]).slice(0, 2).join('') || 'DR'}
                 </div>
                 <div>
+                  <div className="text-[11px] font-mono text-slate-400 mb-1 flex items-center gap-1.5">
+                    <span className="text-slate-500 uppercase tracking-wider">Fleet Drivers</span>
+                    <span className="text-slate-600">›</span>
+                    <span className="text-blue-400 font-semibold">{selectedDriver.full_name}</span>
+                  </div>
                   <div className="flex items-center gap-2.5">
                     <h2 className="text-xl font-bold tracking-tight">{selectedDriver.full_name}</h2>
                     <span className="px-2 py-0.5 rounded text-xs font-mono font-semibold bg-blue-500/20 text-blue-300 border border-blue-500/30">
@@ -72,7 +77,7 @@ export function DriverDetailModal({
                 type="button"
                 onClick={() => setDetailTab('overview')}
                 className={`py-3 text-xs font-bold uppercase tracking-wider border-b-2 transition-colors flex items-center gap-1.5 ${
-                  detailTab === 'overview' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-900'
+                  detailTab === 'overview' ? 'border-blue-500 text-blue-400 font-extrabold' : 'border-transparent text-slate-400 hover:text-slate-200'
                 }`}
               >
                 <User className="w-4 h-4" />
@@ -82,7 +87,7 @@ export function DriverDetailModal({
                 type="button"
                 onClick={() => setDetailTab('scorecard')}
                 className={`py-3 text-xs font-bold uppercase tracking-wider border-b-2 transition-colors flex items-center gap-1.5 ${
-                  detailTab === 'scorecard' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-900'
+                  detailTab === 'scorecard' ? 'border-blue-500 text-blue-400 font-extrabold' : 'border-transparent text-slate-400 hover:text-slate-200'
                 }`}
               >
                 <Award className="w-4 h-4" />
@@ -92,7 +97,7 @@ export function DriverDetailModal({
                 type="button"
                 onClick={() => setDetailTab('deliveries')}
                 className={`py-3 text-xs font-bold uppercase tracking-wider border-b-2 transition-colors flex items-center gap-1.5 ${
-                  detailTab === 'deliveries' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-900'
+                  detailTab === 'deliveries' ? 'border-blue-500 text-blue-400 font-extrabold' : 'border-transparent text-slate-400 hover:text-slate-200'
                 }`}
               >
                 <Truck className="w-4 h-4" />
@@ -102,7 +107,7 @@ export function DriverDetailModal({
                 type="button"
                 onClick={() => setDetailTab('incidents')}
                 className={`py-3 text-xs font-bold uppercase tracking-wider border-b-2 transition-colors flex items-center gap-1.5 ${
-                  detailTab === 'incidents' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-900'
+                  detailTab === 'incidents' ? 'border-blue-500 text-blue-400 font-extrabold' : 'border-transparent text-slate-400 hover:text-slate-200'
                 }`}
               >
                 <AlertTriangle className="w-4 h-4" />

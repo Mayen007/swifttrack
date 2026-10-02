@@ -3,13 +3,28 @@ import React from 'react';
 import { Printer, X, CheckCircle2, ShieldCheck, ArrowRight, Package, MapPin, Phone, Mail, Building2 } from 'lucide-react';
 import { api } from '../../services/api.js';
 
-export function PrintableWaybillModal({ isOpen, onClose, waybillData, onNewBooking }) {
+export function PrintableWaybillModal({ isOpen, onClose, waybillData, onNewBooking, onNavigate }) {
   if (!isOpen || !waybillData) return null;
 
   const w = waybillData;
 
   const handlePrint = () => {
     window.print();
+  };
+
+  const handleViewInShipments = () => {
+    const tracking = w.tracking_number || w.waybill_number;
+    if (tracking) {
+      try {
+        sessionStorage.setItem('shipments_search_prefill', tracking);
+      } catch (e) {
+        // ignore
+      }
+    }
+    onClose();
+    if (onNavigate) {
+      onNavigate('shipments');
+    }
   };
 
   return (
@@ -33,6 +48,17 @@ export function PrintableWaybillModal({ isOpen, onClose, waybillData, onNewBooki
           </div>
 
           <div className="flex items-center gap-2">
+            {onNavigate && (
+              <button
+                type="button"
+                onClick={handleViewInShipments}
+                className="px-3 py-1.5 rounded-lg bg-emerald-600/20 hover:bg-emerald-600/30 border border-emerald-500/40 text-emerald-300 hover:text-emerald-200 text-xs font-mono font-bold flex items-center gap-1.5 transition-all cursor-pointer"
+                title="Track and manage this consignment in Shipments View"
+              >
+                <span>View in Shipments</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </button>
+            )}
             <button
               onClick={handlePrint}
               className="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-mono font-bold flex items-center gap-1.5 transition-all shadow-lg shadow-blue-600/20 cursor-pointer"

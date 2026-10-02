@@ -53,7 +53,7 @@ export function Sidebar({
           id: 'dashboard',
           label: 'Command Center',
           icon: LayoutDashboard,
-          roles: ['SUPER_ADMIN', 'BRANCH_MANAGER', 'DISPATCHER', 'CASHIER', 'DRIVER'],
+          roles: ['SUPER_ADMIN', 'BRANCH_MANAGER', 'DISPATCHER'],
         },
       ],
     },
@@ -68,7 +68,7 @@ export function Sidebar({
         },
         {
           id: 'pos',
-          label: 'Counter Parcel Booking',
+          label: 'Parcel Intake & Waybills',
           icon: ShoppingCart,
           roles: ['CASHIER', 'SUPER_ADMIN', 'BRANCH_MANAGER'],
         },

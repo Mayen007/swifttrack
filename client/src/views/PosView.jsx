@@ -6,6 +6,7 @@ import { sound } from '../services/sound.js';
 import { ParcelCounterBooking } from '../components/pos/ParcelCounterBooking.jsx';
 import { ShiftStatusBar } from '../components/pos/ShiftStatusBar.jsx';
 import { PosModeSelector } from '../components/pos/PosModeSelector.jsx';
+import { ShiftGateCard } from '../components/pos/ShiftGateCard.jsx';
 import { RetailCatalog } from '../components/pos/RetailCatalog.jsx';
 import { RetailCart } from '../components/pos/RetailCart.jsx';
 import { OpenShiftModal } from '../components/pos/OpenShiftModal.jsx';
@@ -19,7 +20,7 @@ import { ProductExchangeModal } from '../components/pos/ProductExchangeModal.jsx
 import { MpesaPaymentModal } from '../components/pos/MpesaPaymentModal.jsx';
 import { PosReceiptModal } from '../components/pos/PosReceiptModal.jsx';
 
-export function PosView() {
+export function PosView({ onNavigate }) {
   const { user, selectedBranch } = useAuth();
   const [posMode, setPosMode] = useState('PARCEL');
   const {
@@ -466,10 +467,17 @@ export function PosView() {
       <PosModeSelector posMode={posMode} setPosMode={setPosMode} />
 
       {posMode === 'PARCEL' ? (
-        <ParcelCounterBooking
-          activeShift={activeShift}
-          onOpenShiftRequest={() => setOpenShiftModalOpen(true)}
-        />
+        !activeShift && !shiftLoading ? (
+          <ShiftGateCard onOpenShift={() => setOpenShiftModalOpen(true)} />
+        ) : (
+          <ParcelCounterBooking
+            user={user}
+            activeShift={activeShift}
+            onOpenShiftRequest={() => setOpenShiftModalOpen(true)}
+            onRefreshShift={loadActiveShift}
+            onNavigate={onNavigate}
+          />
+        )
       ) : (
         <div className="flex flex-col lg:flex-row gap-4 h-[calc(100vh-14rem)] min-h-[580px]">
           <RetailCatalog

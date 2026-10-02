@@ -39,7 +39,18 @@ export function ShipmentsView({ onNavigate }) {
   const [error, setError] = useState(null);
 
   // Filters
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchQuery, setSearchQuery] = useState(() => {
+    try {
+      const prefill = sessionStorage.getItem('shipments_search_prefill');
+      if (prefill) {
+        sessionStorage.removeItem('shipments_search_prefill');
+        return prefill;
+      }
+    } catch (e) {
+      // ignore
+    }
+    return '';
+  });
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [serviceFilter, setServiceFilter] = useState('ALL');
 
