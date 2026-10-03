@@ -64,16 +64,16 @@ export const RBAC_CAPABILITY_MATRIX = [
 export const getRoleBadgeStyle = (roleName) => {
   switch (roleName) {
     case 'SUPER_ADMIN':
-      return 'bg-amber-950/70 text-amber-300 border-amber-800/60';
+      return 'bg-amber-500/20 text-amber-400 border-amber-500/40';
     case 'BRANCH_MANAGER':
-      return 'bg-emerald-950/70 text-emerald-300 border-emerald-800/60';
+      return 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40';
     case 'DISPATCHER':
-      return 'bg-blue-950/70 text-blue-300 border-blue-800/60';
+      return 'bg-blue-500/20 text-blue-400 border-blue-500/40';
     case 'CASHIER':
-      return 'bg-amber-950/70 text-amber-300 border-amber-800/60';
+      return 'bg-purple-500/20 text-purple-400 border-purple-500/40';
     case 'DRIVER':
-      return 'bg-cyan-950/70 text-cyan-300 border-cyan-800/60';
+      return 'bg-cyan-500/20 text-cyan-400 border-cyan-500/40';
     default:
-      return 'bg-slate-800 text-slate-300 border-slate-700';
+      return 'bg-slate-700/30 text-slate-300 border-slate-600/40';
   }
 };

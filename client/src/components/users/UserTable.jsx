@@ -98,7 +98,7 @@ export function UserTable({
                           <div className="font-bold text-white font-sans text-xs flex items-center gap-1.5">
                             <span>{u.full_name}</span>
                             {isCurrentSessionUser && (
-                              <span className="text-[9px] px-1.5 py-0.2 rounded bg-blue-500/20 text-blue-300 border border-blue-500/30 font-mono">
+                              <span className="text-[9px] px-1.5 py-0.2 rounded bg-blue-500/20 text-blue-400 border border-blue-500/30 font-mono font-bold">
                                 YOU
                               </span>
                             )}
@@ -114,11 +114,11 @@ export function UserTable({
 
                     <td className="p-3">
                       <span
-                        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-mono font-bold border ${getRoleBadgeStyle(
+                        className={`inline-flex items-center gap-1 px-2.5 py-1 rounded text-[11px] font-mono font-bold border ${getRoleBadgeStyle(
                           roleName
                         )}`}
                       >
-                        <Shield className="w-3 h-3" />
+                        <Shield className="w-3.5 h-3.5" />
                         {roleDisplay}
                       </span>
                     </td>
@@ -126,7 +126,7 @@ export function UserTable({
                     <td className="p-3">
                       {u.branch_id ? (
                         <div className="flex items-center gap-1.5">
-                          <span className="px-1.5 py-0.5 rounded bg-blue-950/80 text-blue-400 border border-blue-900/60 font-mono text-[10px] font-bold">
+                          <span className="px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-400 border border-blue-500/40 font-mono text-[10px] font-bold">
                             {u.branch_code || 'HUB'}
                           </span>
                           <span className="text-slate-300 text-xs font-sans">

@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@custom-variant dark (&:where(.dark, .dark *));
 @source "../index.html";
 @source "./**/*.{js,jsx,ts,tsx}";
 
@@ -163,9 +164,15 @@ dialog::backdrop {
   --color-status-info: #1e40af;
 }
 
-[data-theme="light"] *,
-.light * {
-  border-color: #cbd5e1;
+/* Protect transparent borders and provide crisp neutral hr dividers */
+[data-theme="light"] hr,
+.light hr {
+  border-color: #cbd5e1 !important;
+}
+
+[data-theme="light"] .border-transparent,
+.light .border-transparent {
+  border-color: transparent !important;
 }
 
 [data-theme="light"] body,
@@ -635,14 +642,7 @@ dialog::backdrop {
 .light .border-slate-700\/80,
 .light .border-slate-600,
 .light .border-slate-600\/40,
-[data-theme="light"] .border-emerald-900\/30,
-[data-theme="light"] .border-emerald-500\/30,
-[data-theme="light"] .border-amber-800\/40,
-[data-theme="light"] .border-rose-800\/60,
-.light .border-emerald-900\/30,
-.light .border-emerald-500\/30,
-.light .border-amber-800\/40,
-.light .border-rose-800\/60,
+[data-theme="light"] .border-slate-950,
 .light .border-slate-950 {
   border-color: #cbd5e1 !important;
 }
@@ -687,13 +687,35 @@ dialog::backdrop {
 
 /* 8. Ultra High-Legibility Typography Scale (WCAG AAA Compliant) */
 [data-theme="light"] .text-white,
-.light .text-white {
+[data-theme="light"] .text-slate-900,
+[data-theme="light"] .text-gray-900,
+[data-theme="light"] .dark\:text-white,
+[data-theme="light"] .dark\:text-slate-100,
+.light .text-white,
+.light .text-slate-900,
+.light .text-gray-900,
+.light .dark\:text-white,
+.light .dark\:text-slate-100 {
   color: #090d16 !important;
 }
 
 [data-theme="light"] .text-slate-100,
 .light .text-slate-100 {
   color: #090d16 !important;
+}
+
+[data-theme="light"] .dark\:text-slate-200,
+[data-theme="light"] .dark\:text-slate-300,
+.light .dark\:text-slate-200,
+.light .dark\:text-slate-300 {
+  color: #0f172a !important;
+}
+
+[data-theme="light"] .dark\:text-slate-400,
+[data-theme="light"] .dark\:text-slate-500,
+.light .dark\:text-slate-400,
+.light .dark\:text-slate-500 {
+  color: #334155 !important;
 }
 
 [data-theme="light"] .text-slate-200,
@@ -1178,33 +1200,54 @@ dialog::backdrop {
   font-weight: 600;
 }
 
-/* 11. Translucent Badge & Pill Enhancements for Crisp Light Contrast (Exact class selectors — never wildcard) */
+/* 11A. High-Contrast Translucent Badge & Pill Enhancements (WCAG AAA Light Mode) */
+/* Amber / Yellow / Warning Badges */
 [data-theme="light"] .bg-amber-500\/10,
 [data-theme="light"] .bg-amber-500\/15,
 [data-theme="light"] .bg-amber-500\/20,
 [data-theme="light"] .bg-amber-500\/30,
+[data-theme="light"] .bg-amber-600\/20,
+[data-theme="light"] .bg-amber-600\/30,
 [data-theme="light"] .bg-amber-400\/10,
+[data-theme="light"] .bg-amber-400\/20,
 [data-theme="light"] .bg-amber-50\/50,
+[data-theme="light"] .bg-amber-900\/40,
 [data-theme="light"] .bg-amber-950\/20,
 [data-theme="light"] .bg-amber-950\/60,
+[data-theme="light"] .bg-amber-950\/70,
+[data-theme="light"] .bg-amber-950\/80,
+[data-theme="light"] .bg-yellow-500\/10,
+[data-theme="light"] .bg-yellow-500\/20,
+[data-theme="light"] .bg-yellow-500\/30,
 .light .bg-amber-500\/10,
 .light .bg-amber-500\/15,
 .light .bg-amber-500\/20,
 .light .bg-amber-500\/30,
+.light .bg-amber-600\/20,
+.light .bg-amber-600\/30,
 .light .bg-amber-400\/10,
+.light .bg-amber-400\/20,
 .light .bg-amber-50\/50,
+.light .bg-amber-900\/40,
 .light .bg-amber-950\/20,
-.light .bg-amber-950\/60 {
+.light .bg-amber-950\/60,
+.light .bg-amber-950\/70,
+.light .bg-amber-950\/80,
+.light .bg-yellow-500\/10,
+.light .bg-yellow-500\/20,
+.light .bg-yellow-500\/30 {
   background-color: #fef3c7 !important;
   border-color: #fcd34d !important;
   color: #78350f !important;
 }
 
+/* Emerald / Green / Success Badges */
 [data-theme="light"] .bg-emerald-500\/10,
 [data-theme="light"] .bg-emerald-500\/15,
 [data-theme="light"] .bg-emerald-500\/20,
 [data-theme="light"] .bg-emerald-600\/20,
 [data-theme="light"] .bg-emerald-600\/30,
+[data-theme="light"] .bg-emerald-900\/40,
 [data-theme="light"] .bg-emerald-950\/10,
 [data-theme="light"] .bg-emerald-950\/20,
 [data-theme="light"] .bg-emerald-950\/25,
@@ -1214,11 +1257,13 @@ dialog::backdrop {
 [data-theme="light"] .bg-emerald-950\/80,
 [data-theme="light"] .bg-green-500\/10,
 [data-theme="light"] .bg-green-600\/20,
+[data-theme="light"] .bg-green-950\/60,
 .light .bg-emerald-500\/10,
 .light .bg-emerald-500\/15,
 .light .bg-emerald-500\/20,
 .light .bg-emerald-600\/20,
 .light .bg-emerald-600\/30,
+.light .bg-emerald-900\/40,
 .light .bg-emerald-950\/10,
 .light .bg-emerald-950\/20,
 .light .bg-emerald-950\/25,
@@ -1227,12 +1272,14 @@ dialog::backdrop {
 .light .bg-emerald-950\/70,
 .light .bg-emerald-950\/80,
 .light .bg-green-500\/10,
-.light .bg-green-600\/20 {
+.light .bg-green-600\/20,
+.light .bg-green-950\/60 {
   background-color: #d1fae5 !important;
   border-color: #6ee7b7 !important;
   color: #065f46 !important;
 }
 
+/* Blue / Info / Transit Badges */
 [data-theme="light"] .bg-blue-500\/10,
 [data-theme="light"] .bg-blue-500\/15,
 [data-theme="light"] .bg-blue-500\/20,
@@ -1240,9 +1287,12 @@ dialog::backdrop {
 [data-theme="light"] .bg-blue-600\/15,
 [data-theme="light"] .bg-blue-600\/20,
 [data-theme="light"] .bg-blue-600\/30,
+[data-theme="light"] .bg-blue-900\/40,
 [data-theme="light"] .bg-blue-950\/20,
 [data-theme="light"] .bg-blue-950\/40,
 [data-theme="light"] .bg-blue-950\/60,
+[data-theme="light"] .bg-blue-950\/70,
+[data-theme="light"] .bg-blue-950\/80,
 .light .bg-blue-500\/10,
 .light .bg-blue-500\/15,
 .light .bg-blue-500\/20,
@@ -1250,20 +1300,27 @@ dialog::backdrop {
 .light .bg-blue-600\/15,
 .light .bg-blue-600\/20,
 .light .bg-blue-600\/30,
+.light .bg-blue-900\/40,
 .light .bg-blue-950\/20,
 .light .bg-blue-950\/40,
-.light .bg-blue-950\/60 {
+.light .bg-blue-950\/60,
+.light .bg-blue-950\/70,
+.light .bg-blue-950\/80 {
   background-color: #dbeafe !important;
   border-color: #93c5fd !important;
   color: #1e40af !important;
 }
 
+/* Cyan / Sky / Teal Badges */
 [data-theme="light"] .bg-cyan-500\/10,
 [data-theme="light"] .bg-cyan-500\/20,
 [data-theme="light"] .bg-cyan-600\/20,
 [data-theme="light"] .bg-cyan-600\/30,
+[data-theme="light"] .bg-cyan-900\/40,
 [data-theme="light"] .bg-cyan-950\/30,
 [data-theme="light"] .bg-cyan-950\/40,
+[data-theme="light"] .bg-cyan-950\/70,
+[data-theme="light"] .bg-cyan-950\/80,
 [data-theme="light"] .bg-sky-500\/10,
 [data-theme="light"] .bg-sky-500\/15,
 [data-theme="light"] .bg-sky-500\/20,
@@ -1279,8 +1336,11 @@ dialog::backdrop {
 .light .bg-cyan-500\/20,
 .light .bg-cyan-600\/20,
 .light .bg-cyan-600\/30,
+.light .bg-cyan-900\/40,
 .light .bg-cyan-950\/30,
 .light .bg-cyan-950\/40,
+.light .bg-cyan-950\/70,
+.light .bg-cyan-950\/80,
 .light .bg-sky-500\/10,
 .light .bg-sky-500\/15,
 .light .bg-sky-500\/20,
@@ -1297,6 +1357,7 @@ dialog::backdrop {
   color: #155e75 !important;
 }
 
+/* Orange Badges */
 [data-theme="light"] .bg-orange-500\/10,
 [data-theme="light"] .bg-orange-500\/15,
 [data-theme="light"] .bg-orange-500\/20,
@@ -1312,48 +1373,430 @@ dialog::backdrop {
   color: #9a3412 !important;
 }
 
+/* Rose / Red / Critical Badges */
 [data-theme="light"] .bg-rose-500\/10,
 [data-theme="light"] .bg-rose-500\/15,
 [data-theme="light"] .bg-rose-500\/20,
 [data-theme="light"] .bg-rose-600\/20,
 [data-theme="light"] .bg-rose-600\/30,
-[data-theme="light"] .bg-red-500\/10,
-[data-theme="light"] .bg-red-500\/20,
+[data-theme="light"] .bg-rose-900\/40,
 [data-theme="light"] .bg-rose-950\/20,
 [data-theme="light"] .bg-rose-950\/40,
+[data-theme="light"] .bg-rose-950\/80,
+[data-theme="light"] .bg-red-500\/10,
+[data-theme="light"] .bg-red-500\/20,
+[data-theme="light"] .bg-red-900\/40,
+[data-theme="light"] .bg-red-950\/40,
 .light .bg-rose-500\/10,
 .light .bg-rose-500\/15,
 .light .bg-rose-500\/20,
 .light .bg-rose-600\/20,
 .light .bg-rose-600\/30,
+.light .bg-rose-900\/40,
+.light .bg-rose-950\/20,
+.light .bg-rose-950\/40,
+.light .bg-rose-950\/80,
 .light .bg-red-500\/10,
 .light .bg-red-500\/20,
-.light .bg-rose-950\/20,
-.light .bg-rose-950\/40 {
+.light .bg-red-900\/40,
+.light .bg-red-950\/40 {
   background-color: #ffe4e6 !important;
   border-color: #fda4af !important;
   color: #9f1239 !important;
 }
 
+/* Indigo / Purple / Fleet Badges */
 [data-theme="light"] .bg-purple-500\/10,
 [data-theme="light"] .bg-purple-500\/20,
 [data-theme="light"] .bg-indigo-500\/10,
 [data-theme="light"] .bg-indigo-500\/20,
 [data-theme="light"] .bg-indigo-600\/20,
 [data-theme="light"] .bg-indigo-600\/30,
+[data-theme="light"] .bg-indigo-900\/40,
 [data-theme="light"] .bg-indigo-950\/20,
 [data-theme="light"] .bg-indigo-950\/40,
+[data-theme="light"] .bg-indigo-950\/70,
+[data-theme="light"] .bg-purple-950\/70,
+[data-theme="light"] .bg-violet-500\/10,
+[data-theme="light"] .bg-violet-500\/20,
 .light .bg-purple-500\/10,
 .light .bg-purple-500\/20,
 .light .bg-indigo-500\/10,
 .light .bg-indigo-500\/20,
 .light .bg-indigo-600\/20,
 .light .bg-indigo-600\/30,
+.light .bg-indigo-900\/40,
 .light .bg-indigo-950\/20,
-.light .bg-indigo-950\/40 {
+.light .bg-indigo-950\/40,
+.light .bg-indigo-950\/70,
+.light .bg-purple-950\/70,
+.light .bg-violet-500\/10,
+.light .bg-violet-500\/20 {
   background-color: #f3e8ff !important;
   border-color: #d8b4fe !important;
   color: #6b21a8 !important;
+}
+
+/* Slate / Neutral / Draft / Unallocated Badges */
+[data-theme="light"] .bg-slate-500\/10,
+[data-theme="light"] .bg-slate-500\/20,
+[data-theme="light"] .bg-slate-600\/20,
+[data-theme="light"] .bg-slate-700\/40,
+[data-theme="light"] .bg-slate-700\/50,
+[data-theme="light"] .bg-slate-800\/40,
+.light .bg-slate-500\/10,
+.light .bg-slate-500\/20,
+.light .bg-slate-600\/20,
+.light .bg-slate-700\/40,
+.light .bg-slate-700\/50,
+.light .bg-slate-800\/40 {
+  background-color: #f1f5f9 !important;
+  border-color: #cbd5e1 !important;
+  color: #334155 !important;
+}
+
+/* 11B. Precision Colored Borders for Status Badges, Steppers & Signal Indicators */
+[data-theme="light"] .border-amber-400\/30,
+[data-theme="light"] .border-amber-400\/40,
+[data-theme="light"] .border-amber-500\/20,
+[data-theme="light"] .border-amber-500\/30,
+[data-theme="light"] .border-amber-500\/40,
+[data-theme="light"] .border-amber-600\/40,
+[data-theme="light"] .border-amber-700\/50,
+[data-theme="light"] .border-amber-700\/60,
+[data-theme="light"] .border-amber-800\/40,
+[data-theme="light"] .border-amber-800\/60,
+[data-theme="light"] .border-yellow-500\/20,
+[data-theme="light"] .border-yellow-500\/40,
+.light .border-amber-400\/30,
+.light .border-amber-400\/40,
+.light .border-amber-500\/20,
+.light .border-amber-500\/30,
+.light .border-amber-500\/40,
+.light .border-amber-600\/40,
+.light .border-amber-700\/50,
+.light .border-amber-700\/60,
+.light .border-amber-800\/40,
+.light .border-amber-800\/60,
+.light .border-yellow-500\/20,
+.light .border-yellow-500\/40 {
+  border-color: #fcd34d !important;
+}
+
+[data-theme="light"] .border-emerald-400\/30,
+[data-theme="light"] .border-emerald-500\/20,
+[data-theme="light"] .border-emerald-500\/30,
+[data-theme="light"] .border-emerald-500\/40,
+[data-theme="light"] .border-emerald-500\/50,
+[data-theme="light"] .border-emerald-600\/40,
+[data-theme="light"] .border-emerald-700\/50,
+[data-theme="light"] .border-emerald-800\/40,
+[data-theme="light"] .border-emerald-800\/60,
+[data-theme="light"] .border-emerald-900\/30,
+[data-theme="light"] .border-green-500\/20,
+[data-theme="light"] .border-green-600\/40,
+[data-theme="light"] .border-green-800\/40,
+.light .border-emerald-400\/30,
+.light .border-emerald-500\/20,
+.light .border-emerald-500\/30,
+.light .border-emerald-500\/40,
+.light .border-emerald-500\/50,
+.light .border-emerald-600\/40,
+.light .border-emerald-700\/50,
+.light .border-emerald-800\/40,
+.light .border-emerald-800\/60,
+.light .border-emerald-900\/30,
+.light .border-green-500\/20,
+.light .border-green-600\/40,
+.light .border-green-800\/40 {
+  border-color: #6ee7b7 !important;
+}
+
+[data-theme="light"] .border-blue-400\/30,
+[data-theme="light"] .border-blue-500\/20,
+[data-theme="light"] .border-blue-500\/30,
+[data-theme="light"] .border-blue-500\/40,
+[data-theme="light"] .border-blue-600\/40,
+[data-theme="light"] .border-blue-700\/50,
+[data-theme="light"] .border-blue-800\/40,
+[data-theme="light"] .border-blue-800\/60,
+[data-theme="light"] .border-blue-900\/40,
+.light .border-blue-400\/30,
+.light .border-blue-500\/20,
+.light .border-blue-500\/30,
+.light .border-blue-500\/40,
+.light .border-blue-600\/40,
+.light .border-blue-700\/50,
+.light .border-blue-800\/40,
+.light .border-blue-800\/60,
+.light .border-blue-900\/40 {
+  border-color: #93c5fd !important;
+}
+
+[data-theme="light"] .border-cyan-400\/30,
+[data-theme="light"] .border-cyan-500\/20,
+[data-theme="light"] .border-cyan-500\/30,
+[data-theme="light"] .border-cyan-500\/40,
+[data-theme="light"] .border-cyan-600\/40,
+[data-theme="light"] .border-cyan-700\/50,
+[data-theme="light"] .border-cyan-800\/40,
+[data-theme="light"] .border-cyan-800\/60,
+[data-theme="light"] .border-sky-500\/20,
+[data-theme="light"] .border-teal-500\/20,
+.light .border-cyan-400\/30,
+.light .border-cyan-500\/20,
+.light .border-cyan-500\/30,
+.light .border-cyan-500\/40,
+.light .border-cyan-600\/40,
+.light .border-cyan-700\/50,
+.light .border-cyan-800\/40,
+.light .border-cyan-800\/60,
+.light .border-sky-500\/20,
+.light .border-teal-500\/20 {
+  border-color: #67e8f9 !important;
+}
+
+[data-theme="light"] .border-indigo-400\/30,
+[data-theme="light"] .border-indigo-500\/20,
+[data-theme="light"] .border-indigo-500\/30,
+[data-theme="light"] .border-indigo-500\/40,
+[data-theme="light"] .border-indigo-600\/40,
+[data-theme="light"] .border-indigo-700\/50,
+[data-theme="light"] .border-indigo-800\/40,
+[data-theme="light"] .border-purple-500\/40,
+[data-theme="light"] .border-purple-700\/50,
+.light .border-indigo-400\/30,
+.light .border-indigo-500\/20,
+.light .border-indigo-500\/30,
+.light .border-indigo-500\/40,
+.light .border-indigo-600\/40,
+.light .border-indigo-700\/50,
+.light .border-indigo-800\/40,
+.light .border-purple-500\/40,
+.light .border-purple-700\/50 {
+  border-color: #a5b4fc !important;
+}
+
+[data-theme="light"] .border-rose-400\/30,
+[data-theme="light"] .border-rose-500\/20,
+[data-theme="light"] .border-rose-500\/30,
+[data-theme="light"] .border-rose-500\/40,
+[data-theme="light"] .border-rose-600\/40,
+[data-theme="light"] .border-rose-700\/50,
+[data-theme="light"] .border-rose-700\/60,
+[data-theme="light"] .border-rose-800\/60,
+[data-theme="light"] .border-red-500\/20,
+[data-theme="light"] .border-red-500\/40,
+[data-theme="light"] .border-red-700\/50,
+[data-theme="light"] .border-red-700\/60,
+.light .border-rose-400\/30,
+.light .border-rose-500\/20,
+.light .border-rose-500\/30,
+.light .border-rose-500\/40,
+.light .border-rose-600\/40,
+.light .border-rose-700\/50,
+.light .border-rose-700\/60,
+.light .border-rose-800\/60,
+.light .border-red-500\/20,
+.light .border-red-500\/40,
+.light .border-red-700\/50,
+.light .border-red-700\/60 {
+  border-color: #fda4af !important;
+}
+
+[data-theme="light"] .border-orange-400\/40,
+[data-theme="light"] .border-orange-500\/20,
+[data-theme="light"] .border-orange-500\/40,
+.light .border-orange-400\/40,
+.light .border-orange-500\/20,
+.light .border-orange-500\/40 {
+  border-color: #fdba74 !important;
+}
+
+[data-theme="light"] .border-slate-500\/20,
+[data-theme="light"] .border-slate-600\/50,
+.light .border-slate-500\/20,
+.light .border-slate-600\/50 {
+  border-color: #cbd5e1 !important;
+}
+
+/* 11C. Interactive Workflow Action Buttons in Modals & Control Panels */
+/* Danger & Failed Delivery Actions */
+[data-theme="light"] .bg-red-900\/50,
+[data-theme="light"] .bg-red-900\/40,
+[data-theme="light"] .bg-red-950\/60,
+.light .bg-red-900\/50,
+.light .bg-red-900\/40,
+.light .bg-red-950\/60 {
+  background-color: #fee2e2 !important;
+  border-color: #fca5a5 !important;
+  color: #991b1b !important;
+}
+
+[data-theme="light"] .hover\:bg-red-800\/70:hover,
+[data-theme="light"] .hover\:bg-red-900\/60:hover,
+.light .hover\:bg-red-800\/70:hover,
+.light .hover\:bg-red-900\/60:hover {
+  background-color: #fecaca !important;
+  border-color: #f87171 !important;
+  color: #7f1d1d !important;
+}
+
+/* Return Order / Return to Warehouse Actions */
+[data-theme="light"] .bg-amber-900\/50,
+[data-theme="light"] .bg-amber-900\/40,
+.light .bg-amber-900\/50,
+.light .bg-amber-900\/40 {
+  background-color: #fef3c7 !important;
+  border-color: #fcd34d !important;
+  color: #92400e !important;
+}
+
+[data-theme="light"] .hover\:bg-amber-800\/70:hover,
+.light .hover\:bg-amber-800\/70:hover {
+  background-color: #fde68a !important;
+  border-color: #fbbf24 !important;
+  color: #78350f !important;
+}
+
+/* Refund / Cancel Order / Close Shift Actions */
+[data-theme="light"] .bg-rose-900\/50,
+[data-theme="light"] .bg-rose-900\/40,
+[data-theme="light"] .bg-rose-950\/40,
+.light .bg-rose-900\/50,
+.light .bg-rose-900\/40,
+.light .bg-rose-950\/40 {
+  background-color: #ffe4e6 !important;
+  border-color: #fda4af !important;
+  color: #9f1239 !important;
+}
+
+[data-theme="light"] .hover\:bg-rose-800\/70:hover,
+[data-theme="light"] .hover\:bg-rose-900\/60:hover,
+.light .hover\:bg-rose-800\/70:hover,
+.light .hover\:bg-rose-900\/60:hover {
+  background-color: #fecdd3 !important;
+  border-color: #fb7185 !important;
+  color: #881337 !important;
+}
+
+/* 11D. Active Underline Tabs & Process Navigation State */
+[data-theme="light"] button.border-amber-400,
+[data-theme="light"] a.border-amber-400,
+[data-theme="light"] div.border-amber-400,
+.light button.border-amber-400,
+.light a.border-amber-400,
+.light div.border-amber-400 {
+  border-color: #d97706 !important;
+  color: #b45309 !important;
+}
+
+[data-theme="light"] button.border-blue-500,
+[data-theme="light"] a.border-blue-500,
+[data-theme="light"] button.border-blue-600,
+[data-theme="light"] a.border-blue-600,
+.light button.border-blue-500,
+.light a.border-blue-500,
+.light button.border-blue-600,
+.light a.border-blue-600 {
+  border-color: #2563eb !important;
+  color: #1d4ed8 !important;
+}
+
+/* Inactive tabs remain transparent without phantom lines */
+[data-theme="light"] button.border-transparent,
+[data-theme="light"] a.border-transparent,
+.light button.border-transparent,
+.light a.border-transparent {
+  border-color: transparent !important;
+  color: #475569 !important;
+}
+
+[data-theme="light"] button.border-transparent:hover,
+[data-theme="light"] a.border-transparent:hover,
+.light button.border-transparent:hover,
+.light a.border-transparent:hover {
+  border-color: transparent !important;
+  color: #0f172a !important;
+}
+
+/* 11E. Tactile Segmented Filters & Secondary Inset Action Buttons */
+[data-theme="light"] button.bg-\[\#0c0e12\],
+[data-theme="light"] button.bg-\[\#161c28\],
+[data-theme="light"] button.bg-\[\#181d28\],
+.light button.bg-\[\#0c0e12\],
+.light button.bg-\[\#161c28\],
+.light button.bg-\[\#181d28\] {
+  background-color: #ffffff !important;
+  border-color: #cbd5e1 !important;
+  color: #334155 !important;
+  box-shadow: 0 1px 2px 0 rgba(15, 23, 42, 0.05) !important;
+}
+
+[data-theme="light"] button.bg-\[\#0c0e12\]:hover,
+[data-theme="light"] button.bg-\[\#161c28\]:hover,
+[data-theme="light"] button.bg-\[\#181d28\]:hover,
+.light button.bg-\[\#0c0e12\]:hover,
+.light button.bg-\[\#161c28\]:hover,
+.light button.bg-\[\#181d28\]:hover {
+  background-color: #f1f5f9 !important;
+  border-color: #94a3b8 !important;
+  color: #0f172a !important;
+}
+
+/* 11F. Stepper Current & Completed State Protection */
+[data-theme="light"] .bg-amber-400.border-amber-400,
+.light .bg-amber-400.border-amber-400 {
+  background-color: #f59e0b !important;
+  border-color: #d97706 !important;
+  color: #0f172a !important;
+}
+
+[data-theme="light"] .bg-emerald-500\/20.border-emerald-500\/40,
+.light .bg-emerald-500\/20.border-emerald-500\/40 {
+  background-color: #d1fae5 !important;
+  border-color: #6ee7b7 !important;
+  color: #065f46 !important;
+}
+
+/* Solid saturated buttons border protection */
+[data-theme="light"] button.bg-blue-600,
+[data-theme="light"] button.bg-blue-500,
+[data-theme="light"] button.bg-emerald-600,
+[data-theme="light"] button.bg-emerald-500,
+[data-theme="light"] button.bg-rose-600,
+[data-theme="light"] button.bg-rose-500,
+[data-theme="light"] button.bg-red-600,
+[data-theme="light"] button.bg-red-500,
+[data-theme="light"] button.bg-indigo-600,
+[data-theme="light"] button.bg-indigo-500,
+[data-theme="light"] button.bg-purple-600,
+[data-theme="light"] button.bg-cyan-600,
+[data-theme="light"] button.bg-cyan-500,
+[data-theme="light"] button.bg-sky-600,
+[data-theme="light"] a.bg-blue-600,
+[data-theme="light"] a.bg-blue-500,
+[data-theme="light"] a.bg-emerald-600,
+[data-theme="light"] a.bg-indigo-600,
+.light button.bg-blue-600,
+.light button.bg-blue-500,
+.light button.bg-emerald-600,
+.light button.bg-emerald-500,
+.light button.bg-rose-600,
+.light button.bg-rose-500,
+.light button.bg-red-600,
+.light button.bg-red-500,
+.light button.bg-indigo-600,
+.light button.bg-indigo-500,
+.light button.bg-purple-600,
+.light button.bg-cyan-600,
+.light button.bg-cyan-500,
+.light button.bg-sky-600,
+.light a.bg-blue-600,
+.light a.bg-blue-500,
+.light a.bg-emerald-600,
+.light a.bg-indigo-600 {
+  border-color: transparent !important;
 }
 
 /* 12. Interactive Hovers & Sidebar Nav State */

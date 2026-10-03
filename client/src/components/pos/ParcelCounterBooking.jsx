@@ -470,20 +470,20 @@ export function ParcelCounterBooking({ user, activeShift, onRefreshShift, onOpen
       {/* Top Banner & Quick Controls */}
       <div className="bg-[#121622] border border-[#2a3447] rounded-xl p-3.5 sm:p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-md">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg bg-blue-600/10 border border-blue-500/30 flex items-center justify-center text-blue-600 dark:text-blue-400">
+          <div className="w-10 h-10 rounded-lg bg-blue-500/10 border border-blue-500/30 flex items-center justify-center text-blue-400">
             <Package className="w-5 h-5" />
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h2 className="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-wider font-mono">
+              <h2 className="text-sm font-bold text-white uppercase tracking-wider font-mono">
                 Logistics Counter Terminal
               </h2>
-              <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-blue-50 dark:bg-blue-500/15 text-blue-700 dark:text-blue-300 border border-blue-400/50 dark:border-blue-400/60">
+              <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-blue-500/15 text-blue-400 border border-blue-500/30">
                 INTAKE & RATING
               </span>
             </div>
-            <p className="text-xs text-slate-500 dark:text-slate-400 font-mono mt-0.5">
-              Origin Hub: <span className="text-slate-900 dark:text-white font-bold">{originHub.name} ({originHub.code})</span>
+            <p className="text-xs text-slate-400 font-mono mt-0.5">
+              Origin Hub: <span className="text-white font-bold">{originHub.name} ({originHub.code})</span>
             </p>
           </div>
         </div>
