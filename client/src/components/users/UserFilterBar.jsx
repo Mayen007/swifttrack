@@ -17,7 +17,7 @@ export function UserFilterBar({
   branches,
 }) {
   return (
-    <div className="bg-[#12161f] border border-[#222834] rounded p-3 flex flex-col lg:flex-row items-center justify-between gap-3">
+    <div className="bg-[#12161f] border border-[#222834] rounded p-3 flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3">
       <div className="relative w-full lg:w-80">
         <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
         <input
@@ -38,7 +38,7 @@ export function UserFilterBar({
       </div>
 
       <div className="flex flex-wrap items-center gap-2 w-full lg:w-auto justify-between lg:justify-end">
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-1.5 flex-1 sm:flex-none">
           <span className="text-[10px] font-mono text-slate-400 uppercase hidden sm:inline">
             ROLE:
           </span>
@@ -48,7 +48,7 @@ export function UserFilterBar({
               sound.playScan();
               setRoleFilter(e.target.value);
             }}
-            className="bg-[#181d28] border border-[#222834] rounded px-2.5 py-1 text-xs font-mono text-slate-200 focus:outline-none focus:border-blue-500"
+            className="w-full sm:w-auto bg-[#181d28] border border-[#222834] rounded px-2.5 py-1 text-xs font-mono text-slate-200 focus:outline-none focus:border-blue-500 cursor-pointer"
           >
             <option value="ALL">ALL ROLES ({usersCount})</option>
             <option value="SUPER_ADMIN">SUPER_ADMIN ({kpis.roleCounts['SUPER_ADMIN'] || 0})</option>
@@ -60,7 +60,7 @@ export function UserFilterBar({
         </div>
 
         {isSuperAdmin && (
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1.5 flex-1 sm:flex-none">
             <span className="text-[10px] font-mono text-slate-400 uppercase hidden sm:inline">
               HUB:
             </span>
@@ -70,7 +70,7 @@ export function UserFilterBar({
                 sound.playScan();
                 setBranchFilter(e.target.value);
               }}
-              className="bg-[#181d28] border border-[#222834] rounded px-2.5 py-1 text-xs font-mono text-slate-200 focus:outline-none focus:border-blue-500"
+              className="w-full sm:w-auto bg-[#181d28] border border-[#222834] rounded px-2.5 py-1 text-xs font-mono text-slate-200 focus:outline-none focus:border-blue-500 cursor-pointer"
             >
               <option value="ALL">ALL REGIONS</option>
               <option value="GLOBAL">HQ GLOBAL (NO BRANCH)</option>

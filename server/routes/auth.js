@@ -353,49 +353,9 @@ router.post('/demo-switch', (req, res) => {
         : (branchId !== undefined && branchId !== null && branchId !== '')
             ? Number(branchId)
             : null;
-    let targetUsername = username;
+    let user = null;
 
-    if (!targetUsername) {
-        if (role === 'SUPER_ADMIN' || (!role && targetBranchId === null)) {
-            targetUsername = 'superadmin';
-        } else if (targetBranchId === 2) {
-            if (role === 'CASHIER') targetUsername = 'cashier.mombasa';
-            else if (role === 'DRIVER') targetUsername = 'driver.mombasa';
-            else targetUsername = 'manager.mombasa';
-        } else if (targetBranchId === 3) {
-            targetUsername = 'manager.kisumu';
-        } else if (targetBranchId === 1) {
-            if (role === 'DISPATCHER') targetUsername = 'dispatcher.nairobi';
-            else if (role === 'CASHIER') targetUsername = 'cashier.nairobi';
-            else if (role === 'DRIVER') targetUsername = 'driver.nairobi';
-            else targetUsername = 'manager.nairobi';
-        } else {
-            switch (role) {
-                case 'SUPER_ADMIN': targetUsername = 'superadmin'; break;
-                case 'BRANCH_MANAGER':
-                case 'BRANCH_MANAGER_NAIROBI': targetUsername = 'manager.nairobi'; break;
-                case 'BRANCH_MANAGER_MOMBASA': targetUsername = 'manager.mombasa'; break;
-                case 'BRANCH_MANAGER_KISUMU': targetUsername = 'manager.kisumu'; break;
-                case 'DISPATCHER': targetUsername = 'dispatcher.nairobi'; break;
-                case 'CASHIER': targetUsername = 'cashier.nairobi'; break;
-                case 'DRIVER': targetUsername = 'driver.nairobi'; break;
-                default: targetUsername = 'superadmin';
-            }
-        }
-    }
-
-    let user = db.prepare(`
-        SELECT u.id, u.username, u.email, u.full_name, u.phone, u.branch_id, u.is_active,
-               u.token_version, u.must_change_password, u.two_factor_enabled,
-               r.name as role_name, r.display_name as role_display_name,
-               b.name as branch_name, b.code as branch_code, b.city as branch_city
-        FROM users u
-        JOIN roles r ON u.role_id = r.id
-        LEFT JOIN branches b ON u.branch_id = b.id
-        WHERE u.username = ?
-    `).get(targetUsername);
-
-    if (!user && targetBranchId) {
+    if (username) {
         user = db.prepare(`
             SELECT u.id, u.username, u.email, u.full_name, u.phone, u.branch_id, u.is_active,
                    u.token_version, u.must_change_password, u.two_factor_enabled,
@@ -404,9 +364,98 @@ router.post('/demo-switch', (req, res) => {
             FROM users u
             JOIN roles r ON u.role_id = r.id
             LEFT JOIN branches b ON u.branch_id = b.id
-            WHERE u.branch_id = ?
-            ORDER BY CASE WHEN r.name = 'BRANCH_MANAGER' THEN 1 ELSE 2 END, u.id ASC
-        `).get(targetBranchId);
+            WHERE u.username = ?
+        `).get(username);
+    } else if (role === 'SUPER_ADMIN' || (!role && targetBranchId === null)) {
+        user = db.prepare(`
+            SELECT u.id, u.username, u.email, u.full_name, u.phone, u.branch_id, u.is_active,
+                   u.token_version, u.must_change_password, u.two_factor_enabled,
+                   r.name as role_name, r.display_name as role_display_name,
+                   b.name as branch_name, b.code as branch_code, b.city as branch_city
+            FROM users u
+            JOIN roles r ON u.role_id = r.id
+            LEFT JOIN branches b ON u.branch_id = b.id
+            WHERE u.username = 'superadmin'
+        `).get();
+    } else if (targetBranchId) {
+        // Find existing user in targetBranchId matching requested role (or any role in branch)
+        user = db.prepare(`
+            SELECT u.id, u.username, u.email, u.full_name, u.phone, u.branch_id, u.is_active,
+                   u.token_version, u.must_change_password, u.two_factor_enabled,
+                   r.name as role_name, r.display_name as role_display_name,
+                   b.name as branch_name, b.code as branch_code, b.city as branch_city
+            FROM users u
+            JOIN roles r ON u.role_id = r.id
+            LEFT JOIN branches b ON u.branch_id = b.id
+            WHERE u.branch_id = ? AND (r.name = ? OR ? IS NULL)
+            ORDER BY CASE WHEN r.name = ? THEN 1 ELSE 2 END, u.id ASC
+        `).get(targetBranchId, role || null, role || null, role || 'BRANCH_MANAGER');
+
+        // If targetBranchId has no users yet (e.g., dynamically added branch), auto-provision a demo operator
+        if (!user) {
+            const targetBranch = db.prepare('SELECT * FROM branches WHERE id = ?').get(targetBranchId);
+            if (targetBranch) {
+                const roleRow = db.prepare('SELECT id, name, display_name FROM roles WHERE name = ?').get(role || 'BRANCH_MANAGER')
+                    || db.prepare("SELECT id, name, display_name FROM roles WHERE name = 'BRANCH_MANAGER'").get();
+                const sanitizedCode = targetBranch.code.toLowerCase().replace(/[^a-z0-9]/g, '');
+                const rolePrefix = (role || 'manager').toLowerCase().replace('branch_', '').replace('_', '');
+                const demoUsername = `${rolePrefix}.${sanitizedCode}`;
+                
+                const existingUser = db.prepare('SELECT id FROM users WHERE username = ?').get(demoUsername);
+                const finalUsername = existingUser ? `${demoUsername}_${targetBranchId}` : demoUsername;
+
+                const defaultPassword = 'Password123!';
+                const { hashPassword } = require('../utils/security.js');
+                const hashed = hashPassword(defaultPassword);
+
+                db.prepare(`
+                    INSERT INTO users (username, password_hash, email, full_name, role_id, branch_id, is_active, phone)
+                    VALUES (?, ?, ?, ?, ?, ?, 1, ?)
+                `).run(
+                    finalUsername,
+                    hashed,
+                    `${finalUsername}@swifttrack.co.ke`,
+                    `${targetBranch.name} ${roleRow.display_name || 'Operator'}`,
+                    roleRow.id,
+                    targetBranchId,
+                    targetBranch.phone || '+254 700 000 000'
+                );
+
+                user = db.prepare(`
+                    SELECT u.id, u.username, u.email, u.full_name, u.phone, u.branch_id, u.is_active,
+                           u.token_version, u.must_change_password, u.two_factor_enabled,
+                           r.name as role_name, r.display_name as role_display_name,
+                           b.name as branch_name, b.code as branch_code, b.city as branch_city
+                    FROM users u
+                    JOIN roles r ON u.role_id = r.id
+                    LEFT JOIN branches b ON u.branch_id = b.id
+                    WHERE u.username = ?
+                `).get(finalUsername);
+            }
+        }
+    } else {
+        // Fallback role switch on default branch 1
+        const fallbackUsernames = {
+            SUPER_ADMIN: 'superadmin',
+            BRANCH_MANAGER: 'manager.nairobi',
+            BRANCH_MANAGER_NAIROBI: 'manager.nairobi',
+            BRANCH_MANAGER_MOMBASA: 'manager.mombasa',
+            BRANCH_MANAGER_KISUMU: 'manager.kisumu',
+            DISPATCHER: 'dispatcher.nairobi',
+            CASHIER: 'cashier.nairobi',
+            DRIVER: 'driver.nairobi',
+        };
+        const targetUsername = fallbackUsernames[role] || 'superadmin';
+        user = db.prepare(`
+            SELECT u.id, u.username, u.email, u.full_name, u.phone, u.branch_id, u.is_active,
+                   u.token_version, u.must_change_password, u.two_factor_enabled,
+                   r.name as role_name, r.display_name as role_display_name,
+                   b.name as branch_name, b.code as branch_code, b.city as branch_city
+            FROM users u
+            JOIN roles r ON u.role_id = r.id
+            LEFT JOIN branches b ON u.branch_id = b.id
+            WHERE u.username = ?
+        `).get(targetUsername);
     }
 
     if (!user) {

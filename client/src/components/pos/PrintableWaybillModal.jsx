@@ -32,7 +32,7 @@ export function PrintableWaybillModal({ isOpen, onClose, waybillData, onNewBooki
       {/* Modal Container */}
       <div className="relative w-full max-w-3xl bg-[#0c0e14] border border-[#222834] rounded-xl shadow-2xl overflow-hidden my-auto max-h-[95vh] flex flex-col">
         {/* Header Actions (Hidden on Print) */}
-        <div className="print:hidden flex items-center justify-between px-5 py-3.5 bg-[#121622] border-b border-[#222834]">
+        <div className="print:hidden flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-4 sm:px-5 py-3.5 bg-[#121622] border-b border-[#222834]">
           <div className="flex items-center gap-2">
             <div className="p-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-400">
               <CheckCircle2 className="w-5 h-5" />
@@ -47,7 +47,7 @@ export function PrintableWaybillModal({ isOpen, onClose, waybillData, onNewBooki
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto justify-end">
             {onNavigate && (
               <button
                 type="button"

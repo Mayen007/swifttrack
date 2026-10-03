@@ -27,7 +27,7 @@ import {
 } from 'lucide-react';
 
 export function ReportsView() {
-  const { user, selectedBranch } = useAuth();
+  const { user, selectedBranch, isSuperAdmin } = useAuth();
   const [activeTab, setActiveTab] = useState('vat'); // 'vat', 'pnl', 'payments'
   const [vatReport, setVatReport] = useState(null);
   const [pnlReport, setPnlReport] = useState(null);
@@ -38,7 +38,8 @@ export function ReportsView() {
   const loadReports = async () => {
     try {
       setLoading(true);
-      const branchParam = selectedBranch ? `?branch_id=${selectedBranch.id}` : '';
+      const activeBranchId = !isSuperAdmin && user?.branch_id ? user.branch_id : (selectedBranch?.id || null);
+      const branchParam = activeBranchId ? `?branch_id=${activeBranchId}` : '';
       const [vat, pnl, pay] = await Promise.all([
         api.get(`/api/reports/vat${branchParam}`).catch(() => null),
         api.get(`/api/reports/pnl${branchParam}`).catch(() => null),

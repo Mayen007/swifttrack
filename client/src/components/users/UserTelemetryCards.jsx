@@ -46,42 +46,42 @@ export function UserTelemetryCards({
           </p>
         </div>
 
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex flex-wrap items-center gap-2 w-full md:w-auto shrink-0">
           <button
             onClick={onOpenMatrix}
             title="Inspect comprehensive RBAC capability privileges"
-            className="px-3 py-1.5 rounded border border-[#222834] bg-[#181d28] hover:bg-[#202736] text-xs font-mono text-slate-300 hover:text-white flex items-center gap-1.5 transition-colors cursor-pointer"
+            className="flex-1 sm:flex-none px-2.5 sm:px-3 py-1.5 rounded border border-[#222834] bg-[#181d28] hover:bg-[#202736] text-xs font-mono text-slate-300 hover:text-white flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
           >
-            <Layers className="w-3.5 h-3.5 text-blue-400" />
-            <span>RBAC MATRIX</span>
+            <Layers className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+            <span><span className="hidden sm:inline">RBAC </span>MATRIX</span>
           </button>
 
           <button
             onClick={onOpenFailedLogins}
             title="Inspect failed login attempts and lockout security events"
-            className="px-3 py-1.5 rounded border border-[#222834] bg-[#181d28] hover:bg-[#202736] text-xs font-mono text-amber-400 hover:text-amber-300 flex items-center gap-1.5 transition-colors cursor-pointer"
+            className="flex-1 sm:flex-none px-2.5 sm:px-3 py-1.5 rounded border border-[#222834] bg-[#181d28] hover:bg-[#202736] text-xs font-mono text-amber-400 hover:text-amber-300 flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
           >
-            <AlertTriangle className="w-3.5 h-3.5 text-amber-400" />
-            <span>FAILED LOGINS AUDIT</span>
+            <AlertTriangle className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+            <span><span className="hidden sm:inline">FAILED LOGINS </span>AUDIT</span>
           </button>
 
           <button
             onClick={onManualRefresh}
             disabled={loading}
             title="Re-synchronize personnel roster"
-            className="px-3 py-1.5 rounded border border-[#222834] bg-[#181d28] hover:bg-[#202736] text-xs font-mono text-slate-300 hover:text-white flex items-center gap-1.5 transition-colors cursor-pointer"
+            className="flex-1 sm:flex-none px-2.5 sm:px-3 py-1.5 rounded border border-[#222834] bg-[#181d28] hover:bg-[#202736] text-xs font-mono text-slate-300 hover:text-white flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
           >
-            <RotateCcw className={`w-3.5 h-3.5 ${loading ? 'animate-spin text-blue-400' : 'text-slate-400'}`} />
-            <span>SYNC ROSTER</span>
+            <RotateCcw className={`w-3.5 h-3.5 shrink-0 ${loading ? 'animate-spin text-blue-400' : 'text-slate-400'}`} />
+            <span><span className="hidden sm:inline">SYNC </span>ROSTER</span>
           </button>
 
           {(isSuperAdmin || isBranchManager) && (
             <button
               onClick={onOpenCreate}
-              className="px-3 py-1.5 rounded bg-blue-600 hover:bg-blue-500 text-white text-xs font-mono font-bold flex items-center gap-1.5 shadow-sm shadow-blue-900/40 transition-colors cursor-pointer"
+              className="w-full sm:w-auto px-3 py-1.5 rounded bg-blue-600 hover:bg-blue-500 text-white text-xs font-mono font-bold flex items-center justify-center gap-1.5 shadow-sm shadow-blue-900/40 transition-colors cursor-pointer"
             >
-              <UserPlus className="w-3.5 h-3.5" />
-              <span>PROVISION STAFF</span>
+              <UserPlus className="w-3.5 h-3.5 shrink-0" />
+              <span>PROVISION<span className="hidden sm:inline"> STAFF</span></span>
             </button>
           )}
         </div>

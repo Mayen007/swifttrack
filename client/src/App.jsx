@@ -102,8 +102,8 @@ function MainApp() {
   useEffect(() => {
     let isMounted = true;
     async function fetchUnreadCount() {
-      if (!user || !api.token) {
-        if (isMounted) setUnreadCount(0);
+      if (!user || !api.token || (typeof document !== 'undefined' && document.hidden)) {
+        if (!user && isMounted) setUnreadCount(0);
         return;
       }
       try {
@@ -112,15 +112,30 @@ function MainApp() {
           setUnreadCount(typeof res.unread_count === 'number' ? res.unread_count : 0);
         }
       } catch (e) {
-        // Silently ignore if unauthenticated or network error
+        if ((e?.status === 401 || e?.message?.includes('Session expired')) && isMounted) {
+          setUnreadCount(0);
+        }
       }
     }
 
     fetchUnreadCount();
     const interval = setInterval(fetchUnreadCount, 30000);
+
+    const handleVisibility = () => {
+      if (!document.hidden && user && api.token) {
+        fetchUnreadCount();
+      }
+    };
+    if (typeof document !== 'undefined') {
+      document.addEventListener('visibilitychange', handleVisibility);
+    }
+
     return () => {
       isMounted = false;
       clearInterval(interval);
+      if (typeof document !== 'undefined') {
+        document.removeEventListener('visibilitychange', handleVisibility);
+      }
     };
   }, [user]);
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -301,7 +316,7 @@ function MainApp() {
           ref={mainScrollRef}
           className="flex-1 overflow-y-auto p-3 sm:p-4 lg:p-5 [scrollbar-gutter:stable]"
         >
-          <div className="w-full max-w-[1760px] mx-auto">{renderView()}</div>
+          <div className={`w-full ${currentView === 'vehicles' ? '' : 'max-w-[1760px] mx-auto'}`}>{renderView()}</div>
         </main>
       </div>
 

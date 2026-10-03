@@ -149,29 +149,38 @@ class ApiService {
                             endpoint.includes('/api/auth/logout') ||
                             endpoint.includes('/api/auth/2fa');
 
-        if (res.status === 401 && !isAuthRoute && !isRetry && this.refreshToken) {
-          try {
-            if (!this.isRefreshing) {
-              this.isRefreshing = true;
-              const newToken = await this.refreshAccessToken();
-              this.isRefreshing = false;
-              this.refreshSubscribers.forEach(cb => cb(newToken));
-              this.refreshSubscribers = [];
-              return this.request(endpoint, options, true);
-            } else {
-              // Wait for existing refresh to resolve
-              return new Promise((resolve, reject) => {
-                this.refreshSubscribers.push((newToken) => {
-                  this.request(endpoint, options, true).then(resolve).catch(reject);
+        if (res.status === 401 && !isAuthRoute) {
+          if (!isRetry && this.refreshToken) {
+            try {
+              if (!this.isRefreshing) {
+                this.isRefreshing = true;
+                const newToken = await this.refreshAccessToken();
+                this.isRefreshing = false;
+                this.refreshSubscribers.forEach(cb => cb(newToken));
+                this.refreshSubscribers = [];
+                return this.request(endpoint, options, true);
+              } else {
+                // Wait for existing refresh to resolve
+                return new Promise((resolve, reject) => {
+                  this.refreshSubscribers.push((newToken) => {
+                    this.request(endpoint, options, true).then(resolve).catch(reject);
+                  });
                 });
-              });
+              }
+            } catch (refreshErr) {
+              this.isRefreshing = false;
+              this.refreshSubscribers = [];
+              this.clearAuth();
+              this.toast('Session expired. Please log in again.', 'error');
+              throw new Error('Session expired');
             }
-          } catch (refreshErr) {
-            this.isRefreshing = false;
-            this.refreshSubscribers = [];
+          } else {
+            // No refresh token available or retry also failed: cleanly invalidate session
             this.clearAuth();
             this.toast('Session expired. Please log in again.', 'error');
-            throw new Error('Session expired');
+            const err = new Error('Session expired');
+            err.status = 401;
+            throw err;
           }
         }
 
@@ -187,7 +196,9 @@ class ApiService {
 
       return data;
     } catch (err) {
-      console.error(`API Error [${endpoint}]:`, err.message);
+      if (err.status !== 401 && err.message !== 'Session expired') {
+        console.error(`API Error [${endpoint}]:`, err.message);
+      }
       throw err;
     }
   }

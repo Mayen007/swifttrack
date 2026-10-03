@@ -25,8 +25,8 @@ export function DashboardView({ onNavigate }) {
 
   async function loadDashboardData() {
     try {
-      setLoading(true);
-      const branchParam = selectedBranch ? `?branch_id=${selectedBranch.id}` : '';
+      const activeBranchId = !isSuperAdmin && user?.branch_id ? user.branch_id : (selectedBranch?.id || null);
+      const branchParam = activeBranchId ? `?branch_id=${activeBranchId}` : '';
 
       const [pnlData, stockData, branchesData, charts] = await Promise.all([
         api.get(`/api/reports/pnl${branchParam}`).catch(() => null),
@@ -73,8 +73,8 @@ export function DashboardView({ onNavigate }) {
   async function handleTimeRangeChange(days) {
     setChartDays(days);
     try {
-      setChartLoading(true);
-      const branchParam = selectedBranch ? `?branch_id=${selectedBranch.id}` : '';
+      const activeBranchId = !isSuperAdmin && user?.branch_id ? user.branch_id : (selectedBranch?.id || null);
+      const branchParam = activeBranchId ? `?branch_id=${activeBranchId}` : '';
       const charts = await api.get(`/api/reports/dashboard-charts?days=${days}${branchParam ? `&${branchParam.slice(1)}` : ''}`);
       setChartData(charts);
     } catch (err) {

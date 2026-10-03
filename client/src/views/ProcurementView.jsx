@@ -77,7 +77,10 @@ export function ProcurementView() {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const branchParam = selectedBranch && selectedBranch !== 'all' ? `?branch_id=${selectedBranch}` : '';
+      const activeBranchId = user?.role !== 'SUPER_ADMIN' && user?.branch_id
+        ? user.branch_id
+        : (selectedBranch?.id || (typeof selectedBranch === 'number' ? selectedBranch : null));
+      const branchParam = activeBranchId ? `?branch_id=${activeBranchId}` : '';
 
       const [
         telemRes,
@@ -315,6 +318,7 @@ export function ProcurementView() {
           onSuccess={() => { setShowCreatePRModal(false); fetchData(); }}
           productsList={productsList}
           user={user}
+          selectedBranch={selectedBranch}
         />
       )}
 

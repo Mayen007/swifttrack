@@ -202,7 +202,7 @@ export function StaffInspectorDrawer({
               <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
                 ADMINISTRATIVE SECURITY ACTIONS
               </span>
-              <div className="grid grid-cols-2 gap-2 text-xs">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
                 {Boolean(user.is_locked) && (
                   <button
                     onClick={() => onUnlockAccount(user)}

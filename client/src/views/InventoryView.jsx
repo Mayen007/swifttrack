@@ -24,7 +24,7 @@ import { InventoryValuationView } from '../components/inventory/InventoryValuati
 import { InventoryReorderAlertsView } from '../components/inventory/InventoryReorderAlertsView.jsx';
 
 export function InventoryView() {
-  const { selectedBranch } = useAuth();
+  const { user, selectedBranch, isSuperAdmin } = useAuth();
   const [inventory, setInventory] = useState([]);
   const [movements, setMovements] = useState([]);
   const [transfers, setTransfers] = useState([]);
@@ -59,7 +59,8 @@ export function InventoryView() {
   const fetchInventoryData = useCallback(async () => {
     try {
       setLoading(true);
-      const branchParam = selectedBranch ? `?branch_id=${selectedBranch.id}` : '';
+      const activeBranchId = !isSuperAdmin && user?.branch_id ? user.branch_id : (selectedBranch?.id || null);
+      const branchParam = activeBranchId ? `?branch_id=${activeBranchId}` : '';
       const [invData, movData, trfData, recData, branchData] = await Promise.all([
         api.get(`/api/v1/inventory${branchParam}`),
         api.get(`/api/v1/inventory/movements${branchParam}`).catch(() => []),

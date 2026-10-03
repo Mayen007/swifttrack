@@ -111,9 +111,9 @@ export function Navbar({
 
   return (
     <>
-      <header className="h-14 px-3 sm:px-5 bg-[#0c0e14] border-b border-[#222834] flex items-center justify-between sticky top-0 z-40 select-none">
+      <header className="h-14 px-2.5 sm:px-5 bg-[#0c0e14] border-b border-[#222834] flex items-center justify-between sticky top-0 z-40 select-none">
         {/* 1. LEFT SECTION: Mobile Toggle + Brand Lockup + Single Branch Context Dial */}
-        <div className="flex items-center gap-2.5 sm:gap-3 shrink-0">
+        <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
         {/* Sidebar Toggle: Mobile Drawer on < lg, Desktop Collapse on lg: */}
         <button
           onClick={() => {
@@ -180,7 +180,7 @@ export function Navbar({
 
           {/* Branch Dropdown Popover */}
           {branchDropdownOpen && (
-            <div className="absolute left-0 mt-1.5 w-76 sm:w-84 bg-[#12161f] border border-[#222834] rounded shadow-2xl py-1 z-50 animate-in fade-in duration-100">
+            <div className="absolute left-0 mt-1.5 w-76 sm:w-84 max-w-[calc(100vw-20px)] bg-[#12161f] border border-[#222834] rounded shadow-2xl py-1 z-50 animate-in fade-in duration-100">
               <div className="p-2 border-b border-[#222834] bg-[#0c0e14]">
                 <div className="flex items-center justify-between text-[10px] font-bold text-slate-400 uppercase tracking-wider font-mono mb-1.5 px-1">
                   <span>HUB STATIONS</span>
@@ -299,7 +299,7 @@ export function Navbar({
       <div className="flex-1" />
 
       {/* 3. RIGHT SECTION: Unified Telemetry Capsule + Audio Toggle + Notifications + Operator Menu */}
-      <div className="flex items-center gap-2 sm:gap-2.5 shrink-0">
+      <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
         {/* Unified Live Telemetry Capsule (Clock + Network Latency in one clean badge) */}
         <div className="hidden sm:flex items-center gap-2 px-2.5 py-1 rounded bg-[#12161f] border border-[#222834] text-[11px] font-mono text-slate-300">
           <div className="flex items-center gap-1.5">
@@ -441,7 +441,7 @@ export function Navbar({
 
           {/* Profile & Role Persona Dropdown Popover */}
           {profileDropdownOpen && (
-            <div className="absolute right-0 mt-1.5 w-68 sm:w-72 bg-[#12161f] border border-[#222834] rounded shadow-2xl py-2 z-50 animate-in fade-in duration-100">
+            <div className="absolute right-0 mt-1.5 w-68 sm:w-72 max-w-[calc(100vw-20px)] bg-[#12161f] border border-[#222834] rounded shadow-2xl py-2 z-50 animate-in fade-in duration-100">
               {/* Operator Identification */}
               <div className="px-3 pb-2.5 border-b border-[#222834]">
                 <p className="text-xs font-bold text-white truncate">{user?.full_name || user?.username}</p>

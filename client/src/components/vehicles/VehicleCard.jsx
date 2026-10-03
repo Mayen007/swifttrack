@@ -26,9 +26,9 @@ export function VehicleCard({
               >
                 {/* Top Badge Row */}
                 <div>
-                  <div className="flex items-start justify-between gap-2 mb-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
                     {/* Kenya Registration Plate Graphic */}
-                    <div className="flex items-center gap-2 min-w-0">
+                    <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
                       <div className="px-2.5 py-1 bg-amber-400 text-black font-black tracking-widest text-xs sm:text-sm rounded-lg border-2 border-black shadow-sm font-mono flex items-center gap-1.5 shrink-0">
                         <span className="w-1.5 h-3 bg-black/40 rounded-xs" />
                         {veh.registration_number}
@@ -39,7 +39,7 @@ export function VehicleCard({
                     </div>
 
                     {/* Operational Status */}
-                    <div className="shrink-0">
+                    <div className="shrink-0 ml-auto sm:ml-0">
                       {renderStatusBadge(veh.status)}
                     </div>
                   </div>

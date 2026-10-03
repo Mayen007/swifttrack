@@ -488,20 +488,20 @@ export function ParcelCounterBooking({ user, activeShift, onRefreshShift, onOpen
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 w-full sm:w-auto">
           <button
             onClick={() => setReprintModalOpen(true)}
-            className="px-3 py-1.5 rounded-lg bg-[#181e2b] hover:bg-[#202738] border border-[#263045] text-slate-200 hover:text-white text-xs font-mono flex items-center gap-1.5 transition-colors cursor-pointer"
+            className="flex-1 sm:flex-none px-3 py-1.5 rounded-lg bg-[#181e2b] hover:bg-[#202738] border border-[#263045] text-slate-200 hover:text-white text-xs font-mono flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
           >
-            <Printer className="w-3.5 h-3.5 text-slate-400" />
+            <Printer className="w-3.5 h-3.5 text-slate-400 shrink-0" />
             <span>REPRINT WAYBILL</span>
           </button>
           <button
             onClick={handleResetForm}
-            className="px-3 py-1.5 rounded-lg bg-[#181e2b] hover:bg-[#202738] border border-[#263045] text-slate-400 hover:text-slate-200 text-xs font-mono flex items-center gap-1.5 transition-colors cursor-pointer"
+            className="flex-1 sm:flex-none px-3 py-1.5 rounded-lg bg-[#181e2b] hover:bg-[#202738] border border-[#263045] text-slate-400 hover:text-slate-200 text-xs font-mono flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
             title="Clear all fields"
           >
-            <RotateCcw className="w-3.5 h-3.5" />
+            <RotateCcw className="w-3.5 h-3.5 shrink-0" />
             <span>CLEAR</span>
           </button>
         </div>
@@ -581,7 +581,7 @@ export function ParcelCounterBooking({ user, activeShift, onRefreshShift, onOpen
               <label className="block text-[11px] font-mono text-slate-400 mb-1">
                 Transport Service Priority
               </label>
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                 {[
                   { id: 'STANDARD', title: 'Standard Freight', desc: 'Road Cargo • 24-48h', rate: 'Base 1.0x' },
                   { id: 'EXPRESS', title: 'Priority Express', desc: 'Next-Day Express', rate: '+25% Priority' },
@@ -612,7 +612,7 @@ export function ParcelCounterBooking({ user, activeShift, onRefreshShift, onOpen
 
           {/* Card 2: Shipper (Sender) & Consignee (Recipient) */}
           <div className="bg-[#121622] border border-[#222834] rounded-xl p-4 sm:p-5 space-y-4 shadow-sm">
-            <div className="flex items-center justify-between border-b border-[#222834] pb-2.5">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 border-b border-[#222834] pb-2.5">
               <div className="flex items-center gap-2">
                 <User className="w-4 h-4 text-blue-400" />
                 <h3 className="text-xs font-bold uppercase font-mono tracking-wider text-slate-200">
@@ -621,20 +621,20 @@ export function ParcelCounterBooking({ user, activeShift, onRefreshShift, onOpen
               </div>
 
               {/* Quick Customer Search Trigger */}
-              <div className="relative">
-                <div className="flex items-center gap-1.5 bg-[#0b0e14] border border-[#222834] rounded-lg px-2.5 py-1 text-xs">
-                  <Search className="w-3.5 h-3.5 text-slate-400" />
+              <div className="relative w-full sm:w-auto">
+                <div className="flex items-center gap-1.5 bg-[#0b0e14] border border-[#222834] rounded-lg px-2.5 py-1 text-xs w-full sm:w-auto">
+                  <Search className="w-3.5 h-3.5 text-slate-400 shrink-0" />
                   <input
                     type="text"
                     placeholder="Search existing customer..."
                     value={customerSearch}
                     onChange={(e) => handleCustomerSearch(e.target.value)}
-                    className="bg-transparent text-white text-[11px] font-mono focus:outline-none w-44"
+                    className="bg-transparent text-white text-[11px] font-mono focus:outline-none w-full sm:w-48"
                   />
                 </div>
 
                 {customerResults.length > 0 && (
-                  <div className="absolute right-0 top-full mt-1 w-72 bg-[#0d111a] border border-[#222834] rounded-lg shadow-xl z-20 overflow-hidden divide-y divide-[#1e2433]">
+                  <div className="absolute right-0 top-full mt-1 w-full sm:w-72 bg-[#0d111a] border border-[#222834] rounded-lg shadow-xl z-20 overflow-hidden divide-y divide-[#1e2433]">
                     {customerResults.map(c => (
                       <button
                         key={c.id}
@@ -797,7 +797,7 @@ export function ParcelCounterBooking({ user, activeShift, onRefreshShift, onOpen
 
                 return (
                   <div key={p.id} className="bg-[#0b0e14] border border-[#1e2433] rounded-lg p-3 space-y-2.5">
-                    <div className="flex items-center justify-between">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
                       <div className="flex items-center gap-2">
                         <span className="w-5 h-5 rounded-full bg-slate-800 text-slate-300 text-[10px] font-mono font-bold flex items-center justify-center">
                           {idx + 1}
@@ -807,7 +807,7 @@ export function ParcelCounterBooking({ user, activeShift, onRefreshShift, onOpen
                         </span>
                       </div>
 
-                      <div className="flex items-center gap-2">
+                      <div className="flex flex-wrap items-center gap-2">
                         <div className="text-[10px] font-mono text-slate-400">
                           Volumetric: <span className="text-cyan-400 font-bold">{volWeight} kg</span>
                         </div>
@@ -827,7 +827,7 @@ export function ParcelCounterBooking({ user, activeShift, onRefreshShift, onOpen
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-2 sm:grid-cols-6 gap-2">
+                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
                       <div>
                         <label className="block text-[9px] font-mono uppercase text-slate-500 mb-0.5">Package Type</label>
                         <select
@@ -1086,10 +1086,10 @@ export function ParcelCounterBooking({ user, activeShift, onRefreshShift, onOpen
 
       {/* Payment Tender Modal */}
       {paymentModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 bg-black/80 backdrop-blur-sm">
-          <div className="w-full max-w-md bg-[#0e121a] border border-[#222834] rounded-xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 bg-black/80 backdrop-blur-sm overflow-y-auto">
+          <div className="w-full max-w-md bg-[#0e121a] border border-[#222834] rounded-xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 max-h-[92vh] flex flex-col my-auto">
             {/* Modal Header */}
-            <div className="px-5 py-3.5 bg-[#121622] border-b border-[#222834] flex items-center justify-between">
+            <div className="px-5 py-3.5 bg-[#121622] border-b border-[#222834] flex items-center justify-between shrink-0">
               <div>
                 <h3 className="text-xs font-bold uppercase font-mono tracking-wider text-white">
                   Counter Payment Tender
@@ -1108,7 +1108,7 @@ export function ParcelCounterBooking({ user, activeShift, onRefreshShift, onOpen
             </div>
 
             {/* Payment Method Selector Tabs */}
-            <div className="p-4 space-y-4 font-mono">
+            <div className="p-4 space-y-4 font-mono overflow-y-auto flex-1">
               <div className="grid grid-cols-4 gap-1.5 bg-[#080a0e] p-1 rounded-lg border border-[#1e2433]">
                 {[
                   { id: 'CASH', label: 'Cash', icon: Banknote },

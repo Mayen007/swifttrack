@@ -27,24 +27,24 @@ export function VehicleDetailModal({
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
           <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-4xl overflow-hidden shadow-2xl my-4 flex flex-col max-h-[90vh]">
             {/* Header banner */}
-            <div className="p-6 border-b border-slate-800 flex items-center justify-between bg-slate-950/70">
-              <div className="flex items-center gap-4">
-                <div className="px-3.5 py-1.5 bg-amber-400 text-black font-black tracking-widest text-base rounded border-2 border-black font-mono shadow-md">
+            <div className="p-4 sm:p-6 border-b border-slate-800 flex items-start sm:items-center justify-between gap-3 bg-slate-950/70">
+              <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 min-w-0">
+                <div className="px-3 py-1 bg-amber-400 text-black font-black tracking-widest text-sm sm:text-base rounded border-2 border-black font-mono shadow-md self-start shrink-0">
                   {selectedVehicle.registration_number}
                 </div>
-                <div>
-                  <div className="text-[11px] font-mono text-slate-400 mb-1 flex items-center gap-1.5">
+                <div className="min-w-0">
+                  <div className="text-[11px] font-mono text-slate-400 mb-0.5 flex items-center gap-1.5 truncate">
                     <span className="text-slate-500 uppercase tracking-wider">Fleet Vehicles</span>
                     <span className="text-slate-600">›</span>
                     <span className="text-amber-400 font-semibold">{selectedVehicle.registration_number}</span>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <h2 className="text-xl font-bold text-white">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h2 className="text-lg sm:text-xl font-bold text-white truncate">
                       {selectedVehicle.make} {selectedVehicle.model} {selectedVehicle.year_of_manufacture ? `(${selectedVehicle.year_of_manufacture})` : ''}
                     </h2>
                     {renderStatusBadge(selectedVehicle.status)}
                   </div>
-                  <p className="text-xs text-slate-400 mt-0.5">
+                  <p className="text-xs text-slate-400 mt-0.5 truncate">
                     {selectedVehicle.branch_name} Depot • {selectedVehicle.vehicle_type} • {selectedVehicle.ownership_type?.replace('_', ' ')}
                   </p>
                 </div>
@@ -52,65 +52,65 @@ export function VehicleDetailModal({
 
               <button
                 onClick={onClose}
-                className="p-2.5 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-all"
+                className="p-2 sm:p-2.5 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-all shrink-0 cursor-pointer"
               >
-                <X className="w-6 h-6" />
+                <X className="w-5 h-5 sm:w-6 sm:h-6" />
               </button>
             </div>
 
             {/* Tab navigation bar */}
-            <div className="flex items-center gap-1 px-6 border-b border-slate-800 bg-slate-950/40 text-xs font-semibold overflow-x-auto">
+            <div className="flex items-center gap-1 px-4 sm:px-6 border-b border-slate-800 bg-slate-950/40 text-xs font-semibold overflow-x-auto no-scrollbar whitespace-nowrap">
               <button
                 onClick={() => setDetailTab('overview')}
-                className={`py-3 px-4 border-b-2 transition-all flex items-center gap-2 ${
+                className={`py-3 px-3.5 sm:px-4 border-b-2 transition-all flex items-center gap-2 shrink-0 cursor-pointer ${
                   detailTab === 'overview'
                     ? 'border-blue-500 text-blue-400 font-bold'
                     : 'border-transparent text-slate-400 hover:text-slate-200'
                 }`}
               >
-                <Layers className="w-4 h-4" />
+                <Layers className="w-4 h-4 shrink-0" />
                 <span>Overview & Specs</span>
               </button>
 
               <button
                 onClick={() => setDetailTab('fuel')}
-                className={`py-3 px-4 border-b-2 transition-all flex items-center gap-2 ${
+                className={`py-3 px-3.5 sm:px-4 border-b-2 transition-all flex items-center gap-2 shrink-0 cursor-pointer ${
                   detailTab === 'fuel'
                     ? 'border-emerald-500 text-emerald-400 font-bold'
                     : 'border-transparent text-slate-400 hover:text-slate-200'
                 }`}
               >
-                <Fuel className="w-4 h-4" />
-                <span>Fuel Logs & Efficiency ({fuelLogs.length})</span>
+                <Fuel className="w-4 h-4 shrink-0" />
+                <span>Fuel Logs ({fuelLogs.length})</span>
               </button>
 
               <button
                 onClick={() => setDetailTab('maintenance')}
-                className={`py-3 px-4 border-b-2 transition-all flex items-center gap-2 ${
+                className={`py-3 px-3.5 sm:px-4 border-b-2 transition-all flex items-center gap-2 shrink-0 cursor-pointer ${
                   detailTab === 'maintenance'
                     ? 'border-amber-500 text-amber-400 font-bold'
                     : 'border-transparent text-slate-400 hover:text-slate-200'
                 }`}
               >
-                <Wrench className="w-4 h-4" />
-                <span>Maintenance & Repairs ({maintenanceRecords.length})</span>
+                <Wrench className="w-4 h-4 shrink-0" />
+                <span>Maintenance ({maintenanceRecords.length})</span>
               </button>
 
               <button
                 onClick={() => setDetailTab('mileage')}
-                className={`py-3 px-4 border-b-2 transition-all flex items-center gap-2 ${
+                className={`py-3 px-3.5 sm:px-4 border-b-2 transition-all flex items-center gap-2 shrink-0 cursor-pointer ${
                   detailTab === 'mileage'
                     ? 'border-sky-500 text-sky-400 font-bold'
                     : 'border-transparent text-slate-400 hover:text-slate-200'
                 }`}
               >
-                <Gauge className="w-4 h-4" />
+                <Gauge className="w-4 h-4 shrink-0" />
                 <span>Mileage & Trips ({mileageLogs.length})</span>
               </button>
             </div>
 
             {/* Tab content area */}
-            <div className="p-6 overflow-y-auto space-y-6 flex-1">
+            <div className="p-4 sm:p-6 overflow-y-auto space-y-6 flex-1">
               {/* TAB 1: OVERVIEW & SPECS */}
               {detailTab === 'overview' && (
                 <div className="space-y-6">
@@ -197,7 +197,7 @@ export function VehicleDetailModal({
                   </div>
 
                   {/* Service Target Countdown Card */}
-                  <div className="p-4 rounded-xl bg-slate-950/60 border border-slate-800/80 flex items-center justify-between">
+                  <div className="p-4 rounded-xl bg-slate-950/60 border border-slate-800/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                     <div>
                       <span className="text-xs text-blue-400 font-semibold uppercase tracking-wider block">Preventive Service Target</span>
                       <div className="text-lg font-bold text-white mt-0.5">
@@ -214,7 +214,7 @@ export function VehicleDetailModal({
 
                     <button
                       onClick={() => onOpenMaintenance(selectedVehicle)}
-                      className="px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs shadow-md transition-all flex items-center gap-1.5"
+                      className="px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs shadow-md transition-all flex items-center justify-center gap-1.5 self-start sm:self-auto cursor-pointer"
                     >
                       <Wrench className="w-3.5 h-3.5" />
                       <span>Schedule Service</span>
@@ -226,14 +226,14 @@ export function VehicleDetailModal({
               {/* TAB 2: FUEL LOGS & EFFICIENCY */}
               {detailTab === 'fuel' && (
                 <div className="space-y-4">
-                  <div className="flex items-center justify-between">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
                     <div>
                       <h3 className="text-sm font-bold text-white">Fuel Consumption & Refill History</h3>
                       <p className="text-xs text-slate-400">Voucher numbers, station vendors, and calculated km/L efficiency</p>
                     </div>
                     <button
                       onClick={() => onOpenRefuel(selectedVehicle)}
-                      className="px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition-all flex items-center gap-1.5"
+                      className="px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition-all flex items-center justify-center gap-1.5 self-start sm:self-auto cursor-pointer"
                     >
                       <Plus className="w-3.5 h-3.5" />
                       <span>Log Refuel</span>
@@ -292,14 +292,14 @@ export function VehicleDetailModal({
               {/* TAB 3: MAINTENANCE & REPAIRS */}
               {detailTab === 'maintenance' && (
                 <div className="space-y-4">
-                  <div className="flex items-center justify-between">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
                     <div>
                       <h3 className="text-sm font-bold text-white">Workshop & Preventative Maintenance Records</h3>
                       <p className="text-xs text-slate-400">Scheduled repairs, parts replaced, and labor expenses</p>
                     </div>
                     <button
                       onClick={() => onOpenMaintenance(selectedVehicle)}
-                      className="px-3.5 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-500 text-white text-xs font-bold transition-all flex items-center gap-1.5"
+                      className="px-3.5 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-500 text-white text-xs font-bold transition-all flex items-center justify-center gap-1.5 self-start sm:self-auto cursor-pointer"
                     >
                       <Plus className="w-3.5 h-3.5" />
                       <span>Log Service</span>
@@ -336,7 +336,7 @@ export function VehicleDetailModal({
                             )}
                           </div>
 
-                          <div className="text-right">
+                          <div className="text-left md:text-right">
                             <span className="text-slate-400 block text-[10px]">Total Service Cost</span>
                             <span className="text-base font-black text-amber-400 font-mono">
                               KES {Number(rec.total_cost).toLocaleString()}
@@ -352,14 +352,14 @@ export function VehicleDetailModal({
               {/* TAB 4: MILEAGE & TRIPS */}
               {detailTab === 'mileage' && (
                 <div className="space-y-4">
-                  <div className="flex items-center justify-between">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
                     <div>
                       <h3 className="text-sm font-bold text-white">Trip Logs & Mileage History</h3>
                       <p className="text-xs text-slate-400">Routes, dispatch runs, and odometer progression</p>
                     </div>
                     <button
                       onClick={() => onOpenMileage(selectedVehicle)}
-                      className="px-3.5 py-1.5 rounded-xl bg-sky-600 hover:bg-sky-500 text-white text-xs font-semibold shadow-sm transition-all flex items-center gap-1.5"
+                      className="px-3.5 py-1.5 rounded-xl bg-sky-600 hover:bg-sky-500 text-white text-xs font-semibold shadow-sm transition-all flex items-center justify-center gap-1.5 self-start sm:self-auto cursor-pointer"
                     >
                       <Plus className="w-3.5 h-3.5" />
                       <span>Log Trip</span>

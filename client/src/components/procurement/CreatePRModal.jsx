@@ -6,7 +6,7 @@ import {
 } from 'lucide-react';
 import { api } from '../../services/api.js';
 
-export function CreatePRModal({ onClose, onSuccess, productsList, user }) {
+export function CreatePRModal({ onClose, onSuccess, productsList, user, selectedBranch }) {
   const [urgency, setUrgency] = useState('MEDIUM');
   const [neededByDate, setNeededByDate] = useState('');
   const [notes, setNotes] = useState('');
@@ -40,7 +40,9 @@ export function CreatePRModal({ onClose, onSuccess, productsList, user }) {
     setSubmitting(true);
     setError('');
     try {
+      const effectiveBranchId = user?.branch_id || selectedBranch?.id || (typeof selectedBranch === 'number' ? selectedBranch : 1);
       await api.post('/api/v1/procurement/requisitions', {
+        branch_id: effectiveBranchId,
         urgency,
         needed_by_date: neededByDate || null,
         notes,

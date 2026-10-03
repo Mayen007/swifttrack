@@ -1,5 +1,5 @@
 // client/src/context/AuthContext.jsx
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import { api } from '../services/api.js';
 
 const AuthContext = createContext(null);
@@ -360,29 +360,50 @@ export function AuthProvider({ children }) {
     };
   }, [loadBranches]);
 
+  const effectiveBranch = useMemo(() => {
+    if (!user) return selectedBranch;
+    // Operators are strictly bound to their assigned branch
+    if (user.role !== 'SUPER_ADMIN' && user.branch_id) {
+      const assigned = branches.find(b => b.id === user.branch_id);
+      if (assigned) return assigned;
+      return { id: user.branch_id, name: user.branch_name || `Station #${user.branch_id}`, code: user.branch_code || 'STN' };
+    }
+    return selectedBranch;
+  }, [user, selectedBranch, branches]);
+
   const selectBranch = useCallback(async (branch) => {
     if (!branch) {
+      if (user?.role !== 'SUPER_ADMIN') {
+        api.toast('Station isolation active: Operators are bound to their assigned station', 'warning');
+        return;
+      }
       setSelectedBranch(null);
       localStorage.setItem('swifttrack_selected_branch_id', 'all');
       api.toast('Active branch context: All Kenya Hubs (Consolidated)', 'info');
       return;
     }
 
-    setSelectedBranch(branch);
-    localStorage.setItem('swifttrack_selected_branch_id', String(branch.id));
-
     if (user?.role === 'SUPER_ADMIN') {
+      setSelectedBranch(branch);
+      localStorage.setItem('swifttrack_selected_branch_id', String(branch.id));
       api.toast(`Active branch context: ${branch.name}`, 'info');
       return;
     }
 
     if (user?.branch_id && user.branch_id !== branch.id) {
       if (demoMode) {
-        await quickSwitch(user.role, branch.id);
+        const switched = await quickSwitch(user.role, branch.id);
+        if (!switched || switched.branch_id !== branch.id) {
+          api.toast(`Could not switch operator context to ${branch.name}`, 'warning');
+          return;
+        }
       } else {
-        api.toast(`Switched branch context to ${branch.name}`, 'info');
+        api.toast(`Access restricted: You are assigned to branch #${user.branch_id} (${user.branch_name || 'Station'}). Cross-branch switching is disabled.`, 'warning');
+        return;
       }
     } else {
+      setSelectedBranch(branch);
+      localStorage.setItem('swifttrack_selected_branch_id', String(branch.id));
       api.toast(`Active branch context: ${branch.name}`, 'info');
     }
   }, [user, quickSwitch, demoMode]);
@@ -398,7 +419,7 @@ export function AuthProvider({ children }) {
       value={{
         user,
         branches,
-        selectedBranch,
+        selectedBranch: effectiveBranch,
         selectBranch,
         login,
         verify2FA,

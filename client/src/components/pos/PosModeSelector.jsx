@@ -6,18 +6,21 @@ export function PosModeSelector({
   setPosMode,
 }) {
   return (
-      <div className="flex items-center gap-2 border-b border-[#2a3447] pb-2 shrink-0">
+      <div className="flex items-center gap-2 border-b border-[#2a3447] pb-2 shrink-0 overflow-x-auto no-scrollbar">
         <button
           type="button"
           onClick={() => setPosMode('PARCEL')}
-          className={`px-3.5 py-1.5 rounded-lg font-mono text-xs font-bold flex items-center gap-2 transition-all cursor-pointer ${
+          className={`px-3 py-1.5 sm:px-3.5 sm:py-1.5 rounded-lg font-mono text-xs font-bold flex items-center gap-2 transition-all cursor-pointer whitespace-nowrap shrink-0 ${
             posMode === 'PARCEL'
               ? 'bg-blue-600 text-white shadow-md shadow-blue-600/25 ring-1 ring-blue-400 border border-blue-400'
               : 'bg-[#161c28] text-slate-300 hover:text-white border border-[#222834] hover:border-blue-500/40'
           }`}
         >
-          <Package className={`w-4 h-4 ${posMode === 'PARCEL' ? 'text-white' : 'text-blue-400'}`} />
-          <span>PARCEL COUNTER INTAKE & WAYBILLS</span>
+          <Package className={`w-4 h-4 shrink-0 ${posMode === 'PARCEL' ? 'text-white' : 'text-blue-400'}`} />
+          <span>
+            <span className="sm:hidden">PARCEL INTAKE</span>
+            <span className="hidden sm:inline">PARCEL COUNTER INTAKE & WAYBILLS</span>
+          </span>
           <span
             className={`px-1.5 py-0.5 rounded text-[9px] font-mono font-bold tracking-wider uppercase border transition-all ${
               posMode === 'PARCEL'
@@ -32,14 +35,17 @@ export function PosModeSelector({
         <button
           type="button"
           onClick={() => setPosMode('RETAIL')}
-          className={`px-3.5 py-1.5 rounded-lg font-mono text-xs font-bold flex items-center gap-2 transition-all cursor-pointer ${
+          className={`px-3 py-1.5 sm:px-3.5 sm:py-1.5 rounded-lg font-mono text-xs font-bold flex items-center gap-2 transition-all cursor-pointer whitespace-nowrap shrink-0 ${
             posMode === 'RETAIL'
               ? 'bg-amber-400 text-slate-950 shadow-md shadow-amber-400/25 font-black border border-amber-300'
               : 'bg-[#161c28] text-slate-300 hover:text-white border border-[#222834] hover:border-amber-500/40'
           }`}
         >
-          <ShoppingCart className={`w-4 h-4 ${posMode === 'RETAIL' ? 'text-slate-950' : 'text-amber-400'}`} />
-          <span>RETAIL POS & PACKAGING SUPPLIES</span>
+          <ShoppingCart className={`w-4 h-4 shrink-0 ${posMode === 'RETAIL' ? 'text-slate-950' : 'text-amber-400'}`} />
+          <span>
+            <span className="sm:hidden">RETAIL POS</span>
+            <span className="hidden sm:inline">RETAIL POS & PACKAGING SUPPLIES</span>
+          </span>
           <span
             className={`px-1.5 py-0.5 rounded text-[9px] font-mono font-bold tracking-wider uppercase border transition-all ${
               posMode === 'RETAIL'

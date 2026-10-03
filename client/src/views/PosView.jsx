@@ -479,7 +479,7 @@ export function PosView({ onNavigate }) {
           />
         )
       ) : (
-        <div className="flex flex-col lg:flex-row gap-4 h-[calc(100vh-14rem)] min-h-[580px]">
+        <div className="flex flex-col lg:flex-row gap-4 h-auto lg:h-[calc(100vh-14rem)] min-h-[580px]">
           <RetailCatalog
             searchInputRef={searchInputRef}
             searchQuery={searchQuery}

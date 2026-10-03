@@ -392,7 +392,7 @@ export function VehiclesView() {
   };
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8 space-y-6 max-w-[1600px] mx-auto min-h-screen text-slate-100">
+    <div className="w-full space-y-5 sm:space-y-6 text-slate-100">
       <div className="bg-slate-900/60 backdrop-blur-md rounded-2xl p-4 sm:p-5 border border-slate-800/80 shadow-sm space-y-4">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
           <div className="lg:col-span-7 xl:col-span-7 flex items-start gap-3">
@@ -413,7 +413,7 @@ export function VehiclesView() {
           </div>
 
           <div className="lg:col-span-5 xl:col-span-5 flex flex-col gap-2.5 bg-slate-950/60 border border-slate-800/80 rounded-xl p-3">
-            <div className="flex items-center gap-2">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
               <form onSubmit={handleSearchSubmit} className="relative flex-1">
                 <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
                 <input
@@ -430,7 +430,7 @@ export function VehiclesView() {
                   <select
                     value={branchFilter}
                     onChange={(e) => setBranchFilter(e.target.value)}
-                    className="bg-slate-900/80 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-blue-500/60 cursor-pointer max-w-[130px] sm:max-w-[150px] truncate"
+                    className="w-full sm:w-auto bg-slate-900/80 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-blue-500/60 cursor-pointer sm:max-w-[150px] truncate"
                     title="Filter by Branch Depot"
                   >
                     <option value="">All Branch Depots</option>
@@ -449,7 +449,7 @@ export function VehiclesView() {
                   fetchData();
                 }}
                 disabled={loading}
-                className="px-3 py-1.5 rounded-lg bg-slate-800/80 hover:bg-slate-700/80 text-slate-300 border border-slate-700/80 transition-all flex items-center justify-center gap-1.5 text-xs font-medium hover:text-white cursor-pointer disabled:opacity-50"
+                className="flex-1 sm:flex-none px-3 py-1.5 rounded-lg bg-slate-800/80 hover:bg-slate-700/80 text-slate-300 border border-slate-700/80 transition-all flex items-center justify-center gap-1.5 text-xs font-medium hover:text-white cursor-pointer disabled:opacity-50"
                 title="Refresh Fleet Data"
               >
                 <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
@@ -462,7 +462,7 @@ export function VehiclesView() {
                     sound.playClick();
                     setRegisterModalOpen(true);
                   }}
-                  className="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-semibold text-xs shadow-sm transition-all flex items-center justify-center gap-1.5 group cursor-pointer"
+                  className="flex-1 sm:flex-none px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-semibold text-xs shadow-sm transition-all flex items-center justify-center gap-1.5 group cursor-pointer"
                 >
                   <Plus className="w-3.5 h-3.5 transition-transform group-hover:rotate-90" />
                   <span>Register Vehicle</span>
@@ -497,7 +497,7 @@ export function VehiclesView() {
           </p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 2xl:grid-cols-3 gap-4 sm:gap-5">
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4 sm:gap-5">
           {vehicles.map((veh) => (
             <VehicleCard
               key={veh.id}

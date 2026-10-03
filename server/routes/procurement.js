@@ -80,7 +80,9 @@ router.get('/requisitions/:id', authenticateToken, (req, res) => {
 // POST /requisitions - Create PR
 router.post('/requisitions', authenticateToken, (req, res) => {
   try {
-    const branchId = req.user.roleName !== 'SUPER_ADMIN' ? req.user.branchId : (req.body.branch_id ? Number(req.body.branch_id) : req.user.branchId);
+    const branchId = req.user.roleName !== 'SUPER_ADMIN'
+      ? (req.user.branchId || 1)
+      : (req.body.branch_id ? Number(req.body.branch_id) : (req.user.branchId || 1));
     const pr = procurementService.createRequisition({
       branchId,
       userId: req.user.id,
@@ -231,7 +233,9 @@ router.get('/orders/:id', authenticateToken, (req, res) => {
 // POST /orders - Create PO directly
 router.post('/orders', authenticateToken, requireRole('SUPER_ADMIN', 'BRANCH_MANAGER'), (req, res) => {
   try {
-    const branchId = req.user.roleName !== 'SUPER_ADMIN' ? req.user.branchId : (req.body.branch_id ? Number(req.body.branch_id) : req.user.branchId);
+    const branchId = req.user.roleName !== 'SUPER_ADMIN'
+      ? (req.user.branchId || 1)
+      : (req.body.branch_id ? Number(req.body.branch_id) : (req.user.branchId || 1));
     const po = procurementService.createPurchaseOrder({
       purchaseRequisitionId: req.body.purchase_requisition_id,
       supplierId: Number(req.body.supplier_id),
