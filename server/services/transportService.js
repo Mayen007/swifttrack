@@ -1,7 +1,7 @@
 // server/services/transportService.js
 // SwiftTrack Logistics: Stage 3 Transport & Manifest Domain Service
 const crypto = require('node:crypto');
-const { db } = require('../db/database.js');
+const dbAdapter = require('../db/dbAdapter.js');
 const shipmentService = require('./shipmentService.js');
 const { logAuditEvent } = require('../middleware/audit.js');
 const notificationService = require('./notificationService.js');
@@ -39,7 +39,7 @@ const ALLOWED_RUN_TRANSITIONS = {
 /**
  * Generates unique transport run number: RUN-YYYYMMDD-XXXX
  */
-function generateRunNumber() {
+async function generateRunNumber(client = null) {
     const now = new Date();
     const y = now.getFullYear();
     const m = String(now.getMonth() + 1).padStart(2, '0');
@@ -49,7 +49,7 @@ function generateRunNumber() {
     for (let i = 0; i < 10; i++) {
         const rand = crypto.randomBytes(2).toString('hex').toUpperCase();
         const candidate = `${prefix}-${rand}`;
-        const exist = db.prepare('SELECT id FROM transport_runs WHERE run_number = ?').get(candidate);
+        const exist = await dbAdapter.get('SELECT id FROM transport_runs WHERE run_number = ?', [candidate], client);
         if (!exist) return candidate;
     }
     return `${prefix}-${Date.now().toString().slice(-4)}`;
@@ -58,7 +58,7 @@ function generateRunNumber() {
 /**
  * Generates unique manifest number: MAN-YYYYMMDD-XXXX
  */
-function generateManifestNumber() {
+async function generateManifestNumber(client = null) {
     const now = new Date();
     const y = now.getFullYear();
     const m = String(now.getMonth() + 1).padStart(2, '0');
@@ -68,7 +68,7 @@ function generateManifestNumber() {
     for (let i = 0; i < 10; i++) {
         const rand = crypto.randomBytes(2).toString('hex').toUpperCase();
         const candidate = `${prefix}-${rand}`;
-        const exist = db.prepare('SELECT id FROM manifests WHERE manifest_number = ?').get(candidate);
+        const exist = await dbAdapter.get('SELECT id FROM manifests WHERE manifest_number = ?', [candidate], client);
         if (!exist) return candidate;
     }
     return `${prefix}-${Date.now().toString().slice(-4)}`;
@@ -77,47 +77,47 @@ function generateManifestNumber() {
 /**
  * Creates a planned route
  */
-function createRoute(data, user = {}) {
+async function createRoute(data, user = {}) {
     if (!data.code || !data.name || !data.origin_hub_id || !data.destination_hub_id) {
         throw new Error('Route code, name, origin_hub_id, and destination_hub_id are required');
     }
 
-    const info = db.prepare(`
+    const info = await dbAdapter.query(`
         INSERT INTO routes (code, name, origin_hub_id, destination_hub_id, distance_km, estimated_duration_hours, is_active)
         VALUES (?, ?, ?, ?, ?, ?, ?)
-    `).run(
+    `, [
         data.code.trim().toUpperCase(),
         data.name.trim(),
         data.origin_hub_id,
         data.destination_hub_id,
         Number(data.distance_km) || 0.0,
         Number(data.estimated_duration_hours) || 0.0,
-        data.is_active !== false ? 1 : 0
-    );
+        data.is_active !== false
+    ]);
 
-    const routeId = info.lastInsertRowid;
+    const routeId = info.insertId;
 
     // Create default primary leg if not provided
-    db.prepare(`
+    await dbAdapter.run(`
         INSERT INTO route_legs (route_id, leg_sequence, origin_hub_id, destination_hub_id, distance_km, estimated_duration_hours, is_cross_border, is_active)
-        VALUES (?, 1, ?, ?, ?, ?, ?, 1)
-    `).run(
+        VALUES (?, 1, ?, ?, ?, ?, ?, true)
+    `, [
         routeId,
         data.origin_hub_id,
         data.destination_hub_id,
         Number(data.distance_km) || 0.0,
         Number(data.estimated_duration_hours) || 0.0,
-        data.is_cross_border ? 1 : 0
-    );
+        Boolean(data.is_cross_border)
+    ]);
 
-    return getRouteById(routeId);
+    return await getRouteById(routeId);
 }
 
 /**
  * Gets route by ID with route legs
  */
-function getRouteById(id) {
-    const route = db.prepare(`
+async function getRouteById(id, client = null) {
+    const route = await dbAdapter.get(`
         SELECT r.*,
                orig.name as origin_hub_name, orig.code as origin_hub_code,
                dest.name as destination_hub_name, dest.code as destination_hub_code
@@ -125,11 +125,11 @@ function getRouteById(id) {
         JOIN branches orig ON r.origin_hub_id = orig.id
         JOIN branches dest ON r.destination_hub_id = dest.id
         WHERE r.id = ?
-    `).get(id);
+    `, [id], client);
 
     if (!route) return null;
 
-    const legs = db.prepare(`
+    const legs = await dbAdapter.all(`
         SELECT rl.*,
                o.name as origin_hub_name, d.name as destination_hub_name
         FROM route_legs rl
@@ -137,7 +137,7 @@ function getRouteById(id) {
         JOIN branches d ON rl.destination_hub_id = d.id
         WHERE rl.route_id = ?
         ORDER BY rl.leg_sequence ASC
-    `).all(id);
+    `, [id], client);
 
     return { ...route, legs };
 }
@@ -145,7 +145,7 @@ function getRouteById(id) {
 /**
  * Lists routes
  */
-function listRoutes(filters = {}) {
+async function listRoutes(filters = {}) {
     let query = `
         SELECT r.*,
                orig.name as origin_hub_name, orig.city as origin_city,
@@ -168,50 +168,48 @@ function listRoutes(filters = {}) {
     }
     if (filters.is_active !== undefined) {
         query += ' AND r.is_active = ?';
-        params.push(filters.is_active ? 1 : 0);
+        params.push(Boolean(filters.is_active));
     }
 
     query += ' ORDER BY r.code ASC';
-    return db.prepare(query).all(...params);
+    return await dbAdapter.all(query, params);
 }
 
 /**
  * Creates a scheduled Transport Run executing a Route Leg, and initializes an attached Manifest
  */
-function createTransportRun(data, user = {}) {
+async function createTransportRun(data, user = {}) {
     if (!data.origin_hub_id || !data.destination_hub_id) {
         throw new Error('origin_hub_id and destination_hub_id are required');
     }
 
-    const runNumber = generateRunNumber();
-    const manifestNumber = generateManifestNumber();
-
     // Verify driver if provided
     if (data.driver_id) {
-        const driver = db.prepare('SELECT id, status FROM drivers WHERE id = ?').get(data.driver_id);
+        const driver = await dbAdapter.get('SELECT id, status FROM drivers WHERE id = ?', [data.driver_id]);
         if (!driver) throw new Error(`Driver ID ${data.driver_id} not found`);
     }
 
     // Verify vehicle if provided
     let vehicleOdo = 0.0;
     if (data.vehicle_id) {
-        const vehicle = db.prepare('SELECT id, status, current_odometer_km, max_capacity_kg FROM vehicles WHERE id = ?').get(data.vehicle_id);
+        const vehicle = await dbAdapter.get('SELECT id, status, current_odometer_km, max_capacity_kg FROM vehicles WHERE id = ?', [data.vehicle_id]);
         if (!vehicle) throw new Error(`Vehicle ID ${data.vehicle_id} not found`);
-        vehicleOdo = vehicle.current_odometer_km || 0.0;
+        vehicleOdo = Number(vehicle.current_odometer_km) || 0.0;
     }
 
-    const executeTx = db.transaction(() => {
+    return await dbAdapter.withTransaction(async (client) => {
+        const runNumber = await generateRunNumber(client);
+        const manifestNumber = await generateManifestNumber(client);
+
         // 1. Insert Transport Run
-        const runStmt = db.prepare(`
+        const runRes = await dbAdapter.query(`
             INSERT INTO transport_runs (
                 run_number, route_leg_id, origin_hub_id, destination_hub_id,
                 driver_id, vehicle_id, dispatcher_user_id, status,
                 scheduled_departure, scheduled_arrival,
                 departure_odometer_km, notes
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        `);
-
-        const runRes = runStmt.run(
+        `, [
             runNumber,
             data.route_leg_id || null,
             data.origin_hub_id,
@@ -224,26 +222,25 @@ function createTransportRun(data, user = {}) {
             data.scheduled_arrival || null,
             vehicleOdo,
             data.notes || null
-        );
+        ], client);
 
-        const runId = runRes.lastInsertRowid;
+        const runId = runRes.insertId;
 
         // 2. Insert Default Attached Manifest
-        const manifestStmt = db.prepare(`
+        await dbAdapter.run(`
             INSERT INTO manifests (
                 manifest_number, transport_run_id, origin_hub_id, destination_hub_id, status, notes
             ) VALUES (?, ?, ?, ?, 'DRAFT', ?)
-        `);
-        manifestStmt.run(
+        `, [
             manifestNumber,
             runId,
             data.origin_hub_id,
             data.destination_hub_id,
             `Manifest for ${runNumber}`
-        );
+        ], client);
 
         // Audit Log
-        logAuditEvent({
+        await logAuditEvent({
             userId: user.id || 1,
             role: user.roleName || 'STAFF',
             action: 'CREATE',
@@ -254,17 +251,15 @@ function createTransportRun(data, user = {}) {
             reason: 'Created transport run'
         });
 
-        return getTransportRunById(runId);
+        return await getTransportRunById(runId, client);
     });
-
-    return executeTx();
 }
 
 /**
  * Gets Transport Run by ID with driver, vehicle, checkpoints, and manifest with items
  */
-function getTransportRunById(id) {
-    const run = db.prepare(`
+async function getTransportRunById(id, client = null) {
+    const run = await dbAdapter.get(`
         SELECT tr.*,
                orig.name as origin_hub_name, orig.code as origin_hub_code, orig.city as origin_city,
                dest.name as destination_hub_name, dest.code as destination_hub_code, dest.city as destination_city,
@@ -279,14 +274,14 @@ function getTransportRunById(id) {
         LEFT JOIN vehicles v ON tr.vehicle_id = v.id
         LEFT JOIN users disp ON tr.dispatcher_user_id = disp.id
         WHERE tr.id = ?
-    `).get(id);
+    `, [id], client);
 
     if (!run) return null;
 
-    const manifest = db.prepare('SELECT * FROM manifests WHERE transport_run_id = ?').get(id);
+    const manifest = await dbAdapter.get('SELECT * FROM manifests WHERE transport_run_id = ?', [id], client);
     let manifestItems = [];
     if (manifest) {
-        manifestItems = db.prepare(`
+        manifestItems = await dbAdapter.all(`
             SELECT mi.*,
                    s.tracking_number, s.waybill_number, s.status as shipment_status,
                    s.total_parcels, s.chargeable_weight_kg, s.declared_value,
@@ -295,17 +290,17 @@ function getTransportRunById(id) {
             JOIN shipments s ON mi.shipment_id = s.id
             WHERE mi.manifest_id = ?
             ORDER BY mi.id ASC
-        `).all(manifest.id);
+        `, [manifest.id], client);
     }
 
-    const checkpoints = db.prepare(`
+    const checkpoints = await dbAdapter.all(`
         SELECT cp.*, drv_u.full_name as recorded_by_name
         FROM run_checkpoints cp
         LEFT JOIN drivers drv ON cp.recorded_by_driver_id = drv.id
         LEFT JOIN users drv_u ON drv.user_id = drv_u.id
         WHERE cp.transport_run_id = ?
         ORDER BY cp.id ASC
-    `).all(id);
+    `, [id], client);
 
     return {
         ...run,
@@ -317,7 +312,7 @@ function getTransportRunById(id) {
 /**
  * Lists transport runs with filtering and branch scoping
  */
-function listTransportRuns(filters = {}, user = {}) {
+async function listTransportRuns(filters = {}, user = {}) {
     let query = `
         SELECT tr.*,
                orig.name as origin_hub_name, orig.code as origin_hub_code,
@@ -365,36 +360,36 @@ function listTransportRuns(filters = {}, user = {}) {
     const offset = Math.max(0, Number(filters.offset) || 0);
     params.push(limit, offset);
 
-    return db.prepare(query).all(...params);
+    return await dbAdapter.all(query, params);
 }
 
 /**
  * Adds a shipment to the Transport Run's Manifest
  */
-function addShipmentToManifest(runId, shipmentId, user = {}) {
-    const run = db.prepare('SELECT id, status, origin_hub_id, destination_hub_id FROM transport_runs WHERE id = ?').get(runId);
+async function addShipmentToManifest(runId, shipmentId, user = {}) {
+    const run = await dbAdapter.get('SELECT id, status, origin_hub_id, destination_hub_id FROM transport_runs WHERE id = ?', [runId]);
     if (!run) throw new Error(`Transport Run ${runId} not found`);
 
     if (['DISPATCHED', 'IN_TRANSIT', 'ARRIVED', 'COMPLETED', 'CANCELLED'].includes(run.status)) {
         throw new Error(`Cannot add shipments to a transport run in status '${run.status}'`);
     }
 
-    const manifest = db.prepare('SELECT id, status FROM manifests WHERE transport_run_id = ?').get(runId);
+    const manifest = await dbAdapter.get('SELECT id, status FROM manifests WHERE transport_run_id = ?', [runId]);
     if (!manifest) throw new Error(`Manifest for run ${runId} not found`);
     if (manifest.status === 'LOCKED') throw new Error('Manifest is already locked. Unlock or create new run.');
 
-    const shipment = db.prepare('SELECT id, tracking_number, status, total_parcels, chargeable_weight_kg FROM shipments WHERE id = ?').get(shipmentId);
+    const shipment = await dbAdapter.get('SELECT id, tracking_number, status, total_parcels, chargeable_weight_kg FROM shipments WHERE id = ?', [shipmentId]);
     if (!shipment) throw new Error(`Shipment ${shipmentId} not found`);
 
-    const executeTx = db.transaction(() => {
+    return await dbAdapter.withTransaction(async (client) => {
         // Insert item
-        db.prepare(`
+        await dbAdapter.run(`
             INSERT INTO manifest_items (manifest_id, shipment_id, status)
             VALUES (?, ?, 'ASSIGNED')
-        `).run(manifest.id, shipmentId);
+        `, [manifest.id, shipmentId], client);
 
         // Link to active pending shipment leg matching this run's corridor
-        db.prepare(`
+        await dbAdapter.run(`
             UPDATE shipment_legs SET
                 transport_run_id = ?,
                 manifest_id = ?,
@@ -403,139 +398,132 @@ function addShipmentToManifest(runId, shipmentId, user = {}) {
               AND origin_hub_id = ?
               AND destination_hub_id = ?
               AND status = 'PENDING'
-        `).run(runId, manifest.id, shipmentId, run.origin_hub_id, run.destination_hub_id);
+        `, [runId, manifest.id, shipmentId, run.origin_hub_id, run.destination_hub_id], client);
 
         // Recalculate totals
-        recalculateManifestTotals(manifest.id, runId);
+        await recalculateManifestTotals(manifest.id, runId, client);
 
-        return getTransportRunById(runId);
+        return await getTransportRunById(runId, client);
     });
-
-    return executeTx();
 }
 
 /**
  * Removes a shipment from Manifest
  */
-function removeShipmentFromManifest(runId, shipmentId, user = {}) {
-    const manifest = db.prepare('SELECT id, status FROM manifests WHERE transport_run_id = ?').get(runId);
+async function removeShipmentFromManifest(runId, shipmentId, user = {}) {
+    const manifest = await dbAdapter.get('SELECT id, status FROM manifests WHERE transport_run_id = ?', [runId]);
     if (!manifest) throw new Error(`Manifest for run ${runId} not found`);
     if (['LOCKED', 'DISPATCHED', 'RECEIVED'].includes(manifest.status)) {
         throw new Error(`Cannot remove items from manifest in status '${manifest.status}'`);
     }
 
-    const executeTx = db.transaction(() => {
-        db.prepare('DELETE FROM manifest_items WHERE manifest_id = ? AND shipment_id = ?').run(manifest.id, shipmentId);
-        recalculateManifestTotals(manifest.id, runId);
-        return getTransportRunById(runId);
+    return await dbAdapter.withTransaction(async (client) => {
+        await dbAdapter.run('DELETE FROM manifest_items WHERE manifest_id = ? AND shipment_id = ?', [manifest.id, shipmentId], client);
+        await recalculateManifestTotals(manifest.id, runId, client);
+        return await getTransportRunById(runId, client);
     });
-
-    return executeTx();
 }
 
 /**
  * Helper to update manifest and run item counts and aggregate weight
  */
-function recalculateManifestTotals(manifestId, runId) {
-    const agg = db.prepare(`
+async function recalculateManifestTotals(manifestId, runId, client = null) {
+    const agg = await dbAdapter.get(`
         SELECT count(mi.shipment_id) as total_shipments,
                COALESCE(sum(s.total_parcels), 0) as total_parcels,
                COALESCE(sum(s.chargeable_weight_kg), 0.0) as total_weight
         FROM manifest_items mi
         JOIN shipments s ON mi.shipment_id = s.id
         WHERE mi.manifest_id = ?
-    `).get(manifestId);
+    `, [manifestId], client);
 
-    const totalShipments = agg?.total_shipments || 0;
-    const totalParcels = agg?.total_parcels || 0;
-    const totalWeight = Math.round((agg?.total_weight || 0.0) * 100) / 100;
+    const totalShipments = Number(agg?.total_shipments || 0);
+    const totalParcels = Number(agg?.total_parcels || 0);
+    const totalWeight = Math.round((Number(agg?.total_weight) || 0.0) * 100) / 100;
 
-    db.prepare(`
+    await dbAdapter.run(`
         UPDATE manifests SET
             total_shipments = ?,
             total_parcels = ?,
             total_weight_kg = ?,
             updated_at = CURRENT_TIMESTAMP
         WHERE id = ?
-    `).run(totalShipments, totalParcels, totalWeight, manifestId);
+    `, [totalShipments, totalParcels, totalWeight, manifestId], client);
 
-    db.prepare(`
+    await dbAdapter.run(`
         UPDATE transport_runs SET
             total_shipments_count = ?,
             total_parcels_count = ?,
             total_weight_kg = ?,
             updated_at = CURRENT_TIMESTAMP
         WHERE id = ?
-    `).run(totalShipments, totalParcels, totalWeight, runId);
+    `, [totalShipments, totalParcels, totalWeight, runId], client);
 }
 
 /**
  * Locks the manifest and marks all assigned shipments as LOADED (PRD BR-005)
  */
-function lockManifest(runId, user = {}) {
-    const run = db.prepare('SELECT id, run_number, origin_hub_id FROM transport_runs WHERE id = ?').get(runId);
+async function lockManifest(runId, user = {}) {
+    const run = await dbAdapter.get('SELECT id, run_number, origin_hub_id FROM transport_runs WHERE id = ?', [runId]);
     if (!run) throw new Error(`Transport Run ${runId} not found`);
 
-    const manifest = db.prepare('SELECT id, status, total_shipments FROM manifests WHERE transport_run_id = ?').get(runId);
+    const manifest = await dbAdapter.get('SELECT id, status, total_shipments, manifest_number FROM manifests WHERE transport_run_id = ?', [runId]);
     if (!manifest) throw new Error(`Manifest not found for run ${runId}`);
     if (manifest.total_shipments === 0) {
         throw new Error('Cannot lock an empty manifest. Add at least one shipment.');
     }
 
-    const hub = db.prepare('SELECT name FROM branches WHERE id = ?').get(run.origin_hub_id);
+    const hub = await dbAdapter.get('SELECT name FROM branches WHERE id = ?', [run.origin_hub_id]);
 
-    const executeTx = db.transaction(() => {
+    return await dbAdapter.withTransaction(async (client) => {
         // Lock manifest
-        db.prepare(`
+        await dbAdapter.run(`
             UPDATE manifests SET
                 status = 'LOCKED',
                 locked_at = CURRENT_TIMESTAMP,
                 locked_by_user_id = ?,
                 updated_at = CURRENT_TIMESTAMP
             WHERE id = ?
-        `).run(user.id || 1, manifest.id);
+        `, [user.id || 1, manifest.id], client);
 
         // Advance Run status to LOADED
-        db.prepare(`
+        await dbAdapter.run(`
             UPDATE transport_runs SET
                 status = 'LOADED',
                 updated_at = CURRENT_TIMESTAMP
             WHERE id = ?
-        `).run(runId);
+        `, [runId], client);
 
         // Mark items as LOADED and advance shipments to LOADED
-        const items = db.prepare('SELECT shipment_id FROM manifest_items WHERE manifest_id = ?').all(manifest.id);
-        const itemUpdateStmt = db.prepare(`
-            UPDATE manifest_items SET
-                status = 'LOADED',
-                loaded_at = CURRENT_TIMESTAMP,
-                loaded_by_user_id = ?
-            WHERE manifest_id = ? AND shipment_id = ?
-        `);
+        const items = await dbAdapter.all('SELECT shipment_id FROM manifest_items WHERE manifest_id = ?', [manifest.id], client);
 
         for (const item of items) {
-            itemUpdateStmt.run(user.id || 1, manifest.id, item.shipment_id);
+            await dbAdapter.run(`
+                UPDATE manifest_items SET
+                    status = 'LOADED',
+                    loaded_at = CURRENT_TIMESTAMP,
+                    loaded_by_user_id = ?
+                WHERE manifest_id = ? AND shipment_id = ?
+            `, [user.id || 1, manifest.id, item.shipment_id], client);
 
             // Update shipment status via canonical state machine
-            shipmentService.transitionShipmentStatus(item.shipment_id, 'LOADED', {
+            await shipmentService.transitionShipmentStatus(item.shipment_id, 'LOADED', {
                 hub_id: run.origin_hub_id,
                 location_desc: hub ? hub.name : 'Origin Hub',
                 notes: `Shipment loaded on transport run ${run.run_number} (Manifest ${manifest.manifest_number})`
             }, user);
         }
 
-        return getTransportRunById(runId);
+        return await getTransportRunById(runId, client);
     });
-
-    return executeTx();
 }
 
 /**
  * Dispatches the Transport Run: sets vehicle & driver to IN_TRANSIT / ON_DELIVERY
  * and transitions all manifest shipments to IN_TRANSIT
  */
-function dispatchTransportRun(runId, payload = {}, user = {}) {
-    const run = getTransportRunById(runId);
+async function dispatchTransportRun(runId, payload = {}, user = {}) {
+    const run = await getTransportRunById(runId);
     if (!run) throw new Error(`Transport Run ${runId} not found`);
 
     if (!run.driver_id) throw new Error('A driver must be assigned before dispatching a transport run');
@@ -544,11 +532,11 @@ function dispatchTransportRun(runId, payload = {}, user = {}) {
         throw new Error('Cannot dispatch a run without any shipments on the manifest');
     }
 
-    const departureOdo = Number(payload.departure_odometer_km) || run.departure_odometer_km || 0.0;
+    const departureOdo = Number(payload.departure_odometer_km) || Number(run.departure_odometer_km) || 0.0;
 
-    const executeTx = db.transaction(() => {
+    const runResult = await dbAdapter.withTransaction(async (client) => {
         // 1. Update Transport Run
-        db.prepare(`
+        await dbAdapter.run(`
             UPDATE transport_runs SET
                 status = 'IN_TRANSIT',
                 actual_departure = CURRENT_TIMESTAMP,
@@ -557,49 +545,46 @@ function dispatchTransportRun(runId, payload = {}, user = {}) {
                 notes = COALESCE(?, notes),
                 updated_at = CURRENT_TIMESTAMP
             WHERE id = ?
-        `).run(departureOdo, departureOdo, payload.notes || null, runId);
+        `, [departureOdo, departureOdo, payload.notes || null, runId], client);
 
         // 2. Update Manifest
-        db.prepare(`
+        await dbAdapter.run(`
             UPDATE manifests SET
                 status = 'DISPATCHED',
                 updated_at = CURRENT_TIMESTAMP
             WHERE id = ?
-        `).run(run.manifest.id);
+        `, [run.manifest.id], client);
 
         // 3. Update Vehicle & Driver Statuses
-        db.prepare(`
+        await dbAdapter.run(`
             UPDATE vehicles SET
                 status = 'IN_TRANSIT',
                 current_odometer_km = ?,
                 status_updated_at = CURRENT_TIMESTAMP
             WHERE id = ?
-        `).run(departureOdo, run.vehicle_id);
+        `, [departureOdo, run.vehicle_id], client);
 
-        db.prepare(`
+        await dbAdapter.run(`
             UPDATE drivers SET
                 status = 'ON_DELIVERY',
                 status_updated_at = CURRENT_TIMESTAMP
             WHERE id = ?
-        `).run(run.driver_id);
+        `, [run.driver_id], client);
 
         // 4. Update manifest items and shipments to IN_TRANSIT
-        const hub = db.prepare('SELECT name FROM branches WHERE id = ?').get(run.origin_hub_id);
-        const itemUpdateStmt = db.prepare('UPDATE manifest_items SET status = ? WHERE manifest_id = ? AND shipment_id = ?');
-
         for (const item of run.manifest.items) {
-            itemUpdateStmt.run('IN_TRANSIT', run.manifest.id, item.shipment_id);
+            await dbAdapter.run('UPDATE manifest_items SET status = ? WHERE manifest_id = ? AND shipment_id = ?', ['IN_TRANSIT', run.manifest.id, item.shipment_id], client);
 
-            db.prepare(`
+            await dbAdapter.run(`
                 UPDATE shipment_legs SET
                     status = 'IN_TRANSIT',
                     actual_departure = CURRENT_TIMESTAMP,
                     updated_at = CURRENT_TIMESTAMP
                 WHERE manifest_id = ? AND shipment_id = ?
-            `).run(run.manifest.id, item.shipment_id);
+            `, [run.manifest.id, item.shipment_id], client);
 
             // Update shipment status to IN_TRANSIT via canonical state machine
-            shipmentService.transitionShipmentStatus(item.shipment_id, 'IN_TRANSIT', {
+            await shipmentService.transitionShipmentStatus(item.shipment_id, 'IN_TRANSIT', {
                 hub_id: run.origin_hub_id,
                 location_desc: `In transit on ${run.run_number}`,
                 notes: `Departed from ${run.origin_hub_name} heading towards ${run.destination_hub_name}`
@@ -607,7 +592,7 @@ function dispatchTransportRun(runId, payload = {}, user = {}) {
         }
 
         // Audit Log
-        logAuditEvent({
+        await logAuditEvent({
             userId: user.id || 1,
             role: user.roleName || 'STAFF',
             action: 'DISPATCH',
@@ -618,18 +603,16 @@ function dispatchTransportRun(runId, payload = {}, user = {}) {
             reason: 'Transport run departed'
         });
 
-        return getTransportRunById(runId);
+        return await getTransportRunById(runId, client);
     });
 
-    const runResult = executeTx();
-
-    // Trigger milestone notifications for shipments on manifest (Rule NTF-002)
+    // Trigger milestone notifications for shipments on manifest after commit (Rule NTF-002)
     if (run.manifest && run.manifest.items) {
         for (const item of run.manifest.items) {
             try {
-                const shipment = db.prepare('SELECT * FROM shipments WHERE id = ?').get(item.shipment_id);
+                const shipment = await dbAdapter.get('SELECT * FROM shipments WHERE id = ?', [item.shipment_id]);
                 if (shipment) {
-                    notificationService.queueMilestoneNotification('DISPATCHED', {
+                    await notificationService.queueMilestoneNotification('DISPATCHED', {
                         shipment,
                         run: runResult,
                         eta: runResult.estimated_arrival ? new Date(runResult.estimated_arrival).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'In Transit'
@@ -647,18 +630,18 @@ function dispatchTransportRun(runId, payload = {}, user = {}) {
 /**
  * Records a checkpoint update during transit
  */
-function recordCheckpoint(runId, data, user = {}) {
-    const run = db.prepare('SELECT tr.id, tr.status, tr.driver_id, b.name AS destination_hub_name FROM transport_runs tr JOIN branches b ON tr.destination_hub_id = b.id WHERE tr.id = ?').get(runId);
+async function recordCheckpoint(runId, data, user = {}) {
+    const run = await dbAdapter.get('SELECT tr.id, tr.status, tr.driver_id, b.name AS destination_hub_name FROM transport_runs tr JOIN branches b ON tr.destination_hub_id = b.id WHERE tr.id = ?', [runId]);
     if (!run) throw new Error(`Transport Run ${runId} not found`);
 
     if (!data.checkpoint_name) throw new Error('checkpoint_name is required');
 
-    const info = db.prepare(`
+    const info = await dbAdapter.query(`
         INSERT INTO run_checkpoints (
             transport_run_id, checkpoint_name, location_desc, latitude, longitude,
             recorded_by_driver_id, notes
         ) VALUES (?, ?, ?, ?, ?, ?, ?)
-    `).run(
+    `, [
         runId,
         data.checkpoint_name,
         data.location_desc || data.checkpoint_name,
@@ -666,22 +649,21 @@ function recordCheckpoint(runId, data, user = {}) {
         data.longitude || null,
         run.driver_id || null,
         data.notes || null
-    );
+    ]);
 
     // Also attach checkpoint event to all shipments on this run
-    const manifest = db.prepare('SELECT id FROM manifests WHERE transport_run_id = ?').get(runId);
+    const manifest = await dbAdapter.get('SELECT id FROM manifests WHERE transport_run_id = ?', [runId]);
     if (manifest) {
-        const items = db.prepare('SELECT shipment_id FROM manifest_items WHERE manifest_id = ?').all(manifest.id);
-        const eventStmt = db.prepare(`
-            INSERT INTO tracking_events (
-                shipment_id, event_code, event_name,
-                location_desc, latitude, longitude, actor_type, actor_name,
-                description, is_customer_visible, metadata
-            ) VALUES (?, 'IN_TRANSIT_CHECKPOINT', 'In Transit Checkpoint', ?, ?, ?, 'DRIVER', ?, ?, 1, ?)
-        `);
+        const items = await dbAdapter.all('SELECT shipment_id FROM manifest_items WHERE manifest_id = ?', [manifest.id]);
 
         for (const item of items) {
-            eventStmt.run(
+            await dbAdapter.run(`
+                INSERT INTO tracking_events (
+                    shipment_id, event_code, event_name,
+                    location_desc, latitude, longitude, actor_type, actor_name,
+                    description, is_customer_visible, metadata
+                ) VALUES (?, 'IN_TRANSIT_CHECKPOINT', 'In Transit Checkpoint', ?, ?, ?, 'DRIVER', ?, ?, true, ?)
+            `, [
                 item.shipment_id,
                 data.location_desc || data.checkpoint_name,
                 data.latitude || null,
@@ -689,24 +671,24 @@ function recordCheckpoint(runId, data, user = {}) {
                 user.fullName || 'Transport Driver',
                 `Checkpoint scan at ${data.checkpoint_name}`,
                 JSON.stringify({ checkpoint_name: data.checkpoint_name })
-            );
+            ]);
         }
     }
 
-    return { id: info.lastInsertRowid, checkpoint_name: data.checkpoint_name, recorded_at: new Date().toISOString() };
+    return { id: info.insertId, checkpoint_name: data.checkpoint_name, recorded_at: new Date().toISOString() };
 }
 
 /**
  * Marks transport run arrived at destination hub
  */
-function arriveTransportRun(runId, payload = {}, user = {}) {
-    const run = getTransportRunById(runId);
+async function arriveTransportRun(runId, payload = {}, user = {}) {
+    const run = await getTransportRunById(runId);
     if (!run) throw new Error(`Transport Run ${runId} not found`);
 
-    const arrivalOdo = Number(payload.arrival_odometer_km) || (run.departure_odometer_km + (run.distance_km || 100));
+    const arrivalOdo = Number(payload.arrival_odometer_km) || (Number(run.departure_odometer_km) + (Number(run.distance_km) || 100));
 
-    const executeTx = db.transaction(() => {
-        db.prepare(`
+    return await dbAdapter.withTransaction(async (client) => {
+        await dbAdapter.run(`
             UPDATE transport_runs SET
                 status = 'ARRIVED',
                 actual_arrival = CURRENT_TIMESTAMP,
@@ -714,34 +696,39 @@ function arriveTransportRun(runId, payload = {}, user = {}) {
                 current_odometer_km = ?,
                 updated_at = CURRENT_TIMESTAMP
             WHERE id = ?
-        `).run(arrivalOdo, arrivalOdo, runId);
+        `, [arrivalOdo, arrivalOdo, runId], client);
 
         // Update vehicle odometer
         if (run.vehicle_id) {
-            db.prepare('UPDATE vehicles SET current_odometer_km = ? WHERE id = ?').run(arrivalOdo, run.vehicle_id);
+            await dbAdapter.run('UPDATE vehicles SET current_odometer_km = ? WHERE id = ?', [arrivalOdo, run.vehicle_id], client);
         }
 
-        return getTransportRunById(runId);
+        return await getTransportRunById(runId, client);
     });
-
-    return executeTx();
 }
 
 /**
  * Receives and reconciles manifest shipments at destination hub (PRD BR-006)
  * Checks received shipments vs expected shipments on the manifest.
  */
-function receiveManifest(runId, receivedShipmentIds = [], user = {}) {
-    const run = getTransportRunById(runId);
-    if (!run) throw new Error(`Transport Run ${runId} not found`);
+async function receiveManifest(runOrManifestId, receivedShipmentIds = [], user = {}) {
+    let run = await getTransportRunById(runOrManifestId);
+    if (!run) {
+        const manifestRow = await dbAdapter.get('SELECT transport_run_id FROM manifests WHERE id = ?', [runOrManifestId]);
+        if (manifestRow) {
+            run = await getTransportRunById(manifestRow.transport_run_id);
+        }
+    }
+    if (!run) throw new Error(`Transport Run or Manifest ${runOrManifestId} not found`);
 
+    const runId = run.id;
     const manifest = run.manifest;
     if (!manifest) throw new Error(`No manifest found for run ${runId}`);
 
-    const destHub = db.prepare('SELECT name, city FROM branches WHERE id = ?').get(run.destination_hub_id);
+    const destHub = await dbAdapter.get('SELECT name, city FROM branches WHERE id = ?', [run.destination_hub_id]);
     const destHubName = destHub ? destHub.name : 'Destination Hub';
 
-    const executeTx = db.transaction(() => {
+    return await dbAdapter.withTransaction(async (client) => {
         const receivedSet = new Set(receivedShipmentIds.map(Number));
         let shortageCount = 0;
         let receivedCount = 0;
@@ -749,16 +736,16 @@ function receiveManifest(runId, receivedShipmentIds = [], user = {}) {
         for (const item of manifest.items) {
             if (receivedSet.has(item.shipment_id)) {
                 // Successfully received
-                db.prepare(`
+                await dbAdapter.run(`
                     UPDATE manifest_items SET
                         status = 'RECEIVED',
                         received_at = CURRENT_TIMESTAMP,
                         received_by_user_id = ?
                     WHERE manifest_id = ? AND shipment_id = ?
-                `).run(user.id || 1, manifest.id, item.shipment_id);
+                `, [user.id || 1, manifest.id, item.shipment_id], client);
 
                 // Multi-leg completion & activation via canonical domain service
-                shipmentService.completeLegAndActivateNext(
+                await shipmentService.completeLegAndActivateNext(
                     item.shipment_id,
                     manifest.id,
                     run.destination_hub_id,
@@ -770,20 +757,22 @@ function receiveManifest(runId, receivedShipmentIds = [], user = {}) {
                 receivedCount++;
             } else {
                 // Shortage: Expected but missing from unload
-                db.prepare(`
+                await dbAdapter.run(`
                     UPDATE manifest_items SET
                         status = 'SHORTAGE',
                         discrepancy_reason = 'MISSING_FROM_UNLOAD'
                     WHERE manifest_id = ? AND shipment_id = ?
-                `).run(manifest.id, item.shipment_id);
+                `, [manifest.id, item.shipment_id], client);
 
-                // Mark shipment in EXCEPTION via canonical state machine
-                shipmentService.transitionShipmentStatus(item.shipment_id, 'EXCEPTION', {
-                    hub_id: run.destination_hub_id,
-                    location_desc: destHubName,
-                    reason: 'Manifest Discrepancy (Shortage): Expected but missing from unload',
-                    notes: `Shortage on transport run ${run.run_number} manifest #${manifest.id}`
-                }, user);
+                // Mark shipment in EXCEPTION via canonical state machine if not already in EXCEPTION
+                if (item.shipment_status !== 'EXCEPTION') {
+                    await shipmentService.transitionShipmentStatus(item.shipment_id, 'EXCEPTION', {
+                        hub_id: run.destination_hub_id,
+                        location_desc: destHubName,
+                        reason: 'Manifest Discrepancy (Shortage): Expected but missing from unload',
+                        notes: `Shortage on transport run ${run.run_number} manifest #${manifest.id}`
+                    }, user);
+                }
 
                 shortageCount++;
             }
@@ -791,21 +780,21 @@ function receiveManifest(runId, receivedShipmentIds = [], user = {}) {
 
         // Close manifest
         const manifestStatus = shortageCount === 0 ? 'RECONCILED' : 'DISCREPANCY';
-        db.prepare('UPDATE manifests SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(manifestStatus, manifest.id);
+        await dbAdapter.run('UPDATE manifests SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?', [manifestStatus, manifest.id], client);
 
         // Complete Transport Run
-        db.prepare('UPDATE transport_runs SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(RUN_STATUSES.COMPLETED, runId);
+        await dbAdapter.run('UPDATE transport_runs SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?', [RUN_STATUSES.COMPLETED, runId], client);
 
         // Free Driver & Vehicle back to AVAILABLE
         if (run.driver_id) {
-            db.prepare(`UPDATE drivers SET status = 'AVAILABLE', status_updated_at = CURRENT_TIMESTAMP WHERE id = ?`).run(run.driver_id);
+            await dbAdapter.run(`UPDATE drivers SET status = 'AVAILABLE', status_updated_at = CURRENT_TIMESTAMP WHERE id = ?`, [run.driver_id], client);
         }
         if (run.vehicle_id) {
-            db.prepare(`UPDATE vehicles SET status = 'AVAILABLE', status_updated_at = CURRENT_TIMESTAMP WHERE id = ?`).run(run.vehicle_id);
+            await dbAdapter.run(`UPDATE vehicles SET status = 'AVAILABLE', status_updated_at = CURRENT_TIMESTAMP WHERE id = ?`, [run.vehicle_id], client);
         }
 
         // Audit Log
-        logAuditEvent({
+        await logAuditEvent({
             userId: user.id || 1,
             role: user.roleName || 'STAFF',
             action: 'RECEIVE',
@@ -825,14 +814,12 @@ function receiveManifest(runId, receivedShipmentIds = [], user = {}) {
             shortage_count: shortageCount
         };
     });
-
-    return executeTx();
 }
 
 /**
  * Lists linehaul manifests with hub details
  */
-function listManifests(query = {}) {
+async function listManifests(query = {}) {
     let sql = `
         SELECT m.*,
                b1.name as origin_hub_name, b1.code as origin_hub_code,
@@ -858,7 +845,7 @@ function listManifests(query = {}) {
         params.push(query.status);
     }
     sql += ` ORDER BY m.created_at DESC`;
-    const manifests = db.prepare(sql).all(...params);
+    const manifests = await dbAdapter.all(sql, params);
     return {
         manifests,
         total: manifests.length
@@ -868,8 +855,8 @@ function listManifests(query = {}) {
 /**
  * Gets manifest details by ID with loaded items
  */
-function getManifestById(id) {
-    const manifest = db.prepare(`
+async function getManifestById(id) {
+    const manifest = await dbAdapter.get(`
         SELECT m.*,
                b1.name as origin_hub_name, b1.code as origin_hub_code,
                b2.name as destination_hub_name, b2.code as destination_hub_code,
@@ -879,17 +866,17 @@ function getManifestById(id) {
         LEFT JOIN branches b2 ON m.destination_hub_id = b2.id
         LEFT JOIN transport_runs tr ON m.transport_run_id = tr.id
         WHERE m.id = ? OR m.manifest_number = ?
-    `).get(id, id);
+    `, [isNaN(Number(id)) ? -1 : Number(id), String(id)]);
 
     if (!manifest) return null;
 
-    const items = db.prepare(`
+    const items = await dbAdapter.all(`
         SELECT mi.*, s.tracking_number, s.waybill_number, s.status as shipment_status,
                s.sender_name, s.recipient_name, s.actual_weight_kg, s.total_amount
         FROM manifest_items mi
         LEFT JOIN shipments s ON mi.shipment_id = s.id
         WHERE mi.manifest_id = ?
-    `).all(manifest.id);
+    `, [manifest.id]);
 
     return {
         ...manifest,
@@ -900,31 +887,31 @@ function getManifestById(id) {
 /**
  * Cross-border: Submit customs documentation for a cross-border leg
  */
-function submitCustomsDeclaration(legId, payload = {}, user = {}) {
-    const leg = db.prepare('SELECT * FROM shipment_legs WHERE id = ?').get(legId);
+async function submitCustomsDeclaration(legId, payload = {}, user = {}) {
+    const leg = await dbAdapter.get('SELECT * FROM shipment_legs WHERE id = ?', [legId]);
     if (!leg) throw new Error(`Shipment leg #${legId} not found`);
     if (!leg.is_cross_border) throw new Error(`Leg #${legId} is not designated as cross-border`);
 
     const customsDocNumber = payload.customs_doc_number || `CUST-DOC-${Date.now().toString().slice(-6)}`;
     const borderPost = payload.border_post_name || leg.border_post_name || 'Namanga Border Post';
 
-    const executeTx = db.transaction(() => {
-        db.prepare(`
+    return await dbAdapter.withTransaction(async (client) => {
+        await dbAdapter.run(`
             UPDATE shipment_legs SET
                 customs_status = 'SUBMITTED',
                 border_post_name = ?,
                 updated_at = CURRENT_TIMESTAMP
             WHERE id = ?
-        `).run(borderPost, legId);
+        `, [borderPost, legId], client);
 
         // Record tracking event on shipment
-        db.prepare(`
+        await dbAdapter.run(`
             INSERT INTO tracking_events (
                 shipment_id, leg_id, event_code, event_name,
                 hub_id, location_desc, actor_id, actor_type, actor_name,
                 description, is_customer_visible, metadata
-            ) VALUES (?, ?, 'CUSTOMS_SUBMITTED', 'Customs Declaration Submitted', ?, ?, ?, 'STAFF', ?, ?, 1, ?)
-        `).run(
+            ) VALUES (?, ?, 'CUSTOMS_SUBMITTED', 'Customs Declaration Submitted', ?, ?, ?, 'STAFF', ?, ?, true, ?)
+        `, [
             leg.shipment_id,
             legId,
             leg.origin_hub_id,
@@ -937,7 +924,7 @@ function submitCustomsDeclaration(legId, payload = {}, user = {}) {
                 border_post: borderPost,
                 notes: payload.notes || null
             })
-        );
+        ], client);
 
         return {
             leg_id: legId,
@@ -947,34 +934,32 @@ function submitCustomsDeclaration(legId, payload = {}, user = {}) {
             border_post: borderPost
         };
     });
-
-    return executeTx();
 }
 
 /**
  * Cross-border: Record customs physical inspection
  */
-function inspectCustomsLeg(legId, payload = {}, user = {}) {
-    const leg = db.prepare('SELECT * FROM shipment_legs WHERE id = ?').get(legId);
+async function inspectCustomsLeg(legId, payload = {}, user = {}) {
+    const leg = await dbAdapter.get('SELECT * FROM shipment_legs WHERE id = ?', [legId]);
     if (!leg) throw new Error(`Shipment leg #${legId} not found`);
 
     const borderPost = leg.border_post_name || 'Border Post';
 
-    const executeTx = db.transaction(() => {
-        db.prepare(`
+    return await dbAdapter.withTransaction(async (client) => {
+        await dbAdapter.run(`
             UPDATE shipment_legs SET
                 customs_status = 'INSPECTION',
                 updated_at = CURRENT_TIMESTAMP
             WHERE id = ?
-        `).run(legId);
+        `, [legId], client);
 
-        db.prepare(`
+        await dbAdapter.run(`
             INSERT INTO tracking_events (
                 shipment_id, leg_id, event_code, event_name,
                 hub_id, location_desc, actor_id, actor_type, actor_name,
                 description, is_customer_visible, metadata
-            ) VALUES (?, ?, 'CUSTOMS_INSPECTION', 'Customs Inspection Underway', ?, ?, ?, 'STAFF', ?, ?, 1, ?)
-        `).run(
+            ) VALUES (?, ?, 'CUSTOMS_INSPECTION', 'Customs Inspection Underway', ?, ?, ?, 'STAFF', ?, ?, true, ?)
+        `, [
             leg.shipment_id,
             legId,
             leg.origin_hub_id,
@@ -986,7 +971,7 @@ function inspectCustomsLeg(legId, payload = {}, user = {}) {
                 inspector_name: payload.inspector_name || user.fullName,
                 notes: payload.notes || null
             })
-        );
+        ], client);
 
         return {
             leg_id: legId,
@@ -994,32 +979,30 @@ function inspectCustomsLeg(legId, payload = {}, user = {}) {
             customs_status: 'INSPECTION'
         };
     });
-
-    return executeTx();
 }
 
 /**
  * Cross-border: Place customs hold with reason and auto-generate exception
  */
-function holdCustomsLeg(legId, payload = {}, user = {}) {
-    const leg = db.prepare('SELECT * FROM shipment_legs WHERE id = ?').get(legId);
+async function holdCustomsLeg(legId, payload = {}, user = {}) {
+    const leg = await dbAdapter.get('SELECT * FROM shipment_legs WHERE id = ?', [legId]);
     if (!leg) throw new Error(`Shipment leg #${legId} not found`);
     if (!payload.reason) throw new Error('A specific reason is strictly mandatory when placing a customs hold');
 
     const borderPost = leg.border_post_name || 'Border Post';
 
-    const executeTx = db.transaction(() => {
-        db.prepare(`
+    return await dbAdapter.withTransaction(async (client) => {
+        await dbAdapter.run(`
             UPDATE shipment_legs SET
                 customs_status = 'CUSTOMS_HOLD',
                 customs_hold_reason = ?,
                 updated_at = CURRENT_TIMESTAMP
             WHERE id = ?
-        `).run(payload.reason, legId);
+        `, [payload.reason, legId], client);
 
         // Put shipment on hold
         try {
-            shipmentService.transitionShipmentStatus(leg.shipment_id, 'ON_HOLD', {
+            await shipmentService.transitionShipmentStatus(leg.shipment_id, 'ON_HOLD', {
                 location_desc: borderPost,
                 reason: payload.reason,
                 notes: `Customs hold at ${borderPost}: ${payload.reason}`
@@ -1033,18 +1016,18 @@ function holdCustomsLeg(legId, payload = {}, user = {}) {
         const rand = Math.floor(1000 + Math.random() * 9000);
         const excNum = `EXC-${today}-${rand}`;
 
-        db.prepare(`
+        await dbAdapter.run(`
             INSERT INTO exceptions (
                 exception_number, shipment_id, hub_id, exception_type, severity, status,
                 description, reported_by_user_id
             ) VALUES (?, ?, ?, 'CUSTOMS_HOLD', 'HIGH', 'OPEN', ?, ?)
-        `).run(
+        `, [
             excNum,
             leg.shipment_id,
             leg.origin_hub_id,
             `Customs Hold at ${borderPost}: ${payload.reason}`,
             user.id || 1
-        );
+        ], client);
 
         return {
             leg_id: legId,
@@ -1053,36 +1036,34 @@ function holdCustomsLeg(legId, payload = {}, user = {}) {
             hold_reason: payload.reason
         };
     });
-
-    return executeTx();
 }
 
 /**
  * Cross-border: Clear customs verification
  */
-function clearCustomsLeg(legId, payload = {}, user = {}) {
-    const leg = db.prepare('SELECT * FROM shipment_legs WHERE id = ?').get(legId);
+async function clearCustomsLeg(legId, payload = {}, user = {}) {
+    const leg = await dbAdapter.get('SELECT * FROM shipment_legs WHERE id = ?', [legId]);
     if (!leg) throw new Error(`Shipment leg #${legId} not found`);
 
     const clearanceRef = payload.clearance_number || `CLR-KE-TZ-${Date.now().toString().slice(-6)}`;
     const borderPost = leg.border_post_name || 'Border Post';
 
-    const executeTx = db.transaction(() => {
-        db.prepare(`
+    return await dbAdapter.withTransaction(async (client) => {
+        await dbAdapter.run(`
             UPDATE shipment_legs SET
                 customs_status = 'CLEARED',
                 customs_hold_reason = NULL,
                 updated_at = CURRENT_TIMESTAMP
             WHERE id = ?
-        `).run(legId);
+        `, [legId], client);
 
-        db.prepare(`
+        await dbAdapter.run(`
             INSERT INTO tracking_events (
                 shipment_id, leg_id, event_code, event_name,
                 hub_id, location_desc, actor_id, actor_type, actor_name,
                 description, is_customer_visible, metadata
-            ) VALUES (?, ?, 'CUSTOMS_CLEARED', 'Customs Cleared', ?, ?, ?, 'STAFF', ?, ?, 1, ?)
-        `).run(
+            ) VALUES (?, ?, 'CUSTOMS_CLEARED', 'Customs Cleared', ?, ?, ?, 'STAFF', ?, ?, true, ?)
+        `, [
             leg.shipment_id,
             legId,
             leg.origin_hub_id,
@@ -1091,7 +1072,7 @@ function clearCustomsLeg(legId, payload = {}, user = {}) {
             user.fullName || 'Customs Authority',
             `Customs cleared at ${borderPost}. Clearance certificate: ${clearanceRef}`,
             JSON.stringify({ clearance_number: clearanceRef })
-        );
+        ], client);
 
         return {
             leg_id: legId,
@@ -1100,43 +1081,41 @@ function clearCustomsLeg(legId, payload = {}, user = {}) {
             clearance_number: clearanceRef
         };
     });
-
-    return executeTx();
 }
 
 /**
  * Cross-border: Release customs inspection and permit continuation of transit leg
  */
-function releaseCustomsLeg(legId, user = {}) {
-    const leg = db.prepare('SELECT * FROM shipment_legs WHERE id = ?').get(legId);
+async function releaseCustomsLeg(legId, user = {}) {
+    const leg = await dbAdapter.get('SELECT * FROM shipment_legs WHERE id = ?', [legId]);
     if (!leg) throw new Error(`Shipment leg #${legId} not found`);
 
     const borderPost = leg.border_post_name || 'Border Post';
 
-    const executeTx = db.transaction(() => {
-        db.prepare(`
+    return await dbAdapter.withTransaction(async (client) => {
+        await dbAdapter.run(`
             UPDATE shipment_legs SET
                 customs_status = 'RELEASED',
                 updated_at = CURRENT_TIMESTAMP
             WHERE id = ?
-        `).run(legId);
+        `, [legId], client);
 
         // Resume IN_TRANSIT status on shipment if was on hold
-        const shipment = db.prepare('SELECT status FROM shipments WHERE id = ?').get(leg.shipment_id);
+        const shipment = await dbAdapter.get('SELECT status FROM shipments WHERE id = ?', [leg.shipment_id], client);
         if (shipment && shipment.status === 'ON_HOLD') {
-            shipmentService.transitionShipmentStatus(leg.shipment_id, 'IN_TRANSIT', {
+            await shipmentService.transitionShipmentStatus(leg.shipment_id, 'IN_TRANSIT', {
                 location_desc: `Departed ${borderPost} after customs release`,
                 notes: `Customs released at ${borderPost}. Continuing transit.`
             }, user);
         }
 
-        db.prepare(`
+        await dbAdapter.run(`
             INSERT INTO tracking_events (
                 shipment_id, leg_id, event_code, event_name,
                 hub_id, location_desc, actor_id, actor_type, actor_name,
                 description, is_customer_visible, metadata
-            ) VALUES (?, ?, 'CUSTOMS_RELEASED', 'Customs Released & En Route', ?, ?, ?, 'STAFF', ?, ?, 1, ?)
-        `).run(
+            ) VALUES (?, ?, 'CUSTOMS_RELEASED', 'Customs Released & En Route', ?, ?, ?, 'STAFF', ?, ?, true, ?)
+        `, [
             leg.shipment_id,
             legId,
             leg.origin_hub_id,
@@ -1145,7 +1124,7 @@ function releaseCustomsLeg(legId, user = {}) {
             user.fullName || 'Border Gate Officer',
             `Released from ${borderPost}. Vehicle cleared to proceed to next destination hub.`,
             JSON.stringify({ released: true })
-        );
+        ], client);
 
         return {
             leg_id: legId,
@@ -1153,14 +1132,12 @@ function releaseCustomsLeg(legId, user = {}) {
             customs_status: 'RELEASED'
         };
     });
-
-    return executeTx();
 }
 
 /**
  * Lists cross-border shipment legs with filtering
  */
-function getCrossBorderLegs(filters = {}) {
+async function getCrossBorderLegs(filters = {}) {
     let sql = `
         SELECT sl.*,
                s.tracking_number, s.waybill_number, s.status as shipment_status,
@@ -1173,7 +1150,7 @@ function getCrossBorderLegs(filters = {}) {
         JOIN branches orig ON sl.origin_hub_id = orig.id
         JOIN branches dest ON sl.destination_hub_id = dest.id
         LEFT JOIN transport_runs tr ON sl.transport_run_id = tr.id
-        WHERE sl.is_cross_border = 1
+        WHERE sl.is_cross_border = true
     `;
     const params = [];
     if (filters.customs_status) {
@@ -1185,7 +1162,7 @@ function getCrossBorderLegs(filters = {}) {
         params.push(filters.border_post);
     }
     sql += ` ORDER BY sl.id DESC`;
-    return db.prepare(sql).all(...params);
+    return await dbAdapter.all(sql, params);
 }
 
 module.exports = {

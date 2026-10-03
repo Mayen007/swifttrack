@@ -1,6 +1,6 @@
 // server/services/custodyService.js
 // SwiftTrack Logistics: Stage 4 Physical Custody & Hub Operations Domain Service
-const { db } = require('../db/database.js');
+const dbAdapter = require('../db/dbAdapter.js');
 const crypto = require('node:crypto');
 const shipmentService = require('./shipmentService.js');
 
@@ -20,11 +20,12 @@ function generateSeqNumber(prefix) {
 /**
  * Records a single barcode/QR scan event with deduplication and tracking synchronization
  */
-function recordScanEvent(data, user = {}) {
+async function recordScanEvent(data, user = {}, client = null) {
     const scanUuid = data.scan_uuid || crypto.randomUUID();
+    const qGet = client ? client.get : dbAdapter.get;
 
     // Check for offline sync idempotency (BR-013, BR-014)
-    const existing = db.prepare('SELECT * FROM scan_events WHERE scan_uuid = ?').get(scanUuid);
+    const existing = await qGet('SELECT * FROM scan_events WHERE scan_uuid = ?', [scanUuid]);
     if (existing) {
         return {
             ...existing,
@@ -39,30 +40,28 @@ function recordScanEvent(data, user = {}) {
     const scanType = (data.scan_type || 'AUDIT').toUpperCase();
 
     // Look up shipment and parcel from barcode or tracking number
-    let shipment = db.prepare('SELECT id, tracking_number, status, origin_hub_id, destination_hub_id, current_hub_id FROM shipments WHERE tracking_number = ?').get(data.barcode);
+    let shipment = await qGet('SELECT id, tracking_number, status, origin_hub_id, destination_hub_id, current_hub_id FROM shipments WHERE tracking_number = ?', [data.barcode]);
     let parcel = null;
 
     if (!shipment) {
-        parcel = db.prepare('SELECT id, shipment_id, barcode FROM parcels WHERE barcode = ?').get(data.barcode);
+        parcel = await qGet('SELECT id, shipment_id, barcode FROM parcels WHERE barcode = ?', [data.barcode]);
         if (parcel) {
-            shipment = db.prepare('SELECT id, tracking_number, status, origin_hub_id, destination_hub_id, current_hub_id FROM shipments WHERE id = ?').get(parcel.shipment_id);
+            shipment = await qGet('SELECT id, tracking_number, status, origin_hub_id, destination_hub_id, current_hub_id FROM shipments WHERE id = ?', [parcel.shipment_id]);
         }
     }
 
     const hubId = data.hub_id || (user.branchId ? Number(user.branchId) : (shipment ? shipment.current_hub_id : null));
 
-    const executeTx = db.transaction(() => {
+    const executeOperation = async (tx) => {
         // Insert immutable scan event
-        const scanStmt = db.prepare(`
+        await tx.run(`
             INSERT INTO scan_events (
                 scan_uuid, barcode, shipment_id, parcel_id, scan_type,
                 hub_id, transport_run_id, location_desc, latitude, longitude,
                 device_id, app_version, scanned_by_user_id, scanned_at,
                 is_offline_sync, synced_at, metadata
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, ?)
-        `);
-
-        scanStmt.run(
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, ?::jsonb)
+        `, [
             scanUuid,
             data.barcode,
             shipment ? shipment.id : null,
@@ -77,9 +76,9 @@ function recordScanEvent(data, user = {}) {
             data.app_version || null,
             user.id || null,
             data.scanned_at || new Date().toISOString(),
-            data.is_offline_sync ? 1 : 0,
+            Boolean(data.is_offline_sync),
             data.metadata ? (typeof data.metadata === 'string' ? data.metadata : JSON.stringify(data.metadata)) : null
-        );
+        ]);
 
         // If shipment was identified, append tracking event and update state if needed
         if (shipment) {
@@ -102,20 +101,20 @@ function recordScanEvent(data, user = {}) {
             }
 
             if (nextStatus) {
-                db.prepare(`
+                await tx.run(`
                     UPDATE shipments 
                     SET status = ?, current_hub_id = COALESCE(?, current_hub_id), updated_at = CURRENT_TIMESTAMP 
                     WHERE id = ?
-                `).run(nextStatus, hubId, shipment.id);
+                `, [nextStatus, hubId, shipment.id]);
             }
 
-            db.prepare(`
+            await tx.run(`
                 INSERT INTO tracking_events (
                     shipment_id, event_code, event_name,
                     hub_id, location_desc, latitude, longitude,
                     actor_type, actor_name, description, is_customer_visible, metadata
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)
-            `).run(
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, true, ?::jsonb)
+            `, [
                 shipment.id,
                 eventCode,
                 eventName,
@@ -127,19 +126,23 @@ function recordScanEvent(data, user = {}) {
                 user.fullName || 'Station Scanner',
                 `Barcode ${data.barcode} scanned with operation ${scanType}`,
                 JSON.stringify({ scan_uuid: scanUuid, device_id: data.device_id, scan_type: scanType })
-            );
+            ]);
         }
 
-        return db.prepare('SELECT * FROM scan_events WHERE scan_uuid = ?').get(scanUuid);
-    });
+        return await tx.get('SELECT * FROM scan_events WHERE scan_uuid = ?', [scanUuid]);
+    };
 
-    return executeTx();
+    if (client) {
+        return await executeOperation(client);
+    } else {
+        return await dbAdapter.withTransaction(executeOperation);
+    }
 }
 
 /**
  * Records a batch of scan events (e.g. mobile scanner synchronizing after offline operation)
  */
-function recordBatchScans(scans = [], user = {}) {
+async function recordBatchScans(scans = [], user = {}) {
     if (!Array.isArray(scans) || scans.length === 0) {
         throw new Error('scans array must not be empty');
     }
@@ -151,9 +154,9 @@ function recordBatchScans(scans = [], user = {}) {
         items: []
     };
 
-    const executeTx = db.transaction(() => {
+    return await dbAdapter.withTransaction(async (tx) => {
         for (const scan of scans) {
-            const item = recordScanEvent({ ...scan, is_offline_sync: true }, user);
+            const item = await recordScanEvent({ ...scan, is_offline_sync: true }, user, tx);
             if (item.is_duplicate) {
                 results.duplicates++;
             } else {
@@ -163,14 +166,12 @@ function recordBatchScans(scans = [], user = {}) {
         }
         return results;
     });
-
-    return executeTx();
 }
 
 /**
  * Lists scan events with filters and pagination
  */
-function listScanEvents(query = {}, user = {}) {
+async function listScanEvents(query = {}, user = {}) {
     const page = Math.max(1, parseInt(query.page, 10) || 1);
     const limit = Math.min(100, Math.max(1, parseInt(query.limit, 10) || 50));
     const offset = (page - 1) * limit;
@@ -209,12 +210,13 @@ function listScanEvents(query = {}, user = {}) {
         countParams.push(Number(query.shipment_id));
     }
 
-    const total = db.prepare(countSql).get(...countParams)?.total || 0;
+    const countRow = await dbAdapter.get(countSql, countParams);
+    const total = parseInt(countRow?.total || 0, 10);
 
     sql += ' ORDER BY se.id DESC LIMIT ? OFFSET ?';
     params.push(limit, offset);
 
-    const items = db.prepare(sql).all(...params);
+    const items = await dbAdapter.all(sql, params);
 
     return {
         scan_events: items,
@@ -232,16 +234,16 @@ function listScanEvents(query = {}, user = {}) {
 /**
  * Executes a formal chain of custody handoff between two parties
  */
-function recordHandoff(data, user = {}) {
+async function recordHandoff(data, user = {}) {
     if (!data.shipment_id && !data.tracking_number) {
         throw new Error('shipment_id or tracking_number is required for custody handoff');
     }
 
     let shipment = null;
     if (data.shipment_id) {
-        shipment = db.prepare('SELECT id, tracking_number, status, current_hub_id FROM shipments WHERE id = ?').get(data.shipment_id);
+        shipment = await dbAdapter.get('SELECT id, tracking_number, status, current_hub_id FROM shipments WHERE id = ?', [data.shipment_id]);
     } else {
-        shipment = db.prepare('SELECT id, tracking_number, status, current_hub_id FROM shipments WHERE tracking_number = ?').get(data.tracking_number);
+        shipment = await dbAdapter.get('SELECT id, tracking_number, status, current_hub_id FROM shipments WHERE tracking_number = ?', [data.tracking_number]);
     }
 
     if (!shipment) {
@@ -260,9 +262,9 @@ function recordHandoff(data, user = {}) {
 
     const hubId = data.hub_id || user.branchId || shipment.current_hub_id;
 
-    const executeTx = db.transaction(() => {
+    return await dbAdapter.withTransaction(async (tx) => {
         // Insert handoff record
-        const handoffStmt = db.prepare(`
+        const handoffRes = await tx.run(`
             INSERT INTO handoffs (
                 handoff_number, shipment_id, transport_run_id, manifest_id, hub_id,
                 handoff_type, releasing_actor_type, releasing_actor_id, releasing_actor_name,
@@ -270,9 +272,7 @@ function recordHandoff(data, user = {}) {
                 package_condition, seal_number, verification_method, signature_data,
                 notes, transferred_at, created_at
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-        `);
-
-        const info = handoffStmt.run(
+        `, [
             handoffNumber,
             shipment.id,
             data.transport_run_id || null,
@@ -290,27 +290,27 @@ function recordHandoff(data, user = {}) {
             verificationMethod,
             data.signature_data || null,
             data.notes || null
-        );
+        ]);
 
-        const handoffId = info.lastInsertRowid;
+        const handoffId = handoffRes.insertId;
 
         // Also record a physical scan event representing this transfer
-        recordScanEvent({
+        await recordScanEvent({
             barcode: shipment.tracking_number,
             scan_type: 'AUDIT',
             hub_id: hubId,
             location_desc: `Handoff ${handoffNumber}`,
             metadata: { handoff_id: handoffId, handoff_type: handoffType }
-        }, user);
+        }, user, tx);
 
         // Record tracking event
-        db.prepare(`
+        await tx.run(`
             INSERT INTO tracking_events (
                 shipment_id, event_code, event_name,
                 hub_id, location_desc, actor_type, actor_name,
                 description, is_customer_visible, metadata
-            ) VALUES (?, 'CUSTODY_HANDOFF', 'Chain of Custody Transferred', ?, ?, ?, ?, ?, 1, ?)
-        `).run(
+            ) VALUES (?, 'CUSTODY_HANDOFF', 'Chain of Custody Transferred', ?, ?, ?, ?, ?, true, ?::jsonb)
+        `, [
             shipment.id,
             hubId || null,
             hubId ? `Hub #${hubId}` : 'Transfer Point',
@@ -318,12 +318,12 @@ function recordHandoff(data, user = {}) {
             releasingName,
             `Custody transferred from ${releasingName} (${releasingType}) to ${receivingName} (${receivingType}). Condition: ${packageCondition}`,
             JSON.stringify({ handoff_number: handoffNumber, condition: packageCondition, seal_number: data.seal_number })
-        );
+        ]);
 
         let createdDiscrepancy = null;
         // If package condition is not GOOD, auto-flag a discrepancy record
         if (packageCondition !== 'GOOD') {
-            createdDiscrepancy = createDiscrepancyInternal({
+            createdDiscrepancy = await createDiscrepancyInternal({
                 discrepancy_type: packageCondition.includes('TAMPERED') ? 'TAMPERED_SEAL' : 'DAMAGED_PACKAGE',
                 severity: 'HIGH',
                 shipment_id: shipment.id,
@@ -331,22 +331,21 @@ function recordHandoff(data, user = {}) {
                 transport_run_id: data.transport_run_id || null,
                 manifest_id: data.manifest_id || null,
                 description: `Package reported as ${packageCondition} during custody handoff ${handoffNumber}. Notes: ${data.notes || 'None'}`
-            }, user);
+            }, user, tx);
         }
 
+        const handoff = await tx.get('SELECT * FROM handoffs WHERE id = ?', [handoffId]);
         return {
-            handoff: db.prepare('SELECT * FROM handoffs WHERE id = ?').get(handoffId),
+            handoff,
             discrepancy: createdDiscrepancy
         };
     });
-
-    return executeTx();
 }
 
 /**
  * Lists custody handoffs
  */
-function listHandoffs(query = {}, user = {}) {
+async function listHandoffs(query = {}, user = {}) {
     let sql = 'SELECT h.*, s.tracking_number, b.name as hub_name FROM handoffs h JOIN shipments s ON h.shipment_id = s.id LEFT JOIN branches b ON h.hub_id = b.id WHERE 1=1';
     const params = [];
 
@@ -367,21 +366,22 @@ function listHandoffs(query = {}, user = {}) {
 
     sql += ' ORDER BY h.id DESC LIMIT 100';
 
-    const handoffs = db.prepare(sql).all(...params);
+    const handoffs = await dbAdapter.all(sql, params);
     return { handoffs, total: handoffs.length };
 }
 
 /**
  * Gets a handoff by ID
  */
-function getHandoffById(id) {
-    const handoff = db.prepare(`
+async function getHandoffById(id, client = null) {
+    const qGet = client ? client.get : dbAdapter.get;
+    const handoff = await qGet(`
         SELECT h.*, s.tracking_number, s.status as shipment_status, b.name as hub_name
         FROM handoffs h
         JOIN shipments s ON h.shipment_id = s.id
         LEFT JOIN branches b ON h.hub_id = b.id
         WHERE h.id = ?
-    `).get(id);
+    `, [id]);
 
     if (!handoff) return null;
     return handoff;
@@ -394,7 +394,7 @@ function getHandoffById(id) {
 /**
  * Opens a new receiving session at a hub station or unloading bay
  */
-function openReceivingSession(data, user = {}) {
+async function openReceivingSession(data, user = {}) {
     const hubId = data.hub_id || user.branchId;
     if (!hubId) throw new Error('hub_id is required to open a receiving session');
 
@@ -403,22 +403,22 @@ function openReceivingSession(data, user = {}) {
 
     // If attached to a manifest or run, calculate expected package count
     if (data.manifest_id) {
-        const manifest = db.prepare('SELECT total_shipments, total_parcels FROM manifests WHERE id = ?').get(data.manifest_id);
+        const manifest = await dbAdapter.get('SELECT total_shipments, total_parcels FROM manifests WHERE id = ?', [data.manifest_id]);
         if (manifest) expectedCount = manifest.total_shipments || 0;
     } else if (data.transport_run_id) {
-        const run = db.prepare('SELECT total_shipments_count FROM transport_runs WHERE id = ?').get(data.transport_run_id);
+        const run = await dbAdapter.get('SELECT total_shipments_count FROM transport_runs WHERE id = ?', [data.transport_run_id]);
         if (run) expectedCount = run.total_shipments_count || 0;
     }
 
-    const executeTx = db.transaction(() => {
-        const info = db.prepare(`
+    return await dbAdapter.withTransaction(async (tx) => {
+        const res = await tx.run(`
             INSERT INTO hub_receiving_sessions (
                 session_number, hub_id, transport_run_id, manifest_id,
                 station_bay, operator_user_id, status, expected_packages_count,
                 scanned_packages_count, intact_count, damaged_count, unexpected_count,
                 started_at, notes, created_at
             ) VALUES (?, ?, ?, ?, ?, ?, 'IN_PROGRESS', ?, 0, 0, 0, 0, CURRENT_TIMESTAMP, ?, CURRENT_TIMESTAMP)
-        `).run(
+        `, [
             sessionNumber,
             hubId,
             data.transport_run_id || null,
@@ -427,19 +427,17 @@ function openReceivingSession(data, user = {}) {
             user.id || 1,
             expectedCount,
             data.notes || null
-        );
+        ]);
 
-        return getReceivingSessionById(info.lastInsertRowid);
+        return await getReceivingSessionById(res.insertId, tx);
     });
-
-    return executeTx();
 }
 
 /**
  * Scans an individual incoming package inside a receiving session
  */
-function scanReceivingItem(sessionId, data, user = {}) {
-    const session = db.prepare('SELECT * FROM hub_receiving_sessions WHERE id = ?').get(sessionId);
+async function scanReceivingItem(sessionId, data, user = {}) {
+    const session = await dbAdapter.get('SELECT * FROM hub_receiving_sessions WHERE id = ?', [sessionId]);
     if (!session) throw new Error(`Receiving session ${sessionId} not found`);
     if (session.status !== 'IN_PROGRESS') {
         throw new Error(`Cannot scan into receiving session with status ${session.status}`);
@@ -448,13 +446,13 @@ function scanReceivingItem(sessionId, data, user = {}) {
     if (!data.barcode) throw new Error('Barcode is required for receiving scan');
 
     // Look up shipment by tracking number or parcel barcode
-    let shipment = db.prepare('SELECT id, tracking_number, status, current_hub_id, destination_hub_id FROM shipments WHERE tracking_number = ?').get(data.barcode);
+    let shipment = await dbAdapter.get('SELECT id, tracking_number, status, current_hub_id, destination_hub_id FROM shipments WHERE tracking_number = ?', [data.barcode]);
     let parcel = null;
 
     if (!shipment) {
-        parcel = db.prepare('SELECT id, shipment_id, barcode FROM parcels WHERE barcode = ?').get(data.barcode);
+        parcel = await dbAdapter.get('SELECT id, shipment_id, barcode FROM parcels WHERE barcode = ?', [data.barcode]);
         if (parcel) {
-            shipment = db.prepare('SELECT id, tracking_number, status, current_hub_id, destination_hub_id FROM shipments WHERE id = ?').get(parcel.shipment_id);
+            shipment = await dbAdapter.get('SELECT id, tracking_number, status, current_hub_id, destination_hub_id FROM shipments WHERE id = ?', [parcel.shipment_id]);
         }
     }
 
@@ -463,7 +461,7 @@ function scanReceivingItem(sessionId, data, user = {}) {
     }
 
     // Check if item was already scanned in this session
-    const alreadyScanned = db.prepare('SELECT id FROM hub_receiving_items WHERE session_id = ? AND shipment_id = ?').get(sessionId, shipment.id);
+    const alreadyScanned = await dbAdapter.get('SELECT id FROM hub_receiving_items WHERE session_id = ? AND shipment_id = ?', [sessionId, shipment.id]);
     if (alreadyScanned) {
         throw new Error(`Shipment ${shipment.tracking_number} has already been scanned in this receiving session.`);
     }
@@ -472,22 +470,22 @@ function scanReceivingItem(sessionId, data, user = {}) {
     const isGoodCondition = condition === 'GOOD';
 
     // Verify if item is on the manifest (if attached to a manifest)
-    let isExpected = 1;
+    let isExpected = true;
     if (session.manifest_id) {
-        const onManifest = db.prepare('SELECT id FROM manifest_items WHERE manifest_id = ? AND shipment_id = ?').get(session.manifest_id, shipment.id);
+        const onManifest = await dbAdapter.get('SELECT id FROM manifest_items WHERE manifest_id = ? AND shipment_id = ?', [session.manifest_id, shipment.id]);
         if (!onManifest) {
-            isExpected = 0;
+            isExpected = false;
         }
     }
 
-    const executeTx = db.transaction(() => {
+    return await dbAdapter.withTransaction(async (tx) => {
         // Record receiving item
-        const itemInfo = db.prepare(`
+        const itemRes = await tx.run(`
             INSERT INTO hub_receiving_items (
                 session_id, shipment_id, parcel_id, barcode,
                 is_expected, condition, condition_notes, scanned_at
             ) VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-        `).run(
+        `, [
             sessionId,
             shipment.id,
             parcel ? parcel.id : null,
@@ -495,22 +493,24 @@ function scanReceivingItem(sessionId, data, user = {}) {
             isExpected,
             condition,
             data.condition_notes || null
-        );
+        ]);
+
+        const itemId = itemRes.insertId;
 
         // Record scan event
-        recordScanEvent({
+        await recordScanEvent({
             barcode: data.barcode,
             scan_type: 'RECEIVE',
             hub_id: session.hub_id,
             location_desc: `Receiving Session ${session.session_number} (${session.station_bay})`,
             metadata: { session_id: sessionId, session_number: session.session_number, condition }
-        }, user);
+        }, user, tx);
 
         let createdDiscrepancy = null;
 
         // Auto-create discrepancy if unexpected overage or damaged
         if (!isExpected) {
-            createdDiscrepancy = createDiscrepancyInternal({
+            createdDiscrepancy = await createDiscrepancyInternal({
                 discrepancy_type: 'UNEXPECTED_OVERAGE',
                 severity: 'MEDIUM',
                 shipment_id: shipment.id,
@@ -519,9 +519,9 @@ function scanReceivingItem(sessionId, data, user = {}) {
                 manifest_id: session.manifest_id,
                 receiving_session_id: sessionId,
                 description: `Shipment ${shipment.tracking_number} received but was NOT listed on manifest #${session.manifest_id}.`
-            }, user);
+            }, user, tx);
         } else if (!isGoodCondition) {
-            createdDiscrepancy = createDiscrepancyInternal({
+            createdDiscrepancy = await createDiscrepancyInternal({
                 discrepancy_type: condition.includes('TAMPERED') ? 'TAMPERED_SEAL' : 'DAMAGED_PACKAGE',
                 severity: 'HIGH',
                 shipment_id: shipment.id,
@@ -530,70 +530,72 @@ function scanReceivingItem(sessionId, data, user = {}) {
                 manifest_id: session.manifest_id,
                 receiving_session_id: sessionId,
                 description: `Package arrived in ${condition} condition during receiving session ${session.session_number}. Notes: ${data.condition_notes || 'None'}`
-            }, user);
+            }, user, tx);
         }
 
         // Update session counts
-        db.prepare(`
+        await tx.run(`
             UPDATE hub_receiving_sessions
             SET scanned_packages_count = scanned_packages_count + 1,
                 intact_count = intact_count + ?,
                 damaged_count = damaged_count + ?,
                 unexpected_count = unexpected_count + ?
             WHERE id = ?
-        `).run(
+        `, [
             isGoodCondition ? 1 : 0,
             !isGoodCondition ? 1 : 0,
             !isExpected ? 1 : 0,
             sessionId
-        );
+        ]);
 
         // Update shipment status to AT_HUB and current_hub_id
-        db.prepare(`
+        await tx.run(`
             UPDATE shipments
             SET status = 'AT_HUB', current_hub_id = ?, updated_at = CURRENT_TIMESTAMP
             WHERE id = ?
-        `).run(session.hub_id, shipment.id);
+        `, [session.hub_id, shipment.id]);
+
+        const item = await tx.get('SELECT * FROM hub_receiving_items WHERE id = ?', [itemId]);
+        const updatedSession = await tx.get('SELECT * FROM hub_receiving_sessions WHERE id = ?', [sessionId]);
 
         return {
-            item: db.prepare('SELECT * FROM hub_receiving_items WHERE id = ?').get(itemInfo.lastInsertRowid),
+            item,
             discrepancy: createdDiscrepancy,
-            session: db.prepare('SELECT * FROM hub_receiving_sessions WHERE id = ?').get(sessionId)
+            session: updatedSession
         };
     });
-
-    return executeTx();
 }
 
 /**
  * Completes a receiving session and detects missing manifest items
  */
-function completeReceivingSession(sessionId, data = {}, user = {}) {
-    const session = db.prepare('SELECT * FROM hub_receiving_sessions WHERE id = ?').get(sessionId);
+async function completeReceivingSession(sessionId, data = {}, user = {}) {
+    const session = await dbAdapter.get('SELECT * FROM hub_receiving_sessions WHERE id = ?', [sessionId]);
     if (!session) throw new Error(`Receiving session ${sessionId} not found`);
     if (session.status === 'COMPLETED') {
         throw new Error(`Receiving session ${sessionId} is already completed`);
     }
 
-    const executeTx = db.transaction(() => {
+    return await dbAdapter.withTransaction(async (tx) => {
         let missingCount = 0;
         const missingDiscrepancies = [];
 
         // If attached to a manifest, identify any manifest items that were never scanned
         if (session.manifest_id) {
-            const manifestItems = db.prepare(`
+            const manifestItems = await tx.all(`
                 SELECT mi.shipment_id, s.tracking_number
                 FROM manifest_items mi
                 JOIN shipments s ON mi.shipment_id = s.id
                 WHERE mi.manifest_id = ?
-            `).all(session.manifest_id);
+            `, [session.manifest_id]);
 
-            const scannedShipmentIds = db.prepare('SELECT shipment_id FROM hub_receiving_items WHERE session_id = ?').all(sessionId).map(i => i.shipment_id);
+            const scannedRows = await tx.all('SELECT shipment_id FROM hub_receiving_items WHERE session_id = ?', [sessionId]);
+            const scannedShipmentIds = scannedRows.map(i => i.shipment_id);
 
             for (const item of manifestItems) {
                 if (!scannedShipmentIds.includes(item.shipment_id)) {
                     missingCount++;
-                    const disc = createDiscrepancyInternal({
+                    const disc = await createDiscrepancyInternal({
                         discrepancy_type: 'MISSING_MANIFEST_ITEM',
                         severity: 'HIGH',
                         shipment_id: item.shipment_id,
@@ -602,11 +604,11 @@ function completeReceivingSession(sessionId, data = {}, user = {}) {
                         manifest_id: session.manifest_id,
                         receiving_session_id: sessionId,
                         description: `Shipment ${item.tracking_number} on manifest #${session.manifest_id} was NOT found during receiving scan.`
-                    }, user);
+                    }, user, tx);
                     missingDiscrepancies.push(disc);
 
                     // Mark shipment exception via canonical state machine
-                    shipmentService.transitionShipmentStatus(item.shipment_id, 'EXCEPTION', {
+                    await shipmentService.transitionShipmentStatus(item.shipment_id, 'EXCEPTION', {
                         hub_id: session.hub_id,
                         reason: 'MISSING_MANIFEST_ITEM',
                         notes: `Shipment missing during hub receiving scan for session #${sessionId} manifest #${session.manifest_id}`
@@ -619,47 +621,50 @@ function completeReceivingSession(sessionId, data = {}, user = {}) {
             ? 'DISCREPANCY_FLAGGED'
             : 'COMPLETED';
 
-        db.prepare(`
+        await tx.run(`
             UPDATE hub_receiving_sessions
             SET status = ?, completed_at = CURRENT_TIMESTAMP, notes = COALESCE(?, notes)
             WHERE id = ?
-        `).run(finalStatus, data.notes || null, sessionId);
+        `, [finalStatus, data.notes || null, sessionId]);
+
+        const updatedSession = await tx.get('SELECT * FROM hub_receiving_sessions WHERE id = ?', [sessionId]);
 
         return {
-            session: db.prepare('SELECT * FROM hub_receiving_sessions WHERE id = ?').get(sessionId),
+            session: updatedSession,
             missing_items_count: missingCount,
             missing_discrepancies: missingDiscrepancies
         };
     });
-
-    return executeTx();
 }
 
 /**
  * Retrieves receiving session details with line items
  */
-function getReceivingSessionById(id) {
-    const session = db.prepare(`
+async function getReceivingSessionById(id, client = null) {
+    const qGet = client ? client.get : dbAdapter.get;
+    const qAll = client ? client.all : dbAdapter.all;
+
+    const session = await qGet(`
         SELECT hrs.*, b.name as hub_name, u.full_name as operator_name
         FROM hub_receiving_sessions hrs
         JOIN branches b ON hrs.hub_id = b.id
         LEFT JOIN users u ON hrs.operator_user_id = u.id
         WHERE hrs.id = ?
-    `).get(id);
+    `, [id]);
 
     if (!session) return null;
 
-    session.items = db.prepare(`
+    session.items = await qAll(`
         SELECT hri.*, s.tracking_number, s.status as shipment_status
         FROM hub_receiving_items hri
         JOIN shipments s ON hri.shipment_id = s.id
         WHERE hri.session_id = ?
         ORDER BY hri.id ASC
-    `).all(id);
+    `, [id]);
 
-    session.discrepancies = db.prepare(`
+    session.discrepancies = await qAll(`
         SELECT * FROM discrepancies WHERE receiving_session_id = ? ORDER BY id ASC
-    `).all(id);
+    `, [id]);
 
     return session;
 }
@@ -667,7 +672,7 @@ function getReceivingSessionById(id) {
 /**
  * Lists receiving sessions
  */
-function listReceivingSessions(query = {}, user = {}) {
+async function listReceivingSessions(query = {}, user = {}) {
     let sql = 'SELECT hrs.*, b.name as hub_name, u.full_name as operator_name FROM hub_receiving_sessions hrs JOIN branches b ON hrs.hub_id = b.id LEFT JOIN users u ON hrs.operator_user_id = u.id WHERE 1=1';
     const params = [];
 
@@ -688,7 +693,7 @@ function listReceivingSessions(query = {}, user = {}) {
 
     sql += ' ORDER BY hrs.id DESC LIMIT 100';
 
-    const sessions = db.prepare(sql).all(...params);
+    const sessions = await dbAdapter.all(sql, params);
     return { receiving_sessions: sessions, total: sessions.length };
 }
 
@@ -699,16 +704,18 @@ function listReceivingSessions(query = {}, user = {}) {
 /**
  * Internal helper to create a discrepancy with audit trail
  */
-function createDiscrepancyInternal(data, user = {}) {
+async function createDiscrepancyInternal(data, user = {}, client = null) {
     const discrepancyNumber = generateSeqNumber('DISC');
+    const qRun = client ? client.run : dbAdapter.run;
+    const qGet = client ? client.get : dbAdapter.get;
 
-    const info = db.prepare(`
+    const res = await qRun(`
         INSERT INTO discrepancies (
             discrepancy_number, discrepancy_type, severity, shipment_id, parcel_id,
             hub_id, transport_run_id, manifest_id, receiving_session_id,
             status, description, reported_by_user_id, created_at, updated_at
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'OPEN', ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-    `).run(
+    `, [
         discrepancyNumber,
         data.discrepancy_type,
         data.severity || 'MEDIUM',
@@ -720,17 +727,19 @@ function createDiscrepancyInternal(data, user = {}) {
         data.receiving_session_id || null,
         data.description,
         user.id || 1
-    );
+    ]);
+
+    const discId = res.insertId;
 
     // If shipment exists, log exception tracking event
     if (data.shipment_id) {
-        db.prepare(`
+        await qRun(`
             INSERT INTO tracking_events (
                 shipment_id, event_code, event_name,
                 hub_id, location_desc, actor_type, actor_name,
                 description, is_customer_visible, metadata
-            ) VALUES (?, 'DISCREPANCY_FLAGGED', 'Discrepancy Exception Flagged', ?, ?, ?, ?, ?, 0, ?)
-        `).run(
+            ) VALUES (?, 'DISCREPANCY_FLAGGED', 'Discrepancy Exception Flagged', ?, ?, ?, ?, ?, false, ?::jsonb)
+        `, [
             data.shipment_id,
             data.hub_id || null,
             data.hub_id ? `Hub #${data.hub_id}` : 'Station',
@@ -738,30 +747,28 @@ function createDiscrepancyInternal(data, user = {}) {
             user.fullName || 'Station Operator',
             `Discrepancy ${discrepancyNumber}: ${data.description}`,
             JSON.stringify({ discrepancy_number: discrepancyNumber, type: data.discrepancy_type, severity: data.severity })
-        );
+        ]);
     }
 
-    return db.prepare('SELECT * FROM discrepancies WHERE id = ?').get(info.lastInsertRowid);
+    return await qGet('SELECT * FROM discrepancies WHERE id = ?', [discId]);
 }
 
 /**
  * Public method to explicitly create a discrepancy
  */
-function createDiscrepancy(data, user = {}) {
+async function createDiscrepancy(data, user = {}) {
     if (!data.description) throw new Error('description is required');
     if (!data.discrepancy_type) throw new Error('discrepancy_type is required');
 
-    const executeTx = db.transaction(() => {
-        return createDiscrepancyInternal(data, user);
+    return await dbAdapter.withTransaction(async (tx) => {
+        return await createDiscrepancyInternal(data, user, tx);
     });
-
-    return executeTx();
 }
 
 /**
  * Lists discrepancies with filters
  */
-function listDiscrepancies(query = {}, user = {}) {
+async function listDiscrepancies(query = {}, user = {}) {
     let sql = 'SELECT d.*, s.tracking_number, b.name as hub_name, u.full_name as reported_by_name FROM discrepancies d LEFT JOIN shipments s ON d.shipment_id = s.id LEFT JOIN branches b ON d.hub_id = b.id LEFT JOIN users u ON d.reported_by_user_id = u.id WHERE 1=1';
     const params = [];
 
@@ -792,15 +799,16 @@ function listDiscrepancies(query = {}, user = {}) {
 
     sql += ' ORDER BY d.id DESC LIMIT 100';
 
-    const discrepancies = db.prepare(sql).all(...params);
+    const discrepancies = await dbAdapter.all(sql, params);
     return { discrepancies, total: discrepancies.length };
 }
 
 /**
  * Gets a discrepancy by ID
  */
-function getDiscrepancyById(id) {
-    const discrepancy = db.prepare(`
+async function getDiscrepancyById(id, client = null) {
+    const qGet = client ? client.get : dbAdapter.get;
+    const discrepancy = await qGet(`
         SELECT d.*, s.tracking_number, s.status as shipment_status, b.name as hub_name,
                u_rep.full_name as reported_by_name, u_inv.full_name as investigator_name
         FROM discrepancies d
@@ -809,7 +817,7 @@ function getDiscrepancyById(id) {
         LEFT JOIN users u_rep ON d.reported_by_user_id = u_rep.id
         LEFT JOIN users u_inv ON d.investigator_user_id = u_inv.id
         WHERE d.id = ?
-    `).get(id);
+    `, [id]);
 
     if (!discrepancy) return null;
     return discrepancy;
@@ -818,8 +826,8 @@ function getDiscrepancyById(id) {
 /**
  * Resolves an open discrepancy
  */
-function resolveDiscrepancy(id, data = {}, user = {}) {
-    const discrepancy = db.prepare('SELECT * FROM discrepancies WHERE id = ?').get(id);
+async function resolveDiscrepancy(id, data = {}, user = {}) {
+    const discrepancy = await dbAdapter.get('SELECT * FROM discrepancies WHERE id = ?', [id]);
     if (!discrepancy) throw new Error(`Discrepancy ${id} not found`);
 
     if (discrepancy.status === 'RESOLVED') {
@@ -829,8 +837,8 @@ function resolveDiscrepancy(id, data = {}, user = {}) {
     const action = data.resolution_action || 'RESOLVED_BY_INVESTIGATION';
     const notes = data.resolution_notes || 'Discrepancy resolved upon investigation';
 
-    const executeTx = db.transaction(() => {
-        db.prepare(`
+    return await dbAdapter.withTransaction(async (tx) => {
+        await tx.run(`
             UPDATE discrepancies
             SET status = 'RESOLVED',
                 investigator_user_id = ?,
@@ -839,17 +847,17 @@ function resolveDiscrepancy(id, data = {}, user = {}) {
                 resolved_at = CURRENT_TIMESTAMP,
                 updated_at = CURRENT_TIMESTAMP
             WHERE id = ?
-        `).run(user.id || null, action, notes, id);
+        `, [user.id || null, action, notes, id]);
 
         // If attached to a shipment, record resolution event
         if (discrepancy.shipment_id) {
-            db.prepare(`
+            await tx.run(`
                 INSERT INTO tracking_events (
                     shipment_id, event_code, event_name,
                     hub_id, location_desc, actor_type, actor_name,
                     description, is_customer_visible, metadata
-                ) VALUES (?, 'DISCREPANCY_RESOLVED', 'Discrepancy Resolved', ?, ?, ?, ?, ?, 1, ?)
-            `).run(
+                ) VALUES (?, 'DISCREPANCY_RESOLVED', 'Discrepancy Resolved', ?, ?, ?, ?, ?, true, ?::jsonb)
+            `, [
                 discrepancy.shipment_id,
                 discrepancy.hub_id,
                 discrepancy.hub_id ? `Hub #${discrepancy.hub_id}` : 'Operations Office',
@@ -857,13 +865,11 @@ function resolveDiscrepancy(id, data = {}, user = {}) {
                 user.fullName || 'Operations Manager',
                 `Discrepancy ${discrepancy.discrepancy_number} resolved: ${action}. ${notes}`,
                 JSON.stringify({ discrepancy_number: discrepancy.discrepancy_number, action })
-            );
+            ]);
         }
 
-        return getDiscrepancyById(id);
+        return await getDiscrepancyById(id, tx);
     });
-
-    return executeTx();
 }
 
 module.exports = {

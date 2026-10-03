@@ -2,7 +2,7 @@
 // Master API Version 1 Router: Aggregates all resource modules under /api/v1
 const express = require('express');
 const router = express.Router();
-const { db } = require('../../db/database.js');
+const dbAdapter = require('../../db/dbAdapter.js');
 const { queryParser } = require('../../middleware/query.js');
 
 // Global query parser for all v1 endpoints (pagination, sorting, filtering)
@@ -13,16 +13,17 @@ router.use('/docs', require('../docs.js'));
 router.use('/', require('../docs.js')); // Serves /openapi.json
 
 // Health Check
-router.get('/health', (req, res) => {
+router.get('/health', async (req, res) => {
     let dbConnected = false;
     try {
-        const row = db.prepare('SELECT 1 as ok').get();
-        dbConnected = row?.ok === 1;
+        const row = await dbAdapter.get('SELECT 1 as ok');
+        dbConnected = Number(row?.ok) === 1;
     } catch {}
 
     const healthData = {
         status: dbConnected ? 'online' : 'degraded',
         database: dbConnected ? 'connected' : 'error',
+        engine: process.env.DB_CLIENT || 'postgres',
         apiVersion: 'v1.4.0',
         system: 'SwiftTrack Kenya Multi-Branch Logistics + POS',
         uptimeSeconds: Math.floor(process.uptime()),

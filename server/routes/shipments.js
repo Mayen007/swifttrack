@@ -30,9 +30,9 @@ router.post('/', authenticateToken, (req, res, next) => {
         return res.status(403).json({ error: 'Permission denied: shipments:create required' });
     }
     next();
-}, (req, res) => {
+}, async (req, res) => {
     try {
-        const result = shipmentService.createShipment(req.body, req.user);
+        const result = await shipmentService.createShipment(req.body, req.user);
         res.status(201).json(result);
     } catch (err) {
         console.error('Create shipment error:', err);
@@ -44,9 +44,9 @@ router.post('/', authenticateToken, (req, res, next) => {
 });
 
 // GET /api/v1/shipments - List shipments filtered by hub, status, or search query
-router.get('/', authenticateToken, (req, res) => {
+router.get('/', authenticateToken, async (req, res) => {
     try {
-        const shipments = shipmentService.listShipments(req.query, req.user);
+        const shipments = await shipmentService.listShipments(req.query, req.user);
         res.json(shipments);
     } catch (err) {
         console.error('List shipments error:', err);
@@ -55,9 +55,9 @@ router.get('/', authenticateToken, (req, res) => {
 });
 
 // GET /api/v1/shipments/:id - Detailed view with parcels, legs, and timeline
-router.get('/:id', authenticateToken, (req, res) => {
+router.get('/:id', authenticateToken, async (req, res) => {
     try {
-        const shipment = shipmentService.getShipmentById(req.params.id, req.user);
+        const shipment = await shipmentService.getShipmentById(req.params.id, req.user);
         if (!shipment) {
             return res.status(404).json({ error: 'Shipment not found' });
         }
@@ -74,7 +74,7 @@ router.post('/:id/transition', authenticateToken, (req, res, next) => {
         return res.status(403).json({ error: 'Permission denied: shipments:status:update required' });
     }
     next();
-}, (req, res) => {
+}, async (req, res) => {
     try {
         const target_status = req.body.target_status || req.body.status;
         const payload = { ...req.body };
@@ -83,7 +83,7 @@ router.post('/:id/transition', authenticateToken, (req, res, next) => {
         if (!target_status) {
             return res.status(400).json({ error: 'target_status is required for status transition' });
         }
-        const result = shipmentService.transitionShipmentStatus(req.params.id, target_status, payload, req.user);
+        const result = await shipmentService.transitionShipmentStatus(req.params.id, target_status, payload, req.user);
         res.json({
             message: `Shipment successfully transitioned to ${target_status}`,
             data: result
@@ -98,10 +98,10 @@ router.post('/:id/transition', authenticateToken, (req, res, next) => {
 });
 
 // GET /api/v1/shipments/:id/waybill - Retrieve printable official waybill
-router.get('/:id/waybill', authenticateToken, (req, res) => {
+router.get('/:id/waybill', authenticateToken, async (req, res) => {
     try {
         const counterBookingService = require('../services/counterBookingService.js');
-        const waybill = counterBookingService.getWaybillByIdentifier(req.params.id, req.user);
+        const waybill = await counterBookingService.getWaybillByIdentifier(req.params.id, req.user);
         if (!waybill) {
             return res.status(404).json({ error: 'Waybill not found for shipment' });
         }
@@ -116,9 +116,9 @@ router.get('/:id/waybill', authenticateToken, (req, res) => {
 });
 
 // GET /api/v1/shipments/:id/legs - Retrieve all routing legs for multi-leg orchestration
-router.get('/:id/legs', authenticateToken, (req, res) => {
+router.get('/:id/legs', authenticateToken, async (req, res) => {
     try {
-        const legs = shipmentService.getShipmentLegs(req.params.id);
+        const legs = await shipmentService.getShipmentLegs(req.params.id);
         res.json(legs);
     } catch (err) {
         console.error('Get shipment legs error:', err);
@@ -127,9 +127,9 @@ router.get('/:id/legs', authenticateToken, (req, res) => {
 });
 
 // GET /api/v1/shipments/:id/active-leg - Retrieve the current active or pending leg
-router.get('/:id/active-leg', authenticateToken, (req, res) => {
+router.get('/:id/active-leg', authenticateToken, async (req, res) => {
     try {
-        const activeLeg = shipmentService.getActiveLeg(req.params.id);
+        const activeLeg = await shipmentService.getActiveLeg(req.params.id);
         if (!activeLeg) return res.status(404).json({ error: 'No active leg found for shipment' });
         res.json(activeLeg);
     } catch (err) {
@@ -139,9 +139,9 @@ router.get('/:id/active-leg', authenticateToken, (req, res) => {
 });
 
 // GET /api/v1/shipments/awaiting-manifest/:hubId - Retrieve shipments at hub ready to be manifested
-router.get('/awaiting-manifest/:hubId', authenticateToken, (req, res) => {
+router.get('/awaiting-manifest/:hubId', authenticateToken, async (req, res) => {
     try {
-        const shipments = shipmentService.getShipmentsAwaitingManifest(req.params.hubId, req.query.destination_hub_id);
+        const shipments = await shipmentService.getShipmentsAwaitingManifest(req.params.hubId, req.query.destination_hub_id);
         res.json(shipments);
     } catch (err) {
         console.error('Get awaiting manifest shipments error:', err);
@@ -150,4 +150,3 @@ router.get('/awaiting-manifest/:hubId', authenticateToken, (req, res) => {
 });
 
 module.exports = router;
-

@@ -1,22 +1,7 @@
 // server/middleware/idempotency.js
-// Enterprise Idempotency Key Middleware for financial & critical mutation operations
+// Enterprise Durable Idempotency Key Middleware (Section 17 Mandate)
 const crypto = require('node:crypto');
-
-// In-memory idempotency store with 24-hour retention
-const idempotencyStore = new Map();
-const IDEMPOTENCY_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
-
-// Cleanup sweep every 15 minutes
-const cleanupInterval = setInterval(() => {
-    const now = Date.now();
-    for (const [key, record] of idempotencyStore.entries()) {
-        if (record.expiresAt <= now) {
-            idempotencyStore.delete(key);
-        }
-    }
-}, 15 * 60 * 1000);
-
-if (cleanupInterval.unref) cleanupInterval.unref();
+const idempotencyRepository = require('../repositories/idempotencyRepository.js');
 
 /**
  * Calculates SHA256 signature of request context to detect payload tampering.
@@ -29,10 +14,10 @@ function computeFingerprint(req) {
 }
 
 /**
- * Express middleware that enforces idempotent execution on mutating requests.
+ * Express middleware that enforces durable idempotent execution on mutating requests.
  */
 function idempotencyMiddleware(options = {}) {
-    return (req, res, next) => {
+    return async (req, res, next) => {
         const rawKey = req.headers['idempotency-key'];
 
         // If no idempotency key was supplied, proceed normally
@@ -59,80 +44,65 @@ function idempotencyMiddleware(options = {}) {
         }
 
         const currentFingerprint = computeFingerprint(req);
-        const existingRecord = idempotencyStore.get(key);
+        const userId = req.user ? req.user.id : 1;
+        const branchId = req.user ? req.user.branchId : 1;
 
-        if (existingRecord) {
-            // 1. Concurrent in-flight request
-            if (existingRecord.status === 'PROCESSING') {
-                const conflictMsg = 'An identical request is currently processing. Please wait for completion before retrying.';
-                if (typeof res.apiError === 'function') {
-                    return res.apiError(conflictMsg, 409, 'IDEMPOTENCY_CONFLICT');
+        try {
+            const existingRecord = await idempotencyRepository.find(userId, key);
+
+            if (existingRecord) {
+                // 1. Verify payload fingerprint
+                if (existingRecord.requestHash !== currentFingerprint) {
+                    const mismatchMsg = 'Idempotency key was previously used with a different request payload or endpoint.';
+                    if (typeof res.apiError === 'function') {
+                        return res.apiError(mismatchMsg, 422, 'IDEMPOTENCY_PAYLOAD_MISMATCH');
+                    }
+                    return res.status(422).json({
+                        success: false,
+                        error: { code: 'IDEMPOTENCY_PAYLOAD_MISMATCH', message: mismatchMsg },
+                        code: 'IDEMPOTENCY_PAYLOAD_MISMATCH',
+                        message: mismatchMsg
+                    });
                 }
-                return res.status(409).json({
-                    success: false,
-                    error: { code: 'IDEMPOTENCY_CONFLICT', message: conflictMsg },
-                    code: 'IDEMPOTENCY_CONFLICT',
-                    message: conflictMsg
-                });
+
+                // 2. Safe Idempotent Replay
+                res.setHeader('Idempotent-Replay', 'true');
+                res.setHeader('X-Idempotency-Key', key);
+                res.setHeader('X-Original-Timestamp', existingRecord.createdAt);
+
+                return res.status(existingRecord.responseCode).json(existingRecord.responseBody);
             }
 
-            // 2. Completed request: Verify payload fingerprint
-            if (existingRecord.fingerprint !== currentFingerprint) {
-                const mismatchMsg = 'Idempotency key was previously used with a different request payload or endpoint.';
-                if (typeof res.apiError === 'function') {
-                    return res.apiError(mismatchMsg, 422, 'IDEMPOTENCY_PAYLOAD_MISMATCH');
+            // 3. New key: intercept res.json to capture and durably persist response
+            const originalJson = res.json.bind(res);
+            res.json = (body) => {
+                if (res.statusCode < 500) {
+                    idempotencyRepository.save({
+                        key,
+                        userId,
+                        branchId,
+                        resourceType: req.baseUrl || req.path || 'API',
+                        requestHash: currentFingerprint,
+                        responseCode: res.statusCode,
+                        responseBody: body
+                    }).catch(err => {
+                        console.error('[Idempotency Store Error]', err.message);
+                    });
                 }
-                return res.status(422).json({
-                    success: false,
-                    error: { code: 'IDEMPOTENCY_PAYLOAD_MISMATCH', message: mismatchMsg },
-                    code: 'IDEMPOTENCY_PAYLOAD_MISMATCH',
-                    message: mismatchMsg
-                });
-            }
 
-            // 3. Perfect match: Safe Idempotent Replay
-            res.setHeader('Idempotent-Replay', 'true');
-            res.setHeader('X-Idempotency-Key', key);
-            res.setHeader('X-Original-Timestamp', existingRecord.createdAt);
+                res.setHeader('X-Idempotency-Key', key);
+                return originalJson(body);
+            };
 
-            return res.status(existingRecord.statusCode).json(existingRecord.body);
+            next();
+        } catch (err) {
+            console.error('[Idempotency Middleware Error]', err);
+            next();
         }
-
-        // 4. New key: Mark as PROCESSING and hook into response completion
-        const record = {
-            key,
-            fingerprint: currentFingerprint,
-            status: 'PROCESSING',
-            createdAt: new Date().toISOString(),
-            expiresAt: Date.now() + IDEMPOTENCY_TTL_MS,
-            statusCode: null,
-            body: null
-        };
-        idempotencyStore.set(key, record);
-
-        // Intercept res.json to capture response
-        const originalJson = res.json.bind(res);
-        res.json = (body) => {
-            // Only cache successful or non-server-error responses
-            if (res.statusCode < 500) {
-                record.status = 'COMPLETED';
-                record.statusCode = res.statusCode;
-                record.body = body;
-            } else {
-                // Delete failed execution so client can retry with same key
-                idempotencyStore.delete(key);
-            }
-
-            res.setHeader('X-Idempotency-Key', key);
-            return originalJson(body);
-        };
-
-        next();
     };
 }
 
 module.exports = {
     idempotencyMiddleware,
-    idempotencyStore,
     computeFingerprint
 };

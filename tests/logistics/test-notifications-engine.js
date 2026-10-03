@@ -3,7 +3,7 @@
 // PRD Section 7.13 & Section 14 (NTF-001..004): Outbox Pattern, Multi-Channel Templates, Exponential Backoff
 
 const assert = require('assert');
-const { db } = require('../../server/db/database.js');
+const dbAdapter = require('../../server/db/dbAdapter.js');
 const notificationService = require('../../server/services/notificationService.js');
 const shipmentService = require('../../server/services/shipmentService.js');
 const deliveryExecutionService = require('../../server/services/deliveryExecutionService.js');
@@ -20,10 +20,10 @@ async function runTests() {
 
     // TEST 1: Template Management & Dynamic Token Interpolation
     console.log('> TEST 1: Template Management & Dynamic Token Interpolation...');
-    const templates = notificationService.getTemplates();
+    const templates = await notificationService.getTemplates();
     assert(templates.length >= 7, 'Should have at least 7 seeded standard templates');
 
-    const bookedTemplate = notificationService.getTemplateByCode('BOOKED_CONFIRMATION');
+    const bookedTemplate = await notificationService.getTemplateByCode('BOOKED_CONFIRMATION');
     assert.strictEqual(bookedTemplate.event_type, 'BOOKED');
 
     const interpolated = notificationService.interpolate(
@@ -33,7 +33,7 @@ async function runTests() {
     assert.strictEqual(interpolated, 'Habari Amina Mwangi, package STK-2026-TEST OTP: 984321');
 
     // Test template update
-    const updatedTpl = notificationService.updateTemplate('BOOKED_CONFIRMATION', {
+    const updatedTpl = await notificationService.updateTemplate('BOOKED_CONFIRMATION', {
         sms_template: 'Habari {{recipient_name}}, package {{tracking_number}} has been booked from {{origin_city}} to {{dest_city}}. Live tracking: {{tracking_url}} - SwiftTrack Kenya'
     }, adminUser);
     assert(updatedTpl.sms_template.includes('SwiftTrack Kenya'), 'Template should be updated successfully');
@@ -60,9 +60,10 @@ async function runTests() {
 
     // TEST 3: Non-blocking Outbox Enqueuing on Booking (Rule NTF-002)
     console.log('\n> TEST 3: Non-blocking Outbox Enqueuing on Consignment Booking (Rule NTF-002)...');
-    const outboxBefore = db.prepare('SELECT count(*) as count FROM notification_outbox').get().count;
+    const outboxBeforeRow = await dbAdapter.get('SELECT count(*) as count FROM notification_outbox');
+    const outboxBefore = Number(outboxBeforeRow?.count || 0);
 
-    const testShipment = shipmentService.createShipment({
+    const testShipment = await shipmentService.createShipment({
         origin_hub_id: 1,
         destination_hub_id: 2,
         service_type: 'STANDARD',
@@ -71,10 +72,12 @@ async function runTests() {
         parcels: [{ weight_kg: 3.5, package_type: 'BOX', description: 'Spare Parts' }]
     }, adminUser);
 
-    const outboxAfter = db.prepare('SELECT count(*) as count FROM notification_outbox').get().count;
+    const outboxAfterRow = await dbAdapter.get('SELECT count(*) as count FROM notification_outbox');
+    const outboxAfter = Number(outboxAfterRow?.count || 0);
+    console.log('outboxBefore:', outboxBefore, 'outboxAfter:', outboxAfter);
     assert(outboxAfter > outboxBefore, 'Shipment booking must enqueue records into notification_outbox');
 
-    const latestOutbox = db.prepare('SELECT * FROM notification_outbox WHERE shipment_id = ?').all(testShipment.id);
+    const latestOutbox = await dbAdapter.all('SELECT * FROM notification_outbox WHERE shipment_id = ?', [testShipment.id]);
     assert(latestOutbox.length >= 2, 'Should enqueue for both recipient and sender on booking');
     assert.strictEqual(latestOutbox[0].status, 'PENDING');
     assert(latestOutbox[0].rendered_content.includes(testShipment.tracking_number), 'Content must contain tracking number');
@@ -92,12 +95,12 @@ async function runTests() {
     }
     assert(processResult.success_count > 0, 'Batch processing should successfully dispatch pending items');
 
-    const updatedOutbox = db.prepare('SELECT * FROM notification_outbox WHERE shipment_id = ?').all(testShipment.id);
+    const updatedOutbox = await dbAdapter.all('SELECT * FROM notification_outbox WHERE shipment_id = ?', [testShipment.id]);
     assert.strictEqual(updatedOutbox[0].status, 'SENT', 'Processed outbox item should be marked SENT');
     assert(updatedOutbox[0].sent_at !== null, 'sent_at timestamp must be populated');
 
     // Rule NTF-004: Delivery logs audit history
-    const logs = db.prepare('SELECT * FROM notification_logs WHERE outbox_id = ?').all(updatedOutbox[0].id);
+    const logs = await dbAdapter.all('SELECT * FROM notification_logs WHERE outbox_id = ?', [updatedOutbox[0].id]);
     assert(logs.length >= 1, 'Delivery log must be recorded in notification_logs');
     assert.strictEqual(logs[0].status, 'SUCCESS');
     assert(logs[0].provider_message_id !== null);
@@ -106,7 +109,7 @@ async function runTests() {
     // TEST 5: Dynamic OTP Generation & Delivery on OUT_FOR_DELIVERY
     console.log('\n> TEST 5: Dynamic OTP Delivery Notification on OUT_FOR_DELIVERY...');
     // Create delivery task for shipment
-    const deliveryTask = deliveryExecutionService.createDeliveryTask({
+    const deliveryTask = await deliveryExecutionService.createDeliveryTask({
         shipment_id: testShipment.id,
         hub_id: 2,
         recipient_name: 'Grace Auma',
@@ -117,13 +120,13 @@ async function runTests() {
     }, adminUser);
 
     // Assign to driver 1
-    deliveryExecutionService.assignDeliveryTask(deliveryTask.id, { driver_id: 1, vehicle_id: 1 }, adminUser);
+    await deliveryExecutionService.assignDeliveryTask(deliveryTask.id, { driver_id: 1, vehicle_id: 1 }, adminUser);
 
     // Start delivery run
-    const activeDelivery = deliveryExecutionService.startDelivery(deliveryTask.id, { id: 1, fullName: 'David Ochieng' });
+    const activeDelivery = await deliveryExecutionService.startDelivery(deliveryTask.id, { id: 1, fullName: 'David Ochieng' });
 
     // Verify outbox has OUT_FOR_DELIVERY message with OTP
-    const outForDelNotifs = db.prepare("SELECT * FROM notification_outbox WHERE event_type = 'OUT_FOR_DELIVERY' AND delivery_id = ?").all(deliveryTask.id);
+    const outForDelNotifs = await dbAdapter.all("SELECT * FROM notification_outbox WHERE event_type = 'OUT_FOR_DELIVERY' AND delivery_id = ?", [deliveryTask.id]);
     assert(outForDelNotifs.length >= 1, 'OUT_FOR_DELIVERY notification must be enqueued');
     assert(outForDelNotifs[0].rendered_content.includes(activeDelivery.pod_otp), 'Recipient notification must contain the exact delivery OTP PIN');
 
@@ -140,37 +143,37 @@ async function runTests() {
 
     // Enqueue a test notification with simulated failure
     const uuidFail = `NTF-TEST-FAIL-${Date.now()}`;
-    const insertFail = db.prepare(`
+    const insertFail = await dbAdapter.query(`
         INSERT INTO notification_outbox (
             outbox_uuid, shipment_id, recipient_type, recipient_name, recipient_phone,
             channel, event_type, rendered_content, payload, status, retry_count, max_retries,
             next_retry_at, created_at, updated_at
-        ) VALUES (?, ?, 'RECIPIENT', 'Test Failure User', '+254799000000', 'SMS', 'BOOKED', 'Test message', ?, 'PENDING', 0, 3, datetime('now'), CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-    `).run(uuidFail, testShipment.id, JSON.stringify({ _simulateFailure: true, _simulateFailureReason: 'Gateway 503 Provider Timeout' }));
+        ) VALUES (?, ?, 'RECIPIENT', 'Test Failure User', '+254799000000', 'SMS', 'BOOKED', 'Test message', ?, 'PENDING', 0, 3, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+    `, [uuidFail, testShipment.id, JSON.stringify({ _simulateFailure: true, _simulateFailureReason: 'Gateway 503 Provider Timeout' })]);
 
-    const failItemId = insertFail.lastInsertRowid;
+    const failItemId = insertFail.insertId;
 
     // Process batch
     const failBatchRes = await notificationService.processOutboxBatch(10);
     assert(failBatchRes.failed_count >= 1, 'Should record failed dispatch attempt');
 
-    const failedItem = db.prepare('SELECT * FROM notification_outbox WHERE id = ?').get(failItemId);
+    const failedItem = await dbAdapter.get('SELECT * FROM notification_outbox WHERE id = ?', [failItemId]);
     assert.strictEqual(failedItem.retry_count, 1, 'Retry count should increment to 1');
     assert.strictEqual(failedItem.status, 'FAILED', 'Status should be FAILED');
     assert(failedItem.last_error.includes('Gateway 503'), 'Last error message should be saved');
 
     // Verify log entry
-    const failLog = db.prepare('SELECT * FROM notification_logs WHERE outbox_id = ?').get(failItemId);
+    const failLog = await dbAdapter.get('SELECT * FROM notification_logs WHERE outbox_id = ?', [failItemId]);
     assert(failLog !== null && failLog.status === 'FAILED', 'Failed log entry must be created');
     console.log('  [PASS] Exponential backoff triggered on failure, retry count = 1 with error logged');
 
     // TEST 7: Max Retries Exhaustion
     console.log('\n> TEST 7: Max Retries Exhaustion (Transitions to Final Failure)...');
     // Force retry count to 2, so next attempt is 3 (max_retries = 3)
-    db.prepare("UPDATE notification_outbox SET retry_count = 2, next_retry_at = datetime('now') WHERE id = ?").run(failItemId);
+    await dbAdapter.run("UPDATE notification_outbox SET retry_count = 2, next_retry_at = CURRENT_TIMESTAMP WHERE id = ?", [failItemId]);
     await notificationService.processOutboxBatch(10);
 
-    const exhaustedItem = db.prepare('SELECT * FROM notification_outbox WHERE id = ?').get(failItemId);
+    const exhaustedItem = await dbAdapter.get('SELECT * FROM notification_outbox WHERE id = ?', [failItemId]);
     assert.strictEqual(exhaustedItem.retry_count, 3, 'Retry count should reach max_retries = 3');
     assert.strictEqual(exhaustedItem.status, 'FAILED');
     console.log('  [PASS] Max retries reached (3/3), outbox item marked permanently FAILED');
@@ -178,18 +181,18 @@ async function runTests() {
     // TEST 8: Manual Operator Resend / Immediate Retry via API
     console.log('\n> TEST 8: Manual Operator Resend (Resets Status & Dispatches)...');
     // Remove failure flag from payload so resend succeeds
-    db.prepare("UPDATE notification_outbox SET payload = '{}' WHERE id = ?").run(failItemId);
+    await dbAdapter.run("UPDATE notification_outbox SET payload = '{}' WHERE id = ?", [failItemId]);
 
     const resendResult = await notificationService.resendOutboxItem(failItemId, adminUser);
     assert.strictEqual(resendResult.success_count, 1, 'Manual resend should successfully dispatch the item');
 
-    const resentItem = db.prepare('SELECT * FROM notification_outbox WHERE id = ?').get(failItemId);
+    const resentItem = await dbAdapter.get('SELECT * FROM notification_outbox WHERE id = ?', [failItemId]);
     assert.strictEqual(resentItem.status, 'SENT', 'Item should transition from FAILED to SENT after resend');
     console.log('  [PASS] Manual operator resend successfully cleared failure and delivered notification');
 
     // TEST 9: Communications Telemetry & Delivery Rate KPIs
     console.log('\n> TEST 9: Communications Telemetry & Delivery Rate KPIs...');
-    const stats = notificationService.getNotificationStats();
+    const stats = await notificationService.getNotificationStats();
     assert(stats.total_notifications > 0, 'Total notifications should be positive');
     assert(stats.sent_count > 0, 'Sent count should be positive');
     assert(stats.delivery_rate_pct >= 0 && stats.delivery_rate_pct <= 100, 'Delivery rate should be a valid percentage');
@@ -197,7 +200,7 @@ async function runTests() {
     assert(stats.recent_logs.length > 0, 'Recent activity logs should be populated');
     console.log(`  [PASS] Telemetry KPIs: ${stats.total_notifications} total queued, ${stats.sent_count} sent, Delivery Rate: ${stats.delivery_rate_pct}%`);
 
-    // TEST 10: RBAC Authorization & Scoping
+    // TEST 10: RBAC Authorization & Scoping on Notifications Resource
     console.log('\n> TEST 10: RBAC Authorization & Scoping on Notifications Resource...');
     const cashierCheck = checkPermission(cashierUser, 'notifications', 'manage');
     assert.strictEqual(cashierCheck.granted, false, 'Cashier should NOT have permission to manage notification templates');
@@ -214,7 +217,9 @@ async function runTests() {
     console.log('============================================================\n');
 }
 
-runTests().catch(err => {
+runTests().then(() => {
+    process.exit(0);
+}).catch(err => {
     console.error('\n[FAIL] TEST FAILED:', err);
     process.exit(1);
 });

@@ -2,7 +2,6 @@
 // Enterprise Data Access Layer: Deliveries, Attempts & Proof of Delivery (POD)
 
 const dbAdapter = require('../db/dbAdapter.js');
-const { db: sqliteDb } = require('../db/database.js');
 
 class DeliveryRepository {
     constructor() {
@@ -97,7 +96,7 @@ class DeliveryRepository {
         const params = [
             podData.delivery_id || null, podData.shipment_id, podData.recipient_name,
             podData.recipient_phone || '+254700000000', podData.otp_code || null,
-            podData.otp_verified ? 1 : 0, podData.signature_data || null,
+            Boolean(podData.otp_verified), podData.signature_data || null,
             podData.photo_data || podData.photo_url || null,
             podData.latitude || null, podData.longitude || null,
             podData.device_id || null, podData.notes || null

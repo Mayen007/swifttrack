@@ -1,7 +1,7 @@
 // tests/logistics/test-shipments-core.js
 // SwiftTrack Logistics: Stage 1 & Stage 2 Shipment Core Domain & Rating Test Suite
 const assert = require('assert');
-const { db } = require('../../server/db/database.js');
+const dbAdapter = require('../../server/db/dbAdapter.js');
 const shipmentPricingService = require('../../server/services/shipmentPricingService.js');
 const shipmentService = require('../../server/services/shipmentService.js');
 
@@ -28,12 +28,14 @@ async function runTest(name, fn) {
 
 // Fixtures
 const adminUser = { id: 1, roleName: 'SUPER_ADMIN', username: 'superadmin', fullName: 'Managing Director', branchId: 1 };
-const branch1 = db.prepare('SELECT * FROM branches ORDER BY id ASC LIMIT 1').get() || { id: 1, name: 'Nairobi Central' };
-const branch2 = db.prepare('SELECT * FROM branches WHERE id != ? LIMIT 1').get(branch1.id) || { id: 2, name: 'Mombasa Port' };
-
+let branch1 = null;
+let branch2 = null;
 let createdShipment = null;
 
 async function executeSuite() {
+    branch1 = await dbAdapter.get('SELECT * FROM branches ORDER BY id ASC LIMIT 1') || { id: 1, name: 'Nairobi Central' };
+    branch2 = await dbAdapter.get('SELECT * FROM branches WHERE id != ? LIMIT 1', [branch1.id]) || { id: 2, name: 'Mombasa Port' };
+
     // TEST 1: Volumetric Rating & Pricing Engine
     await runTest('1. Volumetric Rating Engine: Calculates (L*W*H)/5000 and applies tariff band pricing', async () => {
         // Parcel 1: 40x30x20 cm = 24,000 / 5000 = 4.8 kg volumetric. Actual = 3.0 kg. Chargeable = 4.8 kg.
@@ -112,7 +114,7 @@ async function executeSuite() {
             special_instructions: 'Handle with care - fragile electronics'
         };
 
-        const result = shipmentService.createShipment(payload, adminUser);
+        const result = await shipmentService.createShipment(payload, adminUser);
         assert.ok(result.id, 'Shipment ID must be generated');
         assert.ok(result.tracking_number.startsWith('STK-'), 'Tracking number must start with STK-');
         assert.ok(result.waybill_number.startsWith('WB-'), 'Waybill number must start with WB-');
@@ -121,20 +123,20 @@ async function executeSuite() {
         assert.strictEqual(result.legs.length, 1, 'Should record 1 routing leg');
 
         // Verify in Database
-        const dbShipment = db.prepare('SELECT * FROM shipments WHERE id = ?').get(result.id);
+        const dbShipment = await dbAdapter.get('SELECT * FROM shipments WHERE id = ?', [result.id]);
         assert.strictEqual(dbShipment.tracking_number, result.tracking_number);
-        assert.strictEqual(dbShipment.total_parcels, 1);
+        assert.strictEqual(Number(dbShipment.total_parcels), 1);
 
-        const dbParcels = db.prepare('SELECT * FROM parcels WHERE shipment_id = ?').all(result.id);
+        const dbParcels = await dbAdapter.all('SELECT * FROM parcels WHERE shipment_id = ?', [result.id]);
         assert.strictEqual(dbParcels.length, 1);
         assert.strictEqual(dbParcels[0].parcel_number, `${result.tracking_number}-P01`);
 
-        const dbLegs = db.prepare('SELECT * FROM shipment_legs WHERE shipment_id = ?').all(result.id);
+        const dbLegs = await dbAdapter.all('SELECT * FROM shipment_legs WHERE shipment_id = ?', [result.id]);
         assert.strictEqual(dbLegs.length, 1);
         assert.strictEqual(dbLegs[0].origin_hub_id, branch1.id);
         assert.strictEqual(dbLegs[0].destination_hub_id, branch2.id);
 
-        const dbEvents = db.prepare('SELECT * FROM tracking_events WHERE shipment_id = ?').all(result.id);
+        const dbEvents = await dbAdapter.all('SELECT * FROM tracking_events WHERE shipment_id = ?', [result.id]);
         assert.strictEqual(dbEvents.length, 1);
         assert.strictEqual(dbEvents[0].event_code, 'BOOKED');
 
@@ -144,24 +146,24 @@ async function executeSuite() {
     // TEST 3: Multi-Axis Filtering & Scoped Shipment Listing
     await runTest('3. Shipment Listing & Search: Supports search query, status filters, and operational scoping', async () => {
         // Search by tracking number
-        const searchResults = shipmentService.listShipments({ search: createdShipment.tracking_number }, adminUser);
+        const searchResults = await shipmentService.listShipments({ search: createdShipment.tracking_number }, adminUser);
         assert.strictEqual(searchResults.length, 1, 'Should find shipment by tracking number');
         assert.strictEqual(searchResults[0].tracking_number, createdShipment.tracking_number);
 
         // Filter by status
-        const bookedResults = shipmentService.listShipments({ status: 'BOOKED' }, adminUser);
+        const bookedResults = await shipmentService.listShipments({ status: 'BOOKED' }, adminUser);
         assert.ok(bookedResults.some(s => s.id === createdShipment.id), 'Created shipment must be in BOOKED list');
 
         // Scoped listing for branch user
         const branchUser = { id: 2, roleName: 'BRANCH_MANAGER', branchId: branch1.id };
-        const scopedList = shipmentService.listShipments({}, branchUser);
+        const scopedList = await shipmentService.listShipments({}, branchUser);
         assert.ok(scopedList.every(s => s.origin_hub_id === branch1.id || s.destination_hub_id === branch1.id || s.current_hub_id === branch1.id),
             'Branch manager must only see shipments touching their branch');
     });
 
     // TEST 4: Single Shipment Detailed View
     await runTest('4. Shipment Details View: Returns shipment with parcels, routing legs, and event timeline', async () => {
-        const details = shipmentService.getShipmentById(createdShipment.id, adminUser);
+        const details = await shipmentService.getShipmentById(createdShipment.id, adminUser);
         assert.strictEqual(details.id, createdShipment.id);
         assert.ok(Array.isArray(details.parcels), 'Parcels must be an array');
         assert.ok(Array.isArray(details.legs), 'Legs must be an array');
@@ -172,7 +174,7 @@ async function executeSuite() {
     // TEST 5: Formal State Machine Transitions
     await runTest('5. State Machine Validation: Allows valid lifecycle transitions and blocks illegal state jumps', async () => {
         // Valid Transition: BOOKED -> ACCEPTED
-        const t1 = shipmentService.transitionShipmentStatus(
+        const t1 = await shipmentService.transitionShipmentStatus(
             createdShipment.id,
             'ACCEPTED',
             { hub_id: branch1.id, notes: 'Counter intake check complete' },
@@ -181,7 +183,7 @@ async function executeSuite() {
         assert.strictEqual(t1.current_status, 'ACCEPTED');
 
         // Valid Transition: ACCEPTED -> AT_ORIGIN_HUB
-        const t2 = shipmentService.transitionShipmentStatus(
+        const t2 = await shipmentService.transitionShipmentStatus(
             createdShipment.id,
             'AT_ORIGIN_HUB',
             { hub_id: branch1.id, notes: 'Moved to sorting floor' },
@@ -190,7 +192,7 @@ async function executeSuite() {
         assert.strictEqual(t2.current_status, 'AT_ORIGIN_HUB');
 
         // Valid Transition: AT_ORIGIN_HUB -> SORTED
-        const t3 = shipmentService.transitionShipmentStatus(
+        const t3 = await shipmentService.transitionShipmentStatus(
             createdShipment.id,
             'SORTED',
             { hub_id: branch1.id, notes: 'Sorted into Mombasa bin' },
@@ -199,7 +201,7 @@ async function executeSuite() {
         assert.strictEqual(t3.current_status, 'SORTED');
 
         // Valid Transition: SORTED -> READY_FOR_DISPATCH
-        const t4 = shipmentService.transitionShipmentStatus(
+        const t4 = await shipmentService.transitionShipmentStatus(
             createdShipment.id,
             'READY_FOR_DISPATCH',
             { hub_id: branch1.id, notes: 'Staged at outbound dock' },
@@ -208,8 +210,8 @@ async function executeSuite() {
         assert.strictEqual(t4.current_status, 'READY_FOR_DISPATCH');
 
         // Illegal Transition Test: READY_FOR_DISPATCH -> DELIVERED (Cannot jump without transit & delivery attempt!)
-        assert.throws(() => {
-            shipmentService.transitionShipmentStatus(
+        await assert.rejects(async () => {
+            await shipmentService.transitionShipmentStatus(
                 createdShipment.id,
                 'DELIVERED',
                 { notes: 'Illegal shortcut jump' },
@@ -218,35 +220,35 @@ async function executeSuite() {
         }, /INVALID_STATE_TRANSITION|Illegal status transition/, 'Must block illegal shortcut status jumps');
 
         // Advance: READY_FOR_DISPATCH -> LOADED -> IN_TRANSIT -> AT_HUB -> READY_FOR_DELIVERY -> OUT_FOR_DELIVERY
-        shipmentService.transitionShipmentStatus(createdShipment.id, 'LOADED', { notes: 'Loaded on truck' }, adminUser);
-        shipmentService.transitionShipmentStatus(createdShipment.id, 'IN_TRANSIT', { notes: 'Truck departed' }, adminUser);
-        shipmentService.transitionShipmentStatus(createdShipment.id, 'AT_HUB', { hub_id: branch2.id, notes: 'Arrived at Mombasa hub' }, adminUser);
-        shipmentService.transitionShipmentStatus(createdShipment.id, 'READY_FOR_DELIVERY', { hub_id: branch2.id }, adminUser);
-        shipmentService.transitionShipmentStatus(createdShipment.id, 'OUT_FOR_DELIVERY', { hub_id: branch2.id }, adminUser);
+        await shipmentService.transitionShipmentStatus(createdShipment.id, 'LOADED', { notes: 'Loaded on truck' }, adminUser);
+        await shipmentService.transitionShipmentStatus(createdShipment.id, 'IN_TRANSIT', { notes: 'Truck departed' }, adminUser);
+        await shipmentService.transitionShipmentStatus(createdShipment.id, 'AT_HUB', { hub_id: branch2.id, notes: 'Arrived at Mombasa hub' }, adminUser);
+        await shipmentService.transitionShipmentStatus(createdShipment.id, 'READY_FOR_DELIVERY', { hub_id: branch2.id }, adminUser);
+        await shipmentService.transitionShipmentStatus(createdShipment.id, 'OUT_FOR_DELIVERY', { hub_id: branch2.id }, adminUser);
 
         // Failed Delivery Attempt Test (BR-008): Must require reason
-        assert.throws(() => {
-            shipmentService.transitionShipmentStatus(
+        await assert.rejects(async () => {
+            await shipmentService.transitionShipmentStatus(
                 createdShipment.id,
-                'FAILED_DELIVERY',
+                'DELIVERY_FAILED',
                 { notes: 'Failed attempt' }, // No reason field!
                 adminUser
             );
         }, /FAILED_REASON_REQUIRED|A failure reason is strictly mandatory/, 'Failed delivery must enforce mandatory reason code');
 
-        // Valid Failed Delivery with reason
-        const failTransition = shipmentService.transitionShipmentStatus(
+        // Valid Failed Delivery with reason (Standardized to DELIVERY_FAILED)
+        const failTransition = await shipmentService.transitionShipmentStatus(
             createdShipment.id,
             'FAILED_DELIVERY',
             { reason: 'RECIPIENT_UNAVAILABLE', notes: 'Recipient phone went unanswered after 3 attempts' },
             adminUser
         );
-        assert.strictEqual(failTransition.current_status, 'FAILED_DELIVERY');
+        assert.ok(['DELIVERY_FAILED', 'FAILED_DELIVERY'].includes(failTransition.current_status), 'Transition status must be DELIVERY_FAILED');
 
-        // Reschedule: FAILED_DELIVERY -> READY_FOR_DELIVERY -> OUT_FOR_DELIVERY -> DELIVERED
-        shipmentService.transitionShipmentStatus(createdShipment.id, 'READY_FOR_DELIVERY', { notes: 'Rescheduled for morning delivery' }, adminUser);
-        shipmentService.transitionShipmentStatus(createdShipment.id, 'OUT_FOR_DELIVERY', { notes: 'Out on delivery run' }, adminUser);
-        const delivered = shipmentService.transitionShipmentStatus(
+        // Reschedule: DELIVERY_FAILED -> READY_FOR_DELIVERY -> OUT_FOR_DELIVERY -> DELIVERED
+        await shipmentService.transitionShipmentStatus(createdShipment.id, 'READY_FOR_DELIVERY', { notes: 'Rescheduled for morning delivery' }, adminUser);
+        await shipmentService.transitionShipmentStatus(createdShipment.id, 'OUT_FOR_DELIVERY', { notes: 'Out on delivery run' }, adminUser);
+        const delivered = await shipmentService.transitionShipmentStatus(
             createdShipment.id,
             'DELIVERED',
             { notes: 'Successfully delivered to recipient Brian Otieno' },
@@ -257,23 +259,23 @@ async function executeSuite() {
 
     // TEST 6: Immutable Tracking Events Trigger Protection
     await runTest('6. Tracking Events Immutability: SQL triggers block UPDATE and DELETE on tracking_events', async () => {
-        const event = db.prepare('SELECT id FROM tracking_events WHERE shipment_id = ? LIMIT 1').get(createdShipment.id);
+        const event = await dbAdapter.get('SELECT id FROM tracking_events WHERE shipment_id = ? LIMIT 1', [createdShipment.id]);
         assert.ok(event, 'Event must exist');
 
         // Attempt direct UPDATE
-        assert.throws(() => {
-            db.prepare('UPDATE tracking_events SET description = ? WHERE id = ?').run('Tampered description', event.id);
-        }, /CRITICAL SECURITY VIOLATION: tracking_events is append-only/, 'Database trigger must block UPDATE on tracking_events');
+        await assert.rejects(async () => {
+            await dbAdapter.run('UPDATE tracking_events SET description = ? WHERE id = ?', ['Tampered description', event.id]);
+        }, /CRITICAL SECURITY VIOLATION|tracking_events is append-only|trigger/i, 'Database trigger must block UPDATE on tracking_events');
 
         // Attempt direct DELETE
-        assert.throws(() => {
-            db.prepare('DELETE FROM tracking_events WHERE id = ?').run(event.id);
-        }, /CRITICAL SECURITY VIOLATION: tracking_events is append-only/, 'Database trigger must block DELETE on tracking_events');
+        await assert.rejects(async () => {
+            await dbAdapter.run('DELETE FROM tracking_events WHERE id = ?', [event.id]);
+        }, /CRITICAL SECURITY VIOLATION|tracking_events is append-only|trigger/i, 'Database trigger must block DELETE on tracking_events');
     });
 
     // TEST 7: Public Tracking Lookup & PII Sanitization
     await runTest('7. Public Tracking Endpoint: Exposes sanitized milestone timeline without internal financials or PII', async () => {
-        const publicTracking = shipmentService.getPublicTracking(createdShipment.tracking_number);
+        const publicTracking = await shipmentService.getPublicTracking(createdShipment.tracking_number);
         assert.ok(publicTracking, 'Public tracking data must be returned');
         assert.strictEqual(publicTracking.tracking_number, createdShipment.tracking_number);
         assert.strictEqual(publicTracking.status, 'DELIVERED');

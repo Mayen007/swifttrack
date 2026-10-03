@@ -1,6 +1,6 @@
 // server/services/controlTowerService.js
 // SwiftTrack Logistics: Stage 8 Operations Control Tower & Network Telemetry
-const { db } = require('../db/database.js');
+const dbAdapter = require('../db/dbAdapter.js');
 const { logAuditEvent } = require('../middleware/audit.js');
 
 /**
@@ -10,7 +10,7 @@ const { logAuditEvent } = require('../middleware/audit.js');
  * 3. "What is moving?" (active transport runs, corridor throughput)
  * 4. "How is the network performing?" (success rates, reconciliation, SLA)
  */
-function getLiveOperationalSummary(query = {}, user = {}) {
+async function getLiveOperationalSummary(query = {}, user = {}) {
     let effectiveHubId = null;
     if (user.roleName && user.roleName !== 'SUPER_ADMIN') {
         effectiveHubId = user.branchId ? Number(user.branchId) : null;
@@ -19,7 +19,7 @@ function getLiveOperationalSummary(query = {}, user = {}) {
     }
 
     // 1. Shipment Lifecycle Volume Telemetry
-    const shpSql = `
+    let shpSql = `
         SELECT 
             COUNT(*) as total_shipments,
             COUNT(CASE WHEN status = 'BOOKED' THEN 1 END) as booked_count,
@@ -36,21 +36,36 @@ function getLiveOperationalSummary(query = {}, user = {}) {
             COALESCE(SUM(total_parcels), 0) as total_parcels_count,
             COALESCE(SUM(total_amount), 0.0) as total_freight_revenue_kes
         FROM shipments
-        WHERE (? IS NULL OR origin_hub_id = ? OR destination_hub_id = ? OR current_hub_id = ?)
+        WHERE 1=1
     `;
-    const shpStats = db.prepare(shpSql).get(effectiveHubId, effectiveHubId, effectiveHubId, effectiveHubId);
+    const shpParams = [];
+    if (effectiveHubId) {
+        shpSql += ' AND (origin_hub_id = ? OR destination_hub_id = ? OR current_hub_id = ?)';
+        shpParams.push(effectiveHubId, effectiveHubId, effectiveHubId);
+    }
+    const shpStats = await dbAdapter.get(shpSql, shpParams) || {};
+
+    const bookedCount = Number(shpStats.booked_count || 0);
+    const acceptedCount = Number(shpStats.accepted_count || 0);
+    const atHubCount = Number(shpStats.at_hub_count || 0);
+    const loadedCount = Number(shpStats.loaded_count || 0);
+    const inTransitCount = Number(shpStats.in_transit_count || 0);
+    const readyForDeliveryCount = Number(shpStats.ready_for_delivery_count || 0);
+    const outForDeliveryCount = Number(shpStats.out_for_delivery_count || 0);
+    const deliveredCount = Number(shpStats.delivered_count || 0);
+    const deliveryFailedCount = Number(shpStats.delivery_failed_count || 0);
+    const cancelledCount = Number(shpStats.cancelled_count || 0);
+    const totalShipments = Number(shpStats.total_shipments || 0);
+    const totalParcels = Number(shpStats.total_parcels_count || 0);
+    const totalWeight = Number(Number(shpStats.total_chargeable_weight_kg || 0).toFixed(2));
+    const totalRevenue = Number(Number(shpStats.total_freight_revenue_kes || 0).toFixed(2));
 
     // Active in-pipeline shipments (not delivered or cancelled)
-    const activeShipmentsCount = (shpStats.booked_count || 0) +
-        (shpStats.accepted_count || 0) +
-        (shpStats.at_hub_count || 0) +
-        (shpStats.loaded_count || 0) +
-        (shpStats.in_transit_count || 0) +
-        (shpStats.ready_for_delivery_count || 0) +
-        (shpStats.out_for_delivery_count || 0);
+    const activeShipmentsCount = bookedCount + acceptedCount + atHubCount + loadedCount +
+        inTransitCount + readyForDeliveryCount + outForDeliveryCount;
 
     // 2. Last-Mile Delivery Operations
-    const dlvSql = `
+    let dlvSql = `
         SELECT 
             COUNT(*) as total_deliveries,
             COUNT(CASE WHEN status IN ('ASSIGNED', 'IN_TRANSIT') THEN 1 END) as active_deliveries,
@@ -59,24 +74,43 @@ function getLiveOperationalSummary(query = {}, user = {}) {
             COUNT(CASE WHEN attempt_count > 1 THEN 1 END) as multi_attempt_deliveries,
             COALESCE(AVG(attempt_count), 0.0) as avg_attempts
         FROM deliveries
-        WHERE (? IS NULL OR hub_id = ?)
+        WHERE 1=1
     `;
-    const dlvStats = db.prepare(dlvSql).get(effectiveHubId, effectiveHubId);
+    const dlvParams = [];
+    if (effectiveHubId) {
+        dlvSql += ' AND hub_id = ?';
+        dlvParams.push(effectiveHubId);
+    }
+    const dlvStats = await dbAdapter.get(dlvSql, dlvParams) || {};
+
+    const activeDeliveries = Number(dlvStats.active_deliveries || 0);
+    const deliveredDeliveries = Number(dlvStats.delivered_deliveries || 0);
+    const failedDeliveries = Number(dlvStats.failed_deliveries || 0);
+    const multiAttemptDeliveries = Number(dlvStats.multi_attempt_deliveries || 0);
+    const avgAttempts = Number(Number(dlvStats.avg_attempts || 0).toFixed(2));
 
     // 3. Transport Runs & Fleet Telemetry
-    const runSql = `
+    let runSql = `
         SELECT 
             COUNT(*) as total_runs,
             COUNT(CASE WHEN status IN ('IN_TRANSIT', 'DISPATCHED') THEN 1 END) as active_runs,
             COUNT(CASE WHEN status = 'SCHEDULED' THEN 1 END) as scheduled_runs,
             COUNT(CASE WHEN status = 'COMPLETED' THEN 1 END) as completed_runs
         FROM transport_runs
-        WHERE (? IS NULL OR origin_hub_id = ? OR destination_hub_id = ?)
+        WHERE 1=1
     `;
-    const runStats = db.prepare(runSql).get(effectiveHubId, effectiveHubId, effectiveHubId);
+    const runParams = [];
+    if (effectiveHubId) {
+        runSql += ' AND (origin_hub_id = ? OR destination_hub_id = ?)';
+        runParams.push(effectiveHubId, effectiveHubId);
+    }
+    const runStats = await dbAdapter.get(runSql, runParams) || {};
+
+    const activeRuns = Number(runStats.active_runs || 0);
+    const scheduledRuns = Number(runStats.scheduled_runs || 0);
 
     // 4. Cash on Delivery (COD) Settlements
-    const codSql = `
+    let codSql = `
         SELECT 
             COUNT(*) as total_settlements,
             COALESCE(SUM(expected_amount), 0.0) as total_expected,
@@ -87,12 +121,24 @@ function getLiveOperationalSummary(query = {}, user = {}) {
             COUNT(CASE WHEN status = 'RECONCILED' THEN 1 END) as reconciled_count,
             COUNT(CASE WHEN status = 'PENDING_COLLECTION' THEN 1 END) as pending_collection_count
         FROM cod_settlements
-        WHERE (? IS NULL OR hub_id = ?)
+        WHERE 1=1
     `;
-    const codStats = db.prepare(codSql).get(effectiveHubId, effectiveHubId);
+    const codParams = [];
+    if (effectiveHubId) {
+        codSql += ' AND hub_id = ?';
+        codParams.push(effectiveHubId);
+    }
+    const codStats = await dbAdapter.get(codSql, codParams) || {};
+
+    const totalExpectedCod = Number(Number(codStats.total_expected || 0).toFixed(2));
+    const totalCollectedCod = Number(Number(codStats.total_collected || 0).toFixed(2));
+    const totalVarianceCod = Number(Number(codStats.total_variance || 0).toFixed(2));
+    const reconciledCod = Number(codStats.reconciled_count || 0);
+    const discrepantCod = Number(codStats.discrepant_count || 0);
+    const totalCod = Number(codStats.total_settlements || 0);
 
     // 5. Physical Custody Discrepancies
-    const discSql = `
+    let discSql = `
         SELECT 
             COUNT(*) as open_discrepancies,
             COUNT(CASE WHEN severity = 'CRITICAL' THEN 1 END) as critical_count,
@@ -100,26 +146,31 @@ function getLiveOperationalSummary(query = {}, user = {}) {
             COUNT(CASE WHEN severity = 'MEDIUM' THEN 1 END) as medium_count
         FROM discrepancies
         WHERE status IN ('OPEN', 'INVESTIGATING')
-          AND (? IS NULL OR hub_id = ?)
     `;
-    const discStats = db.prepare(discSql).get(effectiveHubId, effectiveHubId);
+    const discParams = [];
+    if (effectiveHubId) {
+        discSql += ' AND hub_id = ?';
+        discParams.push(effectiveHubId);
+    }
+    const discStats = await dbAdapter.get(discSql, discParams) || {};
+
+    const openDiscrepancies = Number(discStats.open_discrepancies || 0);
+    const criticalDiscrepancies = Number(discStats.critical_count || 0);
 
     // 6. Calculate Network Health & Performance KPIs
-    const completedDel = dlvStats.delivered_deliveries || 0;
-    const failedDel = dlvStats.failed_deliveries || 0;
+    const completedDel = deliveredDeliveries;
+    const failedDel = failedDeliveries;
     const totalFinishedDel = completedDel + failedDel;
     const deliverySuccessRate = totalFinishedDel > 0
         ? Number(((completedDel / totalFinishedDel) * 100).toFixed(1))
         : 100.0;
 
-    const totalCod = codStats.total_settlements || 0;
-    const reconciledCod = codStats.reconciled_count || 0;
     const codReconciliationRate = totalCod > 0
         ? Number(((reconciledCod / totalCod) * 100).toFixed(1))
         : 100.0;
 
     const firstAttemptSuccessRate = completedDel > 0
-        ? Number((((completedDel - (dlvStats.multi_attempt_deliveries || 0)) / completedDel) * 100).toFixed(1))
+        ? Number((((completedDel - multiAttemptDeliveries) / completedDel) * 100).toFixed(1))
         : 100.0;
 
     return {
@@ -130,50 +181,50 @@ function getLiveOperationalSummary(query = {}, user = {}) {
         // 1. What is happening now?
         now: {
             active_pipeline_shipments: activeShipmentsCount,
-            total_shipments_recorded: shpStats.total_shipments || 0,
+            total_shipments_recorded: totalShipments,
             lifecycle: {
-                booked: shpStats.booked_count || 0,
-                accepted: shpStats.accepted_count || 0,
-                at_hub: shpStats.at_hub_count || 0,
-                loaded: shpStats.loaded_count || 0,
-                in_transit: shpStats.in_transit_count || 0,
-                ready_for_delivery: shpStats.ready_for_delivery_count || 0,
-                out_for_delivery: shpStats.out_for_delivery_count || 0,
-                delivered: shpStats.delivered_count || 0,
-                delivery_failed: shpStats.delivery_failed_count || 0,
-                cancelled: shpStats.cancelled_count || 0
+                booked: bookedCount,
+                accepted: acceptedCount,
+                at_hub: atHubCount,
+                loaded: loadedCount,
+                in_transit: inTransitCount,
+                ready_for_delivery: readyForDeliveryCount,
+                out_for_delivery: outForDeliveryCount,
+                delivered: deliveredCount,
+                delivery_failed: deliveryFailedCount,
+                cancelled: cancelledCount
             },
             volume: {
-                total_parcels: shpStats.total_parcels_count || 0,
-                total_weight_kg: Number((shpStats.total_chargeable_weight_kg || 0).toFixed(2)),
-                freight_revenue_kes: Number((shpStats.total_freight_revenue_kes || 0).toFixed(2))
+                total_parcels: totalParcels,
+                total_weight_kg: totalWeight,
+                freight_revenue_kes: totalRevenue
             }
         },
 
         // 2. What needs attention?
         attention: {
-            open_discrepancies: discStats.open_discrepancies || 0,
-            critical_discrepancies: discStats.critical_count || 0,
+            open_discrepancies: openDiscrepancies,
+            critical_discrepancies: criticalDiscrepancies,
             delivery_failures: failedDel,
-            cod_variances_unreconciled: codStats.discrepant_count || 0,
-            stale_shipments_count: 0 // populated in getOperationalAlerts
+            cod_variances_unreconciled: discrepantCod,
+            stale_shipments_count: 0
         },
 
         // 3. What is moving?
         movement: {
-            active_transport_runs: runStats.active_runs || 0,
-            scheduled_transport_runs: runStats.scheduled_runs || 0,
-            active_last_mile_deliveries: dlvStats.active_deliveries || 0,
+            active_transport_runs: activeRuns,
+            scheduled_transport_runs: scheduledRuns,
+            active_last_mile_deliveries: activeDeliveries,
             completed_deliveries: completedDel
         },
 
         // 4. Financial & COD Settlement Position
         cod: {
-            expected_total_kes: Number((codStats.total_expected || 0).toFixed(2)),
-            collected_total_kes: Number((codStats.total_collected || 0).toFixed(2)),
-            variance_total_kes: Number((codStats.total_variance || 0).toFixed(2)),
+            expected_total_kes: totalExpectedCod,
+            collected_total_kes: totalCollectedCod,
+            variance_total_kes: totalVarianceCod,
             reconciled_count: reconciledCod,
-            discrepant_count: codStats.discrepant_count || 0,
+            discrepant_count: discrepantCod,
             reconciliation_rate_pct: codReconciliationRate
         },
 
@@ -181,7 +232,7 @@ function getLiveOperationalSummary(query = {}, user = {}) {
         performance: {
             delivery_success_rate_pct: deliverySuccessRate,
             first_attempt_success_rate_pct: Math.max(0, firstAttemptSuccessRate),
-            avg_delivery_attempts: Number((dlvStats.avg_attempts || 1.0).toFixed(2)),
+            avg_delivery_attempts: avgAttempts,
             cod_reconciliation_rate_pct: codReconciliationRate
         }
     };
@@ -190,7 +241,7 @@ function getLiveOperationalSummary(query = {}, user = {}) {
 /**
  * Returns prioritized actionable operational alerts ("What needs attention?")
  */
-function getOperationalAlerts(query = {}, user = {}) {
+async function getOperationalAlerts(query = {}, user = {}) {
     let effectiveHubId = null;
     if (user.roleName && user.roleName !== 'SUPER_ADMIN') {
         effectiveHubId = user.branchId ? Number(user.branchId) : null;
@@ -201,7 +252,7 @@ function getOperationalAlerts(query = {}, user = {}) {
     const alerts = [];
 
     // Alert Category A: Physical Manifest & Receiving Discrepancies
-    const discSql = `
+    let discSql = `
         SELECT 
             d.id, d.discrepancy_number, d.discrepancy_type, d.severity,
             d.description, d.status, d.hub_id, d.shipment_id, d.created_at,
@@ -211,13 +262,17 @@ function getOperationalAlerts(query = {}, user = {}) {
         LEFT JOIN branches b ON d.hub_id = b.id
         LEFT JOIN shipments s ON d.shipment_id = s.id
         WHERE d.status IN ('OPEN', 'INVESTIGATING')
-          AND (? IS NULL OR d.hub_id = ?)
-        ORDER BY 
-            CASE d.severity WHEN 'CRITICAL' THEN 1 WHEN 'HIGH' THEN 2 WHEN 'MEDIUM' THEN 3 ELSE 4 END,
-            d.created_at DESC
-        LIMIT 50
     `;
-    const discrepancies = db.prepare(discSql).all(effectiveHubId, effectiveHubId);
+    const discParams = [];
+    if (effectiveHubId) {
+        discSql += ' AND d.hub_id = ?';
+        discParams.push(effectiveHubId);
+    }
+    discSql += ` ORDER BY 
+        CASE d.severity WHEN 'CRITICAL' THEN 1 WHEN 'HIGH' THEN 2 WHEN 'MEDIUM' THEN 3 ELSE 4 END,
+        d.created_at DESC
+        LIMIT 50`;
+    const discrepancies = await dbAdapter.all(discSql, discParams);
 
     for (const d of discrepancies) {
         alerts.push({
@@ -239,7 +294,7 @@ function getOperationalAlerts(query = {}, user = {}) {
     }
 
     // Alert Category B: Failed Deliveries & Return-to-Hub Exceptions
-    const dlvSql = `
+    let dlvSql = `
         SELECT 
             del.id, del.delivery_number, del.status, del.failure_reason, del.failure_notes,
             del.attempt_count, del.max_attempts, del.hub_id, del.updated_at,
@@ -249,11 +304,14 @@ function getOperationalAlerts(query = {}, user = {}) {
         JOIN shipments s ON del.shipment_id = s.id
         JOIN branches b ON del.hub_id = b.id
         WHERE (del.status = 'RETURN_TO_HUB' OR (del.status = 'FAILED' AND del.attempt_count >= del.max_attempts))
-          AND (? IS NULL OR del.hub_id = ?)
-        ORDER BY del.updated_at DESC
-        LIMIT 50
     `;
-    const failedDeliveries = db.prepare(dlvSql).all(effectiveHubId, effectiveHubId);
+    const dlvParams = [];
+    if (effectiveHubId) {
+        dlvSql += ' AND del.hub_id = ?';
+        dlvParams.push(effectiveHubId);
+    }
+    dlvSql += ` ORDER BY del.updated_at DESC LIMIT 50`;
+    const failedDeliveries = await dbAdapter.all(dlvSql, dlvParams);
 
     for (const del of failedDeliveries) {
         alerts.push({
@@ -275,7 +333,7 @@ function getOperationalAlerts(query = {}, user = {}) {
     }
 
     // Alert Category C: COD Financial Variances
-    const codSql = `
+    let codSql = `
         SELECT 
             cs.id, cs.settlement_number, cs.status, cs.expected_amount, cs.collected_amount,
             cs.variance_amount, cs.currency, cs.hub_id, cs.created_at,
@@ -285,11 +343,14 @@ function getOperationalAlerts(query = {}, user = {}) {
         JOIN shipments s ON cs.shipment_id = s.id
         JOIN branches b ON cs.hub_id = b.id
         WHERE (cs.status = 'DISCREPANT' OR (cs.variance_amount != 0.0 AND cs.status != 'RECONCILED'))
-          AND (? IS NULL OR cs.hub_id = ?)
-        ORDER BY cs.created_at DESC
-        LIMIT 50
     `;
-    const codVariances = db.prepare(codSql).all(effectiveHubId, effectiveHubId);
+    const codParams = [];
+    if (effectiveHubId) {
+        codSql += ' AND cs.hub_id = ?';
+        codParams.push(effectiveHubId);
+    }
+    codSql += ` ORDER BY cs.created_at DESC LIMIT 50`;
+    const codVariances = await dbAdapter.all(codSql, codParams);
 
     for (const cs of codVariances) {
         alerts.push({
@@ -333,13 +394,13 @@ function getOperationalAlerts(query = {}, user = {}) {
 /**
  * Returns active transport corridors and in-transit runs ("What is moving?")
  */
-function getActiveCorridorTelemetry(user = {}) {
+async function getActiveCorridorTelemetry(user = {}) {
     let effectiveHubId = null;
     if (user.roleName && user.roleName !== 'SUPER_ADMIN') {
         effectiveHubId = user.branchId ? Number(user.branchId) : null;
     }
 
-    const runsSql = `
+    let runsSql = `
         SELECT 
             tr.id, tr.run_number, tr.status, tr.scheduled_departure, tr.actual_departure,
             tr.scheduled_arrival, tr.total_shipments_count, tr.total_parcels_count, tr.total_weight_kg,
@@ -359,21 +420,27 @@ function getActiveCorridorTelemetry(user = {}) {
         LEFT JOIN users u ON d.user_id = u.id
         LEFT JOIN manifests m ON tr.id = m.transport_run_id
         WHERE tr.status IN ('DISPATCHED', 'IN_TRANSIT', 'SCHEDULED')
-          AND (? IS NULL OR tr.origin_hub_id = ? OR tr.destination_hub_id = ?)
-        ORDER BY tr.scheduled_departure ASC
     `;
-    const runs = db.prepare(runsSql).all(effectiveHubId, effectiveHubId, effectiveHubId);
+    const runsParams = [];
+    if (effectiveHubId) {
+        runsSql += ' AND (tr.origin_hub_id = ? OR tr.destination_hub_id = ?)';
+        runsParams.push(effectiveHubId, effectiveHubId);
+    }
+    runsSql += ` ORDER BY tr.scheduled_departure ASC`;
+    const runs = await dbAdapter.all(runsSql, runsParams);
 
     // Attach latest waypoint checkpoint for in-transit runs
     for (const run of runs) {
-        const latestCheckpoint = db.prepare(`
+        const latestCheckpoint = await dbAdapter.get(`
             SELECT checkpoint_name, location_desc, recorded_at, latitude, longitude
             FROM run_checkpoints
             WHERE transport_run_id = ?
             ORDER BY id DESC
             LIMIT 1
-        `).get(run.id);
+        `, [run.id]);
         run.latest_checkpoint = latestCheckpoint || null;
+        run.total_parcels_count = Number(run.total_parcels_count || 0);
+        run.total_weight_kg = Number(Number(run.total_weight_kg || 0).toFixed(2));
     }
 
     // Aggregate primary corridor volumes
@@ -405,60 +472,61 @@ function getActiveCorridorTelemetry(user = {}) {
 /**
  * Returns station-by-station telemetry across all regional hubs
  */
-function getHubNetworkTelemetry(user = {}) {
-    const branches = db.prepare('SELECT id, code, name, city, address, phone FROM branches WHERE is_active = 1').all();
+async function getHubNetworkTelemetry(user = {}) {
+    const branches = await dbAdapter.all('SELECT id, code, name, city, address, phone FROM branches WHERE is_active = true');
 
-    const hubs = branches.map(hub => {
+    const hubs = [];
+    for (const hub of branches) {
         // On hand at hub (under sorting or ready)
-        const onHand = db.prepare(`
+        const onHand = await dbAdapter.get(`
             SELECT COUNT(*) as count, COALESCE(SUM(chargeable_weight_kg), 0.0) as weight_kg
             FROM shipments
             WHERE current_hub_id = ? AND status IN ('ACCEPTED', 'SORTED', 'AT_HUB', 'READY_FOR_DELIVERY')
-        `).get(hub.id);
+        `, [hub.id]);
 
         // Inbound en route to this hub
-        const inbound = db.prepare(`
+        const inbound = await dbAdapter.get(`
             SELECT COUNT(*) as count, COALESCE(SUM(chargeable_weight_kg), 0.0) as weight_kg
             FROM shipments
             WHERE destination_hub_id = ? AND status IN ('IN_TRANSIT', 'LOADED')
-        `).get(hub.id);
+        `, [hub.id]);
 
         // Outbound departing this hub
-        const outbound = db.prepare(`
+        const outbound = await dbAdapter.get(`
             SELECT COUNT(*) as count
             FROM shipments
             WHERE origin_hub_id = ? AND status IN ('ACCEPTED', 'BOOKED')
-        `).get(hub.id);
+        `, [hub.id]);
 
         // Active last-mile delivery tasks at this hub
-        const activeDeliveries = db.prepare(`
+        const activeDeliveries = await dbAdapter.get(`
             SELECT COUNT(*) as count
             FROM deliveries
             WHERE hub_id = ? AND status IN ('ASSIGNED', 'IN_TRANSIT')
-        `).get(hub.id);
+        `, [hub.id]);
 
         // Open discrepancies at this hub
-        const discrepancies = db.prepare(`
+        const discrepancies = await dbAdapter.get(`
             SELECT COUNT(*) as count
             FROM discrepancies
             WHERE hub_id = ? AND status IN ('OPEN', 'INVESTIGATING')
-        `).get(hub.id);
+        `, [hub.id]);
 
-        return {
+        hubs.push({
             hub_id: hub.id,
             hub_code: hub.code,
             hub_name: hub.name,
             city: hub.city,
             phone: hub.phone,
-            on_hand_shipments: onHand.count || 0,
-            on_hand_weight_kg: Number((onHand.weight_kg || 0).toFixed(1)),
-            inbound_shipments: inbound.count || 0,
-            inbound_weight_kg: Number((inbound.weight_kg || 0).toFixed(1)),
-            outbound_shipments: outbound.count || 0,
-            active_deliveries: activeDeliveries.count || 0,
-            open_discrepancies: discrepancies.count || 0
-        };
-    });
+            on_hand_shipments: Number(onHand.count || 0),
+            on_hand_weight_kg: Number(Number(onHand.weight_kg || 0).toFixed(1)),
+            inbound_shipments: Number(inbound.count || 0),
+            inbound_weight_kg: Number(Number(inbound.weight_kg || 0).toFixed(1)),
+            outbound_shipments: Number(outbound.count || 0),
+            active_deliveries: Number(activeDeliveries.count || 0),
+            open_discrepancies: Number(discrepancies.count || 0)
+        });
+    }
 
     return {
         hubs_count: hubs.length,
@@ -469,18 +537,18 @@ function getHubNetworkTelemetry(user = {}) {
 /**
  * Fast-resolution or acknowledgment of a control tower operational alert
  */
-function resolveAlert(alertType, entityId, resolutionData = {}, user = {}) {
+async function resolveAlert(alertType, entityId, resolutionData = {}, user = {}) {
     const cleanType = String(alertType || '').toUpperCase();
     const id = Number(entityId);
 
     if (cleanType === 'DISCREPANCY') {
-        const disc = db.prepare('SELECT * FROM discrepancies WHERE id = ?').get(id);
+        const disc = await dbAdapter.get('SELECT * FROM discrepancies WHERE id = ?', [id]);
         if (!disc) throw new Error(`Discrepancy ID ${id} not found`);
 
         const action = resolutionData.action || 'RESOLVED_BY_CONTROL_TOWER';
         const notes = resolutionData.notes || 'Acknowledged and investigated via Operations Control Tower';
 
-        db.prepare(`
+        await dbAdapter.run(`
             UPDATE discrepancies
             SET status = 'RESOLVED',
                 investigator_user_id = COALESCE(investigator_user_id, ?),
@@ -489,9 +557,9 @@ function resolveAlert(alertType, entityId, resolutionData = {}, user = {}) {
                 resolved_at = CURRENT_TIMESTAMP,
                 updated_at = CURRENT_TIMESTAMP
             WHERE id = ?
-        `).run(user.id || 1, action, notes, id);
+        `, [user.id || 1, action, notes, id]);
 
-        logAuditEvent({
+        await logAuditEvent({
             userId: user.id || 1,
             role: user.roleName || 'DISPATCHER',
             action: 'RESOLVE',
@@ -505,12 +573,12 @@ function resolveAlert(alertType, entityId, resolutionData = {}, user = {}) {
     }
 
     if (cleanType === 'DELIVERY') {
-        const del = db.prepare('SELECT * FROM deliveries WHERE id = ?').get(id);
+        const del = await dbAdapter.get('SELECT * FROM deliveries WHERE id = ?', [id]);
         if (!del) throw new Error(`Delivery ID ${id} not found`);
 
         const notes = resolutionData.notes || 'Delivery failure acknowledged by Control Tower dispatcher';
 
-        logAuditEvent({
+        await logAuditEvent({
             userId: user.id || 1,
             role: user.roleName || 'DISPATCHER',
             action: 'ACKNOWLEDGE',

@@ -2,6 +2,7 @@
 // Comprehensive automated test suite validating all 15 phases, security, branch isolation, and transactions
 const assert = require('node:assert');
 const { db } = require('../server/db/database.js');
+const dbAdapter = require('../server/db/dbAdapter.js');
 const app = require('../server/server.js');
 
 let server;
@@ -392,17 +393,17 @@ async function runTests() {
         // Setup legacy user with old static salt
         const legacySalt = 'swifttrack_secure_salt_2026';
         const legacyHash = crypto.scryptSync('OldStaticPass123!', legacySalt, 64).toString('hex');
-        const existingLegacyUser = db.prepare('SELECT id FROM users WHERE username = ?').get('test.legacy.user');
+        const existingLegacyUser = await dbAdapter.get('SELECT id FROM users WHERE username = ?', ['test.legacy.user']);
         let legacyUserId;
         if (!existingLegacyUser) {
-            const ins = db.prepare(`
+            const ins = await dbAdapter.query(`
                 INSERT INTO users (branch_id, role_id, username, email, full_name, phone, password_hash, is_active)
-                VALUES (1, 4, 'test.legacy.user', 'legacy@swifttrack.co.ke', 'Legacy Salt Test User', '+254 700 999 888', ?, 1)
-            `).run(legacyHash);
-            legacyUserId = ins.lastInsertRowid;
+                VALUES (1, 4, 'test.legacy.user', 'legacy@swifttrack.co.ke', 'Legacy Salt Test User', '+254 700 999 888', ?, true)
+            `, [legacyHash]);
+            legacyUserId = ins.insertId;
         } else {
             legacyUserId = existingLegacyUser.id;
-            db.prepare('UPDATE users SET password_hash = ?, is_active = 1 WHERE id = ?').run(legacyHash, legacyUserId);
+            await dbAdapter.run('UPDATE users SET password_hash = ?, is_active = true WHERE id = ?', [legacyHash, legacyUserId]);
         }
 
         // Verify login succeeds with legacy hash
@@ -413,13 +414,13 @@ async function runTests() {
         assert.strictEqual(legacyLoginRes.status, 200, 'Legacy user login failed');
 
         // Check DB to verify password_hash was transparently upgraded to dynamic salt format
-        const upgradedUser = db.prepare('SELECT password_hash FROM users WHERE id = ?').get(legacyUserId);
+        const upgradedUser = await dbAdapter.get('SELECT password_hash FROM users WHERE id = ?', [legacyUserId]);
         assert.ok(upgradedUser.password_hash.includes(':'), 'Password hash was not transparently upgraded to dynamic salt');
         assert.notStrictEqual(upgradedUser.password_hash, legacyHash, 'Password hash should have been replaced with upgraded hash');
         console.log('  [PASS] Transparent zero-downtime password upgrade verified upon login');
 
         // Deactivate test user (foreign key in audit_logs prevents hard deletion)
-        db.prepare('UPDATE users SET is_active = 0 WHERE id = ?').run(legacyUserId);
+        await dbAdapter.run('UPDATE users SET is_active = false WHERE id = ?', [legacyUserId]);
         console.log('  [PASS] Temporary test user deactivated (audit integrity preserved)\n');
 
         // -------------------------------------------------------------

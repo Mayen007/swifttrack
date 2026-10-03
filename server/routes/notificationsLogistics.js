@@ -14,7 +14,7 @@ const { authenticateToken, requirePermission } = require('../middleware/auth.js'
  */
 router.get('/stats', authenticateToken, requirePermission('notifications', 'view'), async (req, res, next) => {
     try {
-        const stats = notificationService.getNotificationStats();
+        const stats = await notificationService.getNotificationStats();
         res.apiSuccess(stats);
     } catch (err) {
         next(err);
@@ -27,7 +27,7 @@ router.get('/stats', authenticateToken, requirePermission('notifications', 'view
  */
 router.get('/outbox', authenticateToken, requirePermission('notifications', 'view'), async (req, res, next) => {
     try {
-        const items = notificationService.getOutbox(req.query);
+        const items = await notificationService.getOutbox(req.query);
         res.apiSuccess({
             items,
             count: items.length
@@ -43,7 +43,7 @@ router.get('/outbox', authenticateToken, requirePermission('notifications', 'vie
  */
 router.get('/templates', authenticateToken, requirePermission('notifications', 'view'), async (req, res, next) => {
     try {
-        const templates = notificationService.getTemplates();
+        const templates = await notificationService.getTemplates();
         res.apiSuccess({ templates });
     } catch (err) {
         next(err);
@@ -56,7 +56,7 @@ router.get('/templates', authenticateToken, requirePermission('notifications', '
  */
 router.put('/templates/:code', authenticateToken, requirePermission('notifications', 'manage'), async (req, res, next) => {
     try {
-        const updated = notificationService.updateTemplate(req.params.code, req.body, req.user);
+        const updated = await notificationService.updateTemplate(req.params.code, req.body, req.user);
         res.apiSuccess(updated, 'Notification template updated successfully');
     } catch (err) {
         next(err);

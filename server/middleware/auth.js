@@ -1,13 +1,17 @@
 // server/middleware/auth.js
+// Enterprise Security & Identity Layer: JWT Authentication, Sessions & RBAC
 const jwt = require('jsonwebtoken');
-const { db } = require('../db/database.js');
 const { getJwtSecret } = require('../utils/env.js');
+const dbAdapter = require('../db/dbAdapter.js');
+const userRepository = require('../repositories/userRepository.js');
+const sessionRepository = require('../repositories/sessionRepository.js');
+const { SCOPES, AUTHORIZATION_MATRIX, checkPermission } = require('../config/permissions.js');
 
 /**
  * Validates the Authorization Bearer token, checks revocation, verifies session and token versions,
  * and enforces mandatory first-login password changes.
  */
-function authenticateToken(req, res, next) {
+async function authenticateToken(req, res, next) {
     const authHeader = req.headers['authorization'];
     const token = authHeader && authHeader.split(' ')[1];
 
@@ -17,30 +21,24 @@ function authenticateToken(req, res, next) {
 
     const secret = getJwtSecret();
 
-    jwt.verify(token, secret, (err, decoded) => {
-        if (err) {
-            return res.status(401).json({ error: 'Invalid or expired token. Please log in again.' });
-        }
+    let decoded;
+    try {
+        decoded = jwt.verify(token, secret);
+    } catch (err) {
+        return res.status(401).json({ error: 'Invalid or expired token. Please log in again.' });
+    }
 
-        // 1. Revocation Blacklist Check
+    try {
+        // 1. Revocation Blacklist Check via SessionRepository
         if (decoded.jti) {
-            const revoked = db.prepare('SELECT id FROM revoked_tokens WHERE jti = ?').get(decoded.jti);
-            if (revoked) {
+            const isRevoked = await sessionRepository.isTokenRevoked(decoded.jti);
+            if (isRevoked) {
                 return res.status(401).json({ error: 'Token has been revoked or signed out. Please log in again.' });
             }
         }
 
-        // 2. Fetch fresh user record from DB
-        const user = db.prepare(`
-            SELECT u.id, u.username, u.email, u.full_name, u.phone, u.branch_id, u.is_active,
-                   u.token_version, u.must_change_password, u.two_factor_enabled,
-                   r.name as role_name, r.display_name as role_display_name,
-                   b.name as branch_name, b.code as branch_code
-            FROM users u
-            JOIN roles r ON u.role_id = r.id
-            LEFT JOIN branches b ON u.branch_id = b.id
-            WHERE u.id = ?
-        `).get(decoded.id);
+        // 2. Fetch fresh user record from DB via UserRepository
+        const user = await userRepository.findById(decoded.id);
 
         if (!user || !user.is_active) {
             return res.status(403).json({ error: 'User account is inactive or no longer exists' });
@@ -53,31 +51,29 @@ function authenticateToken(req, res, next) {
 
         // 4. Session Validation (if token contains sessionId)
         if (decoded.sessionId) {
-            const session = db.prepare(`
-                SELECT is_active, datetime(expires_at) <= datetime(CURRENT_TIMESTAMP) as is_expired
-                FROM user_sessions
-                WHERE id = ?
-            `).get(decoded.sessionId);
-
+            const session = await sessionRepository.findSessionById(decoded.sessionId);
             if (session) {
                 if (!session.is_active || session.is_expired) {
                     return res.status(401).json({ error: 'Session has expired or was terminated. Please log in again.' });
                 }
                 // Refresh session activity timestamp
                 try {
-                    db.prepare('UPDATE user_sessions SET last_activity_at = CURRENT_TIMESTAMP WHERE id = ?').run(decoded.sessionId);
+                    await sessionRepository.touchSession(decoded.sessionId);
                 } catch {}
             }
         }
 
         // 5. First-Login Mandatory Password Change Enforcement
-        if (user.must_change_password === 1) {
-            // Allow only self password change, user profile fetch, logout, and public config
+        if (user.must_change_password) {
             const allowedPaths = [
                 '/api/auth/change-password',
                 '/api/auth/me',
                 '/api/auth/logout',
-                '/api/auth/config'
+                '/api/auth/config',
+                '/api/v1/auth/change-password',
+                '/api/v1/auth/me',
+                '/api/v1/auth/logout',
+                '/api/v1/auth/config'
             ];
             const isAllowedPath = allowedPaths.some(p => req.originalUrl?.startsWith(p) || req.baseUrl?.startsWith(p));
 
@@ -91,15 +87,7 @@ function authenticateToken(req, res, next) {
         }
 
         // 6. Fetch permissions granted to this role
-        const permissionsRows = db.prepare(`
-            SELECT p.code
-            FROM role_permissions rp
-            JOIN permissions p ON rp.permission_id = p.id
-            JOIN roles r ON rp.role_id = r.id
-            WHERE r.name = ?
-        `).all(user.role_name);
-
-        const permissions = permissionsRows.map(r => r.code);
+        const permissions = await userRepository.getPermissionsByRoleName(user.role_name);
 
         req.user = {
             id: user.id,
@@ -121,10 +109,11 @@ function authenticateToken(req, res, next) {
         };
 
         next();
-    });
+    } catch (err) {
+        console.error('[Auth Middleware Error]', err);
+        return res.status(500).json({ error: 'Authentication internal error' });
+    }
 }
-
-const { SCOPES, AUTHORIZATION_MATRIX, checkPermission } = require('../config/permissions.js');
 
 /**
  * Restricts route to specific roles
@@ -177,7 +166,6 @@ function enforceBranchIsolation(req, res, next) {
 
     // Super Admin has global cross-branch authority
     if (req.user.roleName === 'SUPER_ADMIN') {
-        // Can filter by branch_id if provided in query, otherwise null = all branches
         req.effectiveBranchId = req.query.branch_id ? Number(req.query.branch_id) : null;
         return next();
     }
@@ -200,29 +188,24 @@ function enforceBranchIsolation(req, res, next) {
     next();
 }
 
+// Whitelist of valid table names to prevent SQL injection in dynamic entity queries
+const VALID_ENTITY_TABLES = new Set([
+    'shipments', 'parcels', 'shipment_legs', 'transport_runs', 'manifests',
+    'scan_events', 'deliveries', 'cod_settlements', 'stock_transfers',
+    'orders', 'inventory', 'refund_requests', 'expenses', 'procurement_orders',
+    'pos_shifts', 'products', 'branches', 'hubs', 'users'
+]);
+
 /**
  * Canonical unified authorization middleware based on the Role x Resource x Action x Branch matrix
- *
- * @param {string} resource - e.g. 'pos', 'inventory', 'dispatch', 'delivery', 'users', 'reports', 'expenses', 'branches', 'audit'
- * @param {string} action - e.g. 'create', 'view', 'refund_approve', 'adjust_approve', etc.
- * @param {object} [options]
- * @param {string} [options.entityTable] - DB table name to query for record-level branch/ownership checks
- * @param {string} [options.idParam='id'] - req.params parameter holding entity ID
- * @param {string} [options.idBody] - req.body parameter holding entity ID
- * @param {string} [options.branchColumn='branch_id'] - column on entity indicating branch
- * @param {string} [options.ownerColumn] - column on entity indicating user ownership
- * @param {string} [options.driverColumn='driver_id'] - column on entity indicating driver ID
- * @param {boolean} [options.isTransfer=false] - whether this is an inter-branch transfer
- * @param {boolean} [options.preventSelfApproval=false] - prevent approving own request (separation of duties)
  */
 function authorize(resource, action, options = {}) {
-    return (req, res, next) => {
+    return async (req, res, next) => {
         if (!req.user) {
             return res.status(401).json({ error: 'Authentication required' });
         }
 
-        // 1. Role-level baseline check: if the user's role is strictly denied this action,
-        // reject immediately with 403 Forbidden before entity resolution (preventing ID enumeration).
+        // 1. Role-level baseline check
         const baselineCheck = checkPermission(req.user, resource, action, {});
         if (!baselineCheck.granted && baselineCheck.scope === SCOPES.DENIED) {
             return res.status(403).json({
@@ -239,14 +222,22 @@ function authorize(resource, action, options = {}) {
         let entityOwnerUserId = null;
         let entityDriverId = null;
 
-        // If options.entityTable is provided and an ID is present in params or body
         const entityId = (options.idParam && req.params[options.idParam])
             || (!options.idParam && req.params.id)
             || (options.idBody && req.body && req.body[options.idBody]);
 
         if (options.entityTable && entityId) {
+            if (!VALID_ENTITY_TABLES.has(options.entityTable)) {
+                return res.status(500).json({ error: `Security exception: Invalid entityTable '${options.entityTable}' in authorize middleware.` });
+            }
             try {
-                const entity = db.prepare(`SELECT * FROM ${options.entityTable} WHERE id = ?`).get(entityId);
+                let entity = await dbAdapter.get(`SELECT * FROM ${options.entityTable} WHERE id = ?`, [entityId]);
+                if (!entity) {
+                    try {
+                        const { db: sqliteDb } = require('../db/database.js');
+                        entity = sqliteDb.prepare(`SELECT * FROM ${options.entityTable} WHERE id = ?`).get(entityId);
+                    } catch {}
+                }
                 if (!entity) {
                     return res.status(404).json({ error: `${options.entityTable} record not found.` });
                 }
@@ -274,7 +265,7 @@ function authorize(resource, action, options = {}) {
         if (options.isTransfer) {
             context.isTransfer = true;
             if (entityId) {
-                const trf = db.prepare('SELECT source_branch_id, target_branch_id FROM stock_transfers WHERE id = ?').get(entityId);
+                const trf = await dbAdapter.get('SELECT source_branch_id, target_branch_id FROM stock_transfers WHERE id = ?', [entityId]);
                 if (trf) {
                     context.sourceBranchId = trf.source_branch_id;
                     context.targetBranchId = trf.target_branch_id;
@@ -288,7 +279,7 @@ function authorize(resource, action, options = {}) {
 
         // Driver context
         if (req.user.roleName === 'DRIVER') {
-            const driverRec = db.prepare('SELECT id FROM drivers WHERE user_id = ?').get(req.user.id);
+            const driverRec = await dbAdapter.get('SELECT id FROM drivers WHERE user_id = ?', [req.user.id]);
             context.userDriverId = driverRec ? driverRec.id : null;
             if (entityDriverId) {
                 context.driverId = entityDriverId;
@@ -311,7 +302,7 @@ function authorize(resource, action, options = {}) {
             });
         }
 
-        // Separation of duties / self-approval prevention (checked if role is fundamentally authorized)
+        // Separation of duties / self-approval prevention
         if (options.preventSelfApproval && req.user.roleName !== 'SUPER_ADMIN') {
             if (entityOwnerUserId && Number(entityOwnerUserId) === Number(req.user.id)) {
                 return res.status(403).json({

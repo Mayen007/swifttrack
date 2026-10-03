@@ -2,7 +2,6 @@
 // Enterprise Data Access Layer: Vehicles, Telemetry, Maintenance & Fuel Logs
 
 const dbAdapter = require('../db/dbAdapter.js');
-const { db: sqliteDb } = require('../db/database.js');
 
 class VehicleRepository {
     constructor() {
@@ -17,14 +16,6 @@ class VehicleRepository {
     }
 
     /**
-     * Finds a vehicle by primary ID (Sync for SQLite backwards compatibility).
-     */
-    findByIdSync(id) {
-        if (!sqliteDb) throw new Error('Sync operations only supported under SQLite engine');
-        return sqliteDb.prepare('SELECT * FROM vehicles WHERE id = ?').get(id) || null;
-    }
-
-    /**
      * Finds a vehicle by registration plate (Async).
      */
     async findByRegistration(registrationNumber, tx = null) {
@@ -33,16 +24,6 @@ class VehicleRepository {
             [registrationNumber],
             tx?.client
         );
-    }
-
-    /**
-     * Finds a vehicle by registration plate (Sync).
-     */
-    findByRegistrationSync(registrationNumber) {
-        if (!sqliteDb) throw new Error('Sync operations only supported under SQLite engine');
-        return sqliteDb.prepare(
-            'SELECT * FROM vehicles WHERE UPPER(TRIM(registration_number)) = UPPER(TRIM(?))'
-        ).get(registrationNumber) || null;
     }
 
     /**

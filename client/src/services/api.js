@@ -8,14 +8,7 @@ class ApiService {
 
     if (typeof window !== 'undefined') {
       try {
-        const params = new URLSearchParams(window.location.search);
-        const urlToken = params.get('token');
-        if (urlToken) {
-          localStorage.setItem('swifttrack_token', urlToken);
-          initialToken = urlToken;
-        } else {
-          initialToken = localStorage.getItem('swifttrack_token');
-        }
+        initialToken = localStorage.getItem('swifttrack_token');
         initialRefreshToken = localStorage.getItem('swifttrack_refresh_token');
       } catch {
         initialToken = null;

@@ -1,10 +1,9 @@
 // tests/logistics/test-e2e-acceptance.js
 // SwiftTrack Kenya Logistics: Stage 10 Multi-Leg End-to-End Acceptance Test Suite (PRD Section 30)
 const assert = require('node:assert');
-const { db } = require('../../server/db/database.js');
+const dbAdapter = require('../../server/db/dbAdapter.js');
 const e2eAcceptanceService = require('../../server/services/e2eAcceptanceService.js');
 const shipmentService = require('../../server/services/shipmentService.js');
-const notificationService = require('../../server/services/notificationService.js');
 
 async function runTests() {
     console.log('\n============================================================');
@@ -19,11 +18,14 @@ async function runTests() {
         branchId: 1
     };
 
+    const nakuruBranch = await dbAdapter.get("SELECT id FROM branches WHERE code = 'NAK-01' OR city = 'Nakuru' LIMIT 1");
+    const intermediateHubId = nakuruBranch ? nakuruBranch.id : 12;
+
     // TEST 1: Execute Complete 23-Step Multi-Leg Acceptance Scenario
     console.log('\n> TEST 1: Executing 23-Step Multi-Leg Acceptance Scenario (PRD Section 30)...');
     const result = await e2eAcceptanceService.executeFullAcceptanceScenario({
         originHubId: 1,         // Nairobi Central Hub
-        intermediateHubId: 4,    // Nakuru Transfer Station
+        intermediateHubId,      // Nakuru Transfer Station
         destinationHubId: 2,     // Mombasa Port & Coastal Branch
         codAmount: 7500
     }, adminUser);
@@ -36,29 +38,29 @@ async function runTests() {
     // TEST 2: Multi-Leg Routing Structure & Legs Progression
     console.log('\n> TEST 2: Multi-Leg Routing Legs Verification (Leg 1 & Leg 2)...');
     const shipmentId = result.summary.shipment.id;
-    const legs = db.prepare('SELECT * FROM shipment_legs WHERE shipment_id = ? ORDER BY leg_sequence ASC').all(shipmentId);
+    const legs = await dbAdapter.all('SELECT * FROM shipment_legs WHERE shipment_id = ? ORDER BY leg_sequence ASC', [shipmentId]);
 
     assert.strictEqual(legs.length, 2, 'Shipment must have exactly 2 routing legs');
     assert.strictEqual(legs[0].leg_sequence, 1, 'Leg 1 must be sequence 1');
     assert.strictEqual(legs[0].origin_hub_id, 1, 'Leg 1 origin must be Nairobi (1)');
-    assert.strictEqual(legs[0].destination_hub_id, 4, 'Leg 1 destination must be Nakuru (4)');
+    assert.strictEqual(legs[0].destination_hub_id, intermediateHubId, `Leg 1 destination must be Nakuru (${intermediateHubId})`);
     assert.strictEqual(legs[0].status, 'COMPLETED', 'Leg 1 must be marked COMPLETED');
     assert(legs[0].actual_departure !== null, 'Leg 1 actual departure must be recorded');
     assert(legs[0].actual_arrival !== null, 'Leg 1 actual arrival must be recorded');
 
     assert.strictEqual(legs[1].leg_sequence, 2, 'Leg 2 must be sequence 2');
-    assert.strictEqual(legs[1].origin_hub_id, 4, 'Leg 2 origin must be Nakuru (4)');
+    assert.strictEqual(legs[1].origin_hub_id, intermediateHubId, `Leg 2 origin must be Nakuru (${intermediateHubId})`);
     assert.strictEqual(legs[1].destination_hub_id, 2, 'Leg 2 destination must be Mombasa (2)');
     assert.strictEqual(legs[1].status, 'COMPLETED', 'Leg 2 must be marked COMPLETED');
     console.log('  [PASS] Routing legs verified: Nairobi -> Nakuru (COMPLETED), Nakuru -> Mombasa (COMPLETED)');
 
     // TEST 3: Physical Custody Scans & Timeline Integrity
     console.log('\n> TEST 3: Physical Custody Scans & Milestone Timeline Audit...');
-    const scans = db.prepare('SELECT * FROM scan_events WHERE barcode = ?').all(result.summary.shipment.tracking_number);
+    const scans = await dbAdapter.all('SELECT * FROM scan_events WHERE barcode = ?', [result.summary.shipment.tracking_number]);
     assert(scans.length >= 1, 'Physical custody scans must be recorded');
     assert.strictEqual(scans[0].scan_type, 'INTAKE', 'Origin scan must be INTAKE');
 
-    const trackingEvents = db.prepare('SELECT event_code FROM tracking_events WHERE shipment_id = ? ORDER BY id ASC').all(shipmentId);
+    const trackingEvents = await dbAdapter.all('SELECT event_code FROM tracking_events WHERE shipment_id = ? ORDER BY id ASC', [shipmentId]);
     const eventCodes = trackingEvents.map(e => e.event_code);
     assert(eventCodes.includes('BOOKED'), 'Timeline must include BOOKED');
     assert(eventCodes.includes('ACCEPTED'), 'Timeline must include ACCEPTED');
@@ -72,38 +74,42 @@ async function runTests() {
 
     // TEST 4: Secure Delivery OTP & POD Evidence Immutability (Rule POD-005)
     console.log('\n> TEST 4: Dynamic Delivery OTP & POD Evidence Immutability (Rule POD-005)...');
-    const deliveryTask = db.prepare('SELECT * FROM deliveries WHERE shipment_id = ?').get(shipmentId);
+    const deliveryTask = await dbAdapter.get('SELECT * FROM deliveries WHERE shipment_id = ?', [shipmentId]);
     assert.strictEqual(deliveryTask.status, 'DELIVERED', 'Delivery task must be DELIVERED');
     assert(deliveryTask.pod_otp && deliveryTask.pod_otp.length === 6, '6-digit POD OTP must be recorded');
     assert.strictEqual(deliveryTask.recipient_name, 'Grace Auma');
 
-    const pod = db.prepare('SELECT * FROM proof_of_delivery WHERE delivery_id = ?').get(deliveryTask.id);
+    const pod = await dbAdapter.get('SELECT * FROM proof_of_delivery WHERE delivery_id = ?', [deliveryTask.id]);
     assert.ok(pod, 'Proof of delivery evidence must exist');
-    assert.strictEqual(pod.otp_verified, 1, 'OTP must be marked verified');
+    assert.strictEqual(Boolean(pod.otp_verified), true, 'OTP must be marked verified');
     assert(pod.signature_data !== null, 'Recipient digital signature must exist');
     assert(pod.latitude !== null && pod.longitude !== null, 'GPS coordinates must be captured');
 
     // Verify SQL trigger blocks mutation on POD
-    assert.throws(() => {
-        db.prepare("UPDATE proof_of_delivery SET signature_data = 'TAMPERED' WHERE id = ?").run(pod.id);
-    }, /Audit Violation|cannot be modified|trigger/i, 'Database trigger must strictly block updating proof of delivery');
+    let triggerBlocked = false;
+    try {
+        await dbAdapter.run("UPDATE proof_of_delivery SET signature_data = 'TAMPERED' WHERE id = ?", [pod.id]);
+    } catch (err) {
+        triggerBlocked = /Audit Violation|cannot be modified|trigger/i.test(err.message);
+    }
+    assert.strictEqual(triggerBlocked, true, 'Database trigger must strictly block updating proof of delivery');
     console.log('  [PASS] Proof of Delivery verified with 6-digit OTP, signature, GPS, and immutable trigger guard');
 
     // TEST 5: COD Settlement & Financial Reconciliation Lifecycle
     console.log('\n> TEST 5: COD Collection, Remittance & Financial Reconciliation...');
-    const cod = db.prepare('SELECT * FROM cod_settlements WHERE shipment_id = ?').get(shipmentId);
+    const cod = await dbAdapter.get('SELECT * FROM cod_settlements WHERE shipment_id = ?', [shipmentId]);
     assert.ok(cod, 'COD settlement must be initialized');
     assert.strictEqual(cod.status, 'RECONCILED', 'COD settlement must be RECONCILED');
-    assert.strictEqual(cod.expected_amount, 7500, 'Expected amount must be 7500');
-    assert.strictEqual(cod.collected_amount, 7500, 'Collected amount must be 7500');
-    assert.strictEqual(cod.remitted_amount, 7500, 'Remitted amount must be 7500');
-    assert.strictEqual(cod.variance_amount, 0.0, 'Variance amount must be zero');
+    assert.strictEqual(Number(cod.expected_amount), 7500, 'Expected amount must be 7500');
+    assert.strictEqual(Number(cod.collected_amount), 7500, 'Collected amount must be 7500');
+    assert.strictEqual(Number(cod.remitted_amount), 7500, 'Remitted amount must be 7500');
+    assert.strictEqual(Number(cod.variance_amount), 0.0, 'Variance amount must be zero');
     assert(cod.reconciled_at !== null, 'Reconciliation timestamp must be populated');
     console.log(`  [PASS] COD settlement ${cod.settlement_number} verified: KES 7,500 collected, remitted, and reconciled`);
 
     // TEST 6: Automated Outbox Milestone Notifications (SMS / WhatsApp / Email)
     console.log('\n> TEST 6: Automated Milestone Notifications Outbox & Delivery Logs...');
-    const outboxItems = db.prepare('SELECT * FROM notification_outbox WHERE shipment_id = ?').all(shipmentId);
+    const outboxItems = await dbAdapter.all('SELECT * FROM notification_outbox WHERE shipment_id = ?', [shipmentId]);
     assert(outboxItems.length >= 3, 'Outbox must contain notifications for BOOKED, DISPATCHED, OUT_FOR_DELIVERY, etc.');
 
     // Verify OUT_FOR_DELIVERY notification contains the dynamic OTP PIN
@@ -119,7 +125,7 @@ async function runTests() {
 
     // TEST 7: Public Customer Tracking Lookup (PII & Financials Sanitized)
     console.log('\n> TEST 7: Public Tracking Endpoint Reflection & PII Sanitization...');
-    const publicTracking = shipmentService.getPublicTracking(result.summary.shipment.tracking_number);
+    const publicTracking = await shipmentService.getPublicTracking(result.summary.shipment.tracking_number);
     assert.ok(publicTracking, 'Public tracking lookup must succeed');
     assert.strictEqual(publicTracking.tracking_number, result.summary.shipment.tracking_number);
     assert.strictEqual(publicTracking.status, 'DELIVERED');
@@ -131,7 +137,7 @@ async function runTests() {
 
     // TEST 8: Audit Governance Compliance
     console.log('\n> TEST 8: Audit Governance Trail Verification...');
-    const auditLogs = db.prepare("SELECT * FROM audit_logs WHERE resource = 'SHIPMENT' AND resource_id = ?").all(String(shipmentId));
+    const auditLogs = await dbAdapter.all("SELECT * FROM audit_logs WHERE resource = 'SHIPMENT' AND resource_id = ?", [String(shipmentId)]);
     assert(auditLogs.length >= 1, 'Audit log entries must exist for shipment operations');
     console.log(`  [PASS] Audit governance verified with ${auditLogs.length} logged state transitions`);
 

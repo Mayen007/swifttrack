@@ -5,10 +5,10 @@ const router = express.Router();
 const shipmentService = require('../services/shipmentService.js');
 
 // GET /api/v1/tracking/:trackingNumber - Public shipment milestone tracking
-router.get('/:trackingNumber', (req, res) => {
+router.get('/:trackingNumber', async (req, res) => {
     try {
         const { trackingNumber } = req.params;
-        const trackingData = shipmentService.getPublicTracking(trackingNumber);
+        const trackingData = await shipmentService.getPublicTracking(trackingNumber);
 
         if (!trackingData) {
             return res.status(404).json({

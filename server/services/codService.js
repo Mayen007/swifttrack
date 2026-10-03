@@ -1,19 +1,20 @@
 // server/services/codService.js
 // SwiftTrack Logistics: Stage 7 Cash on Delivery (COD) Settlement & Financial Reconciliation
 const crypto = require('node:crypto');
-const { db } = require('../db/database.js');
+const dbAdapter = require('../db/dbAdapter.js');
 const { logAuditEvent } = require('../middleware/audit.js');
-const { checkPermission, SCOPES } = require('../config/permissions.js');
+const { checkPermission } = require('../config/permissions.js');
 
 /**
  * Generates human-readable unique COD settlement identifier: COD-YYYYMMDD-XXXX
  */
-function generateSettlementNumber() {
+async function generateSettlementNumber(client = null) {
     const today = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+    const qGet = client ? client.get : dbAdapter.get;
     for (let attempts = 0; attempts < 10; attempts++) {
         const rand = crypto.randomBytes(2).toString('hex').toUpperCase();
         const candidate = `COD-${today}-${rand}`;
-        const existing = db.prepare('SELECT id FROM cod_settlements WHERE settlement_number = ?').get(candidate);
+        const existing = await qGet('SELECT id FROM cod_settlements WHERE settlement_number = ?', [candidate]);
         if (!existing) return candidate;
     }
     return `COD-${today}-${Date.now().toString().slice(-4)}`;
@@ -23,17 +24,20 @@ function generateSettlementNumber() {
  * Initializes an expected COD settlement record for a shipment
  * Triggered when a shipment with cod_amount > 0 is booked or assigned for delivery
  */
-function createExpectedSettlement(data, user = {}) {
+async function createExpectedSettlement(data, user = {}, client = null) {
     if (!data.shipment_id) {
         throw new Error('shipment_id is required to create a COD settlement');
     }
 
-    const shipment = db.prepare(`
+    const qGet = client ? client.get : dbAdapter.get;
+    const qRun = client ? client.run : dbAdapter.run;
+
+    const shipment = await qGet(`
         SELECT s.*, dest.name as destination_hub_name, dest.city as destination_city
         FROM shipments s
         JOIN branches dest ON s.destination_hub_id = dest.id
         WHERE s.id = ?
-    `).get(data.shipment_id);
+    `, [data.shipment_id]);
 
     if (!shipment) {
         throw new Error(`Shipment with ID ${data.shipment_id} not found`);
@@ -45,28 +49,27 @@ function createExpectedSettlement(data, user = {}) {
     }
 
     // Check if an active COD settlement already exists for this shipment
-    const existing = db.prepare('SELECT * FROM cod_settlements WHERE shipment_id = ?').get(shipment.id);
+    const existing = await qGet('SELECT * FROM cod_settlements WHERE shipment_id = ?', [shipment.id]);
     if (existing) {
         // If delivery_id is now provided, link it
         if (data.delivery_id && !existing.delivery_id) {
-            db.prepare('UPDATE cod_settlements SET delivery_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
-                .run(data.delivery_id, existing.id);
-            return getSettlementById(existing.id);
+            await qRun('UPDATE cod_settlements SET delivery_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?', [data.delivery_id, existing.id]);
+            return await getSettlementById(existing.id, null, client);
         }
-        return getSettlementById(existing.id);
+        return await getSettlementById(existing.id, null, client);
     }
 
-    const settlementNumber = generateSettlementNumber();
+    const settlementNumber = await generateSettlementNumber(client);
     const hubId = Number(data.hub_id || shipment.destination_hub_id || user.branchId || 1);
     const currency = data.currency || shipment.currency || 'KES';
 
-    const info = db.prepare(`
+    const info = await qRun(`
         INSERT INTO cod_settlements (
             settlement_number, shipment_id, delivery_id, hub_id, collector_id,
             expected_amount, collected_amount, remitted_amount, variance_amount,
             currency, status, created_at, updated_at
         ) VALUES (?, ?, ?, ?, ?, ?, 0.0, 0.0, 0.0, ?, 'PENDING_COLLECTION', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-    `).run(
+    `, [
         settlementNumber,
         shipment.id,
         data.delivery_id || null,
@@ -74,12 +77,12 @@ function createExpectedSettlement(data, user = {}) {
         data.collector_id || null,
         expectedAmount,
         currency
-    );
+    ]);
 
-    const settlementId = info.lastInsertRowid;
+    const settlementId = info.insertId;
 
     // Log Audit Event
-    logAuditEvent({
+    await logAuditEvent({
         userId: user.id || 1,
         role: user.roleName || 'SYSTEM',
         action: 'CREATE',
@@ -90,14 +93,14 @@ function createExpectedSettlement(data, user = {}) {
         reason: 'Initialized expected COD settlement for shipment'
     });
 
-    return getSettlementById(settlementId);
+    return await getSettlementById(settlementId, null, client);
 }
 
 /**
  * Records collection of COD funds from recipient (by Driver upon delivery or Cashier at counter)
  */
-function recordCollection(settlementId, data, user = {}) {
-    const settlement = db.prepare('SELECT * FROM cod_settlements WHERE id = ?').get(settlementId);
+async function recordCollection(settlementId, data, user = {}) {
+    const settlement = await dbAdapter.get('SELECT * FROM cod_settlements WHERE id = ?', [settlementId]);
     if (!settlement) {
         throw new Error(`COD settlement ${settlementId} not found`);
     }
@@ -133,8 +136,8 @@ function recordCollection(settlementId, data, user = {}) {
     const newStatus = varianceAmount !== 0 ? 'DISCREPANT' : 'COLLECTED';
     const collectorId = user.id || settlement.collector_id || null;
 
-    const executeTx = db.transaction(() => {
-        db.prepare(`
+    return await dbAdapter.withTransaction(async (tx) => {
+        await tx.run(`
             UPDATE cod_settlements
             SET collected_amount = ?,
                 collection_method = ?,
@@ -145,7 +148,7 @@ function recordCollection(settlementId, data, user = {}) {
                 collected_at = CURRENT_TIMESTAMP,
                 updated_at = CURRENT_TIMESTAMP
             WHERE id = ?
-        `).run(
+        `, [
             collectedAmount,
             method,
             data.collection_reference || null,
@@ -153,18 +156,18 @@ function recordCollection(settlementId, data, user = {}) {
             newStatus,
             collectorId,
             settlementId
-        );
+        ]);
 
         // Record tracking event on shipment
-        const shipment = db.prepare('SELECT id, destination_hub_id FROM shipments WHERE id = ?').get(settlement.shipment_id);
+        const shipment = await tx.get('SELECT id, destination_hub_id FROM shipments WHERE id = ?', [settlement.shipment_id]);
         if (shipment) {
-            db.prepare(`
+            await tx.run(`
                 INSERT INTO tracking_events (
                     shipment_id, event_code, event_name, hub_id,
                     location_desc, actor_type, actor_id, actor_name,
                     description, is_customer_visible, metadata
-                ) VALUES (?, 'COD_COLLECTED', 'Cash on Delivery Collected', ?, ?, ?, ?, ?, ?, 1, ?)
-            `).run(
+                ) VALUES (?, 'COD_COLLECTED', 'Cash on Delivery Collected', ?, ?, ?, ?, ?, ?, true, ?::jsonb)
+            `, [
                 shipment.id,
                 settlement.hub_id,
                 'Delivery Collection Point',
@@ -180,11 +183,11 @@ function recordCollection(settlementId, data, user = {}) {
                     method,
                     reference: data.collection_reference || null
                 })
-            );
+            ]);
         }
 
         // Audit Log
-        logAuditEvent({
+        await logAuditEvent({
             userId: user.id || 1,
             role: user.roleName || 'COLLECTOR',
             action: 'UPDATE',
@@ -196,17 +199,15 @@ function recordCollection(settlementId, data, user = {}) {
             reason: `Recorded COD collection with variance ${varianceAmount}`
         });
 
-        return getSettlementById(settlementId);
+        return await getSettlementById(settlementId, null, tx);
     });
-
-    return executeTx();
 }
 
 /**
  * Records remittance of collected COD funds to depot finance / bank drop
  */
-function recordRemittance(settlementId, data, user = {}) {
-    const settlement = db.prepare('SELECT * FROM cod_settlements WHERE id = ?').get(settlementId);
+async function recordRemittance(settlementId, data, user = {}) {
+    const settlement = await dbAdapter.get('SELECT * FROM cod_settlements WHERE id = ?', [settlementId]);
     if (!settlement) {
         throw new Error(`COD settlement ${settlementId} not found`);
     }
@@ -244,8 +245,8 @@ function recordRemittance(settlementId, data, user = {}) {
     const isDiscrepant = varianceAmount !== 0 || Math.abs(remittedAmount - collectedAmount) > 0.01;
     const newStatus = isDiscrepant ? 'DISCREPANT' : 'REMITTED';
 
-    const executeTx = db.transaction(() => {
-        db.prepare(`
+    return await dbAdapter.withTransaction(async (tx) => {
+        await tx.run(`
             UPDATE cod_settlements
             SET remitted_amount = ?,
                 remittance_method = ?,
@@ -255,25 +256,25 @@ function recordRemittance(settlementId, data, user = {}) {
                 remitted_at = CURRENT_TIMESTAMP,
                 updated_at = CURRENT_TIMESTAMP
             WHERE id = ?
-        `).run(
+        `, [
             remittedAmount,
             method,
             data.remittance_reference || null,
             varianceAmount,
             newStatus,
             settlementId
-        );
+        ]);
 
         // Record tracking event
-        const shipment = db.prepare('SELECT id FROM shipments WHERE id = ?').get(settlement.shipment_id);
+        const shipment = await tx.get('SELECT id FROM shipments WHERE id = ?', [settlement.shipment_id]);
         if (shipment) {
-            db.prepare(`
+            await tx.run(`
                 INSERT INTO tracking_events (
                     shipment_id, event_code, event_name, hub_id,
                     location_desc, actor_type, actor_id, actor_name,
                     description, is_customer_visible, metadata
-                ) VALUES (?, 'COD_REMITTED', 'Cash on Delivery Remitted', ?, ?, ?, ?, ?, ?, 1, ?)
-            `).run(
+                ) VALUES (?, 'COD_REMITTED', 'Cash on Delivery Remitted', ?, ?, ?, ?, ?, ?, true, ?::jsonb)
+            `, [
                 shipment.id,
                 settlement.hub_id,
                 'Hub Finance Depot',
@@ -287,11 +288,11 @@ function recordRemittance(settlementId, data, user = {}) {
                     method,
                     reference: data.remittance_reference || null
                 })
-            );
+            ]);
         }
 
         // Audit Log
-        logAuditEvent({
+        await logAuditEvent({
             userId: user.id || 1,
             role: user.roleName || 'COLLECTOR',
             action: 'UPDATE',
@@ -303,10 +304,8 @@ function recordRemittance(settlementId, data, user = {}) {
             reason: `Recorded COD remittance via ${method}`
         });
 
-        return getSettlementById(settlementId);
+        return await getSettlementById(settlementId, null, tx);
     });
-
-    return executeTx();
 }
 
 /**
@@ -314,8 +313,8 @@ function recordRemittance(settlementId, data, user = {}) {
  * Strictly restricted to SUPER_ADMIN and BRANCH_MANAGER roles with cod:reconcile permission.
  * Requires mandatory variance_reason if financial discrepancy exists.
  */
-function reconcileSettlement(settlementId, data, user = {}) {
-    const settlement = db.prepare('SELECT * FROM cod_settlements WHERE id = ?').get(settlementId);
+async function reconcileSettlement(settlementId, data, user = {}) {
+    const settlement = await dbAdapter.get('SELECT * FROM cod_settlements WHERE id = ?', [settlementId]);
     if (!settlement) {
         throw new Error(`COD settlement ${settlementId} not found`);
     }
@@ -369,8 +368,8 @@ function reconcileSettlement(settlementId, data, user = {}) {
         }
     }
 
-    const executeTx = db.transaction(() => {
-        db.prepare(`
+    return await dbAdapter.withTransaction(async (tx) => {
+        await tx.run(`
             UPDATE cod_settlements
             SET status = 'RECONCILED',
                 reconciled_by_user_id = ?,
@@ -379,23 +378,23 @@ function reconcileSettlement(settlementId, data, user = {}) {
                 variance_reason = COALESCE(?, variance_reason),
                 updated_at = CURRENT_TIMESTAMP
             WHERE id = ?
-        `).run(
+        `, [
             user.id || null,
             data.reconciliation_notes || null,
             data.variance_reason ? data.variance_reason.trim() : null,
             settlementId
-        );
+        ]);
 
         // Record tracking event
-        const shipment = db.prepare('SELECT id FROM shipments WHERE id = ?').get(settlement.shipment_id);
+        const shipment = await tx.get('SELECT id FROM shipments WHERE id = ?', [settlement.shipment_id]);
         if (shipment) {
-            db.prepare(`
+            await tx.run(`
                 INSERT INTO tracking_events (
                     shipment_id, event_code, event_name, hub_id,
                     location_desc, actor_type, actor_id, actor_name,
                     description, is_customer_visible, metadata
-                ) VALUES (?, 'COD_RECONCILED', 'Cash on Delivery Reconciled', ?, ?, ?, ?, ?, ?, 1, ?)
-            `).run(
+                ) VALUES (?, 'COD_RECONCILED', 'Cash on Delivery Reconciled', ?, ?, ?, ?, ?, ?, true, ?::jsonb)
+            `, [
                 shipment.id,
                 settlement.hub_id,
                 'Hub Finance Office',
@@ -409,11 +408,11 @@ function reconcileSettlement(settlementId, data, user = {}) {
                     has_variance: hasFinancialVariance,
                     variance_amount: variance
                 })
-            );
+            ]);
         }
 
         // Audit Log
-        logAuditEvent({
+        await logAuditEvent({
             userId: user.id || 1,
             role: user.roleName || 'MANAGER',
             action: 'APPROVE',
@@ -425,17 +424,16 @@ function reconcileSettlement(settlementId, data, user = {}) {
             reason: `Reconciled COD settlement${hasFinancialVariance ? ` with justification: ${data.variance_reason}` : ''}`
         });
 
-        return getSettlementById(settlementId);
+        return await getSettlementById(settlementId, null, tx);
     });
-
-    return executeTx();
 }
 
 /**
  * Retrieves a single COD settlement by ID with full joined context
  */
-function getSettlementById(settlementId, user = null) {
-    const settlement = db.prepare(`
+async function getSettlementById(settlementId, user = null, client = null) {
+    const qGet = client ? client.get : dbAdapter.get;
+    const settlement = await qGet(`
         SELECT 
             cs.*,
             s.tracking_number,
@@ -461,7 +459,7 @@ function getSettlementById(settlementId, user = null) {
         LEFT JOIN users u_col ON cs.collector_id = u_col.id
         LEFT JOIN users u_rec ON cs.reconciled_by_user_id = u_rec.id
         WHERE cs.id = ?
-    `).get(settlementId);
+    `, [settlementId]);
 
     if (!settlement) return null;
 
@@ -475,13 +473,18 @@ function getSettlementById(settlementId, user = null) {
         }
     }
 
+    settlement.expected_amount = Number(settlement.expected_amount);
+    settlement.collected_amount = Number(settlement.collected_amount);
+    settlement.remitted_amount = Number(settlement.remitted_amount);
+    settlement.variance_amount = Number(settlement.variance_amount);
+
     return settlement;
 }
 
 /**
  * Lists COD settlements with dynamic filtering, branch scoping, and pagination
  */
-function listSettlements(query = {}, user = {}) {
+async function listSettlements(query = {}, user = {}) {
     let sql = `
         SELECT 
             cs.*,
@@ -554,9 +557,9 @@ function listSettlements(query = {}, user = {}) {
     }
 
     // Count total before pagination
-    const countSql = `SELECT COUNT(*) as total FROM (${sql})`;
-    const countRow = db.prepare(countSql).get(...params);
-    const total = countRow ? countRow.total : 0;
+    const countSql = `SELECT COUNT(*) as total FROM (${sql}) AS count_subquery`;
+    const countRow = await dbAdapter.get(countSql, params);
+    const total = countRow ? Number(countRow.total) : 0;
 
     sql += ` ORDER BY cs.created_at DESC`;
 
@@ -567,7 +570,14 @@ function listSettlements(query = {}, user = {}) {
     sql += ` LIMIT ? OFFSET ?`;
     params.push(limit, offset);
 
-    const items = db.prepare(sql).all(...params);
+    const items = await dbAdapter.all(sql, params);
+
+    for (const it of items) {
+        it.expected_amount = Number(it.expected_amount);
+        it.collected_amount = Number(it.collected_amount);
+        it.remitted_amount = Number(it.remitted_amount);
+        it.variance_amount = Number(it.variance_amount);
+    }
 
     return {
         items,
@@ -583,7 +593,7 @@ function listSettlements(query = {}, user = {}) {
 /**
  * Returns aggregated COD summary metrics & KPIs for control tower / finance
  */
-function getCODSummaryMetrics(hubId = null, user = {}) {
+async function getCODSummaryMetrics(hubId = null, user = {}) {
     let filterHubId = hubId;
     if (user.roleName && user.roleName !== 'SUPER_ADMIN') {
         filterHubId = user.branchId;
@@ -611,19 +621,19 @@ function getCODSummaryMetrics(hubId = null, user = {}) {
         params.push(Number(filterHubId));
     }
 
-    const row = db.prepare(sql).get(...params);
+    const row = await dbAdapter.get(sql, params);
 
     return {
-        total_settlements: row.total_settlements || 0,
-        total_expected: Number((row.total_expected || 0).toFixed(2)),
-        total_collected: Number((row.total_collected || 0).toFixed(2)),
-        total_remitted: Number((row.total_remitted || 0).toFixed(2)),
-        total_variance: Number((row.total_variance || 0).toFixed(2)),
-        pending_collection_count: row.pending_collection_count || 0,
-        collected_count: row.collected_count || 0,
-        remitted_count: row.remitted_count || 0,
-        reconciled_count: row.reconciled_count || 0,
-        discrepant_count: row.discrepant_count || 0
+        total_settlements: Number(row.total_settlements || 0),
+        total_expected: Number(Number(row.total_expected || 0).toFixed(2)),
+        total_collected: Number(Number(row.total_collected || 0).toFixed(2)),
+        total_remitted: Number(Number(row.total_remitted || 0).toFixed(2)),
+        total_variance: Number(Number(row.total_variance || 0).toFixed(2)),
+        pending_collection_count: Number(row.pending_collection_count || 0),
+        collected_count: Number(row.collected_count || 0),
+        remitted_count: Number(row.remitted_count || 0),
+        reconciled_count: Number(row.reconciled_count || 0),
+        discrepant_count: Number(row.discrepant_count || 0)
     };
 }
 

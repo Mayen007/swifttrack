@@ -140,7 +140,7 @@ async function runAsyncTest(name, fn) {
         // Test Commit
         const testCode = `TEST_BRANCH_${Date.now()}`;
         await dbAdapter.withTransaction(async (tx) => {
-            await tx.run("INSERT INTO branches (name, code, city, address, phone, email, is_active) VALUES ('Tx Test Hub', ?, 'Nairobi', 'Airport', '+254700000000', 'hub@swifttrack.co.ke', 1)", [testCode]);
+            await tx.run("INSERT INTO branches (name, code, city, address, phone, email, is_active) VALUES ('Tx Test Hub', ?, 'Nairobi', 'Airport', '+254700000000', 'hub@swifttrack.co.ke', true)", [testCode]);
         });
 
         const created = await dbAdapter.get('SELECT id FROM branches WHERE code = ?', [testCode]);
@@ -151,7 +151,7 @@ async function runAsyncTest(name, fn) {
         let caught = false;
         try {
             await dbAdapter.withTransaction(async (tx) => {
-                await tx.run("INSERT INTO branches (name, code, city, address, phone, email, is_active) VALUES ('Rollback Hub', ?, 'Nairobi', 'Airport', '+254700000000', 'hub@swifttrack.co.ke', 1)", [rollbackCode]);
+                await tx.run("INSERT INTO branches (name, code, city, address, phone, email, is_active) VALUES ('Rollback Hub', ?, 'Nairobi', 'Airport', '+254700000000', 'hub@swifttrack.co.ke', true)", [rollbackCode]);
                 throw new Error('Simulated failure triggering rollback');
             });
         } catch (e) {

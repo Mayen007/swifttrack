@@ -2,7 +2,6 @@
 // Enterprise Data Access Layer: COD Settlements, Remittance & Financial Audit Logging
 
 const dbAdapter = require('../db/dbAdapter.js');
-const { db: sqliteDb } = require('../db/database.js');
 
 class CodRepository {
     constructor() {

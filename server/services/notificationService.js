@@ -3,7 +3,7 @@
 // PRD Section 7.13 & Section 14 (NTF-001..004): Outbox Pattern, Multi-Channel Delivery, Exponential Backoff
 
 const crypto = require('crypto');
-const { db } = require('../db/database.js');
+const dbAdapter = require('../db/dbAdapter.js');
 const { logAuditEvent } = require('../middleware/audit.js');
 
 class NotificationService {
@@ -45,22 +45,22 @@ class NotificationService {
     /**
      * Retrieve all notification templates
      */
-    getTemplates() {
-        return db.prepare('SELECT * FROM notification_templates ORDER BY id ASC').all();
+    async getTemplates() {
+        return await dbAdapter.all('SELECT * FROM notification_templates ORDER BY id ASC');
     }
 
     /**
      * Retrieve template by code
      */
-    getTemplateByCode(code) {
-        return db.prepare('SELECT * FROM notification_templates WHERE code = ?').get(code);
+    async getTemplateByCode(code) {
+        return await dbAdapter.get('SELECT * FROM notification_templates WHERE code = ?', [code]);
     }
 
     /**
      * Update an existing notification template
      */
-    updateTemplate(code, data, user) {
-        const existing = this.getTemplateByCode(code);
+    async updateTemplate(code, data, user) {
+        const existing = await this.getTemplateByCode(code);
         if (!existing) {
             throw new Error(`Template with code '${code}' not found.`);
         }
@@ -70,14 +70,17 @@ class NotificationService {
         const whatsappTemplate = data.whatsapp_template !== undefined ? data.whatsapp_template : existing.whatsapp_template;
         const emailSubject = data.email_subject !== undefined ? data.email_subject : existing.email_subject;
         const emailTemplate = data.email_template !== undefined ? data.email_template : existing.email_template;
-        const channels = data.channels !== undefined ? (typeof data.channels === 'string' ? data.channels : JSON.stringify(data.channels)) : existing.channels;
-        const isActive = data.is_active !== undefined ? (data.is_active ? 1 : 0) : existing.is_active;
+        let channels = data.channels !== undefined ? data.channels : existing.channels;
+        if (typeof channels !== 'string') {
+            channels = JSON.stringify(channels || ['SMS', 'WHATSAPP', 'EMAIL']);
+        }
+        const isActive = data.is_active !== undefined ? (data.is_active ? true : false) : (existing.is_active ? true : false);
 
-        db.prepare(`
+        await dbAdapter.run(`
             UPDATE notification_templates
-            SET name = ?, sms_template = ?, whatsapp_template = ?, email_subject = ?, email_template = ?, channels = ?, is_active = ?, updated_at = CURRENT_TIMESTAMP
+            SET name = ?, sms_template = ?, whatsapp_template = ?, email_subject = ?, email_template = ?, channels = ?::jsonb, is_active = ?, updated_at = CURRENT_TIMESTAMP
             WHERE code = ?
-        `).run(name, smsTemplate, whatsappTemplate, emailSubject, emailTemplate, channels, isActive, code);
+        `, [name, smsTemplate, whatsappTemplate, emailSubject, emailTemplate, channels, isActive, code]);
 
         logAuditEvent({
             userId: user?.id,
@@ -88,7 +91,7 @@ class NotificationService {
             reason: `Updated communication template ${code}`
         });
 
-        return this.getTemplateByCode(code);
+        return await this.getTemplateByCode(code);
     }
 
     /**
@@ -96,7 +99,7 @@ class NotificationService {
      * Automatically extracts relevant parties and enqueues to notification_outbox.
      * Guaranteed to never throw errors that would break parent shipment operations.
      */
-    queueMilestoneNotification(eventType, context = {}) {
+    async queueMilestoneNotification(eventType, context = {}) {
         try {
             const shipment = context.shipment || {};
             const delivery = context.delivery || {};
@@ -113,16 +116,20 @@ class NotificationService {
             else if (eventType === 'DELIVERY_FAILED') templateCode = 'DELIVERY_FAILED';
             else if (eventType === 'EXCEPTION') templateCode = 'OPERATIONAL_EXCEPTION';
 
-            const template = this.getTemplateByCode(templateCode);
+            const template = await this.getTemplateByCode(templateCode);
             if (!template || !template.is_active) {
                 return [];
             }
 
             let enabledChannels = ['SMS', 'WHATSAPP'];
-            try {
-                enabledChannels = JSON.parse(template.channels);
-            } catch (e) {
-                enabledChannels = ['SMS', 'WHATSAPP'];
+            if (Array.isArray(template.channels)) {
+                enabledChannels = template.channels;
+            } else if (typeof template.channels === 'string') {
+                try {
+                    enabledChannels = JSON.parse(template.channels);
+                } catch (e) {
+                    enabledChannels = ['SMS', 'WHATSAPP'];
+                }
             }
 
             // Consolidate dynamic tokens
@@ -163,7 +170,7 @@ class NotificationService {
             const queuedOutbox = [];
 
             // Helper to insert an outbox item
-            const insertOutbox = (recipientType, contactName, phone, email) => {
+            const insertOutbox = async (recipientType, contactName, phone, email) => {
                 for (const ch of enabledChannels) {
                     let contact = ch === 'EMAIL' ? email : phone;
                     if (!contact) continue; // Skip if contact information for this channel is not available
@@ -182,7 +189,7 @@ class NotificationService {
 
                     const uuid = `NTF-${Date.now().toString(36).toUpperCase()}-${crypto.randomBytes(3).toString('hex').toUpperCase()}`;
 
-                    const info = db.prepare(`
+                    const info = await dbAdapter.query(`
                         INSERT INTO notification_outbox (
                             outbox_uuid, shipment_id, delivery_id, recipient_type, recipient_name,
                             recipient_phone, recipient_email, channel, event_type, template_code,
@@ -194,7 +201,7 @@ class NotificationService {
                             ?, ?, ?, 'PENDING', 0, 3,
                             CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
                         )
-                    `).run(
+                    `, [
                         uuid,
                         shipment.id || context.shipment_id || null,
                         delivery.id || context.delivery_id || null,
@@ -208,10 +215,10 @@ class NotificationService {
                         subject,
                         renderedContent,
                         JSON.stringify(tokens)
-                    );
+                    ]);
 
                     queuedOutbox.push({
-                        id: info.lastInsertRowid,
+                        id: info.insertId,
                         uuid,
                         channel: ch,
                         recipient_type: recipientType,
@@ -222,12 +229,12 @@ class NotificationService {
 
             // 1. Enqueue for Recipient
             if (recipientPhone || recipientEmail) {
-                insertOutbox('RECIPIENT', recipientName, recipientPhone, recipientEmail);
+                await insertOutbox('RECIPIENT', recipientName, recipientPhone, recipientEmail);
             }
 
             // 2. Enqueue for Sender on key milestones (BOOKED, DELIVERED, EXCEPTION)
             if (['BOOKED', 'DELIVERED', 'EXCEPTION'].includes(eventType) && (senderPhone || senderEmail)) {
-                insertOutbox('SENDER', senderName, senderPhone, senderEmail);
+                await insertOutbox('SENDER', senderName, senderPhone, senderEmail);
             }
 
             return queuedOutbox;
@@ -292,13 +299,13 @@ class NotificationService {
      */
     async processOutboxBatch(batchSize = 25) {
         // Query pending or eligible failed records
-        const pendingItems = db.prepare(`
+        const pendingItems = await dbAdapter.all(`
             SELECT * FROM notification_outbox
             WHERE (status = 'PENDING' OR (status = 'FAILED' AND retry_count < max_retries))
-              AND datetime(next_retry_at) <= datetime('now')
+              AND next_retry_at <= CURRENT_TIMESTAMP
             ORDER BY id ASC
             LIMIT ?
-        `).all(batchSize);
+        `, [batchSize]);
 
         const results = {
             total_selected: pendingItems.length,
@@ -309,7 +316,7 @@ class NotificationService {
         };
 
         for (const item of pendingItems) {
-            const attemptNumber = item.retry_count + 1;
+            const attemptNumber = (item.retry_count || 0) + 1;
             const contact = item.channel === 'EMAIL' ? item.recipient_email : item.recipient_phone;
 
             try {
@@ -336,19 +343,19 @@ class NotificationService {
                 );
 
                 // Mark outbox row as SENT
-                db.prepare(`
+                await dbAdapter.run(`
                     UPDATE notification_outbox
                     SET status = 'SENT', sent_at = CURRENT_TIMESTAMP, last_error = NULL, updated_at = CURRENT_TIMESTAMP
                     WHERE id = ?
-                `).run(item.id);
+                `, [item.id]);
 
                 // Log audit delivery entry (Rule NTF-004)
-                db.prepare(`
+                await dbAdapter.run(`
                     INSERT INTO notification_logs (
                         outbox_id, shipment_id, channel, provider, provider_message_id,
                         recipient_contact, attempt_number, status, response_payload, created_at
                     ) VALUES (?, ?, ?, ?, ?, ?, ?, 'SUCCESS', ?, CURRENT_TIMESTAMP)
-                `).run(
+                `, [
                     item.id,
                     item.shipment_id,
                     item.channel,
@@ -357,12 +364,12 @@ class NotificationService {
                     contact,
                     attemptNumber,
                     JSON.stringify(sendResult)
-                );
+                ]);
 
                 results.success_count++;
                 results.details.push({ id: item.id, status: 'SENT', messageId: sendResult.messageId });
             } catch (err) {
-                const nextRetryCount = item.retry_count + 1;
+                const nextRetryCount = (item.retry_count || 0) + 1;
                 const isFinalFailure = nextRetryCount >= item.max_retries;
 
                 // Exponential backoff strategy:
@@ -370,37 +377,37 @@ class NotificationService {
                 // Attempt 2: +120s (2m)
                 // Attempt 3+: +600s (10m)
                 const backoffSeconds = nextRetryCount === 1 ? 30 : (nextRetryCount === 2 ? 120 : 600);
+                const nextRetryDate = new Date(Date.now() + backoffSeconds * 1000).toISOString();
 
-                db.prepare(`
+                await dbAdapter.run(`
                     UPDATE notification_outbox
-                    SET status = ?,
+                    SET status = 'FAILED',
                         retry_count = ?,
                         last_error = ?,
-                        next_retry_at = datetime('now', '+' || ? || ' seconds'),
+                        next_retry_at = ?,
                         updated_at = CURRENT_TIMESTAMP
                     WHERE id = ?
-                `).run(
-                    isFinalFailure ? 'FAILED' : 'FAILED',
+                `, [
                     nextRetryCount,
                     err.message,
-                    backoffSeconds,
+                    nextRetryDate,
                     item.id
-                );
+                ]);
 
                 // Log failed attempt audit
-                db.prepare(`
+                await dbAdapter.run(`
                     INSERT INTO notification_logs (
                         outbox_id, shipment_id, channel, provider, provider_message_id,
                         recipient_contact, attempt_number, status, error_message, created_at
                     ) VALUES (?, ?, ?, 'GATEWAY', NULL, ?, ?, 'FAILED', ?, CURRENT_TIMESTAMP)
-                `).run(
+                `, [
                     item.id,
                     item.shipment_id,
                     item.channel,
                     contact || 'N/A',
                     attemptNumber,
                     err.message
-                );
+                ]);
 
                 results.failed_count++;
                 results.details.push({
@@ -420,20 +427,22 @@ class NotificationService {
      * Manual Trigger / Operator Resend (Rule NTF-003)
      */
     async resendOutboxItem(outboxId, user) {
-        const item = db.prepare('SELECT * FROM notification_outbox WHERE id = ?').get(outboxId);
+        const item = await dbAdapter.get('SELECT * FROM notification_outbox WHERE id = ?', [outboxId]);
         if (!item) {
             throw new Error(`Notification outbox item with ID ${outboxId} not found.`);
         }
 
+        const retryDate = new Date(Date.now() - 60000).toISOString();
+
         // Reset outbox item for immediate reprocessing
-        db.prepare(`
+        await dbAdapter.run(`
             UPDATE notification_outbox
             SET status = 'PENDING',
-                next_retry_at = datetime('now', '-1 minute'),
+                next_retry_at = ?,
                 last_error = NULL,
                 updated_at = CURRENT_TIMESTAMP
             WHERE id = ?
-        `).run(outboxId);
+        `, [retryDate, outboxId]);
 
         logAuditEvent({
             userId: user?.id,
@@ -445,34 +454,39 @@ class NotificationService {
         });
 
         // Trigger immediate processing for this item
-        return this.processOutboxBatch(1);
+        return await this.processOutboxBatch(1);
     }
 
     /**
      * Outbox Queue Telemetry & Communication Delivery Rates (PRD Section 7.13 / Control Tower)
      */
-    getNotificationStats() {
-        const total = db.prepare('SELECT count(*) as count FROM notification_outbox').get().count;
-        const pending = db.prepare("SELECT count(*) as count FROM notification_outbox WHERE status = 'PENDING'").get().count;
-        const sent = db.prepare("SELECT count(*) as count FROM notification_outbox WHERE status = 'SENT'").get().count;
-        const failed = db.prepare("SELECT count(*) as count FROM notification_outbox WHERE status = 'FAILED' AND retry_count >= max_retries").get().count;
+    async getNotificationStats() {
+        const totalRow = await dbAdapter.get('SELECT count(*) as count FROM notification_outbox');
+        const pendingRow = await dbAdapter.get("SELECT count(*) as count FROM notification_outbox WHERE status = 'PENDING'");
+        const sentRow = await dbAdapter.get("SELECT count(*) as count FROM notification_outbox WHERE status = 'SENT'");
+        const failedRow = await dbAdapter.get("SELECT count(*) as count FROM notification_outbox WHERE status = 'FAILED' AND retry_count >= max_retries");
 
-        const channels = db.prepare(`
+        const total = Number(totalRow?.count || 0);
+        const pending = Number(pendingRow?.count || 0);
+        const sent = Number(sentRow?.count || 0);
+        const failed = Number(failedRow?.count || 0);
+
+        const channels = await dbAdapter.all(`
             SELECT channel,
                    count(*) as total,
                    sum(case when status = 'SENT' then 1 else 0 end) as sent,
                    sum(case when status = 'FAILED' AND retry_count >= max_retries then 1 else 0 end) as failed
             FROM notification_outbox
             GROUP BY channel
-        `).all();
+        `);
 
-        const recentLogs = db.prepare(`
+        const recentLogs = await dbAdapter.all(`
             SELECT l.*, o.outbox_uuid, o.event_type, o.template_code
             FROM notification_logs l
             JOIN notification_outbox o ON l.outbox_id = o.id
             ORDER BY l.id DESC
             LIMIT 15
-        `).all();
+        `);
 
         const deliveryRatePct = (sent + failed) > 0 ? Math.round((sent / (sent + failed)) * 100) : 100;
 
@@ -482,13 +496,17 @@ class NotificationService {
             sent_count: sent,
             failed_count: failed,
             delivery_rate_pct: deliveryRatePct,
-            channels: channels.map(c => ({
-                channel: c.channel,
-                total: c.total,
-                sent: c.sent || 0,
-                failed: c.failed || 0,
-                rate_pct: (c.sent + c.failed) > 0 ? Math.round((c.sent / (c.sent + c.failed)) * 100) : 100
-            })),
+            channels: channels.map(c => {
+                const cSent = Number(c.sent || 0);
+                const cFailed = Number(c.failed || 0);
+                return {
+                    channel: c.channel,
+                    total: Number(c.total || 0),
+                    sent: cSent,
+                    failed: cFailed,
+                    rate_pct: (cSent + cFailed) > 0 ? Math.round((cSent / (cSent + cFailed)) * 100) : 100
+                };
+            }),
             recent_logs: recentLogs
         };
     }
@@ -496,7 +514,7 @@ class NotificationService {
     /**
      * Query outbox items with filters and pagination
      */
-    getOutbox(query = {}) {
+    async getOutbox(query = {}) {
         let sql = `
             SELECT o.*, s.tracking_number, s.status as shipment_status
             FROM notification_outbox o
@@ -531,8 +549,7 @@ class NotificationService {
         params.push(Number(query.limit || 50));
         params.push(Number(query.offset || 0));
 
-        const items = db.prepare(sql).all(...params);
-        return items;
+        return await dbAdapter.all(sql, params);
     }
 }
 

@@ -1,27 +1,9 @@
 // server/services/offlineSyncService.js
 // SwiftTrack Logistics: Generalized Durable Offline Operations Gateway (PRD Section 21)
-const { db } = require('../db/database.js');
+const dbAdapter = require('../db/dbAdapter.js');
 const custodyService = require('./custodyService.js');
 const deliveryExecutionService = require('./deliveryExecutionService.js');
 const { logAuditEvent } = require('../middleware/audit.js');
-
-// Ensure offline sync tracking table exists
-db.exec(`
-    CREATE TABLE IF NOT EXISTS offline_sync_logs (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        client_operation_id TEXT NOT NULL UNIQUE,
-        operation_type TEXT NOT NULL,
-        device_id TEXT,
-        app_version TEXT,
-        user_id INTEGER REFERENCES users(id),
-        client_timestamp DATETIME,
-        synced_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        status TEXT NOT NULL DEFAULT 'PROCESSED',
-        result_payload TEXT,
-        error_message TEXT
-    );
-    CREATE INDEX IF NOT EXISTS idx_offline_sync_client_op ON offline_sync_logs(client_operation_id);
-`);
 
 /**
  * Supported offline operation types
@@ -40,20 +22,12 @@ const OFFLINE_OPERATION_TYPES = {
  * @param {Object} batchData - { device_id, app_version, operations: Array }
  * @param {Object} user - Authenticated operator
  */
-function processOfflineSyncBatch(batchData, user = {}) {
+async function processOfflineSyncBatch(batchData, user = {}) {
     const { device_id, app_version, operations } = batchData;
 
     if (!Array.isArray(operations) || operations.length === 0) {
         throw new Error('operations array is required and must contain at least one operation');
     }
-
-    const checkLogStmt = db.prepare('SELECT id, status, result_payload FROM offline_sync_logs WHERE client_operation_id = ?');
-    const insertLogStmt = db.prepare(`
-        INSERT INTO offline_sync_logs (
-            client_operation_id, operation_type, device_id, app_version,
-            user_id, client_timestamp, status, result_payload, error_message
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `);
 
     const results = [];
     let processedCount = 0;
@@ -74,7 +48,7 @@ function processOfflineSyncBatch(batchData, user = {}) {
         }
 
         // 1. Check for Replay / Idempotency
-        const existing = checkLogStmt.get(operation_id);
+        const existing = await dbAdapter.get('SELECT id, status, result_payload FROM offline_sync_logs WHERE client_operation_id = ?', [operation_id]);
         if (existing) {
             duplicateCount++;
             let parsedResult = null;
@@ -98,7 +72,7 @@ function processOfflineSyncBatch(batchData, user = {}) {
 
             switch (normalizedType) {
                 case OFFLINE_OPERATION_TYPES.SCAN: {
-                    opResult = custodyService.recordScanEvent({
+                    opResult = await custodyService.recordScanEvent({
                         ...payload,
                         device_id: device_id || payload.device_id,
                         app_version: app_version || payload.app_version,
@@ -110,7 +84,7 @@ function processOfflineSyncBatch(batchData, user = {}) {
                 }
 
                 case OFFLINE_OPERATION_TYPES.CUSTODY_HANDOFF: {
-                    opResult = custodyService.recordHandoff({
+                    opResult = await custodyService.recordHandoff({
                         ...payload,
                         is_offline_sync: true
                     }, user);
@@ -118,7 +92,7 @@ function processOfflineSyncBatch(batchData, user = {}) {
                 }
 
                 case OFFLINE_OPERATION_TYPES.HUB_RECEIVE: {
-                    opResult = custodyService.scanReceivingItem(
+                    opResult = await custodyService.scanReceivingItem(
                         payload.session_id,
                         {
                             ...payload,
@@ -130,7 +104,7 @@ function processOfflineSyncBatch(batchData, user = {}) {
                 }
 
                 case OFFLINE_OPERATION_TYPES.DELIVERY_ATTEMPT: {
-                    opResult = deliveryExecutionService.recordDeliveryAttempt(
+                    opResult = await deliveryExecutionService.recordDeliveryAttempt(
                         payload.delivery_id,
                         {
                             ...payload,
@@ -143,7 +117,7 @@ function processOfflineSyncBatch(batchData, user = {}) {
                 }
 
                 case OFFLINE_OPERATION_TYPES.DELIVERY_POD: {
-                    opResult = deliveryExecutionService.completeDeliveryWithPOD(
+                    opResult = await deliveryExecutionService.completeDeliveryWithPOD(
                         payload.delivery_id,
                         {
                             ...payload,
@@ -157,16 +131,15 @@ function processOfflineSyncBatch(batchData, user = {}) {
 
                 case OFFLINE_OPERATION_TYPES.DRIVER_LOCATION: {
                     if (user.id) {
-                        const driver = db.prepare('SELECT id FROM drivers WHERE user_id = ?').get(user.id);
-                        if (driver && payload.latitude && payload.longitude) {
-                            db.prepare(`
+                        const driver = await dbAdapter.get('SELECT id FROM drivers WHERE user_id = ?', [user.id]);
+                        if (driver && payload.latitude !== undefined && payload.longitude !== undefined) {
+                            await dbAdapter.run(`
                                 UPDATE drivers SET
                                     current_latitude = ?,
                                     current_longitude = ?,
-                                    last_ping_at = CURRENT_TIMESTAMP,
-                                    updated_at = CURRENT_TIMESTAMP
+                                    last_ping_at = CURRENT_TIMESTAMP
                                 WHERE id = ?
-                            `).run(payload.latitude, payload.longitude, driver.id);
+                            `, [payload.latitude, payload.longitude, driver.id]);
                             opResult = { driver_id: driver.id, updated: true };
                         }
                     }
@@ -178,7 +151,12 @@ function processOfflineSyncBatch(batchData, user = {}) {
             }
 
             // Record successful synchronization in log
-            insertLogStmt.run(
+            await dbAdapter.run(`
+                INSERT INTO offline_sync_logs (
+                    client_operation_id, operation_type, device_id, app_version,
+                    user_id, client_timestamp, status, result_payload, error_message
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            `, [
                 operation_id,
                 normalizedType,
                 device_id || null,
@@ -188,7 +166,7 @@ function processOfflineSyncBatch(batchData, user = {}) {
                 'PROCESSED',
                 JSON.stringify(opResult || {}),
                 null
-            );
+            ]);
 
             results.push({
                 operation_id,
@@ -203,7 +181,12 @@ function processOfflineSyncBatch(batchData, user = {}) {
 
             // Record failed sync attempt
             try {
-                insertLogStmt.run(
+                await dbAdapter.run(`
+                    INSERT INTO offline_sync_logs (
+                        client_operation_id, operation_type, device_id, app_version,
+                        user_id, client_timestamp, status, result_payload, error_message
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                `, [
                     operation_id,
                     operation_type || 'UNKNOWN',
                     device_id || null,
@@ -213,7 +196,7 @@ function processOfflineSyncBatch(batchData, user = {}) {
                     'FAILED',
                     null,
                     err.message
-                );
+                ]);
             } catch {}
 
             results.push({
@@ -256,7 +239,7 @@ function processOfflineSyncBatch(batchData, user = {}) {
 /**
  * Returns offline sync statistics for device or platform
  */
-function getOfflineSyncStats(deviceId = null) {
+async function getOfflineSyncStats(deviceId = null) {
     let sql = `
         SELECT operation_type, status, COUNT(*) as total_count
         FROM offline_sync_logs
@@ -267,17 +250,17 @@ function getOfflineSyncStats(deviceId = null) {
         params.push(deviceId);
     }
     sql += ` GROUP BY operation_type, status`;
-    const rows = db.prepare(sql).all(...params);
+    const rows = await dbAdapter.all(sql, params);
 
-    const recentLogs = db.prepare(`
+    const recentLogs = await dbAdapter.all(`
         SELECT id, client_operation_id, operation_type, device_id, status, error_message, synced_at
         FROM offline_sync_logs
         ORDER BY id DESC
         LIMIT 20
-    `).all();
+    `);
 
     return {
-        stats: rows,
+        stats: rows.map(r => ({ ...r, total_count: Number(r.total_count) })),
         recent: recentLogs
     };
 }

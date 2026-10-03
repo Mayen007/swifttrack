@@ -10,9 +10,9 @@ const deliveryExecutionService = require('../services/deliveryExecutionService.j
 // ============================================================================
 
 // POST /api/v1/deliveries/tasks - Create delivery task for shipment
-router.post('/tasks', authenticateToken, (req, res) => {
+router.post('/tasks', authenticateToken, async (req, res) => {
     try {
-        const task = deliveryExecutionService.createDeliveryTask(req.body, req.user);
+        const task = await deliveryExecutionService.createDeliveryTask(req.body, req.user);
         res.status(201).json(task);
     } catch (err) {
         console.error('Create delivery task error:', err);
@@ -21,9 +21,9 @@ router.post('/tasks', authenticateToken, (req, res) => {
 });
 
 // GET /api/v1/deliveries/tasks - List delivery tasks
-router.get('/tasks', authenticateToken, (req, res) => {
+router.get('/tasks', authenticateToken, async (req, res) => {
     try {
-        const result = deliveryExecutionService.listDeliveries(req.query, req.user);
+        const result = await deliveryExecutionService.listDeliveries(req.query, req.user);
         res.json(result);
     } catch (err) {
         console.error('List delivery tasks error:', err);
@@ -32,9 +32,9 @@ router.get('/tasks', authenticateToken, (req, res) => {
 });
 
 // GET /api/v1/deliveries/tasks/:id - Get delivery task details
-router.get('/tasks/:id', authenticateToken, (req, res) => {
+router.get('/tasks/:id', authenticateToken, async (req, res) => {
     try {
-        const task = deliveryExecutionService.getDeliveryById(req.params.id);
+        const task = await deliveryExecutionService.getDeliveryById(req.params.id);
         if (!task) return res.status(404).json({ error: 'Delivery task not found' });
         res.json(task);
     } catch (err) {
@@ -44,9 +44,9 @@ router.get('/tasks/:id', authenticateToken, (req, res) => {
 });
 
 // POST /api/v1/deliveries/tasks/:id/assign - Assign delivery task to driver/vehicle
-router.post('/tasks/:id/assign', authenticateToken, (req, res) => {
+router.post('/tasks/:id/assign', authenticateToken, async (req, res) => {
     try {
-        const task = deliveryExecutionService.assignDeliveryTask(req.params.id, req.body, req.user);
+        const task = await deliveryExecutionService.assignDeliveryTask(req.params.id, req.body, req.user);
         res.json(task);
     } catch (err) {
         console.error('Assign delivery task error:', err);
@@ -55,9 +55,9 @@ router.post('/tasks/:id/assign', authenticateToken, (req, res) => {
 });
 
 // POST /api/v1/deliveries/tasks/:id/start - Driver starts delivery run
-router.post('/tasks/:id/start', authenticateToken, (req, res) => {
+router.post('/tasks/:id/start', authenticateToken, async (req, res) => {
     try {
-        const task = deliveryExecutionService.startDelivery(req.params.id, req.user);
+        const task = await deliveryExecutionService.startDelivery(req.params.id, req.user);
         res.json(task);
     } catch (err) {
         console.error('Start delivery task error:', err);
@@ -66,9 +66,9 @@ router.post('/tasks/:id/start', authenticateToken, (req, res) => {
 });
 
 // POST /api/v1/deliveries/tasks/:id/attempt - Record delivery attempt
-router.post('/tasks/:id/attempt', authenticateToken, (req, res) => {
+router.post('/tasks/:id/attempt', authenticateToken, async (req, res) => {
     try {
-        const result = deliveryExecutionService.recordDeliveryAttempt(req.params.id, req.body, req.user);
+        const result = await deliveryExecutionService.recordDeliveryAttempt(req.params.id, req.body, req.user);
         res.json(result);
     } catch (err) {
         console.error('Delivery attempt error:', err);
@@ -77,9 +77,9 @@ router.post('/tasks/:id/attempt', authenticateToken, (req, res) => {
 });
 
 // POST /api/v1/deliveries/tasks/:id/complete - Complete delivery with Proof of Delivery
-router.post('/tasks/:id/complete', authenticateToken, (req, res) => {
+router.post('/tasks/:id/complete', authenticateToken, async (req, res) => {
     try {
-        const result = deliveryExecutionService.completeDeliveryWithPOD(req.params.id, req.body, req.user);
+        const result = await deliveryExecutionService.completeDeliveryWithPOD(req.params.id, req.body, req.user);
         res.json(result);
     } catch (err) {
         console.error('Complete delivery error:', err);
@@ -88,9 +88,9 @@ router.post('/tasks/:id/complete', authenticateToken, (req, res) => {
 });
 
 // POST /api/v1/deliveries/tasks/:id/return-to-hub - Return failed delivery package to hub
-router.post('/tasks/:id/return-to-hub', authenticateToken, (req, res) => {
+router.post('/tasks/:id/return-to-hub', authenticateToken, async (req, res) => {
     try {
-        const task = deliveryExecutionService.processReturnToHub(req.params.id, req.body, req.user);
+        const task = await deliveryExecutionService.processReturnToHub(req.params.id, req.body, req.user);
         res.json(task);
     } catch (err) {
         console.error('Return to hub error:', err);
@@ -103,9 +103,9 @@ router.post('/tasks/:id/return-to-hub', authenticateToken, (req, res) => {
 // ============================================================================
 
 // POST /api/v1/deliveries/exceptions - Log operational exception
-router.post('/exceptions', authenticateToken, (req, res) => {
+router.post('/exceptions', authenticateToken, async (req, res) => {
     try {
-        const exception = deliveryExecutionService.createException(req.body, req.user);
+        const exception = await deliveryExecutionService.createException(req.body, req.user);
         res.status(201).json(exception);
     } catch (err) {
         console.error('Create exception error:', err);
@@ -114,9 +114,9 @@ router.post('/exceptions', authenticateToken, (req, res) => {
 });
 
 // GET /api/v1/deliveries/exceptions - List exceptions
-router.get('/exceptions', authenticateToken, (req, res) => {
+router.get('/exceptions', authenticateToken, async (req, res) => {
     try {
-        const result = deliveryExecutionService.listExceptions(req.query, req.user);
+        const result = await deliveryExecutionService.listExceptions(req.query, req.user);
         res.json(result);
     } catch (err) {
         console.error('List exceptions error:', err);
@@ -125,9 +125,9 @@ router.get('/exceptions', authenticateToken, (req, res) => {
 });
 
 // GET /api/v1/deliveries/exceptions/:id - Get exception details
-router.get('/exceptions/:id', authenticateToken, (req, res) => {
+router.get('/exceptions/:id', authenticateToken, async (req, res) => {
     try {
-        const exception = deliveryExecutionService.getExceptionById(req.params.id);
+        const exception = await deliveryExecutionService.getExceptionById(req.params.id);
         if (!exception) return res.status(404).json({ error: 'Exception not found' });
         res.json(exception);
     } catch (err) {
@@ -137,9 +137,9 @@ router.get('/exceptions/:id', authenticateToken, (req, res) => {
 });
 
 // POST /api/v1/deliveries/exceptions/:id/resolve - Resolve operational exception
-router.post('/exceptions/:id/resolve', authenticateToken, (req, res) => {
+router.post('/exceptions/:id/resolve', authenticateToken, async (req, res) => {
     try {
-        const resolved = deliveryExecutionService.resolveException(req.params.id, req.body, req.user);
+        const resolved = await deliveryExecutionService.resolveException(req.params.id, req.body, req.user);
         res.json(resolved);
     } catch (err) {
         console.error('Resolve exception error:', err);

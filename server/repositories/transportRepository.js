@@ -2,7 +2,6 @@
 // Enterprise Data Access Layer: Routes, Transport Runs, Manifests & Checkpoints
 
 const dbAdapter = require('../db/dbAdapter.js');
-const { db: sqliteDb } = require('../db/database.js');
 
 class TransportRepository {
     constructor() {
@@ -14,14 +13,6 @@ class TransportRepository {
      */
     async findRunById(id, tx = null) {
         return await dbAdapter.get('SELECT * FROM transport_runs WHERE id = ?', [id], tx?.client);
-    }
-
-    /**
-     * Finds a transport run by ID (Sync).
-     */
-    findRunByIdSync(id) {
-        if (!sqliteDb) throw new Error('Sync operations only supported under SQLite engine');
-        return sqliteDb.prepare('SELECT * FROM transport_runs WHERE id = ?').get(id) || null;
     }
 
     /**
@@ -66,14 +57,6 @@ class TransportRepository {
      */
     async findManifestById(id, tx = null) {
         return await dbAdapter.get('SELECT * FROM manifests WHERE id = ?', [id], tx?.client);
-    }
-
-    /**
-     * Finds a manifest by ID (Sync).
-     */
-    findManifestByIdSync(id) {
-        if (!sqliteDb) throw new Error('Sync operations only supported under SQLite engine');
-        return sqliteDb.prepare('SELECT * FROM manifests WHERE id = ?').get(id) || null;
     }
 
     /**

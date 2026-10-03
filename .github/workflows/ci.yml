@@ -11,6 +11,29 @@ jobs:
     name: Build, Verify & Test Logistics Platform
     runs-on: ubuntu-latest
 
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: swifttrack_admin
+          POSTGRES_PASSWORD: super_secure_pg_password_2026
+          POSTGRES_DB: swifttrack_logistics
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      NODE_ENV: test
+      DB_CLIENT: postgres
+      DATABASE_URL: postgres://swifttrack_admin:super_secure_pg_password_2026@localhost:5432/swifttrack_logistics
+      PORT: 4000
+      JWT_SECRET: test_jwt_secret_key_swifttrack_ci_2026_enterprise
+      REFRESH_TOKEN_SECRET: test_refresh_token_secret_ci_2026_enterprise
+
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
@@ -30,7 +53,10 @@ jobs:
       - name: Build Frontend Application
         run: cd client && npm run build
 
-      - name: Bootstrap Database Master Schema & Baseline Seed
+      - name: Run Authoritative PostgreSQL Migrations
+        run: npm run db:migrate
+
+      - name: Bootstrap PostgreSQL Production Baseline & Demo Seed
         run: npm run db:seed:prod
 
       - name: Verify PostgreSQL Migrations & Repository Layer
@@ -56,7 +82,7 @@ jobs:
           node tests/logistics/test-vehicles-management.js
           node tests/logistics/test-drivers-management.js
 
-      - name: Run Full End-to-End Acceptance Scenario
+      - name: Run Full End-to-End Acceptance Scenario (PRD Section 30)
         run: node tests/logistics/test-e2e-acceptance.js
 
       - name: Verify Security & Injection Guards

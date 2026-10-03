@@ -2,7 +2,6 @@
 // Enterprise Data Access Layer: Notification Outbox, Templates, Logs & Worker Batches
 
 const dbAdapter = require('../db/dbAdapter.js');
-const { db: sqliteDb } = require('../db/database.js');
 
 class NotificationRepository {
     constructor() {
@@ -28,7 +27,7 @@ class NotificationRepository {
      */
     async findTemplate(code, channel, tx = null) {
         return await dbAdapter.get(
-            'SELECT * FROM notification_templates WHERE code = ? AND channel = ? AND is_active = 1',
+            'SELECT * FROM notification_templates WHERE code = ? AND channel = ? AND is_active = true',
             [code, channel],
             tx?.client
         );
@@ -41,7 +40,7 @@ class NotificationRepository {
         const sql = `
             SELECT * FROM notification_outbox
             WHERE (status = 'PENDING' OR (status = 'FAILED' AND retry_count < max_retries))
-              AND datetime(next_retry_at) <= datetime('now')
+              AND (next_retry_at IS NULL OR next_retry_at <= CURRENT_TIMESTAMP)
             ORDER BY id ASC
             LIMIT ?
         `;
@@ -65,16 +64,17 @@ class NotificationRepository {
      */
     async markRetryFailure(id, retryCount, errorMsg, backoffSeconds, isFinal = false, tx = null) {
         const status = isFinal ? 'FAILED' : 'RETRYING';
+        const nextRetryDate = new Date(Date.now() + (backoffSeconds || 30) * 1000).toISOString();
         const sql = `
             UPDATE notification_outbox
             SET status = ?,
                 retry_count = ?,
                 last_error = ?,
-                next_retry_at = datetime('now', '+' || ? || ' seconds'),
+                next_retry_at = ?,
                 updated_at = CURRENT_TIMESTAMP
             WHERE id = ?
         `;
-        return await dbAdapter.run(sql, [status, retryCount, errorMsg, backoffSeconds, id], tx?.client);
+        return await dbAdapter.run(sql, [status, retryCount, errorMsg, nextRetryDate, id], tx?.client);
     }
 
     /**

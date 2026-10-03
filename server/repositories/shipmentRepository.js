@@ -2,7 +2,6 @@
 // Enterprise Data Access Layer: Shipments, Parcels, Legs & Tracking Events
 
 const dbAdapter = require('../db/dbAdapter.js');
-const { db: sqliteDb } = require('../db/database.js');
 
 class ShipmentRepository {
     constructor() {
@@ -17,26 +16,10 @@ class ShipmentRepository {
     }
 
     /**
-     * Finds a shipment by primary ID (Sync for SQLite backwards compatibility).
-     */
-    findByIdSync(id) {
-        if (!sqliteDb) throw new Error('Sync operations only supported under SQLite engine');
-        return sqliteDb.prepare('SELECT * FROM shipments WHERE id = ?').get(id) || null;
-    }
-
-    /**
      * Finds a shipment by tracking number (Async).
      */
     async findByTrackingNumber(trackingNumber, tx = null) {
         return await dbAdapter.get('SELECT * FROM shipments WHERE tracking_number = ?', [trackingNumber], tx?.client);
-    }
-
-    /**
-     * Finds a shipment by tracking number (Sync).
-     */
-    findByTrackingNumberSync(trackingNumber) {
-        if (!sqliteDb) throw new Error('Sync operations only supported under SQLite engine');
-        return sqliteDb.prepare('SELECT * FROM shipments WHERE tracking_number = ?').get(trackingNumber) || null;
     }
 
     /**
@@ -123,7 +106,7 @@ class ShipmentRepository {
         const params = [
             legData.shipment_id, legData.leg_sequence, legData.origin_hub_id, legData.destination_hub_id,
             legData.status || 'PENDING', legData.transport_run_id || null, legData.manifest_id || null,
-            legData.is_cross_border ? 1 : 0, legData.border_post_name || null,
+            legData.is_cross_border ? true : false, legData.border_post_name || null,
             legData.customs_status || 'NOT_APPLICABLE',
             legData.scheduled_departure || null, legData.scheduled_arrival || null
         ];
@@ -168,7 +151,7 @@ class ShipmentRepository {
             eventData.event_code, eventData.event_name, eventData.hub_id || null,
             eventData.location_desc || null, eventData.latitude || null, eventData.longitude || null,
             eventData.actor_id || null, eventData.actor_type || 'STAFF', eventData.actor_name || 'System',
-            eventData.description, eventData.is_customer_visible !== false ? 1 : 0,
+            eventData.description, eventData.is_customer_visible !== false,
             typeof eventData.metadata === 'object' ? JSON.stringify(eventData.metadata) : (eventData.metadata || '{}')
         ];
         const res = await dbAdapter.run(sql, params, tx?.client);
@@ -182,7 +165,7 @@ class ShipmentRepository {
         let sql = 'SELECT * FROM tracking_events WHERE shipment_id = ?';
         const params = [shipmentId];
         if (customerVisibleOnly) {
-            sql += ' AND is_customer_visible = 1';
+            sql += ' AND is_customer_visible = true';
         }
         sql += ' ORDER BY created_at ASC, id ASC';
         return await dbAdapter.all(sql, params, tx?.client);

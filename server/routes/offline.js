@@ -6,7 +6,7 @@ const { authenticateToken } = require('../middleware/auth.js');
 const offlineSyncService = require('../services/offlineSyncService.js');
 
 // POST /api/v1/offline/sync - Process an offline operations sync batch
-router.post('/sync', authenticateToken, (req, res) => {
+router.post('/sync', authenticateToken, async (req, res) => {
     try {
         const { device_id, app_version, operations } = req.body;
         if (!Array.isArray(operations) || operations.length === 0) {
@@ -16,7 +16,7 @@ router.post('/sync', authenticateToken, (req, res) => {
             });
         }
 
-        const result = offlineSyncService.processOfflineSyncBatch({
+        const result = await offlineSyncService.processOfflineSyncBatch({
             device_id: device_id || req.headers['x-device-id'] || 'WEB_CLIENT',
             app_version: app_version || req.headers['x-app-version'] || '1.0.0',
             operations
@@ -33,10 +33,10 @@ router.post('/sync', authenticateToken, (req, res) => {
 });
 
 // GET /api/v1/offline/status - Check sync telemetry and recent sync logs
-router.get('/status', authenticateToken, (req, res) => {
+router.get('/status', authenticateToken, async (req, res) => {
     try {
         const deviceId = req.query.device_id || null;
-        const stats = offlineSyncService.getOfflineSyncStats(deviceId);
+        const stats = await offlineSyncService.getOfflineSyncStats(deviceId);
         res.json(stats);
     } catch (err) {
         console.error('Offline status error:', err);

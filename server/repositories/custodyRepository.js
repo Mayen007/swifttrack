@@ -2,7 +2,6 @@
 // Enterprise Data Access Layer: Physical Scans, Handoffs, Receiving Sessions & Discrepancies
 
 const dbAdapter = require('../db/dbAdapter.js');
-const { db: sqliteDb } = require('../db/database.js');
 
 class CustodyRepository {
     constructor() {
@@ -26,7 +25,7 @@ class CustodyRepository {
             scanData.transport_run_id || null, scanData.location_desc || null,
             scanData.latitude || null, scanData.longitude || null,
             scanData.device_id || null, scanData.app_version || '1.0.0',
-            scanData.scanned_by_user_id || null, scanData.is_offline_sync ? 1 : 0,
+            scanData.scanned_by_user_id || null, Boolean(scanData.is_offline_sync),
             typeof scanData.metadata === 'object' ? JSON.stringify(scanData.metadata) : (scanData.metadata || '{}')
         ];
         const res = await dbAdapter.run(sql, params, tx?.client);
@@ -103,7 +102,7 @@ class CustodyRepository {
         `;
         const params = [
             itemData.session_id, itemData.parcel_id || null, itemData.shipment_id || null,
-            itemData.barcode, itemData.is_expected ? 1 : 0, itemData.is_damaged ? 1 : 0,
+            itemData.barcode, Boolean(itemData.is_expected), Boolean(itemData.is_damaged),
             itemData.condition_notes || null, itemData.scanned_by_user_id
         ];
         const res = await dbAdapter.run(sql, params, tx?.client);

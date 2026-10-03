@@ -11,6 +11,9 @@ const driverRepository = require('./driverRepository.js');
 const hubRepository = require('./hubRepository.js');
 const notificationRepository = require('./notificationRepository.js');
 const auditRepository = require('./auditRepository.js');
+const userRepository = require('./userRepository.js');
+const sessionRepository = require('./sessionRepository.js');
+const branchRepository = require('./branchRepository.js');
 
 module.exports = {
     shipmentRepository,
@@ -22,5 +25,8 @@ module.exports = {
     driverRepository,
     hubRepository,
     notificationRepository,
-    auditRepository
+    auditRepository,
+    userRepository,
+    sessionRepository,
+    branchRepository
 };

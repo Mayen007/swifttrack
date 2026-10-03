@@ -2,7 +2,8 @@
 // Authentication & Identity Service Helpers
 const jwt = require('jsonwebtoken');
 const crypto = require('node:crypto');
-const { db } = require('../db/database.js');
+const dbAdapter = require('../db/dbAdapter.js');
+const sessionRepository = require('../repositories/sessionRepository.js');
 const { getJwtSecret } = require('../utils/env.js');
 const { generateSecureRandom, sha256Hash } = require('../utils/security.js');
 
@@ -14,16 +15,16 @@ const REFRESH_TOKEN_EXPIRY_DAYS = 7;
 /**
  * Record a login event in the audit login_history table
  */
-function recordLoginAttempt({ userId = null, username, status, failureReason = null, req, branchId = null }) {
+async function recordLoginAttempt({ userId = null, username, status, failureReason = null, req, branchId = null }) {
     try {
         const ip = req.ip || req.socket?.remoteAddress || '127.0.0.1';
         const userAgent = req.headers['user-agent'] || 'Unknown Client';
 
-        db.prepare(`
+        await dbAdapter.run(`
             INSERT INTO login_history (
                 user_id, username_attempted, status, failure_reason, ip_address, user_agent, branch_id, created_at
             ) VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-        `).run(userId, username, status, failureReason, ip, userAgent, branchId);
+        `, [userId, username, status, failureReason, ip, userAgent, branchId]);
     } catch (err) {
         console.warn('Failed to record login history:', err.message);
     }
@@ -32,7 +33,7 @@ function recordLoginAttempt({ userId = null, username, status, failureReason = n
 /**
  * Issue new access & refresh tokens and persist active session
  */
-function createSessionAndTokens(user, req) {
+async function createSessionAndTokens(user, req) {
     const secret = getJwtSecret();
     const sessionId = crypto.randomUUID();
     const jti = crypto.randomUUID();
@@ -41,14 +42,18 @@ function createSessionAndTokens(user, req) {
 
     const ip = req.ip || req.socket?.remoteAddress || '127.0.0.1';
     const userAgent = req.headers['user-agent'] || 'Browser Client';
+    const expiresAt = new Date(Date.now() + REFRESH_TOKEN_EXPIRY_DAYS * 24 * 60 * 60 * 1000).toISOString();
 
-    // Persist session
-    db.prepare(`
-        INSERT INTO user_sessions (
-            id, user_id, refresh_token_hash, ip_address, user_agent, device_info,
-            is_active, last_activity_at, expires_at, created_at
-        ) VALUES (?, ?, ?, ?, ?, ?, 1, CURRENT_TIMESTAMP, datetime('now', '+${REFRESH_TOKEN_EXPIRY_DAYS} days'), CURRENT_TIMESTAMP)
-    `).run(sessionId, user.id, refreshTokenHash, ip, userAgent, userAgent.substring(0, 50));
+    // Persist session via sessionRepository
+    await sessionRepository.createSession({
+        id: sessionId,
+        user_id: user.id,
+        refresh_token_hash: refreshTokenHash,
+        ip_address: ip,
+        user_agent: userAgent,
+        device_info: { client: userAgent.substring(0, 50) },
+        expires_at: expiresAt
+    });
 
     const tokenPayload = {
         id: user.id,
@@ -73,21 +78,21 @@ function createSessionAndTokens(user, req) {
 /**
  * Hydrates complete user profile object for client responses
  */
-function formatUserResponse(user) {
+async function formatUserResponse(user) {
     // Fetch role permissions
-    const permissionsRows = db.prepare(`
+    const permissionsRows = await dbAdapter.all(`
         SELECT p.code
         FROM role_permissions rp
         JOIN permissions p ON rp.permission_id = p.id
         JOIN roles r ON rp.role_id = r.id
         WHERE r.name = ?
-    `).all(user.role_name);
+    `, [user.role_name]);
 
     const permissions = permissionsRows.map(p => p.code);
 
     let driverProfile = null;
     if (user.role_name === 'DRIVER') {
-        driverProfile = db.prepare('SELECT id, license_number, vehicle_id, status FROM drivers WHERE user_id = ?').get(user.id);
+        driverProfile = await dbAdapter.get('SELECT id, license_number, vehicle_id, status FROM drivers WHERE user_id = ?', [user.id]);
     }
 
     return {

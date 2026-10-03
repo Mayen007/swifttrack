@@ -2,6 +2,8 @@
 // Enterprise Unified Database Access Adapter
 // Provides a consistent, promise-based query & transaction abstraction across PostgreSQL and SQLite.
 
+require('../utils/env.js');
+
 const isPostgres = process.env.DB_CLIENT === 'postgres' || (!!process.env.DATABASE_URL && process.env.DB_CLIENT !== 'sqlite');
 
 let pgPool = null;
@@ -53,13 +55,16 @@ function translatePlaceholdersToSqlite(sql) {
  */
 async function query(text, params = [], client = null) {
     if (isPostgres) {
-        const pgSql = translatePlaceholdersToPg(text);
+        let pgSql = translatePlaceholdersToPg(text);
+        if (/^\s*INSERT\s+INTO\b/i.test(pgSql) && !/\bRETURNING\b/i.test(pgSql)) {
+            pgSql = pgSql.trim().replace(/;+$/, '') + ' RETURNING id';
+        }
         const executor = client || pgPool;
         const res = await executor.query(pgSql, params);
 
         let insertId = null;
         if (res.rows && res.rows.length > 0 && (res.rows[0].id !== undefined || res.rows[0].ID !== undefined)) {
-            insertId = res.rows[0].id || res.rows[0].ID;
+            insertId = Number(res.rows[0].id || res.rows[0].ID);
         }
 
         return {
@@ -70,18 +75,19 @@ async function query(text, params = [], client = null) {
     } else {
         const sqliteSql = translatePlaceholdersToSqlite(text);
         const isSelect = /^\s*(SELECT|PRAGMA|WITH)\b/i.test(sqliteSql);
+        const normalizedParams = (params || []).map(p => typeof p === 'boolean' ? (p ? 1 : 0) : p);
 
         try {
             const stmt = sqliteDb.prepare(sqliteSql);
             if (isSelect) {
-                const rows = stmt.all(...params);
+                const rows = stmt.all(...normalizedParams);
                 return {
                     rows: rows || [],
                     rowCount: rows ? rows.length : 0,
                     insertId: null
                 };
             } else {
-                const result = stmt.run(...params);
+                const result = stmt.run(...normalizedParams);
                 return {
                     rows: [],
                     rowCount: result.changes || 0,

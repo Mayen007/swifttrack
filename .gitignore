@@ -17,6 +17,8 @@ data/*.db
 data/*.db-wal
 data/*.db-shm
 backups/
+.pg_data/
+scratch/pg_data/
 
 # Logs
 logs/
@@ -40,3 +42,4 @@ skills-lock.json
 swifttrack-logistics*.md
 swifttrack-comprehensive*.md
 *DESIGN_REVIEW.md
+swifttrack-production*.md

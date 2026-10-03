@@ -1,7 +1,7 @@
 // tests/logistics/test-multi-leg-and-customs.js
 // SwiftTrack Logistics: Multi-Leg Shipment Orchestration & Cross-Border Customs Suite
 const assert = require('node:assert');
-const { db } = require('../../server/db/database.js');
+const dbAdapter = require('../../server/db/dbAdapter.js');
 const shipmentService = require('../../server/services/shipmentService.js');
 const transportService = require('../../server/services/transportService.js');
 
@@ -29,20 +29,20 @@ async function runSuite() {
     const adminUser = { id: 1, roleName: 'SUPER_ADMIN', username: 'superadmin', fullName: 'Super Admin' };
 
     // Hubs: Nairobi (1), Nakuru (3 or insert if needed), Mombasa (2)
-    let hub1 = db.prepare('SELECT * FROM branches WHERE id = 1').get();
-    let hub2 = db.prepare('SELECT * FROM branches WHERE id = 2').get();
-    let hub3 = db.prepare("SELECT * FROM branches WHERE code = 'NAK-01'").get();
+    let hub1 = await dbAdapter.get('SELECT * FROM branches WHERE id = 1');
+    let hub2 = await dbAdapter.get('SELECT * FROM branches WHERE id = 2');
+    let hub3 = await dbAdapter.get("SELECT * FROM branches WHERE code = 'NAK-01'");
 
     if (!hub3) {
-        const res = db.prepare(`
+        const res = await dbAdapter.query(`
             INSERT INTO branches (name, code, city, address, phone, email, is_hub, is_active)
-            VALUES ('Nakuru Transit Hub', 'NAK-01', 'Nakuru', 'Nakuru Highway', '+254700000003', 'nakuru@swifttrack.co.ke', 1, 1)
-        `).run();
-        hub3 = db.prepare('SELECT * FROM branches WHERE id = ?').get(res.lastInsertRowid);
+            VALUES ('Nakuru Transit Hub', 'NAK-01', 'Nakuru', 'Nakuru Highway', '+254700000003', 'nakuru@swifttrack.co.ke', true, true)
+        `);
+        hub3 = await dbAdapter.get('SELECT * FROM branches WHERE id = ?', [res.insertId]);
     }
 
-    let testDriver = db.prepare('SELECT * FROM drivers LIMIT 1').get();
-    let testVehicle = db.prepare('SELECT * FROM vehicles LIMIT 1').get();
+    let testDriver = await dbAdapter.get('SELECT * FROM drivers LIMIT 1');
+    let testVehicle = await dbAdapter.get('SELECT * FROM vehicles LIMIT 1');
 
     let multiLegShipment;
     let run1;
@@ -52,7 +52,7 @@ async function runSuite() {
     // TEST 1: Multi-Leg Shipment Booking (Nairobi -> Nakuru -> Mombasa)
     // -------------------------------------------------------------
     await runTest('1. Multi-Leg Consignment Booking: Creates 2 sequential legs with PENDING status', async () => {
-        multiLegShipment = shipmentService.createShipment({
+        multiLegShipment = await shipmentService.createShipment({
             origin_hub_id: hub1.id,
             destination_hub_id: hub2.id,
             sender: { name: 'EAC Exporters Nairobi', phone: '+254711000111', address: 'Industrial Area', city: 'Nairobi' },
@@ -70,7 +70,7 @@ async function runSuite() {
         assert.ok(multiLegShipment.id, 'Shipment ID must exist');
         assert.strictEqual(multiLegShipment.status, 'BOOKED');
 
-        const legs = shipmentService.getShipmentLegs(multiLegShipment.id);
+        const legs = await shipmentService.getShipmentLegs(multiLegShipment.id);
         assert.strictEqual(legs.length, 2, 'Shipment must have exactly 2 routing legs');
         assert.strictEqual(legs[0].leg_sequence, 1);
         assert.strictEqual(legs[0].origin_hub_id, hub1.id);
@@ -87,7 +87,7 @@ async function runSuite() {
     // TEST 2: Active Leg Retrieval
     // -------------------------------------------------------------
     await runTest('2. Active Leg Discovery: Returns Leg 1 as current active leg awaiting dispatch', async () => {
-        const activeLeg = shipmentService.getActiveLeg(multiLegShipment.id);
+        const activeLeg = await shipmentService.getActiveLeg(multiLegShipment.id);
         assert.ok(activeLeg, 'Active leg must exist');
         assert.strictEqual(activeLeg.leg_sequence, 1, 'First active leg sequence must be 1');
         assert.strictEqual(activeLeg.origin_hub_id, hub1.id);
@@ -97,7 +97,7 @@ async function runSuite() {
     // TEST 3: Leg 1 Manifesting, Loading & Dispatch (Nairobi -> Nakuru)
     // -------------------------------------------------------------
     await runTest('3. Leg 1 Transport Execution: Adds to manifest, locks, dispatches, and moves IN_TRANSIT', async () => {
-        run1 = transportService.createTransportRun({
+        run1 = await transportService.createTransportRun({
             origin_hub_id: hub1.id,
             destination_hub_id: hub3.id,
             driver_id: testDriver.id,
@@ -106,16 +106,16 @@ async function runSuite() {
         }, adminUser);
 
         // Assign to Manifest
-        transportService.addShipmentToManifest(run1.id, multiLegShipment.id, adminUser);
+        await transportService.addShipmentToManifest(run1.id, multiLegShipment.id, adminUser);
 
         // Lock & Load
-        transportService.lockManifest(run1.id, adminUser);
-        let shp = shipmentService.getShipmentById(multiLegShipment.id);
+        await transportService.lockManifest(run1.id, adminUser);
+        let shp = await shipmentService.getShipmentById(multiLegShipment.id);
         assert.strictEqual(shp.status, 'LOADED');
 
         // Dispatch
-        transportService.dispatchTransportRun(run1.id, adminUser);
-        shp = shipmentService.getShipmentById(multiLegShipment.id);
+        await transportService.dispatchTransportRun(run1.id, adminUser);
+        shp = await shipmentService.getShipmentById(multiLegShipment.id);
         assert.strictEqual(shp.status, 'IN_TRANSIT');
     });
 
@@ -123,19 +123,19 @@ async function runSuite() {
     // TEST 4: Destination Arrival at Intermediate Transit Hub (Nakuru)
     // -------------------------------------------------------------
     await runTest('4. Intermediate Transit Arrival: Completes Leg 1, sets AT_HUB, and auto-activates Leg 2', async () => {
-        const arrivalResult = transportService.arriveTransportRun(run1.id, adminUser);
+        const arrivalResult = await transportService.arriveTransportRun(run1.id, adminUser);
         assert.strictEqual(arrivalResult.status, 'ARRIVED');
 
         // Receive manifest at Nakuru
-        transportService.receiveManifest(run1.manifest.id, [multiLegShipment.id], adminUser);
+        await transportService.receiveManifest(run1.id, [multiLegShipment.id], adminUser);
 
-        const legs = shipmentService.getShipmentLegs(multiLegShipment.id);
+        const legs = await shipmentService.getShipmentLegs(multiLegShipment.id);
         assert.strictEqual(legs[0].status, 'COMPLETED', 'Leg 1 must be marked COMPLETED');
         assert.ok(legs[0].actual_arrival, 'Leg 1 actual arrival must be timestamped');
 
         assert.strictEqual(legs[1].status, 'PENDING', 'Leg 2 must be activated to PENDING');
 
-        const shp = shipmentService.getShipmentById(multiLegShipment.id);
+        const shp = await shipmentService.getShipmentById(multiLegShipment.id);
         assert.strictEqual(shp.status, 'AT_HUB', 'Shipment status must be AT_HUB at transit facility');
         assert.strictEqual(shp.current_hub_id, hub3.id, 'Current hub must be Nakuru Hub');
 
@@ -148,7 +148,7 @@ async function runSuite() {
     // TEST 5: Intermediate Hub Manifest Queue Visibility
     // -------------------------------------------------------------
     await runTest('5. Transit Manifest Queue: Nakuru dispatcher queries shipments awaiting manifest for Leg 2', async () => {
-        const awaitingList = shipmentService.getShipmentsAwaitingManifest(hub3.id, hub2.id);
+        const awaitingList = await shipmentService.getShipmentsAwaitingManifest(hub3.id, hub2.id);
         assert.ok(Array.isArray(awaitingList), 'Must return array of awaiting shipments');
         assert.ok(awaitingList.some(s => s.id === multiLegShipment.id), 'Shipment must appear in Nakuru -> Mombasa manifest queue');
     });
@@ -157,7 +157,7 @@ async function runSuite() {
     // TEST 6: Leg 2 Transport Execution & Final Arrival at Mombasa
     // -------------------------------------------------------------
     await runTest('6. Final Leg 2 Execution: Nakuru -> Mombasa dispatch and arrival marks final destination reached', async () => {
-        run2 = transportService.createTransportRun({
+        run2 = await transportService.createTransportRun({
             origin_hub_id: hub3.id,
             destination_hub_id: hub2.id,
             driver_id: testDriver.id,
@@ -165,19 +165,19 @@ async function runSuite() {
             notes: 'Leg 2 Nakuru to Mombasa linehaul'
         }, adminUser);
 
-        transportService.addShipmentToManifest(run2.id, multiLegShipment.id, adminUser);
-        transportService.lockManifest(run2.id, adminUser);
-        transportService.dispatchTransportRun(run2.id, adminUser);
+        await transportService.addShipmentToManifest(run2.id, multiLegShipment.id, adminUser);
+        await transportService.lockManifest(run2.id, adminUser);
+        await transportService.dispatchTransportRun(run2.id, adminUser);
 
         // Arrive & receive at Mombasa (final destination!)
-        transportService.arriveTransportRun(run2.id, adminUser);
-        transportService.receiveManifest(run2.manifest.id, [multiLegShipment.id], adminUser);
+        await transportService.arriveTransportRun(run2.id, adminUser);
+        await transportService.receiveManifest(run2.id, [multiLegShipment.id], adminUser);
 
-        const legs = shipmentService.getShipmentLegs(multiLegShipment.id);
+        const legs = await shipmentService.getShipmentLegs(multiLegShipment.id);
         assert.strictEqual(legs[0].status, 'COMPLETED');
         assert.strictEqual(legs[1].status, 'COMPLETED');
 
-        const finalShp = shipmentService.getShipmentById(multiLegShipment.id);
+        const finalShp = await shipmentService.getShipmentById(multiLegShipment.id);
         assert.strictEqual(finalShp.status, 'AT_HUB');
         assert.strictEqual(finalShp.current_hub_id, hub2.id);
 
@@ -190,7 +190,7 @@ async function runSuite() {
     // -------------------------------------------------------------
     await runTest('7. Cross-Border Customs Lifecycle: Full inspection, hold, exception, clearance, and release workflow', async () => {
         // Book a cross-border shipment (Nairobi -> Namanga Border -> Arusha Hub)
-        const crossBorderShp = shipmentService.createShipment({
+        const crossBorderShp = await shipmentService.createShipment({
             origin_hub_id: hub1.id,
             destination_hub_id: hub2.id,
             sender: { name: 'Kenya Exporters', phone: '+254700999000', address: 'Nairobi', city: 'Nairobi' },
@@ -201,46 +201,46 @@ async function runSuite() {
             ]
         }, adminUser);
 
-        const legs = shipmentService.getShipmentLegs(crossBorderShp.id);
+        const legs = await shipmentService.getShipmentLegs(crossBorderShp.id);
         const crossBorderLeg = legs[0];
-        assert.strictEqual(crossBorderLeg.is_cross_border, 1);
+        assert.strictEqual(Boolean(crossBorderLeg.is_cross_border), true);
 
         // 1. Submit Customs Declaration
-        const subResult = transportService.submitCustomsDeclaration(crossBorderLeg.id, {
+        const subResult = await transportService.submitCustomsDeclaration(crossBorderLeg.id, {
             customs_doc_number: 'EAC-CUST-889900',
             border_post_name: 'Namanga One-Stop Border Post'
         }, adminUser);
         assert.strictEqual(subResult.customs_status, 'SUBMITTED');
 
         // 2. Customs Physical Inspection
-        const inspectResult = transportService.inspectCustomsLeg(crossBorderLeg.id, {
+        const inspectResult = await transportService.inspectCustomsLeg(crossBorderLeg.id, {
             inspector_name: 'KRA Customs Officer M. Otieno'
         }, adminUser);
         assert.strictEqual(inspectResult.customs_status, 'INSPECTION');
 
         // 3. Customs Hold & Auto-Exception Generation
-        const holdResult = transportService.holdCustomsLeg(crossBorderLeg.id, {
+        const holdResult = await transportService.holdCustomsLeg(crossBorderLeg.id, {
             reason: 'Phytosanitary permit verification required by KEPHIS'
         }, adminUser);
         assert.strictEqual(holdResult.customs_status, 'CUSTOMS_HOLD');
 
         // Verify exception created in database
-        const exc = db.prepare("SELECT * FROM exceptions WHERE shipment_id = ? AND exception_type = 'CUSTOMS_HOLD'").get(crossBorderShp.id);
+        const exc = await dbAdapter.get("SELECT * FROM exceptions WHERE shipment_id = ? AND exception_type = 'CUSTOMS_HOLD'", [crossBorderShp.id]);
         assert.ok(exc, 'Customs hold must automatically spawn an operational exception record');
         assert.strictEqual(exc.severity, 'HIGH');
 
         // 4. Customs Clearance
-        const clearResult = transportService.clearCustomsLeg(crossBorderLeg.id, {
+        const clearResult = await transportService.clearCustomsLeg(crossBorderLeg.id, {
             clearance_number: 'KEPHIS-VERIFIED-4411'
         }, adminUser);
         assert.strictEqual(clearResult.customs_status, 'CLEARED');
 
         // 5. Release from Border
-        const releaseResult = transportService.releaseCustomsLeg(crossBorderLeg.id, adminUser);
+        const releaseResult = await transportService.releaseCustomsLeg(crossBorderLeg.id, adminUser);
         assert.strictEqual(releaseResult.customs_status, 'RELEASED');
 
         // Verify tracking timeline contains full customs audit trail
-        const timeline = db.prepare('SELECT event_code FROM tracking_events WHERE shipment_id = ? ORDER BY id ASC').all(crossBorderShp.id);
+        const timeline = await dbAdapter.all('SELECT event_code FROM tracking_events WHERE shipment_id = ? ORDER BY id ASC', [crossBorderShp.id]);
         const eventCodes = timeline.map(e => e.event_code);
         assert.ok(eventCodes.includes('CUSTOMS_SUBMITTED'), 'Timeline must include CUSTOMS_SUBMITTED');
         assert.ok(eventCodes.includes('CUSTOMS_INSPECTION'), 'Timeline must include CUSTOMS_INSPECTION');
@@ -251,6 +251,12 @@ async function runSuite() {
     console.log(`\n============================================================`);
     console.log(`[SUCCESS] ALL ${passedTests}/${totalTests} MULTI-LEG & CUSTOMS TESTS PASSED!`);
     console.log(`============================================================\n`);
+
+    if (passedTests === totalTests) {
+        process.exit(0);
+    } else {
+        process.exit(1);
+    }
 }
 
 runSuite().catch(err => {

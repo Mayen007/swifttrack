@@ -15,9 +15,9 @@ function mapErrorStatus(err) {
 }
 
 // GET /api/v1/control-tower/summary - Live operational telemetry summary (Now, Attention, Movement, KPIs)
-router.get('/summary', authenticateToken, (req, res) => {
+router.get('/summary', authenticateToken, async (req, res) => {
     try {
-        const summary = controlTowerService.getLiveOperationalSummary(req.query, req.user);
+        const summary = await controlTowerService.getLiveOperationalSummary(req.query, req.user);
         res.json(summary);
     } catch (err) {
         console.error('Control tower summary error:', err);
@@ -26,9 +26,9 @@ router.get('/summary', authenticateToken, (req, res) => {
 });
 
 // GET /api/v1/control-tower/alerts - Actionable prioritized alerts queue (What needs attention?)
-router.get('/alerts', authenticateToken, (req, res) => {
+router.get('/alerts', authenticateToken, async (req, res) => {
     try {
-        const alerts = controlTowerService.getOperationalAlerts(req.query, req.user);
+        const alerts = await controlTowerService.getOperationalAlerts(req.query, req.user);
         res.json(alerts);
     } catch (err) {
         console.error('Control tower alerts error:', err);
@@ -37,9 +37,9 @@ router.get('/alerts', authenticateToken, (req, res) => {
 });
 
 // GET /api/v1/control-tower/active-corridors - Active transport runs & corridor movement (What is moving?)
-router.get('/active-corridors', authenticateToken, (req, res) => {
+router.get('/active-corridors', authenticateToken, async (req, res) => {
     try {
-        const corridors = controlTowerService.getActiveCorridorTelemetry(req.user);
+        const corridors = await controlTowerService.getActiveCorridorTelemetry(req.user);
         res.json(corridors);
     } catch (err) {
         console.error('Control tower corridors error:', err);
@@ -48,9 +48,9 @@ router.get('/active-corridors', authenticateToken, (req, res) => {
 });
 
 // GET /api/v1/control-tower/hub-telemetry - Station-by-station hub throughput & bottlenecks
-router.get('/hub-telemetry', authenticateToken, (req, res) => {
+router.get('/hub-telemetry', authenticateToken, async (req, res) => {
     try {
-        const telemetry = controlTowerService.getHubNetworkTelemetry(req.user);
+        const telemetry = await controlTowerService.getHubNetworkTelemetry(req.user);
         res.json(telemetry);
     } catch (err) {
         console.error('Control tower hub telemetry error:', err);
@@ -59,9 +59,9 @@ router.get('/hub-telemetry', authenticateToken, (req, res) => {
 });
 
 // POST /api/v1/control-tower/alerts/:type/:id/resolve - Fast-resolve or acknowledge bottleneck alert
-router.post('/alerts/:type/:id/resolve', authenticateToken, (req, res) => {
+router.post('/alerts/:type/:id/resolve', authenticateToken, async (req, res) => {
     try {
-        const result = controlTowerService.resolveAlert(req.params.type, req.params.id, req.body, req.user);
+        const result = await controlTowerService.resolveAlert(req.params.type, req.params.id, req.body, req.user);
         res.json(result);
     } catch (err) {
         console.error('Resolve alert error:', err);

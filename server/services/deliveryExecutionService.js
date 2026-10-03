@@ -1,6 +1,6 @@
 // server/services/deliveryExecutionService.js
 // SwiftTrack Logistics: Stage 5 Last-Mile Delivery, Multi-Attempt & Centralized Exceptions
-const { db } = require('../db/database.js');
+const dbAdapter = require('../db/dbAdapter.js');
 const { logAuditEvent } = require('../middleware/audit.js');
 const notificationService = require('./notificationService.js');
 const shipmentService = require('./shipmentService.js');
@@ -21,17 +21,17 @@ function generateSeqNumber(prefix) {
 /**
  * Creates a last-mile delivery task linked to a shipment
  */
-function createDeliveryTask(data, user = {}) {
+async function createDeliveryTask(data, user = {}) {
     if (!data.shipment_id) {
         throw new Error('shipment_id is required to create a delivery task');
     }
 
-    const shipment = db.prepare(`
+    const shipment = await dbAdapter.get(`
         SELECT s.*, dest.name as destination_hub_name, dest.city as destination_city
         FROM shipments s
         JOIN branches dest ON s.destination_hub_id = dest.id
         WHERE s.id = ?
-    `).get(data.shipment_id);
+    `, [data.shipment_id]);
 
     if (!shipment) {
         throw new Error(`Shipment ${data.shipment_id} not found`);
@@ -52,8 +52,8 @@ function createDeliveryTask(data, user = {}) {
         : (data.pod_required_methods || 'SIGNATURE,GPS');
     const podOtp = podRequired.toUpperCase().includes('OTP') ? String(Math.floor(100000 + Math.random() * 900000)) : null;
 
-    const executeTx = db.transaction(() => {
-        const info = db.prepare(`
+    return await dbAdapter.withTransaction(async (client) => {
+        const info = await dbAdapter.query(`
             INSERT INTO deliveries (
                 branch_id, delivery_number, shipment_id, hub_id, delivery_type,
                 driver_id, vehicle_id, dispatcher_user_id, status, priority,
@@ -62,7 +62,7 @@ function createDeliveryTask(data, user = {}) {
                 cod_amount_expected, cod_amount_collected, scheduled_pickup_at,
                 created_at, updated_at
             ) VALUES (?, ?, ?, ?, 'LAST_MILE', ?, ?, ?, 'PENDING_ASSIGNMENT', ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, 0.0, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-        `).run(
+        `, [
             branchId,
             deliveryNumber,
             shipment.id,
@@ -80,12 +80,12 @@ function createDeliveryTask(data, user = {}) {
             data.recipient_phone || shipment.recipient_phone,
             shipment.cod_amount || 0.0,
             data.scheduled_pickup_at || null
-        );
+        ], client);
 
-        const deliveryId = info.lastInsertRowid;
+        const deliveryId = info.insertId;
 
         // Transition shipment status to READY_FOR_DELIVERY via canonical state machine
-        shipmentService.transitionShipmentStatus(shipment.id, 'READY_FOR_DELIVERY', {
+        await shipmentService.transitionShipmentStatus(shipment.id, 'READY_FOR_DELIVERY', {
             hub_id: branchId,
             location_desc: shipment.destination_hub_name || 'Destination Hub',
             event_code: 'DELIVERY_CREATED',
@@ -95,57 +95,54 @@ function createDeliveryTask(data, user = {}) {
 
         // Link or initialize COD Settlement if shipment has positive COD obligation
         if (shipment.cod_amount && shipment.cod_amount > 0) {
-            const existingSettlement = db.prepare('SELECT id FROM cod_settlements WHERE shipment_id = ?').get(shipment.id);
+            const existingSettlement = await dbAdapter.get('SELECT id FROM cod_settlements WHERE shipment_id = ?', [shipment.id], client);
             if (existingSettlement) {
-                db.prepare('UPDATE cod_settlements SET delivery_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
-                    .run(deliveryId, existingSettlement.id);
+                await dbAdapter.run('UPDATE cod_settlements SET delivery_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?', [deliveryId, existingSettlement.id], client);
             } else {
                 const today = new Date().toISOString().slice(0, 10).replace(/-/g, '');
                 const rand = Math.floor(1000 + Math.random() * 9000);
                 const settlementNum = `COD-${today}-${rand}`;
-                db.prepare(`
+                await dbAdapter.run(`
                     INSERT INTO cod_settlements (
                         settlement_number, shipment_id, delivery_id, hub_id,
                         expected_amount, collected_amount, remitted_amount, variance_amount,
                         currency, status, created_at, updated_at
                     ) VALUES (?, ?, ?, ?, ?, 0.0, 0.0, 0.0, ?, 'PENDING_COLLECTION', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-                `).run(settlementNum, shipment.id, deliveryId, branchId, shipment.cod_amount, shipment.currency || 'KES');
+                `, [settlementNum, shipment.id, deliveryId, branchId, shipment.cod_amount, shipment.currency || 'KES'], client);
             }
         }
 
-        return getDeliveryById(deliveryId);
+        return await getDeliveryById(deliveryId, client);
     });
-
-    return executeTx();
 }
 
 /**
  * Assigns a delivery task to a driver and vehicle
  */
-function assignDeliveryTask(deliveryId, { driver_id, vehicle_id }, user = {}) {
-    const delivery = db.prepare('SELECT * FROM deliveries WHERE id = ?').get(deliveryId);
+async function assignDeliveryTask(deliveryId, { driver_id, vehicle_id }, user = {}) {
+    const delivery = await dbAdapter.get('SELECT * FROM deliveries WHERE id = ?', [deliveryId]);
     if (!delivery) throw new Error(`Delivery task ${deliveryId} not found`);
 
     if (!driver_id) throw new Error('driver_id is required for assignment');
 
-    const driver = db.prepare('SELECT d.id, u.full_name FROM drivers d JOIN users u ON d.user_id = u.id WHERE d.id = ?').get(driver_id);
+    const driver = await dbAdapter.get('SELECT d.id, u.full_name FROM drivers d JOIN users u ON d.user_id = u.id WHERE d.id = ?', [driver_id]);
     if (!driver) throw new Error(`Driver ${driver_id} not found`);
 
-    const executeTx = db.transaction(() => {
-        db.prepare(`
+    return await dbAdapter.withTransaction(async (client) => {
+        await dbAdapter.run(`
             UPDATE deliveries
             SET driver_id = ?, vehicle_id = ?, status = 'ASSIGNED', updated_at = CURRENT_TIMESTAMP
             WHERE id = ?
-        `).run(driver_id, vehicle_id || null, deliveryId);
+        `, [driver_id, vehicle_id || null, deliveryId], client);
 
         if (delivery.shipment_id) {
-            db.prepare(`
+            await dbAdapter.run(`
                 INSERT INTO tracking_events (
                     shipment_id, event_code, event_name,
                     hub_id, location_desc, actor_type, actor_name,
                     description, is_customer_visible, metadata
-                ) VALUES (?, 'DELIVERY_ASSIGNED', 'Assigned to Delivery Driver', ?, ?, ?, ?, ?, 1, ?)
-            `).run(
+                ) VALUES (?, 'DELIVERY_ASSIGNED', 'Assigned to Delivery Driver', ?, ?, ?, ?, ?, true, ?)
+            `, [
                 delivery.shipment_id,
                 delivery.hub_id,
                 `Hub #${delivery.hub_id}`,
@@ -153,20 +150,18 @@ function assignDeliveryTask(deliveryId, { driver_id, vehicle_id }, user = {}) {
                 user.fullName || 'Dispatcher',
                 `Assigned to driver ${driver.full_name}`,
                 JSON.stringify({ driver_id, vehicle_id, delivery_id: deliveryId })
-            );
+            ], client);
         }
 
-        return getDeliveryById(deliveryId);
+        return await getDeliveryById(deliveryId, client);
     });
-
-    return executeTx();
 }
 
 /**
  * Driver accepts and starts delivery run
  */
-function startDelivery(deliveryId, user = {}) {
-    const delivery = db.prepare('SELECT * FROM deliveries WHERE id = ?').get(deliveryId);
+async function startDelivery(deliveryId, user = {}) {
+    const delivery = await dbAdapter.get('SELECT * FROM deliveries WHERE id = ?', [deliveryId]);
     if (!delivery) throw new Error(`Delivery task ${deliveryId} not found`);
 
     let currentOtp = delivery.pod_otp;
@@ -174,31 +169,29 @@ function startDelivery(deliveryId, user = {}) {
         currentOtp = String(Math.floor(100000 + Math.random() * 900000));
     }
 
-    const executeTx = db.transaction(() => {
-        db.prepare(`
+    const res = await dbAdapter.withTransaction(async (client) => {
+        await dbAdapter.run(`
             UPDATE deliveries
             SET status = 'IN_TRANSIT', pod_otp = COALESCE(pod_otp, ?), updated_at = CURRENT_TIMESTAMP
             WHERE id = ?
-        `).run(currentOtp || null, deliveryId);
+        `, [currentOtp || null, deliveryId], client);
 
         if (delivery.shipment_id) {
             // Transition shipment to OUT_FOR_DELIVERY via canonical state machine
-            shipmentService.transitionShipmentStatus(delivery.shipment_id, 'OUT_FOR_DELIVERY', {
+            await shipmentService.transitionShipmentStatus(delivery.shipment_id, 'OUT_FOR_DELIVERY', {
                 hub_id: delivery.hub_id,
                 location_desc: delivery.destination_city || 'Local Delivery Route',
                 notes: `Shipment is out for delivery to ${delivery.recipient_name}`
             }, user);
         }
 
-        return getDeliveryById(deliveryId);
+        return await getDeliveryById(deliveryId, client);
     });
-
-    const res = executeTx();
 
     if (delivery.shipment_id) {
         try {
-            const shipment = db.prepare('SELECT * FROM shipments WHERE id = ?').get(delivery.shipment_id);
-            notificationService.queueMilestoneNotification('OUT_FOR_DELIVERY', {
+            const shipment = await dbAdapter.get('SELECT * FROM shipments WHERE id = ?', [delivery.shipment_id]);
+            await notificationService.queueMilestoneNotification('OUT_FOR_DELIVERY', {
                 shipment,
                 delivery: res,
                 otp_code: res.pod_otp || currentOtp || '123456'
@@ -218,8 +211,8 @@ function startDelivery(deliveryId, user = {}) {
 /**
  * Records a delivery attempt (Rule BR-008: Failed delivery requires a reason)
  */
-function recordDeliveryAttempt(deliveryId, data, user = {}) {
-    const delivery = db.prepare('SELECT * FROM deliveries WHERE id = ?').get(deliveryId);
+async function recordDeliveryAttempt(deliveryId, data, user = {}) {
+    const delivery = await dbAdapter.get('SELECT * FROM deliveries WHERE id = ?', [deliveryId]);
     if (!delivery) throw new Error(`Delivery task ${deliveryId} not found`);
 
     const status = (data.status || 'FAILED').toUpperCase();
@@ -235,17 +228,15 @@ function recordDeliveryAttempt(deliveryId, data, user = {}) {
     const nextAttemptNumber = (delivery.attempt_count || 0) + 1;
     const maxAttempts = delivery.max_attempts || 3;
 
-    const executeTx = db.transaction(() => {
+    const res = await dbAdapter.withTransaction(async (client) => {
         // Record attempt
-        const attemptStmt = db.prepare(`
+        const info = await dbAdapter.query(`
             INSERT INTO delivery_attempts (
                 delivery_id, shipment_id, attempt_number, status,
                 failure_reason, failure_notes, driver_id, latitude, longitude,
                 rescheduled_for, attempted_at
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-        `);
-
-        const info = attemptStmt.run(
+        `, [
             deliveryId,
             delivery.shipment_id || null,
             nextAttemptNumber,
@@ -256,7 +247,7 @@ function recordDeliveryAttempt(deliveryId, data, user = {}) {
             data.latitude || null,
             data.longitude || null,
             data.rescheduled_for || null
-        );
+        ], client);
 
         let createdException = null;
 
@@ -264,15 +255,15 @@ function recordDeliveryAttempt(deliveryId, data, user = {}) {
             // Check if max attempts reached
             if (nextAttemptNumber >= maxAttempts) {
                 // Transition delivery to RETURN_TO_HUB
-                db.prepare(`
+                await dbAdapter.run(`
                     UPDATE deliveries
                     SET status = 'RETURN_TO_HUB', attempt_count = ?, failure_reason = ?, failure_notes = ?, updated_at = CURRENT_TIMESTAMP
                     WHERE id = ?
-                `).run(nextAttemptNumber, data.failure_reason, data.failure_notes || null, deliveryId);
+                `, [nextAttemptNumber, data.failure_reason, data.failure_notes || null, deliveryId], client);
 
                 if (delivery.shipment_id) {
-                    // Update shipment to FAILED_DELIVERY via canonical state machine
-                    shipmentService.transitionShipmentStatus(delivery.shipment_id, 'DELIVERY_FAILED', {
+                    // Update shipment to DELIVERY_FAILED via canonical state machine
+                    await shipmentService.transitionShipmentStatus(delivery.shipment_id, 'DELIVERY_FAILED', {
                         hub_id: delivery.hub_id,
                         location_desc: delivery.destination_city || 'Delivery Stop',
                         reason: data.failure_reason,
@@ -280,55 +271,53 @@ function recordDeliveryAttempt(deliveryId, data, user = {}) {
                     }, user);
 
                     // Auto-generate operational exception (Rule EXC-005)
-                    createdException = createExceptionInternal({
+                    createdException = await createExceptionInternal({
                         exception_type: 'DELIVERY_FAILURE',
                         severity: 'HIGH',
                         shipment_id: delivery.shipment_id,
                         delivery_id: deliveryId,
                         hub_id: delivery.hub_id,
                         description: `Delivery failed after ${nextAttemptNumber}/${maxAttempts} attempts. Final reason: ${data.failure_reason}. Notes: ${data.failure_notes || 'None'}`
-                    }, user);
+                    }, user, client);
                 }
             } else {
                 // Rescheduled for next attempt
-                db.prepare(`
+                await dbAdapter.run(`
                     UPDATE deliveries
                     SET status = 'RESCHEDULED', attempt_count = ?, failure_reason = ?, failure_notes = ?, updated_at = CURRENT_TIMESTAMP
                     WHERE id = ?
-                `).run(nextAttemptNumber, data.failure_reason, data.failure_notes || null, deliveryId);
+                `, [nextAttemptNumber, data.failure_reason, data.failure_notes || null, deliveryId], client);
 
                 if (delivery.shipment_id) {
-                    db.prepare(`
+                    await dbAdapter.run(`
                         INSERT INTO tracking_events (
                             shipment_id, event_code, event_name,
                             hub_id, location_desc, actor_type, actor_name,
                             description, is_customer_visible, metadata
-                        ) VALUES (?, 'DELIVERY_ATTEMPT_FAILED', 'Delivery Attempt Unsuccessful', ?, ?, 'DRIVER', ?, ?, 1, ?)
-                    `).run(
+                        ) VALUES (?, 'DELIVERY_ATTEMPT_FAILED', 'Delivery Attempt Unsuccessful', ?, ?, 'DRIVER', ?, ?, true, ?)
+                    `, [
                         delivery.shipment_id,
                         delivery.hub_id,
                         delivery.destination_city || 'Delivery Stop',
                         user.fullName || 'Courier Driver',
                         `Attempt #${nextAttemptNumber} unsuccessful: ${data.failure_reason}. Will reschedule.`,
                         JSON.stringify({ attempt_number: nextAttemptNumber, reason: data.failure_reason })
-                    );
+                    ], client);
                 }
             }
         }
 
         return {
-            attempt: db.prepare('SELECT * FROM delivery_attempts WHERE id = ?').get(info.lastInsertRowid),
-            delivery: getDeliveryById(deliveryId),
+            attempt: await dbAdapter.get('SELECT * FROM delivery_attempts WHERE id = ?', [info.insertId], client),
+            delivery: await getDeliveryById(deliveryId, client),
             exception: createdException
         };
     });
 
-    const res = executeTx();
-
     if (status === 'FAILED' && delivery.shipment_id) {
         try {
-            const shipment = db.prepare('SELECT * FROM shipments WHERE id = ?').get(delivery.shipment_id);
-            notificationService.queueMilestoneNotification('DELIVERY_FAILED', {
+            const shipment = await dbAdapter.get('SELECT * FROM shipments WHERE id = ?', [delivery.shipment_id]);
+            await notificationService.queueMilestoneNotification('DELIVERY_FAILED', {
                 shipment,
                 delivery: res.delivery,
                 reason: data.failure_reason
@@ -348,8 +337,8 @@ function recordDeliveryAttempt(deliveryId, data, user = {}) {
 /**
  * Completes delivery with legally binding Proof of Delivery evidence (Rule BR-007, POD-001..005)
  */
-function completeDeliveryWithPOD(deliveryId, podData, user = {}) {
-    const delivery = db.prepare('SELECT * FROM deliveries WHERE id = ?').get(deliveryId);
+async function completeDeliveryWithPOD(deliveryId, podData, user = {}) {
+    const delivery = await dbAdapter.get('SELECT * FROM deliveries WHERE id = ?', [deliveryId]);
     if (!delivery) throw new Error(`Delivery task ${deliveryId} not found`);
 
     if (delivery.status === 'DELIVERED') {
@@ -370,59 +359,58 @@ function completeDeliveryWithPOD(deliveryId, podData, user = {}) {
     const recipientName = podData.recipient_name || delivery.recipient_name;
     const recipientPhone = podData.recipient_phone || delivery.recipient_phone;
 
-    const executeTx = db.transaction(() => {
+    const res = await dbAdapter.withTransaction(async (client) => {
         // Record Proof of Delivery
-        const podStmt = db.prepare(`
+        await dbAdapter.run(`
             INSERT INTO proof_of_delivery (
                 delivery_id, shipment_id, recipient_name, recipient_phone,
                 otp_code, otp_verified, signature_data, photo_data,
                 latitude, longitude, device_id, notes, verified_at
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-        `);
-
-        podStmt.run(
+        `, [
             deliveryId,
             delivery.shipment_id || null,
             recipientName,
             recipientPhone,
             podData.otp_code || null,
-            podData.otp_verified ? 1 : 0,
+            Boolean(podData.otp_verified),
             podData.signature_data || null,
             podData.photo_data || null,
             podData.latitude || null,
             podData.longitude || null,
             podData.device_id || null,
             podData.notes || null
-        );
+        ], client);
 
         // Record successful attempt
         const nextAttempt = (delivery.attempt_count || 0) + 1;
-        db.prepare(`
+        await dbAdapter.run(`
             INSERT INTO delivery_attempts (
                 delivery_id, shipment_id, attempt_number, status,
                 driver_id, latitude, longitude, attempted_at
             ) VALUES (?, ?, ?, 'SUCCESS', ?, ?, ?, CURRENT_TIMESTAMP)
-        `).run(
+        `, [
             deliveryId,
             delivery.shipment_id || null,
             nextAttempt,
             delivery.driver_id || null,
             podData.latitude || null,
             podData.longitude || null
-        );
+        ], client);
 
         // Update delivery
-        const codCollected = podData.cod_amount_collected !== undefined ? Number(podData.cod_amount_collected) : delivery.cod_amount_expected;
-        db.prepare(`
+        const expectedCod = Number(delivery.cod_amount_expected || 0);
+        const codCollected = podData.cod_amount_collected !== undefined ? Number(podData.cod_amount_collected) : expectedCod;
+        await dbAdapter.run(`
             UPDATE deliveries
             SET status = 'DELIVERED', actual_delivery_at = CURRENT_TIMESTAMP,
                 attempt_count = ?, cod_amount_collected = ?, updated_at = CURRENT_TIMESTAMP
             WHERE id = ?
-        `).run(nextAttempt, codCollected, deliveryId);
+        `, [nextAttempt, codCollected, deliveryId], client);
 
         // Update shipment to DELIVERED via canonical state machine
         if (delivery.shipment_id) {
-            shipmentService.transitionShipmentStatus(delivery.shipment_id, 'DELIVERED', {
+            await shipmentService.transitionShipmentStatus(delivery.shipment_id, 'DELIVERED', {
                 hub_id: delivery.hub_id,
                 location_desc: delivery.destination_city || 'Recipient Location',
                 latitude: podData.latitude || null,
@@ -432,15 +420,15 @@ function completeDeliveryWithPOD(deliveryId, podData, user = {}) {
         }
 
         // Automatic COD Settlement Synchronization on POD Completion
-        if (delivery.shipment_id && delivery.cod_amount_expected > 0) {
-            const codSettlement = db.prepare('SELECT * FROM cod_settlements WHERE shipment_id = ?').get(delivery.shipment_id);
-            const varAmt = Number((codCollected - delivery.cod_amount_expected).toFixed(2));
+        if (delivery.shipment_id && expectedCod > 0) {
+            const codSettlement = await dbAdapter.get('SELECT * FROM cod_settlements WHERE shipment_id = ?', [delivery.shipment_id], client);
+            const varAmt = Number((codCollected - expectedCod).toFixed(2));
             const settlementStatus = varAmt !== 0 ? 'DISCREPANT' : 'COLLECTED';
             const collMethod = podData.collection_method || 'CASH';
             const collRef = podData.collection_reference || null;
 
             if (codSettlement) {
-                db.prepare(`
+                await dbAdapter.run(`
                     UPDATE cod_settlements
                     SET delivery_id = ?,
                         collected_amount = ?,
@@ -452,7 +440,7 @@ function completeDeliveryWithPOD(deliveryId, podData, user = {}) {
                         collected_at = CURRENT_TIMESTAMP,
                         updated_at = CURRENT_TIMESTAMP
                     WHERE id = ?
-                `).run(
+                `, [
                     deliveryId,
                     codCollected,
                     collMethod,
@@ -461,41 +449,41 @@ function completeDeliveryWithPOD(deliveryId, podData, user = {}) {
                     settlementStatus,
                     user.id || delivery.driver_id || null,
                     codSettlement.id
-                );
+                ], client);
             } else {
                 const today = new Date().toISOString().slice(0, 10).replace(/-/g, '');
                 const rand = Math.floor(1000 + Math.random() * 9000);
                 const settlementNumber = `COD-${today}-${rand}`;
-                db.prepare(`
+                await dbAdapter.run(`
                     INSERT INTO cod_settlements (
                         settlement_number, shipment_id, delivery_id, hub_id, collector_id,
                         expected_amount, collected_amount, remitted_amount, variance_amount,
                         currency, status, collection_method, collection_reference,
                         collected_at, created_at, updated_at
                     ) VALUES (?, ?, ?, ?, ?, ?, ?, 0.0, ?, 'KES', ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-                `).run(
+                `, [
                     settlementNumber,
                     delivery.shipment_id,
                     deliveryId,
                     delivery.hub_id,
                     user.id || delivery.driver_id || null,
-                    delivery.cod_amount_expected,
+                    expectedCod,
                     codCollected,
                     varAmt,
                     settlementStatus,
                     collMethod,
                     collRef
-                );
+                ], client);
             }
 
             // Record COD_COLLECTED tracking event
-            db.prepare(`
+            await dbAdapter.run(`
                 INSERT INTO tracking_events (
                     shipment_id, event_code, event_name,
                     hub_id, location_desc, latitude, longitude,
                     actor_type, actor_name, description, is_customer_visible, metadata
-                ) VALUES (?, 'COD_COLLECTED', 'Cash on Delivery Collected', ?, ?, ?, ?, 'DRIVER', ?, ?, 1, ?)
-            `).run(
+                ) VALUES (?, 'COD_COLLECTED', 'Cash on Delivery Collected', ?, ?, ?, ?, 'DRIVER', ?, ?, true, ?)
+            `, [
                 delivery.shipment_id,
                 delivery.hub_id,
                 delivery.destination_city || 'Recipient Location',
@@ -504,7 +492,7 @@ function completeDeliveryWithPOD(deliveryId, podData, user = {}) {
                 user.fullName || 'Courier Driver',
                 `COD collected: KES ${codCollected.toFixed(2)} via ${collMethod}.${varAmt !== 0 ? ` Variance noted: KES ${varAmt.toFixed(2)}` : ''}`,
                 JSON.stringify({ cod_collected: codCollected, variance: varAmt, method: collMethod, reference: collRef })
-            );
+            ], client);
         }
 
         // Audit Log
@@ -520,17 +508,15 @@ function completeDeliveryWithPOD(deliveryId, podData, user = {}) {
         });
 
         return {
-            delivery: getDeliveryById(deliveryId),
-            pod: db.prepare('SELECT * FROM proof_of_delivery WHERE delivery_id = ?').get(deliveryId)
+            delivery: await getDeliveryById(deliveryId, client),
+            pod: await dbAdapter.get('SELECT * FROM proof_of_delivery WHERE delivery_id = ?', [deliveryId], client)
         };
     });
 
-    const res = executeTx();
-
     if (delivery.shipment_id) {
         try {
-            const shipment = db.prepare('SELECT * FROM shipments WHERE id = ?').get(delivery.shipment_id);
-            notificationService.queueMilestoneNotification('DELIVERED', {
+            const shipment = await dbAdapter.get('SELECT * FROM shipments WHERE id = ?', [delivery.shipment_id]);
+            await notificationService.queueMilestoneNotification('DELIVERED', {
                 shipment,
                 delivery: res.delivery
             });
@@ -545,20 +531,20 @@ function completeDeliveryWithPOD(deliveryId, podData, user = {}) {
 /**
  * Return-to-hub workflow when failed package is received back at the facility
  */
-function processReturnToHub(deliveryId, data = {}, user = {}) {
-    const delivery = db.prepare('SELECT * FROM deliveries WHERE id = ?').get(deliveryId);
+async function processReturnToHub(deliveryId, data = {}, user = {}) {
+    const delivery = await dbAdapter.get('SELECT * FROM deliveries WHERE id = ?', [deliveryId]);
     if (!delivery) throw new Error(`Delivery task ${deliveryId} not found`);
 
-    const executeTx = db.transaction(() => {
-        db.prepare(`
+    return await dbAdapter.withTransaction(async (client) => {
+        await dbAdapter.run(`
             UPDATE deliveries
             SET status = 'RETURN_RECEIVED', updated_at = CURRENT_TIMESTAMP
             WHERE id = ?
-        `).run(deliveryId);
+        `, [deliveryId], client);
 
         if (delivery.shipment_id) {
             // Update shipment to RETURNED via canonical state machine
-            shipmentService.transitionShipmentStatus(delivery.shipment_id, 'RETURNED', {
+            await shipmentService.transitionShipmentStatus(delivery.shipment_id, 'RETURNED', {
                 hub_id: delivery.hub_id,
                 location_desc: `Hub #${delivery.hub_id} Receiving`,
                 event_code: 'RETURNED_TO_HUB',
@@ -567,10 +553,8 @@ function processReturnToHub(deliveryId, data = {}, user = {}) {
             }, user);
         }
 
-        return getDeliveryById(deliveryId);
+        return await getDeliveryById(deliveryId, client);
     });
-
-    return executeTx();
 }
 
 // ============================================================================
@@ -580,17 +564,17 @@ function processReturnToHub(deliveryId, data = {}, user = {}) {
 /**
  * Internal helper to create operational exception
  */
-function createExceptionInternal(data, user = {}) {
+async function createExceptionInternal(data, user = {}, client = null) {
     const exceptionNumber = generateSeqNumber('EXC');
     const severity = (data.severity || 'MEDIUM').toUpperCase();
 
-    const info = db.prepare(`
+    const info = await dbAdapter.query(`
         INSERT INTO exceptions (
             exception_number, exception_type, severity, shipment_id, delivery_id,
             hub_id, status, description, root_cause, resolution_notes,
             reported_by_user_id, assigned_to_user_id, created_at, updated_at
         ) VALUES (?, ?, ?, ?, ?, ?, 'OPEN', ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-    `).run(
+    `, [
         exceptionNumber,
         data.exception_type,
         severity,
@@ -602,29 +586,29 @@ function createExceptionInternal(data, user = {}) {
         data.resolution_notes || null,
         user.id || 1,
         data.assigned_to_user_id || null
-    );
+    ], client);
 
-    return db.prepare('SELECT * FROM exceptions WHERE id = ?').get(info.lastInsertRowid);
+    return await dbAdapter.get('SELECT * FROM exceptions WHERE id = ?', [info.insertId], client);
 }
 
 /**
  * Public method to explicitly create an operational exception
  */
-function createException(data, user = {}) {
+async function createException(data, user = {}) {
     if (!data.exception_type) throw new Error('exception_type is required');
     if (!data.description) throw new Error('description is required');
 
-    const executeTx = db.transaction(() => {
-        const exception = createExceptionInternal(data, user);
+    return await dbAdapter.withTransaction(async (client) => {
+        const exception = await createExceptionInternal(data, user, client);
 
         if (data.shipment_id) {
-            db.prepare(`
+            await dbAdapter.run(`
                 INSERT INTO tracking_events (
                     shipment_id, event_code, event_name,
                     hub_id, location_desc, actor_type, actor_name,
                     description, is_customer_visible, metadata
-                ) VALUES (?, 'EXCEPTION_RECORDED', 'Operational Exception Logged', ?, ?, ?, ?, ?, 0, ?)
-            `).run(
+                ) VALUES (?, 'EXCEPTION_RECORDED', 'Operational Exception Logged', ?, ?, ?, ?, ?, false, ?)
+            `, [
                 data.shipment_id,
                 data.hub_id || null,
                 data.hub_id ? `Hub #${data.hub_id}` : 'Operations Office',
@@ -632,28 +616,26 @@ function createException(data, user = {}) {
                 user.fullName || 'Operations User',
                 `Exception ${exception.exception_number} (${data.exception_type}): ${data.description}`,
                 JSON.stringify({ exception_number: exception.exception_number, severity: data.severity })
-            );
+            ], client);
         }
 
         return exception;
     });
-
-    return executeTx();
 }
 
 /**
  * Resolves an operational exception
  */
-function resolveException(id, data = {}, user = {}) {
-    const exception = db.prepare('SELECT * FROM exceptions WHERE id = ?').get(id);
+async function resolveException(id, data = {}, user = {}) {
+    const exception = await dbAdapter.get('SELECT * FROM exceptions WHERE id = ?', [id]);
     if (!exception) throw new Error(`Exception ${id} not found`);
 
     if (exception.status === 'RESOLVED') {
         throw new Error(`Exception ${exception.exception_number} is already resolved`);
     }
 
-    const executeTx = db.transaction(() => {
-        db.prepare(`
+    return await dbAdapter.withTransaction(async (client) => {
+        await dbAdapter.run(`
             UPDATE exceptions
             SET status = 'RESOLVED',
                 root_cause = COALESCE(?, root_cause),
@@ -661,20 +643,20 @@ function resolveException(id, data = {}, user = {}) {
                 resolved_at = CURRENT_TIMESTAMP,
                 updated_at = CURRENT_TIMESTAMP
             WHERE id = ?
-        `).run(
+        `, [
             data.root_cause || null,
             data.resolution_notes || 'Resolved upon investigation',
             id
-        );
+        ], client);
 
         if (exception.shipment_id) {
-            db.prepare(`
+            await dbAdapter.run(`
                 INSERT INTO tracking_events (
                     shipment_id, event_code, event_name,
                     hub_id, location_desc, actor_type, actor_name,
                     description, is_customer_visible, metadata
-                ) VALUES (?, 'EXCEPTION_RESOLVED', 'Operational Exception Resolved', ?, ?, ?, ?, ?, 1, ?)
-            `).run(
+                ) VALUES (?, 'EXCEPTION_RESOLVED', 'Operational Exception Resolved', ?, ?, ?, ?, ?, true, ?)
+            `, [
                 exception.shipment_id,
                 exception.hub_id,
                 exception.hub_id ? `Hub #${exception.hub_id}` : 'Operations Center',
@@ -682,20 +664,18 @@ function resolveException(id, data = {}, user = {}) {
                 user.fullName || 'Operations Manager',
                 `Exception ${exception.exception_number} resolved: ${data.resolution_notes || 'Resolved'}`,
                 JSON.stringify({ exception_number: exception.exception_number, resolved_at: new Date().toISOString() })
-            );
+            ], client);
         }
 
-        return getExceptionById(id);
+        return await getExceptionById(id, client);
     });
-
-    return executeTx();
 }
 
 /**
  * Gets exception by ID
  */
-function getExceptionById(id) {
-    return db.prepare(`
+async function getExceptionById(id, client = null) {
+    return await dbAdapter.get(`
         SELECT e.*, s.tracking_number, b.name as hub_name,
                u_rep.full_name as reported_by_name, u_ass.full_name as assigned_to_name
         FROM exceptions e
@@ -704,13 +684,13 @@ function getExceptionById(id) {
         LEFT JOIN users u_rep ON e.reported_by_user_id = u_rep.id
         LEFT JOIN users u_ass ON e.assigned_to_user_id = u_ass.id
         WHERE e.id = ?
-    `).get(id);
+    `, [id], client);
 }
 
 /**
  * Lists exceptions
  */
-function listExceptions(query = {}, user = {}) {
+async function listExceptions(query = {}, user = {}) {
     let sql = 'SELECT e.*, s.tracking_number, b.name as hub_name FROM exceptions e LEFT JOIN shipments s ON e.shipment_id = s.id LEFT JOIN branches b ON e.hub_id = b.id WHERE 1=1';
     const params = [];
 
@@ -736,15 +716,15 @@ function listExceptions(query = {}, user = {}) {
 
     sql += ' ORDER BY e.id DESC LIMIT 100';
 
-    const items = db.prepare(sql).all(...params);
+    const items = await dbAdapter.all(sql, params);
     return { exceptions: items, total: items.length };
 }
 
 /**
  * Gets delivery task by ID
  */
-function getDeliveryById(id) {
-    const delivery = db.prepare(`
+async function getDeliveryById(id, client = null) {
+    const delivery = await dbAdapter.get(`
         SELECT d.*, s.tracking_number, s.status as shipment_status,
                drv.full_name as driver_name, drv.phone as driver_phone,
                v.registration_number as vehicle_reg, v.model as vehicle_model,
@@ -756,17 +736,17 @@ function getDeliveryById(id) {
         LEFT JOIN vehicles v ON d.vehicle_id = v.id
         LEFT JOIN branches b ON d.hub_id = b.id
         WHERE d.id = ?
-    `).get(id);
+    `, [id], client);
 
     if (!delivery) return null;
 
-    delivery.attempts = db.prepare(`
+    delivery.attempts = await dbAdapter.all(`
         SELECT * FROM delivery_attempts WHERE delivery_id = ? ORDER BY attempt_number ASC
-    `).all(id);
+    `, [id], client);
 
-    delivery.proof_of_delivery = db.prepare(`
+    delivery.proof_of_delivery = await dbAdapter.get(`
         SELECT * FROM proof_of_delivery WHERE delivery_id = ?
-    `).get(id) || null;
+    `, [id], client) || null;
 
     return delivery;
 }
@@ -774,13 +754,13 @@ function getDeliveryById(id) {
 /**
  * Lists delivery tasks with filters
  */
-function listDeliveries(query = {}, user = {}) {
+async function listDeliveries(query = {}, user = {}) {
     let sql = 'SELECT d.*, s.tracking_number, drv.full_name as driver_name, b.name as hub_name FROM deliveries d LEFT JOIN shipments s ON d.shipment_id = s.id LEFT JOIN drivers dr ON d.driver_id = dr.id LEFT JOIN users drv ON dr.user_id = drv.id LEFT JOIN branches b ON d.hub_id = b.id WHERE 1=1';
     const params = [];
 
     // Role-based scoping
     if (user.roleName === 'DRIVER') {
-        const driver = db.prepare('SELECT id FROM drivers WHERE user_id = ?').get(user.id);
+        const driver = await dbAdapter.get('SELECT id FROM drivers WHERE user_id = ?', [user.id]);
         if (driver) {
             sql += ' AND d.driver_id = ?';
             params.push(driver.id);
@@ -807,7 +787,7 @@ function listDeliveries(query = {}, user = {}) {
 
     sql += ' ORDER BY d.id DESC LIMIT 100';
 
-    const deliveries = db.prepare(sql).all(...params);
+    const deliveries = await dbAdapter.all(sql, params);
     return { deliveries, total: deliveries.length };
 }
 

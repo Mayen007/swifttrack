@@ -1,6 +1,7 @@
 // server/db/postgres/pool.js
 // Enterprise PostgreSQL connection pool manager using pg (node-postgres)
 const { Pool } = require('pg');
+require('../../utils/env.js');
 
 let poolInstance = null;
 
@@ -44,14 +45,6 @@ function getPool() {
     if (!poolInstance) {
         const config = buildPoolConfig();
         poolInstance = new Pool(config);
-
-        // Lifecycle hook: configure session parameters on new client checkout
-        poolInstance.on('connect', (client) => {
-            // Set 30s statement timeout to prevent runaway queries
-            client.query("SET statement_timeout = '30000'").catch((err) => {
-                console.warn('[PostgreSQL Pool] Warning setting statement_timeout:', err.message);
-            });
-        });
 
         // Error hook: handle idle client failures gracefully
         poolInstance.on('error', (err) => {

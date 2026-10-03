@@ -2,7 +2,6 @@
 // Enterprise Data Access Layer: Drivers, Licensing, Assignments & Safety Compliance
 
 const dbAdapter = require('../db/dbAdapter.js');
-const { db: sqliteDb } = require('../db/database.js');
 
 class DriverRepository {
     constructor() {
@@ -14,14 +13,6 @@ class DriverRepository {
      */
     async findById(id, tx = null) {
         return await dbAdapter.get('SELECT * FROM drivers WHERE id = ?', [id], tx?.client);
-    }
-
-    /**
-     * Finds a driver by primary ID (Sync).
-     */
-    findByIdSync(id) {
-        if (!sqliteDb) throw new Error('Sync operations only supported under SQLite engine');
-        return sqliteDb.prepare('SELECT * FROM drivers WHERE id = ?').get(id) || null;
     }
 
     /**

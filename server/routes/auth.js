@@ -4,7 +4,8 @@ const express = require('express');
 const router = express.Router();
 const jwt = require('jsonwebtoken');
 const crypto = require('node:crypto');
-const { db } = require('../db/database.js');
+const dbAdapter = require('../db/dbAdapter.js');
+const sessionRepository = require('../repositories/sessionRepository.js');
 const { authenticateToken } = require('../middleware/auth.js');
 const { getJwtSecret } = require('../utils/env.js');
 const { logAuditEvent } = require('../middleware/audit.js');
@@ -51,7 +52,7 @@ router.get('/config', (req, res) => {
 // -----------------------------------------------------------------------------
 // 2. CREDENTIAL AUTHENTICATION & LOGIN
 // -----------------------------------------------------------------------------
-router.post('/login', (req, res) => {
+router.post('/login', async (req, res) => {
     const { username, password } = req.body;
 
     if (!username || !password) {
@@ -60,287 +61,306 @@ router.post('/login', (req, res) => {
 
     const cleanUsername = username.trim().toLowerCase();
 
-    const user = db.prepare(`
-        SELECT u.id, u.username, u.email, u.full_name, u.phone, u.branch_id, u.password_hash, u.is_active,
-               u.failed_login_attempts, u.locked_until, u.token_version, u.must_change_password,
-               (u.locked_until IS NOT NULL AND datetime(u.locked_until) > datetime(CURRENT_TIMESTAMP)) as is_locked,
-               u.two_factor_enabled, u.two_factor_secret, u.two_factor_recovery_codes,
-               u.password_changed_at, u.last_login_at,
-               r.name as role_name, r.display_name as role_display_name,
-               b.name as branch_name, b.code as branch_code, b.city as branch_city
-        FROM users u
-        JOIN roles r ON u.role_id = r.id
-        LEFT JOIN branches b ON u.branch_id = b.id
-        WHERE (LOWER(u.username) = ? OR LOWER(u.email) = ?)
-    `).get(cleanUsername, cleanUsername);
+    try {
+        const user = await dbAdapter.get(`
+            SELECT u.id, u.username, u.email, u.full_name, u.phone, u.branch_id, u.password_hash, u.is_active,
+                   u.failed_login_attempts, u.locked_until, u.token_version, u.must_change_password,
+                   (u.locked_until IS NOT NULL AND u.locked_until > CURRENT_TIMESTAMP) as is_locked,
+                   u.two_factor_enabled, u.two_factor_secret, u.two_factor_recovery_codes,
+                   u.password_changed_at, u.last_login_at,
+                   r.name as role_name, r.display_name as role_display_name,
+                   b.name as branch_name, b.code as branch_code, b.city as branch_city
+            FROM users u
+            JOIN roles r ON u.role_id = r.id
+            LEFT JOIN branches b ON u.branch_id = b.id
+            WHERE (LOWER(u.username) = ? OR LOWER(u.email) = ?)
+        `, [cleanUsername, cleanUsername]);
 
-    if (!user) {
-        recordLoginAttempt({ username: cleanUsername, status: 'FAILED_USER_NOT_FOUND', failureReason: 'User not found', req });
-        return res.status(401).json({ error: 'Invalid username or password' });
-    }
+        if (!user) {
+            await recordLoginAttempt({ username: cleanUsername, status: 'FAILED_USER_NOT_FOUND', failureReason: 'User not found', req });
+            return res.status(401).json({ error: 'Invalid username or password' });
+        }
 
-    // 1. Account Inactive Check
-    if (!user.is_active) {
-        recordLoginAttempt({ userId: user.id, username: user.username, status: 'ACCOUNT_INACTIVE', failureReason: 'Account deactivated', req, branchId: user.branch_id });
-        return res.status(403).json({ error: 'User account has been deactivated. Please contact Super Admin.' });
-    }
+        // 1. Account Inactive Check
+        if (!user.is_active) {
+            await recordLoginAttempt({ userId: user.id, username: user.username, status: 'ACCOUNT_INACTIVE', failureReason: 'Account deactivated', req, branchId: user.branch_id });
+            return res.status(403).json({ error: 'User account has been deactivated. Please contact Super Admin.' });
+        }
 
-    // 2. Account Lockout Check
-    if (user.is_locked) {
-        const lockedUntilUtc = user.locked_until.endsWith('Z')
-            ? user.locked_until
-            : user.locked_until.replace(' ', 'T') + 'Z';
-        const remainingMs = new Date(lockedUntilUtc).getTime() - Date.now();
-        const remainingMinutes = Math.max(1, Math.ceil(remainingMs / 60000));
+        // 2. Account Lockout Check
+        if (user.is_locked) {
+            const lockedUntilUtc = String(user.locked_until).endsWith('Z')
+                ? user.locked_until
+                : String(user.locked_until).replace(' ', 'T') + 'Z';
+            const remainingMs = new Date(lockedUntilUtc).getTime() - Date.now();
+            const remainingMinutes = Math.max(1, Math.ceil(remainingMs / 60000));
 
-        recordLoginAttempt({ userId: user.id, username: user.username, status: 'ACCOUNT_LOCKED', failureReason: 'Attempt while locked', req, branchId: user.branch_id });
-        return res.status(423).json({
-            error: `Account is temporarily locked due to consecutive failed attempts. Please try again in ${remainingMinutes} minute(s) or contact administrator.`,
-            remainingMinutes
-        });
-    } else if (user.locked_until) {
-        // Lockout expired, reset counter
-        db.prepare('UPDATE users SET locked_until = NULL, failed_login_attempts = 0 WHERE id = ?').run(user.id);
-        user.failed_login_attempts = 0;
-        user.locked_until = null;
-    }
-
-    // 3. Password Verification
-    const verification = verifyPassword(password, user.password_hash);
-    if (!verification.isValid) {
-        const newFailedAttempts = (user.failed_login_attempts || 0) + 1;
-
-        if (newFailedAttempts >= MAX_FAILED_ATTEMPTS) {
-            db.prepare(`
-                UPDATE users
-                SET failed_login_attempts = ?, locked_until = datetime('now', '+${LOCKOUT_MINUTES} minutes')
-                WHERE id = ?
-            `).run(newFailedAttempts, user.id);
-
-            recordLoginAttempt({
-                userId: user.id,
-                username: user.username,
-                status: 'ACCOUNT_LOCKED',
-                failureReason: `Exceeded ${MAX_FAILED_ATTEMPTS} attempts`,
-                req,
-                branchId: user.branch_id
-            });
-
-            logAuditEvent({
-                userId: user.id,
-                role: user.role_name,
-                action: 'ACCOUNT_LOCKED',
-                resource: 'USER',
-                resourceId: String(user.id),
-                branchId: user.branch_id,
-                reason: `Account locked for ${LOCKOUT_MINUTES}m after ${MAX_FAILED_ATTEMPTS} failed attempts`,
-                ipAddress: req.ip || req.socket?.remoteAddress
-            });
-
+            await recordLoginAttempt({ userId: user.id, username: user.username, status: 'ACCOUNT_LOCKED', failureReason: 'Attempt while locked', req, branchId: user.branch_id });
             return res.status(423).json({
-                error: `Account is now temporarily locked due to ${MAX_FAILED_ATTEMPTS} consecutive failed attempts. Please try again in ${LOCKOUT_MINUTES} minutes or contact your administrator.`,
-                remainingMinutes: LOCKOUT_MINUTES
+                error: `Account is temporarily locked due to consecutive failed attempts. Please try again in ${remainingMinutes} minute(s) or contact administrator.`,
+                remainingMinutes
             });
-        } else {
-            db.prepare('UPDATE users SET failed_login_attempts = ? WHERE id = ?').run(newFailedAttempts, user.id);
-            recordLoginAttempt({
+        } else if (user.locked_until) {
+            // Lockout expired, reset counter
+            await dbAdapter.run('UPDATE users SET locked_until = NULL, failed_login_attempts = 0 WHERE id = ?', [user.id]);
+            user.failed_login_attempts = 0;
+            user.locked_until = null;
+        }
+
+        // 3. Password Verification
+        const verification = verifyPassword(password, user.password_hash);
+        if (!verification.isValid) {
+            const newFailedAttempts = (user.failed_login_attempts || 0) + 1;
+
+            if (newFailedAttempts >= MAX_FAILED_ATTEMPTS) {
+                const lockoutExpiry = new Date(Date.now() + LOCKOUT_MINUTES * 60 * 1000).toISOString();
+                await dbAdapter.run(`
+                    UPDATE users
+                    SET failed_login_attempts = ?, locked_until = ?
+                    WHERE id = ?
+                `, [newFailedAttempts, lockoutExpiry, user.id]);
+
+                await recordLoginAttempt({
+                    userId: user.id,
+                    username: user.username,
+                    status: 'ACCOUNT_LOCKED',
+                    failureReason: `Exceeded ${MAX_FAILED_ATTEMPTS} attempts`,
+                    req,
+                    branchId: user.branch_id
+                });
+
+                logAuditEvent({
+                    userId: user.id,
+                    role: user.role_name,
+                    action: 'ACCOUNT_LOCKED',
+                    resource: 'USER',
+                    resourceId: String(user.id),
+                    branchId: user.branch_id,
+                    reason: `Account locked for ${LOCKOUT_MINUTES}m after ${MAX_FAILED_ATTEMPTS} failed attempts`,
+                    ipAddress: req.ip || req.socket?.remoteAddress
+                });
+
+                return res.status(423).json({
+                    error: `Account is now temporarily locked due to ${MAX_FAILED_ATTEMPTS} consecutive failed attempts. Please try again in ${LOCKOUT_MINUTES} minutes or contact your administrator.`,
+                    remainingMinutes: LOCKOUT_MINUTES
+                });
+            } else {
+                await dbAdapter.run('UPDATE users SET failed_login_attempts = ? WHERE id = ?', [newFailedAttempts, user.id]);
+                await recordLoginAttempt({
+                    userId: user.id,
+                    username: user.username,
+                    status: 'FAILED_PASSWORD',
+                    failureReason: `Invalid password (${newFailedAttempts}/${MAX_FAILED_ATTEMPTS})`,
+                    req,
+                    branchId: user.branch_id
+                });
+
+                const remainingAttempts = MAX_FAILED_ATTEMPTS - newFailedAttempts;
+                return res.status(401).json({
+                    error: `Invalid username or password. ${remainingAttempts} attempt(s) remaining before account lockout.`,
+                    remainingAttempts
+                });
+            }
+        }
+
+        // 4. Password Succeeded: Clear failed login tracking
+        await dbAdapter.run('UPDATE users SET failed_login_attempts = 0, locked_until = NULL, last_login_at = CURRENT_TIMESTAMP WHERE id = ?', [user.id]);
+
+        // Dynamic salt upgrade if needed
+        if (verification.needsUpgrade) {
+            const upgradedHash = hashPassword(password);
+            await dbAdapter.run('UPDATE users SET password_hash = ? WHERE id = ?', [upgradedHash, user.id]);
+        }
+
+        // 5. 2FA Challenge Check
+        if (user.two_factor_enabled && user.two_factor_secret) {
+            const secret = getJwtSecret();
+            const tempToken = jwt.sign(
+                { id: user.id, username: user.username, purpose: '2FA_CHALLENGE' },
+                secret,
+                { expiresIn: '5m' }
+            );
+
+            await recordLoginAttempt({
                 userId: user.id,
                 username: user.username,
-                status: 'FAILED_PASSWORD',
-                failureReason: `Invalid password (${newFailedAttempts}/${MAX_FAILED_ATTEMPTS})`,
+                status: '2FA_PENDING',
+                failureReason: 'Awaiting 2FA verification',
                 req,
                 branchId: user.branch_id
             });
 
-            const remainingAttempts = MAX_FAILED_ATTEMPTS - newFailedAttempts;
-            return res.status(401).json({
-                error: `Invalid username or password. ${remainingAttempts} attempt(s) remaining before account lockout.`,
-                remainingAttempts
+            return res.json({
+                require2FA: true,
+                tempToken,
+                username: user.username,
+                message: 'Two-factor authentication required. Enter the 6-digit code from your authenticator app.'
             });
         }
-    }
 
-    // 4. Password Succeeded: Clear failed login tracking
-    db.prepare('UPDATE users SET failed_login_attempts = 0, locked_until = NULL, last_login_at = CURRENT_TIMESTAMP WHERE id = ?').run(user.id);
-
-    // Dynamic salt upgrade if needed
-    if (verification.needsUpgrade) {
-        const upgradedHash = hashPassword(password);
-        db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(upgradedHash, user.id);
-    }
-
-    // 5. 2FA Challenge Check
-    if (user.two_factor_enabled === 1 && user.two_factor_secret) {
-        const secret = getJwtSecret();
-        const tempToken = jwt.sign(
-            { id: user.id, username: user.username, purpose: '2FA_CHALLENGE' },
-            secret,
-            { expiresIn: '5m' }
-        );
-
-        recordLoginAttempt({
+        // 6. Complete Session & Issue Tokens
+        await recordLoginAttempt({
             userId: user.id,
             username: user.username,
-            status: '2FA_PENDING',
-            failureReason: 'Awaiting 2FA verification',
+            status: 'SUCCESS',
             req,
             branchId: user.branch_id
         });
 
-        return res.json({
-            require2FA: true,
-            tempToken,
-            username: user.username,
-            message: 'Two-factor authentication required. Enter the 6-digit code from your authenticator app.'
+        logAuditEvent({
+            userId: user.id,
+            role: user.role_name,
+            action: 'LOGIN',
+            resource: 'AUTH',
+            resourceId: String(user.id),
+            branchId: user.branch_id,
+            reason: 'Successful operator authentication',
+            ipAddress: req.ip || req.socket?.remoteAddress
         });
+
+        const sessionData = await createSessionAndTokens(user, req);
+
+        return res.json({
+            token: sessionData.token,
+            refreshToken: sessionData.refreshToken,
+            expiresIn: sessionData.expiresInSeconds,
+            user: await formatUserResponse(user)
+        });
+    } catch (err) {
+        console.error('Login error:', err);
+        res.status(500).json({ error: 'Authentication service error' });
     }
-
-    // 6. Complete Session & Issue Tokens
-    recordLoginAttempt({
-        userId: user.id,
-        username: user.username,
-        status: 'SUCCESS',
-        req,
-        branchId: user.branch_id
-    });
-
-    logAuditEvent({
-        userId: user.id,
-        role: user.role_name,
-        action: 'LOGIN',
-        resource: 'AUTH',
-        resourceId: String(user.id),
-        branchId: user.branch_id,
-        reason: 'Successful operator authentication',
-        ipAddress: req.ip || req.socket?.remoteAddress
-    });
-
-    const sessionData = createSessionAndTokens(user, req);
-
-    return res.json({
-        token: sessionData.token,
-        refreshToken: sessionData.refreshToken,
-        expiresIn: sessionData.expiresInSeconds,
-        user: formatUserResponse(user)
-    });
 });
 
 // -----------------------------------------------------------------------------
 // 3. TOKEN REFRESH WITH REFRESH TOKEN ROTATION
 // -----------------------------------------------------------------------------
-router.post('/refresh', (req, res) => {
+router.post('/refresh', async (req, res) => {
     const { refreshToken } = req.body;
 
     if (!refreshToken) {
         return res.status(400).json({ error: 'Refresh token required' });
     }
 
-    const refreshTokenHash = sha256Hash(refreshToken);
+    try {
+        const refreshTokenHash = sha256Hash(refreshToken);
 
-    const session = db.prepare(`
-        SELECT s.id as session_id, s.user_id, s.is_active, s.expires_at,
-               datetime(s.expires_at) <= datetime(CURRENT_TIMESTAMP) as is_expired,
-               u.id, u.username, u.email, u.full_name, u.phone, u.branch_id, u.is_active as user_active,
-               u.token_version, u.must_change_password, u.two_factor_enabled,
-               r.name as role_name, r.display_name as role_display_name,
-               b.name as branch_name, b.code as branch_code, b.city as branch_city
-        FROM user_sessions s
-        JOIN users u ON s.user_id = u.id
-        JOIN roles r ON u.role_id = r.id
-        LEFT JOIN branches b ON u.branch_id = b.id
-        WHERE s.refresh_token_hash = ?
-    `).get(refreshTokenHash);
+        const session = await dbAdapter.get(`
+            SELECT s.id as session_id, s.user_id, s.is_active, s.expires_at,
+                   (s.expires_at <= CURRENT_TIMESTAMP) as is_expired,
+                   u.id, u.username, u.email, u.full_name, u.phone, u.branch_id, u.is_active as user_active,
+                   u.token_version, u.must_change_password, u.two_factor_enabled,
+                   r.name as role_name, r.display_name as role_display_name,
+                   b.name as branch_name, b.code as branch_code, b.city as branch_city
+            FROM user_sessions s
+            JOIN users u ON s.user_id = u.id
+            JOIN roles r ON u.role_id = r.id
+            LEFT JOIN branches b ON u.branch_id = b.id
+            WHERE s.refresh_token_hash = ?
+        `, [refreshTokenHash]);
 
-    if (!session) {
-        return res.status(401).json({ error: 'Invalid or revoked refresh token. Please sign in again.' });
+        if (!session) {
+            return res.status(401).json({ error: 'Invalid or revoked refresh token. Please sign in again.' });
+        }
+
+        if (!session.is_active || session.is_expired || !session.user_active) {
+            await dbAdapter.run('UPDATE user_sessions SET is_active = false WHERE id = ?', [session.session_id]);
+            return res.status(401).json({ error: 'Session expired or invalidated. Please sign in again.' });
+        }
+
+        // Token Rotation: Generate new refresh token and new access token
+        const newRefreshToken = generateSecureRandom(32);
+        const newRefreshTokenHash = sha256Hash(newRefreshToken);
+        const newJti = crypto.randomUUID();
+        const secret = getJwtSecret();
+
+        await dbAdapter.run(`
+            UPDATE user_sessions
+            SET refresh_token_hash = ?, last_activity_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+        `, [newRefreshTokenHash, session.session_id]);
+
+        const tokenPayload = {
+            id: session.id,
+            username: session.username,
+            role: session.role_name,
+            branchId: session.branch_id,
+            sessionId: session.session_id,
+            jti: newJti,
+            tokenVersion: session.token_version
+        };
+
+        const token = jwt.sign(tokenPayload, secret, { expiresIn: ACCESS_TOKEN_EXPIRY });
+
+        res.json({
+            token,
+            refreshToken: newRefreshToken,
+            expiresIn: 15 * 60
+        });
+    } catch (err) {
+        console.error('Refresh token error:', err);
+        res.status(500).json({ error: 'Session refresh error' });
     }
-
-    if (!session.is_active || session.is_expired || !session.user_active) {
-        db.prepare('UPDATE user_sessions SET is_active = 0 WHERE id = ?').run(session.session_id);
-        return res.status(401).json({ error: 'Session expired or invalidated. Please sign in again.' });
-    }
-
-    // Token Rotation: Generate new refresh token and new access token
-    const newRefreshToken = generateSecureRandom(32);
-    const newRefreshTokenHash = sha256Hash(newRefreshToken);
-    const newJti = crypto.randomUUID();
-    const secret = getJwtSecret();
-
-    db.prepare(`
-        UPDATE user_sessions
-        SET refresh_token_hash = ?, last_activity_at = CURRENT_TIMESTAMP
-        WHERE id = ?
-    `).run(newRefreshTokenHash, session.session_id);
-
-    const tokenPayload = {
-        id: session.id,
-        username: session.username,
-        role: session.role_name,
-        branchId: session.branch_id,
-        sessionId: session.session_id,
-        jti: newJti,
-        tokenVersion: session.token_version
-    };
-
-    const token = jwt.sign(tokenPayload, secret, { expiresIn: ACCESS_TOKEN_EXPIRY });
-
-    res.json({
-        token,
-        refreshToken: newRefreshToken,
-        expiresIn: 15 * 60
-    });
 });
 
 // -----------------------------------------------------------------------------
 // 4. LOGOUT & TOKEN INVALIDATION
 // -----------------------------------------------------------------------------
-router.post('/logout', authenticateToken, (req, res) => {
-    if (req.user.sessionId) {
-        db.prepare('UPDATE user_sessions SET is_active = 0 WHERE id = ?').run(req.user.sessionId);
+router.post('/logout', authenticateToken, async (req, res) => {
+    try {
+        if (req.user.sessionId) {
+            await dbAdapter.run('UPDATE user_sessions SET is_active = false WHERE id = ?', [req.user.sessionId]);
+        }
+
+        if (req.user.jti) {
+            const exp = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+            await sessionRepository.revokeToken(req.user.jti, req.user.id, exp);
+        }
+
+        logAuditEvent({
+            userId: req.user.id,
+            role: req.user.roleName,
+            action: 'LOGOUT',
+            resource: 'AUTH',
+            resourceId: String(req.user.id),
+            branchId: req.user.branchId,
+            reason: 'User logged out and session invalidated',
+            ipAddress: req.ip || req.socket?.remoteAddress
+        });
+
+        res.json({ message: 'Signed out successfully' });
+    } catch (err) {
+        console.error('Logout error:', err);
+        res.status(500).json({ error: 'Logout error' });
     }
-
-    if (req.user.jti) {
-        db.prepare(`
-            INSERT OR IGNORE INTO revoked_tokens (jti, user_id, expires_at)
-            VALUES (?, ?, datetime('now', '+1 day'))
-        `).run(req.user.jti, req.user.id);
-    }
-
-    logAuditEvent({
-        userId: req.user.id,
-        role: req.user.roleName,
-        action: 'LOGOUT',
-        resource: 'AUTH',
-        resourceId: String(req.user.id),
-        branchId: req.user.branchId,
-        reason: 'User logged out and session invalidated',
-        ipAddress: req.ip || req.socket?.remoteAddress
-    });
-
-    res.json({ message: 'Signed out successfully' });
 });
 
 // -----------------------------------------------------------------------------
 // 5. USER PROFILE & DEMO PERSONA SWITCHING
 // -----------------------------------------------------------------------------
-router.get('/me', authenticateToken, (req, res) => {
-    const company = db.prepare('SELECT company_name, kra_pin, vat_rate, currency, phone, email, address, city FROM company_settings WHERE id = 1').get();
+router.get('/me', authenticateToken, async (req, res) => {
+    try {
+        const company = await dbAdapter.get('SELECT company_name, kra_pin, vat_rate, currency, phone, email, address, city FROM company_settings WHERE id = 1');
 
-    let driverProfile = null;
-    if (req.user.roleName === 'DRIVER') {
-        driverProfile = db.prepare('SELECT id, license_number, vehicle_id, status FROM drivers WHERE user_id = ?').get(req.user.id);
+        let driverProfile = null;
+        if (req.user.roleName === 'DRIVER') {
+            driverProfile = await dbAdapter.get('SELECT id, license_number, vehicle_id, status FROM drivers WHERE user_id = ?', [req.user.id]);
+        }
+
+        res.json({
+            user: {
+                ...req.user,
+                driverProfile
+            },
+            company
+        });
+    } catch (err) {
+        console.error('Get profile error:', err);
+        res.status(500).json({ error: 'Failed to retrieve profile' });
     }
-
-    res.json({
-        user: {
-            ...req.user,
-            driverProfile
-        },
-        company
-    });
 });
 
-router.post('/demo-switch', (req, res) => {
+router.post('/demo-switch', async (req, res) => {
     if (process.env.DEMO_MODE !== 'true' && process.env.NODE_ENV === 'production') {
         return res.status(403).json({
             error: 'Forbidden: Demo persona switching is disabled in production mode.'
@@ -355,121 +375,122 @@ router.post('/demo-switch', (req, res) => {
             : null;
     let user = null;
 
-    if (username) {
-        user = db.prepare(`
-            SELECT u.id, u.username, u.email, u.full_name, u.phone, u.branch_id, u.is_active,
-                   u.token_version, u.must_change_password, u.two_factor_enabled,
-                   r.name as role_name, r.display_name as role_display_name,
-                   b.name as branch_name, b.code as branch_code, b.city as branch_city
-            FROM users u
-            JOIN roles r ON u.role_id = r.id
-            LEFT JOIN branches b ON u.branch_id = b.id
-            WHERE u.username = ?
-        `).get(username);
-    } else if (role === 'SUPER_ADMIN' || (!role && targetBranchId === null)) {
-        user = db.prepare(`
-            SELECT u.id, u.username, u.email, u.full_name, u.phone, u.branch_id, u.is_active,
-                   u.token_version, u.must_change_password, u.two_factor_enabled,
-                   r.name as role_name, r.display_name as role_display_name,
-                   b.name as branch_name, b.code as branch_code, b.city as branch_city
-            FROM users u
-            JOIN roles r ON u.role_id = r.id
-            LEFT JOIN branches b ON u.branch_id = b.id
-            WHERE u.username = 'superadmin'
-        `).get();
-    } else if (targetBranchId) {
-        // Find existing user in targetBranchId matching requested role (or any role in branch)
-        user = db.prepare(`
-            SELECT u.id, u.username, u.email, u.full_name, u.phone, u.branch_id, u.is_active,
-                   u.token_version, u.must_change_password, u.two_factor_enabled,
-                   r.name as role_name, r.display_name as role_display_name,
-                   b.name as branch_name, b.code as branch_code, b.city as branch_city
-            FROM users u
-            JOIN roles r ON u.role_id = r.id
-            LEFT JOIN branches b ON u.branch_id = b.id
-            WHERE u.branch_id = ? AND (r.name = ? OR ? IS NULL)
-            ORDER BY CASE WHEN r.name = ? THEN 1 ELSE 2 END, u.id ASC
-        `).get(targetBranchId, role || null, role || null, role || 'BRANCH_MANAGER');
+    try {
+        if (username) {
+            user = await dbAdapter.get(`
+                SELECT u.id, u.username, u.email, u.full_name, u.phone, u.branch_id, u.is_active,
+                       u.token_version, u.must_change_password, u.two_factor_enabled,
+                       r.name as role_name, r.display_name as role_display_name,
+                       b.name as branch_name, b.code as branch_code, b.city as branch_city
+                FROM users u
+                JOIN roles r ON u.role_id = r.id
+                LEFT JOIN branches b ON u.branch_id = b.id
+                WHERE u.username = ?
+            `, [username]);
+        } else if (role === 'SUPER_ADMIN' || (!role && targetBranchId === null)) {
+            user = await dbAdapter.get(`
+                SELECT u.id, u.username, u.email, u.full_name, u.phone, u.branch_id, u.is_active,
+                       u.token_version, u.must_change_password, u.two_factor_enabled,
+                       r.name as role_name, r.display_name as role_display_name,
+                       b.name as branch_name, b.code as branch_code, b.city as branch_city
+                FROM users u
+                JOIN roles r ON u.role_id = r.id
+                LEFT JOIN branches b ON u.branch_id = b.id
+                WHERE u.username = 'superadmin'
+            `);
+        } else if (targetBranchId) {
+            user = await dbAdapter.get(`
+                SELECT u.id, u.username, u.email, u.full_name, u.phone, u.branch_id, u.is_active,
+                       u.token_version, u.must_change_password, u.two_factor_enabled,
+                       r.name as role_name, r.display_name as role_display_name,
+                       b.name as branch_name, b.code as branch_code, b.city as branch_city
+                FROM users u
+                JOIN roles r ON u.role_id = r.id
+                LEFT JOIN branches b ON u.branch_id = b.id
+                WHERE u.branch_id = ? AND (r.name = ? OR ? IS NULL)
+                ORDER BY CASE WHEN r.name = ? THEN 1 ELSE 2 END, u.id ASC
+            `, [targetBranchId, role || null, role || null, role || 'BRANCH_MANAGER']);
 
-        // If targetBranchId has no users yet (e.g., dynamically added branch), auto-provision a demo operator
-        if (!user) {
-            const targetBranch = db.prepare('SELECT * FROM branches WHERE id = ?').get(targetBranchId);
-            if (targetBranch) {
-                const roleRow = db.prepare('SELECT id, name, display_name FROM roles WHERE name = ?').get(role || 'BRANCH_MANAGER')
-                    || db.prepare("SELECT id, name, display_name FROM roles WHERE name = 'BRANCH_MANAGER'").get();
-                const sanitizedCode = targetBranch.code.toLowerCase().replace(/[^a-z0-9]/g, '');
-                const rolePrefix = (role || 'manager').toLowerCase().replace('branch_', '').replace('_', '');
-                const demoUsername = `${rolePrefix}.${sanitizedCode}`;
-                
-                const existingUser = db.prepare('SELECT id FROM users WHERE username = ?').get(demoUsername);
-                const finalUsername = existingUser ? `${demoUsername}_${targetBranchId}` : demoUsername;
+            if (!user) {
+                const targetBranch = await dbAdapter.get('SELECT * FROM branches WHERE id = ?', [targetBranchId]);
+                if (targetBranch) {
+                    const roleRow = await dbAdapter.get('SELECT id, name, display_name FROM roles WHERE name = ?', [role || 'BRANCH_MANAGER'])
+                        || await dbAdapter.get("SELECT id, name, display_name FROM roles WHERE name = 'BRANCH_MANAGER'");
+                    const sanitizedCode = targetBranch.code.toLowerCase().replace(/[^a-z0-9]/g, '');
+                    const rolePrefix = (role || 'manager').toLowerCase().replace('branch_', '').replace('_', '');
+                    const demoUsername = `${rolePrefix}.${sanitizedCode}`;
+                    
+                    const existingUser = await dbAdapter.get('SELECT id FROM users WHERE username = ?', [demoUsername]);
+                    const finalUsername = existingUser ? `${demoUsername}_${targetBranchId}` : demoUsername;
 
-                const defaultPassword = 'Password123!';
-                const { hashPassword } = require('../utils/security.js');
-                const hashed = hashPassword(defaultPassword);
+                    const randomPass = generateSecureRandom(12) + '!9A';
+                    const hashed = hashPassword(randomPass);
 
-                db.prepare(`
-                    INSERT INTO users (username, password_hash, email, full_name, role_id, branch_id, is_active, phone)
-                    VALUES (?, ?, ?, ?, ?, ?, 1, ?)
-                `).run(
-                    finalUsername,
-                    hashed,
-                    `${finalUsername}@swifttrack.co.ke`,
-                    `${targetBranch.name} ${roleRow.display_name || 'Operator'}`,
-                    roleRow.id,
-                    targetBranchId,
-                    targetBranch.phone || '+254 700 000 000'
-                );
+                    await dbAdapter.run(`
+                        INSERT INTO users (username, password_hash, email, full_name, role_id, branch_id, is_active, phone)
+                        VALUES (?, ?, ?, ?, ?, ?, true, ?)
+                    `, [
+                        finalUsername,
+                        hashed,
+                        `${finalUsername}@swifttrack.co.ke`,
+                        `${targetBranch.name} ${roleRow.display_name || 'Operator'}`,
+                        roleRow.id,
+                        targetBranchId,
+                        targetBranch.phone || '+254 700 000 000'
+                    ]);
 
-                user = db.prepare(`
-                    SELECT u.id, u.username, u.email, u.full_name, u.phone, u.branch_id, u.is_active,
-                           u.token_version, u.must_change_password, u.two_factor_enabled,
-                           r.name as role_name, r.display_name as role_display_name,
-                           b.name as branch_name, b.code as branch_code, b.city as branch_city
-                    FROM users u
-                    JOIN roles r ON u.role_id = r.id
-                    LEFT JOIN branches b ON u.branch_id = b.id
-                    WHERE u.username = ?
-                `).get(finalUsername);
+                    user = await dbAdapter.get(`
+                        SELECT u.id, u.username, u.email, u.full_name, u.phone, u.branch_id, u.is_active,
+                               u.token_version, u.must_change_password, u.two_factor_enabled,
+                               r.name as role_name, r.display_name as role_display_name,
+                               b.name as branch_name, b.code as branch_code, b.city as branch_city
+                        FROM users u
+                        JOIN roles r ON u.role_id = r.id
+                        LEFT JOIN branches b ON u.branch_id = b.id
+                        WHERE u.username = ?
+                    `, [finalUsername]);
+                }
             }
+        } else {
+            const fallbackUsernames = {
+                SUPER_ADMIN: 'superadmin',
+                BRANCH_MANAGER: 'manager.nairobi',
+                BRANCH_MANAGER_NAIROBI: 'manager.nairobi',
+                BRANCH_MANAGER_MOMBASA: 'manager.mombasa',
+                BRANCH_MANAGER_KISUMU: 'manager.kisumu',
+                DISPATCHER: 'dispatcher.nairobi',
+                CASHIER: 'cashier.nairobi',
+                DRIVER: 'driver.nairobi',
+            };
+            const targetUsername = fallbackUsernames[role] || 'superadmin';
+            user = await dbAdapter.get(`
+                SELECT u.id, u.username, u.email, u.full_name, u.phone, u.branch_id, u.is_active,
+                       u.token_version, u.must_change_password, u.two_factor_enabled,
+                       r.name as role_name, r.display_name as role_display_name,
+                       b.name as branch_name, b.code as branch_code, b.city as branch_city
+                FROM users u
+                JOIN roles r ON u.role_id = r.id
+                LEFT JOIN branches b ON u.branch_id = b.id
+                WHERE u.username = ?
+            `, [targetUsername]);
         }
-    } else {
-        // Fallback role switch on default branch 1
-        const fallbackUsernames = {
-            SUPER_ADMIN: 'superadmin',
-            BRANCH_MANAGER: 'manager.nairobi',
-            BRANCH_MANAGER_NAIROBI: 'manager.nairobi',
-            BRANCH_MANAGER_MOMBASA: 'manager.mombasa',
-            BRANCH_MANAGER_KISUMU: 'manager.kisumu',
-            DISPATCHER: 'dispatcher.nairobi',
-            CASHIER: 'cashier.nairobi',
-            DRIVER: 'driver.nairobi',
-        };
-        const targetUsername = fallbackUsernames[role] || 'superadmin';
-        user = db.prepare(`
-            SELECT u.id, u.username, u.email, u.full_name, u.phone, u.branch_id, u.is_active,
-                   u.token_version, u.must_change_password, u.two_factor_enabled,
-                   r.name as role_name, r.display_name as role_display_name,
-                   b.name as branch_name, b.code as branch_code, b.city as branch_city
-            FROM users u
-            JOIN roles r ON u.role_id = r.id
-            LEFT JOIN branches b ON u.branch_id = b.id
-            WHERE u.username = ?
-        `).get(targetUsername);
+
+        if (!user) {
+            return res.status(404).json({ error: 'Demo user account not found' });
+        }
+
+        const sessionData = await createSessionAndTokens(user, req);
+
+        res.json({
+            token: sessionData.token,
+            refreshToken: sessionData.refreshToken,
+            expiresIn: sessionData.expiresInSeconds,
+            user: await formatUserResponse(user)
+        });
+    } catch (err) {
+        console.error('Demo switch error:', err);
+        res.status(500).json({ error: 'Demo switch error' });
     }
-
-    if (!user) {
-        return res.status(404).json({ error: 'Demo user account not found' });
-    }
-
-    const sessionData = createSessionAndTokens(user, req);
-
-    res.json({
-        token: sessionData.token,
-        refreshToken: sessionData.refreshToken,
-        expiresIn: sessionData.expiresInSeconds,
-        user: formatUserResponse(user)
-    });
 });
 
 module.exports = router;

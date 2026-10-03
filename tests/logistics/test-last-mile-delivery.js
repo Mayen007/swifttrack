@@ -1,31 +1,31 @@
 // tests/logistics/test-last-mile-delivery.js
 // SwiftTrack Logistics: Stage 5 Last-Mile Delivery, Attempts, POD & Exceptions Verification Suite
 const assert = require('node:assert');
-const { db } = require('../../server/db/database.js');
+const dbAdapter = require('../../server/db/dbAdapter.js');
 const shipmentService = require('../../server/services/shipmentService.js');
 const deliveryExecutionService = require('../../server/services/deliveryExecutionService.js');
 
-console.log('============================================================');
-console.log('  SWIFTTRACK LOGISTICS: STAGE 5 LAST-MILE DELIVERY SUITE');
-console.log('============================================================\n');
+async function runSuite() {
+    console.log('============================================================');
+    console.log('  SWIFTTRACK LOGISTICS: STAGE 5 LAST-MILE DELIVERY SUITE');
+    console.log('============================================================\n');
 
-let passedTests = 0;
-const totalTests = 9;
+    let passedTests = 0;
+    const totalTests = 9;
 
-const adminUser = { id: 1, roleName: 'SUPER_ADMIN', fullName: 'Super Admin', branchId: 1 };
-const dispatcherUser = { id: 4, roleName: 'DISPATCHER', fullName: 'Nairobi Dispatcher', branchId: 1 };
-const driverUser = { id: 5, roleName: 'DRIVER', fullName: 'David Kamau', branchId: 1 };
+    const adminUser = { id: 1, roleName: 'SUPER_ADMIN', fullName: 'Super Admin', branchId: 1 };
+    const dispatcherUser = { id: 4, roleName: 'DISPATCHER', fullName: 'Nairobi Dispatcher', branchId: 1 };
+    const driverUser = { id: 5, roleName: 'DRIVER', fullName: 'David Kamau', branchId: 1 };
 
-let testDriver = db.prepare('SELECT * FROM drivers LIMIT 1').get();
-let testVehicle = db.prepare('SELECT * FROM vehicles LIMIT 1').get();
+    let testDriver = await dbAdapter.get('SELECT * FROM drivers LIMIT 1');
+    let testVehicle = await dbAdapter.get('SELECT * FROM vehicles LIMIT 1');
 
-try {
     // -------------------------------------------------------------
     // TEST 1: Delivery Task Creation Linked to Shipment
     // -------------------------------------------------------------
     console.log('> TEST 1: Delivery Task Creation Linked to Shipment...');
 
-    const shp1 = shipmentService.createShipment({
+    const shp1 = await shipmentService.createShipment({
         origin_hub_id: 1,
         destination_hub_id: 1,
         sender: { name: 'Safaricom HQ', phone: '+254722000000', address: 'Waiyaki Way', city: 'Nairobi' },
@@ -34,7 +34,7 @@ try {
         parcels: [{ weight_kg: 1.5, length_cm: 15, width_cm: 15, height_cm: 10, description: 'Smartphone' }]
     }, adminUser);
 
-    const deliveryTask = deliveryExecutionService.createDeliveryTask({
+    const deliveryTask = await deliveryExecutionService.createDeliveryTask({
         shipment_id: shp1.id,
         priority: 'HIGH',
         max_attempts: 3,
@@ -49,7 +49,7 @@ try {
     assert.strictEqual(deliveryTask.attempt_count, 0);
 
     // Verify shipment transitioned to READY_FOR_DELIVERY
-    const updatedShp1 = shipmentService.getShipmentById(shp1.id);
+    const updatedShp1 = await shipmentService.getShipmentById(shp1.id);
     assert.strictEqual(updatedShp1.status, 'READY_FOR_DELIVERY');
 
     // Verify tracking event
@@ -64,7 +64,7 @@ try {
     // -------------------------------------------------------------
     console.log('> TEST 2: Dispatcher Assignment to Driver and Vehicle...');
 
-    const assignedTask = deliveryExecutionService.assignDeliveryTask(deliveryTask.id, {
+    const assignedTask = await deliveryExecutionService.assignDeliveryTask(deliveryTask.id, {
         driver_id: testDriver.id,
         vehicle_id: testVehicle.id
     }, dispatcherUser);
@@ -74,7 +74,7 @@ try {
     assert.strictEqual(assignedTask.vehicle_id, testVehicle.id);
 
     // Verify tracking event
-    const shpAssigned = shipmentService.getShipmentById(shp1.id);
+    const shpAssigned = await shipmentService.getShipmentById(shp1.id);
     const assignEvent = shpAssigned.timeline.find(e => e.event_code === 'DELIVERY_ASSIGNED');
     assert.ok(assignEvent, 'Shipment timeline must include DELIVERY_ASSIGNED event');
 
@@ -86,12 +86,12 @@ try {
     // -------------------------------------------------------------
     console.log('> TEST 3: Driver Starts Delivery Run...');
 
-    const startedTask = deliveryExecutionService.startDelivery(deliveryTask.id, driverUser);
+    const startedTask = await deliveryExecutionService.startDelivery(deliveryTask.id, driverUser);
 
     assert.strictEqual(startedTask.status, 'IN_TRANSIT');
 
     // Verify shipment transitioned to OUT_FOR_DELIVERY
-    const shpStarted = shipmentService.getShipmentById(shp1.id);
+    const shpStarted = await shipmentService.getShipmentById(shp1.id);
     assert.strictEqual(shpStarted.status, 'OUT_FOR_DELIVERY');
 
     const outEvent = shpStarted.timeline.find(e => e.event_code === 'OUT_FOR_DELIVERY');
@@ -107,7 +107,7 @@ try {
 
     let reasonValidationBlocked = false;
     try {
-        deliveryExecutionService.recordDeliveryAttempt(deliveryTask.id, {
+        await deliveryExecutionService.recordDeliveryAttempt(deliveryTask.id, {
             status: 'FAILED'
             // Missing failure_reason
         }, driverUser);
@@ -117,7 +117,7 @@ try {
     assert.strictEqual(reasonValidationBlocked, true, 'Rule BR-008: Must throw error if failure_reason is omitted');
 
     // Record legitimate Attempt #1
-    const attempt1Result = deliveryExecutionService.recordDeliveryAttempt(deliveryTask.id, {
+    const attempt1Result = await deliveryExecutionService.recordDeliveryAttempt(deliveryTask.id, {
         status: 'FAILED',
         failure_reason: 'RECIPIENT_UNAVAILABLE',
         failure_notes: 'Phone rang with no answer, security guard said recipient not at home',
@@ -132,7 +132,7 @@ try {
     assert.strictEqual(attempt1Result.delivery.status, 'RESCHEDULED');
 
     // Verify tracking event
-    const shpAttempt1 = shipmentService.getShipmentById(shp1.id);
+    const shpAttempt1 = await shipmentService.getShipmentById(shp1.id);
     const attemptEvent = shpAttempt1.timeline.find(e => e.event_code === 'DELIVERY_ATTEMPT_FAILED');
     assert.ok(attemptEvent, 'Timeline must include DELIVERY_ATTEMPT_FAILED event');
 
@@ -145,7 +145,7 @@ try {
     console.log('> TEST 5: Multi-Attempt Threshold & Auto-Exception...');
 
     // Attempt #2: Customer requested reschedule
-    const attempt2Result = deliveryExecutionService.recordDeliveryAttempt(deliveryTask.id, {
+    const attempt2Result = await deliveryExecutionService.recordDeliveryAttempt(deliveryTask.id, {
         status: 'FAILED',
         failure_reason: 'CUSTOMER_REQUESTED_RESCHEDULE',
         failure_notes: 'Customer called and requested delivery tomorrow morning'
@@ -156,7 +156,7 @@ try {
     assert.strictEqual(attempt2Result.delivery.status, 'RESCHEDULED');
 
     // Attempt #3: Max attempts reached (Final failure)
-    const attempt3Result = deliveryExecutionService.recordDeliveryAttempt(deliveryTask.id, {
+    const attempt3Result = await deliveryExecutionService.recordDeliveryAttempt(deliveryTask.id, {
         status: 'FAILED',
         failure_reason: 'RECIPIENT_REFUSED',
         failure_notes: 'Recipient stated order was cancelled and refused acceptance'
@@ -167,7 +167,7 @@ try {
     assert.strictEqual(attempt3Result.delivery.status, 'RETURN_TO_HUB', 'Max attempts must transition delivery to RETURN_TO_HUB');
 
     // Verify shipment transitioned to DELIVERY_FAILED
-    const shpFailed = shipmentService.getShipmentById(shp1.id);
+    const shpFailed = await shipmentService.getShipmentById(shp1.id);
     assert.strictEqual(shpFailed.status, 'DELIVERY_FAILED', 'Shipment must transition to DELIVERY_FAILED');
 
     // Verify auto-generated exception
@@ -185,13 +185,13 @@ try {
     // -------------------------------------------------------------
     console.log('> TEST 6: Return-to-Hub Reception Workflow...');
 
-    const returnedTask = deliveryExecutionService.processReturnToHub(deliveryTask.id, {
+    const returnedTask = await deliveryExecutionService.processReturnToHub(deliveryTask.id, {
         notes: 'Driver handed back package to Station Bay 1'
     }, adminUser);
 
     assert.strictEqual(returnedTask.status, 'RETURN_RECEIVED');
 
-    const shpReturned = shipmentService.getShipmentById(shp1.id);
+    const shpReturned = await shipmentService.getShipmentById(shp1.id);
     assert.strictEqual(shpReturned.status, 'RETURNED', 'Shipment status must transition to RETURNED');
 
     const returnEvent = shpReturned.timeline.find(e => e.event_code === 'RETURNED_TO_HUB');
@@ -205,7 +205,7 @@ try {
     // -------------------------------------------------------------
     console.log('> TEST 7: Successful Delivery with Multi-Factor POD (Rule BR-007)...');
 
-    const shp2 = shipmentService.createShipment({
+    const shp2 = await shipmentService.createShipment({
         origin_hub_id: 1,
         destination_hub_id: 1,
         sender: { name: 'Twiga Foods', phone: '+254700111222', address: 'Enterprise Rd', city: 'Nairobi' },
@@ -213,22 +213,22 @@ try {
         parcels: [{ weight_kg: 2.0, description: 'Sporting Goods' }]
     }, adminUser);
 
-    const successfulDelivery = deliveryExecutionService.createDeliveryTask({
+    const successfulDelivery = await deliveryExecutionService.createDeliveryTask({
         shipment_id: shp2.id,
         pod_required_methods: 'SIGNATURE,GPS'
     }, dispatcherUser);
 
-    deliveryExecutionService.assignDeliveryTask(successfulDelivery.id, {
+    await deliveryExecutionService.assignDeliveryTask(successfulDelivery.id, {
         driver_id: testDriver.id,
         vehicle_id: testVehicle.id
     }, dispatcherUser);
 
-    deliveryExecutionService.startDelivery(successfulDelivery.id, driverUser);
+    await deliveryExecutionService.startDelivery(successfulDelivery.id, driverUser);
 
     // Test POD validation: Missing GPS should fail
     let podGpsBlocked = false;
     try {
-        deliveryExecutionService.completeDeliveryWithPOD(successfulDelivery.id, {
+        await deliveryExecutionService.completeDeliveryWithPOD(successfulDelivery.id, {
             recipient_name: 'Kipchoge Keino',
             signature_data: 'data:image/svg+xml;base64,signature'
             // Missing latitude, longitude
@@ -239,7 +239,7 @@ try {
     assert.strictEqual(podGpsBlocked, true, 'Rule BR-007: Missing required POD evidence (GPS) must fail');
 
     // Complete with full valid POD
-    const completeResult = deliveryExecutionService.completeDeliveryWithPOD(successfulDelivery.id, {
+    const completeResult = await deliveryExecutionService.completeDeliveryWithPOD(successfulDelivery.id, {
         recipient_name: 'Kipchoge Keino',
         recipient_phone: '+254700333444',
         signature_data: 'data:image/svg+xml;base64,PHN2Zz5zaWduYXR1cmU8L3N2Zz4=',
@@ -254,10 +254,10 @@ try {
     assert.ok(completeResult.delivery.actual_delivery_at);
     assert.ok(completeResult.pod);
     assert.strictEqual(completeResult.pod.recipient_name, 'Kipchoge Keino');
-    assert.strictEqual(completeResult.pod.otp_verified, 1);
+    assert.strictEqual(Boolean(completeResult.pod.otp_verified), true);
 
     // Verify shipment transitioned to DELIVERED
-    const shpDelivered = shipmentService.getShipmentById(shp2.id);
+    const shpDelivered = await shipmentService.getShipmentById(shp2.id);
     assert.strictEqual(shpDelivered.status, 'DELIVERED');
 
     const deliveredEvent = shpDelivered.timeline.find(e => e.event_code === 'DELIVERED');
@@ -273,7 +273,7 @@ try {
 
     let updatePodBlocked = false;
     try {
-        db.prepare('UPDATE proof_of_delivery SET recipient_name = ? WHERE id = ?').run('Fraudulent Name', completeResult.pod.id);
+        await dbAdapter.run('UPDATE proof_of_delivery SET recipient_name = ? WHERE id = ?', ['Fraudulent Name', completeResult.pod.id]);
     } catch (err) {
         updatePodBlocked = err.message.includes('Audit Violation');
     }
@@ -281,7 +281,7 @@ try {
 
     let deletePodBlocked = false;
     try {
-        db.prepare('DELETE FROM proof_of_delivery WHERE id = ?').run(completeResult.pod.id);
+        await dbAdapter.run('DELETE FROM proof_of_delivery WHERE id = ?', [completeResult.pod.id]);
     } catch (err) {
         deletePodBlocked = err.message.includes('Audit Violation');
     }
@@ -295,7 +295,7 @@ try {
     // -------------------------------------------------------------
     console.log('> TEST 9: Operational Exception Investigation & Resolution Lifecycle...');
 
-    const resolvedException = deliveryExecutionService.resolveException(attempt3Result.exception.id, {
+    const resolvedException = await deliveryExecutionService.resolveException(attempt3Result.exception.id, {
         root_cause: 'Recipient phone was unreachable and customer refused acceptance upon late contact',
         resolution_notes: 'Shipment safely returned to Nairobi hub. Shipper notified to arrange alternate pickup.'
     }, adminUser);
@@ -305,7 +305,7 @@ try {
     assert.ok(resolvedException.root_cause.includes('unreachable'));
 
     // Verify tracking event
-    const finalShp1 = shipmentService.getShipmentById(shp1.id);
+    const finalShp1 = await shipmentService.getShipmentById(shp1.id);
     const excResolvedEvent = finalShp1.timeline.find(e => e.event_code === 'EXCEPTION_RESOLVED');
     assert.ok(excResolvedEvent, 'Timeline must record EXCEPTION_RESOLVED event');
 
@@ -315,9 +315,12 @@ try {
     console.log('============================================================');
     console.log(`[SUCCESS] ALL ${passedTests}/${totalTests} LAST-MILE DELIVERY TESTS PASSED!`);
     console.log('============================================================\n');
+}
 
-} catch (error) {
-    console.error(`\n[FAIL] TEST SUITE FAILED at Test #${passedTests + 1}:`);
+runSuite().then(() => {
+    process.exit(0);
+}).catch(error => {
+    console.error(`\n[FAIL] TEST SUITE FAILED:`);
     console.error(error);
     process.exit(1);
-}
+});

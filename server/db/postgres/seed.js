@@ -183,14 +183,14 @@ async function seedProductionBaseline(pool = null) {
         }
 
         // 7. Operational Baseline Staff Users
-        const defaultPasswordHash = hashPassword('Admin123!', 'swifttrack_seed_salt_2026');
+        const defaultPasswordHash = hashPassword('Password123!');
 
         const staffUsers = [
             { id: 1, branch_id: null, role_id: 1, username: 'superadmin', email: 'superadmin@swifttrack.co.ke', full_name: 'Grace Mutua (Chief Operations Officer)', phone: '+254 700 000 001' },
             { id: 2, branch_id: 1, role_id: 2, username: 'manager.nairobi', email: 'manager.nairobi@swifttrack.co.ke', full_name: 'David Ochieng (Nairobi Branch Manager)', phone: '+254 711 000 001' },
             { id: 3, branch_id: 1, role_id: 3, username: 'dispatcher.nairobi', email: 'dispatcher.nairobi@swifttrack.co.ke', full_name: 'Mercy Wanjiru (Logistics Lead)', phone: '+254 711 000 002' },
             { id: 4, branch_id: 1, role_id: 4, username: 'cashier.nairobi', email: 'cashier.nairobi@swifttrack.co.ke', full_name: 'Peter Kamau (Senior POS Cashier)', phone: '+254 711 000 003' },
-            { id: 5, branch_id: 1, role_id: 5, username: 'driver.nairobi.1', email: 'driver1@swifttrack.co.ke', full_name: 'Brian Kipkorir (Express Rider)', phone: '+254 711 000 004' },
+            { id: 5, branch_id: 1, role_id: 5, username: 'driver.nairobi', email: 'driver.nairobi@swifttrack.co.ke', full_name: 'Joseph Kiprop (Lead Delivery Driver)', phone: '+254 711 000 004' },
             { id: 6, branch_id: 2, role_id: 2, username: 'manager.mombasa', email: 'manager.mombasa@swifttrack.co.ke', full_name: 'Fatuma Bakari (Mombasa Branch Manager)', phone: '+254 722 000 001' },
             { id: 7, branch_id: 3, role_id: 2, username: 'manager.kisumu', email: 'manager.kisumu@swifttrack.co.ke', full_name: 'Otieno Odhiambo (Kisumu Branch Manager)', phone: '+254 733 000 001' }
         ];
@@ -199,12 +199,15 @@ async function seedProductionBaseline(pool = null) {
             await client.query(`
                 INSERT INTO users (
                     id, branch_id, role_id, username, email, full_name, phone,
-                    password_hash, is_active, token_version
-                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, true, 1)
+                    password_hash, is_active, must_change_password, token_version
+                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, true, false, 1)
                 ON CONFLICT (id) DO UPDATE SET
+                    username = EXCLUDED.username,
                     full_name = EXCLUDED.full_name,
                     email = EXCLUDED.email,
-                    phone = EXCLUDED.phone;
+                    phone = EXCLUDED.phone,
+                    password_hash = EXCLUDED.password_hash,
+                    must_change_password = false;
             `, [u.id, u.branch_id, u.role_id, u.username, u.email, u.full_name, u.phone, defaultPasswordHash]);
         }
 

@@ -1,14 +1,13 @@
 // server/services/e2eAcceptanceService.js
 // SwiftTrack Kenya Logistics: Stage 10 Multi-Leg End-to-End Acceptance Scenario (PRD Section 30)
 const crypto = require('node:crypto');
-const { db } = require('../db/database.js');
+const dbAdapter = require('../db/dbAdapter.js');
 const shipmentService = require('./shipmentService.js');
 const transportService = require('./transportService.js');
 const custodyService = require('./custodyService.js');
 const deliveryExecutionService = require('./deliveryExecutionService.js');
 const codService = require('./codService.js');
 const notificationService = require('./notificationService.js');
-const { logAuditEvent } = require('../middleware/audit.js');
 
 class E2EAcceptanceService {
     /**
@@ -40,8 +39,11 @@ class E2EAcceptanceService {
             branchId: 1
         };
 
+        const nakuruBranch = await dbAdapter.get("SELECT id FROM branches WHERE code = 'NAK-01' OR city = 'Nakuru' LIMIT 1");
+        const defaultIntermediateId = nakuruBranch ? nakuruBranch.id : 12;
+
         const originHubId = Number(options.originHubId || 1);          // Nairobi HQ
-        const intermediateHubId = Number(options.intermediateHubId || 4); // Nakuru
+        const intermediateHubId = Number(options.intermediateHubId || defaultIntermediateId); // Nakuru
         const destinationHubId = Number(options.destinationHubId || 2);   // Mombasa
 
         const codAmount = Number(options.codAmount !== undefined ? options.codAmount : 6500);
@@ -85,7 +87,7 @@ class E2EAcceptanceService {
                 special_instructions: 'Fragile networking hardware. Handle with care.'
             };
 
-            const shipment = shipmentService.createShipment(bookingPayload, admin);
+            const shipment = await shipmentService.createShipment(bookingPayload, admin);
             logStep(1, 'Shipment Created with Multi-Leg Routing', {
                 shipment_id: shipment.id,
                 legs_count: shipment.legs ? shipment.legs.length : 2
@@ -113,19 +115,19 @@ class E2EAcceptanceService {
             // STEP 4: Counter Payment Recording
             // =========================================================================
             const paymentRef = `MPESA-ACCEPT-${Date.now().toString().slice(-6)}`;
-            db.prepare(`
+            await dbAdapter.run(`
                 UPDATE shipments SET
                     payment_status = 'PAID',
                     updated_at = CURRENT_TIMESTAMP
                 WHERE id = ?
-            `).run(shipment.id);
+            `, [shipment.id]);
 
-            db.prepare(`
+            await dbAdapter.run(`
                 INSERT INTO payments (
                     branch_id, shipment_id, payment_number, payment_method, amount, currency,
                     reference_code, mpesa_receipt_number, status, cashier_user_id, created_at
                 ) VALUES (?, ?, ?, 'MPESA', ?, 'KES', ?, ?, 'COMPLETED', ?, CURRENT_TIMESTAMP)
-            `).run(
+            `, [
                 originHubId,
                 shipment.id,
                 `PAY-${Date.now().toString().slice(-6)}`,
@@ -133,7 +135,7 @@ class E2EAcceptanceService {
                 paymentRef,
                 paymentRef,
                 admin.id
-            );
+            ]);
 
             logStep(4, 'Shipment Payment Recorded', {
                 payment_status: 'PAID',
@@ -144,7 +146,7 @@ class E2EAcceptanceService {
             // =========================================================================
             // STEP 5: Parcel Intake Acceptance
             // =========================================================================
-            shipmentService.transitionShipmentStatus(shipment.id, 'ACCEPTED', {
+            await shipmentService.transitionShipmentStatus(shipment.id, 'ACCEPTED', {
                 location_desc: 'Nairobi Central Hub Booking Counter',
                 description: 'Physical consignment accepted and verified by counter agent'
             }, admin);
@@ -157,7 +159,7 @@ class E2EAcceptanceService {
             // =========================================================================
             // STEP 6: Physical Custody Intake Scan
             // =========================================================================
-            const intakeScan = custodyService.recordScanEvent({
+            const intakeScan = await custodyService.recordScanEvent({
                 barcode: shipment.tracking_number,
                 scan_type: 'INTAKE',
                 hub_id: originHubId,
@@ -174,10 +176,9 @@ class E2EAcceptanceService {
             // =========================================================================
             // STEP 7 & 8: Provision Corridor 1 Run (Nairobi -> Nakuru) & Build Manifest
             // =========================================================================
-            // Ensure corridor route exists for Nairobi -> Nakuru
-            let route1 = db.prepare('SELECT * FROM routes WHERE origin_hub_id = ? AND destination_hub_id = ?').get(originHubId, intermediateHubId);
+            let route1 = await dbAdapter.get('SELECT * FROM routes WHERE origin_hub_id = ? AND destination_hub_id = ?', [originHubId, intermediateHubId]);
             if (!route1) {
-                route1 = transportService.createRoute({
+                route1 = await transportService.createRoute({
                     code: `RT-NRB-NAK-${Date.now().toString().slice(-4)}`,
                     name: 'Nairobi to Nakuru Corridor',
                     origin_hub_id: originHubId,
@@ -187,24 +188,26 @@ class E2EAcceptanceService {
                 }, admin);
             }
 
-            const driver1 = db.prepare(`
+            const driver1 = await dbAdapter.get(`
                 SELECT d.id, u.full_name
                 FROM drivers d
                 JOIN users u ON d.user_id = u.id
                 WHERE d.status = 'AVAILABLE'
                 LIMIT 1
-            `).get() || db.prepare(`
+            `) || await dbAdapter.get(`
                 SELECT d.id, u.full_name
                 FROM drivers d
                 JOIN users u ON d.user_id = u.id
                 LIMIT 1
-            `).get();
+            `);
 
-            const vehicle1 = db.prepare('SELECT id, registration_number FROM vehicles WHERE status = ? LIMIT 1').get('AVAILABLE') ||
-                             db.prepare('SELECT id, registration_number FROM vehicles LIMIT 1').get();
+            const vehicle1 = await dbAdapter.get("SELECT id, registration_number FROM vehicles WHERE status = 'AVAILABLE' LIMIT 1") ||
+                             await dbAdapter.get('SELECT id, registration_number FROM vehicles LIMIT 1');
 
-            const run1 = transportService.createTransportRun({
-                route_leg_id: (route1.legs && route1.legs[0]) ? route1.legs[0].id : 1,
+            const route1LegId = (route1.legs && route1.legs[0]) ? route1.legs[0].id : (await dbAdapter.get('SELECT id FROM route_legs WHERE route_id = ? LIMIT 1', [route1.id]))?.id || 1;
+
+            const run1 = await transportService.createTransportRun({
+                route_leg_id: route1LegId,
                 origin_hub_id: originHubId,
                 destination_hub_id: intermediateHubId,
                 driver_id: driver1.id,
@@ -219,7 +222,7 @@ class E2EAcceptanceService {
                 corridor: 'Nairobi -> Nakuru'
             });
 
-            transportService.addShipmentToManifest(run1.id, shipment.id, admin);
+            await transportService.addShipmentToManifest(run1.id, shipment.id, admin);
             logStep(8, 'Shipment Assigned to Transport Run 1', {
                 run_id: run1.id,
                 run_number: run1.run_number,
@@ -230,7 +233,7 @@ class E2EAcceptanceService {
             // =========================================================================
             // STEP 9: Lock Manifest & Transition to LOADED
             // =========================================================================
-            transportService.lockManifest(run1.id, admin);
+            await transportService.lockManifest(run1.id, admin);
             logStep(9, 'Manifest Locked & Shipment Transitioned to LOADED', {
                 manifest_status: 'LOCKED',
                 shipment_status: 'LOADED'
@@ -239,7 +242,7 @@ class E2EAcceptanceService {
             // =========================================================================
             // STEP 10: Transport Run 1 Departure (IN_TRANSIT)
             // =========================================================================
-            transportService.dispatchTransportRun(run1.id, {
+            await transportService.dispatchTransportRun(run1.id, {
                 departure_odometer_km: 14200.0,
                 notes: 'Departed Nairobi HQ via Waiyaki Way'
             }, admin);
@@ -253,7 +256,7 @@ class E2EAcceptanceService {
             // =========================================================================
             // STEP 11: Mid-Corridor Waypoint Checkpoint Scan
             // =========================================================================
-            const checkpoint1 = transportService.recordCheckpoint(run1.id, {
+            await transportService.recordCheckpoint(run1.id, {
                 checkpoint_name: 'Naivasha Rift Valley Waypoint',
                 latitude: -0.7172,
                 longitude: 36.4310,
@@ -268,8 +271,8 @@ class E2EAcceptanceService {
             // =========================================================================
             // STEP 12 & 13: Intermediate Hub Arrival, Receiving & Discrepancy Check
             // =========================================================================
-            transportService.arriveTransportRun(run1.id, { arrival_odometer_km: 14362.0 }, admin);
-            const recon1 = transportService.receiveManifest(run1.id, [shipment.id], admin);
+            await transportService.arriveTransportRun(run1.id, { arrival_odometer_km: 14362.0 }, admin);
+            const recon1 = await transportService.receiveManifest(run1.id, [shipment.id], admin);
 
             logStep(12, 'Intermediate Hub (Nakuru) Received Consignment', {
                 hub_id: intermediateHubId,
@@ -286,9 +289,9 @@ class E2EAcceptanceService {
             // =========================================================================
             // STEP 14: Transshipment Handshake: Assign to Leg 2 (Nakuru -> Mombasa)
             // =========================================================================
-            let route2 = db.prepare('SELECT * FROM routes WHERE origin_hub_id = ? AND destination_hub_id = ?').get(intermediateHubId, destinationHubId);
+            let route2 = await dbAdapter.get('SELECT * FROM routes WHERE origin_hub_id = ? AND destination_hub_id = ?', [intermediateHubId, destinationHubId]);
             if (!route2) {
-                route2 = transportService.createRoute({
+                route2 = await transportService.createRoute({
                     code: `RT-NAK-MSA-${Date.now().toString().slice(-4)}`,
                     name: 'Nakuru to Mombasa Corridor',
                     origin_hub_id: intermediateHubId,
@@ -298,17 +301,19 @@ class E2EAcceptanceService {
                 }, admin);
             }
 
-            const driver2 = db.prepare(`
+            const driver2 = await dbAdapter.get(`
                 SELECT d.id, u.full_name
                 FROM drivers d
                 JOIN users u ON d.user_id = u.id
                 WHERE d.id != ?
                 LIMIT 1
-            `).get(driver1.id) || driver1;
-            const vehicle2 = db.prepare('SELECT id, registration_number FROM vehicles WHERE id != ? LIMIT 1').get(vehicle1.id) || vehicle1;
+            `, [driver1.id]) || driver1;
+            const vehicle2 = await dbAdapter.get('SELECT id, registration_number FROM vehicles WHERE id != ? LIMIT 1', [vehicle1.id]) || vehicle1;
 
-            const run2 = transportService.createTransportRun({
-                route_leg_id: (route2.legs && route2.legs[0]) ? route2.legs[0].id : 1,
+            const route2LegId = (route2.legs && route2.legs[0]) ? route2.legs[0].id : (await dbAdapter.get('SELECT id FROM route_legs WHERE route_id = ? LIMIT 1', [route2.id]))?.id || 1;
+
+            const run2 = await transportService.createTransportRun({
+                route_leg_id: route2LegId,
                 origin_hub_id: intermediateHubId,
                 destination_hub_id: destinationHubId,
                 driver_id: driver2.id,
@@ -317,9 +322,9 @@ class E2EAcceptanceService {
                 notes: 'Leg 2 Linehaul: Nakuru Transfer to Mombasa Port'
             }, admin);
 
-            transportService.addShipmentToManifest(run2.id, shipment.id, admin);
-            transportService.lockManifest(run2.id, admin);
-            transportService.dispatchTransportRun(run2.id, {
+            await transportService.addShipmentToManifest(run2.id, shipment.id, admin);
+            await transportService.lockManifest(run2.id, admin);
+            await transportService.dispatchTransportRun(run2.id, {
                 departure_odometer_km: 28500.0,
                 notes: 'Departed Nakuru depot for Mombasa coast'
             }, admin);
@@ -333,8 +338,8 @@ class E2EAcceptanceService {
             // =========================================================================
             // STEP 15: Arrival & Physical Receiving at Destination Hub (Mombasa)
             // =========================================================================
-            transportService.arriveTransportRun(run2.id, { arrival_odometer_km: 29140.0 }, admin);
-            transportService.receiveManifest(run2.id, [shipment.id], admin);
+            await transportService.arriveTransportRun(run2.id, { arrival_odometer_km: 29140.0 }, admin);
+            await transportService.receiveManifest(run2.id, [shipment.id], admin);
 
             logStep(15, 'Shipment Received at Final Destination Hub (Mombasa)', {
                 hub_id: destinationHubId,
@@ -345,7 +350,7 @@ class E2EAcceptanceService {
             // =========================================================================
             // STEP 16: Last-Mile Delivery Task Provisioning
             // =========================================================================
-            const deliveryTask = deliveryExecutionService.createDeliveryTask({
+            const deliveryTask = await deliveryExecutionService.createDeliveryTask({
                 shipment_id: shipment.id,
                 hub_id: destinationHubId,
                 recipient_name: 'Grace Auma',
@@ -365,7 +370,7 @@ class E2EAcceptanceService {
             // =========================================================================
             // STEP 17: Driver Assignment for Last-Mile
             // =========================================================================
-            deliveryExecutionService.assignDeliveryTask(deliveryTask.id, {
+            await deliveryExecutionService.assignDeliveryTask(deliveryTask.id, {
                 driver_id: driver2.id,
                 vehicle_id: vehicle2.id
             }, admin);
@@ -378,7 +383,7 @@ class E2EAcceptanceService {
             // =========================================================================
             // STEP 18: Out For Delivery & Dynamic OTP PIN Generation
             // =========================================================================
-            const activeDelivery = deliveryExecutionService.startDelivery(deliveryTask.id, {
+            const activeDelivery = await deliveryExecutionService.startDelivery(deliveryTask.id, {
                 id: driver2.id,
                 fullName: driver2.full_name
             });
@@ -392,7 +397,7 @@ class E2EAcceptanceService {
             // =========================================================================
             // STEP 19 & 20: Multi-Factor POD Verification & Final Delivery Completion
             // =========================================================================
-            const completedDelivery = deliveryExecutionService.completeDeliveryWithPOD(deliveryTask.id, {
+            const completedDelivery = await deliveryExecutionService.completeDeliveryWithPOD(deliveryTask.id, {
                 otp_code: activeDelivery.pod_otp,
                 otp_verified: true,
                 signature_data: 'data:image/svg+xml;utf8,<svg><path d="M10 10 L50 50"/></svg>',
@@ -419,12 +424,12 @@ class E2EAcceptanceService {
             // =========================================================================
             // STEP 21: Public Customer Tracking Milestone Timeline Verification
             // =========================================================================
-            const trackingEvents = db.prepare(`
+            const trackingEvents = await dbAdapter.all(`
                 SELECT event_code, event_name, location_desc, created_at
                 FROM tracking_events
                 WHERE shipment_id = ?
                 ORDER BY id ASC
-            `).all(shipment.id);
+            `, [shipment.id]);
 
             logStep(21, 'Public Customer Tracking Milestone Reflection', {
                 tracking_number: shipment.tracking_number,
@@ -435,23 +440,23 @@ class E2EAcceptanceService {
             // =========================================================================
             // STEP 22: Audit Governance & Immutable System Log Verification
             // =========================================================================
-            const auditEntries = db.prepare(`
+            const auditEntries = await dbAdapter.get(`
                 SELECT count(*) as count FROM audit_logs
                 WHERE (resource = 'SHIPMENT' AND resource_id = ?)
                    OR (resource = 'DELIVERY' AND resource_id = ?)
-            `).get(String(shipment.id), String(deliveryTask.id));
+            `, [String(shipment.id), String(deliveryTask.id)]);
 
             logStep(22, 'Critical Operational Events Audited', {
-                audit_records_count: auditEntries ? auditEntries.count : 0,
+                audit_records_count: auditEntries ? Number(auditEntries.count) : 0,
                 compliance_standard: 'PRD-7.15-AUDIT'
             });
 
             // =========================================================================
             // STEP 23: COD Collection, Remittance & Financial Reconciliation
             // =========================================================================
-            let codSettlement = db.prepare('SELECT * FROM cod_settlements WHERE shipment_id = ?').get(shipment.id);
+            let codSettlement = await dbAdapter.get('SELECT * FROM cod_settlements WHERE shipment_id = ?', [shipment.id]);
             if (!codSettlement) {
-                codSettlement = codService.createExpectedSettlement({
+                codSettlement = await codService.createExpectedSettlement({
                     shipment_id: shipment.id,
                     expected_amount: codAmount,
                     delivery_id: deliveryTask.id,
@@ -460,7 +465,7 @@ class E2EAcceptanceService {
             }
 
             // Driver records collection from recipient
-            codService.recordCollection(codSettlement.id, {
+            await codService.recordCollection(codSettlement.id, {
                 collected_amount: codAmount,
                 payment_method: 'MPESA',
                 payment_reference: `MPESA-COD-${Date.now().toString().slice(-6)}`,
@@ -469,7 +474,7 @@ class E2EAcceptanceService {
             }, { id: driver2.id, roleName: 'DRIVER', fullName: driver2.full_name });
 
             // Driver remits funds to Mombasa Hub Finance Depot
-            codService.recordRemittance(codSettlement.id, {
+            await codService.recordRemittance(codSettlement.id, {
                 remitted_amount: codAmount,
                 remittance_method: 'BANK_DEPOSIT',
                 remittance_reference: `DEP-KCB-${Date.now().toString().slice(-6)}`,
@@ -478,7 +483,7 @@ class E2EAcceptanceService {
 
             // Mombasa Branch Manager approves reconciliation
             const manager = { id: 2, roleName: 'BRANCH_MANAGER', role: 'BRANCH_MANAGER', branchId: destinationHubId, fullName: 'Mombasa Branch Manager' };
-            const reconciledSettlement = codService.reconcileSettlement(codSettlement.id, {}, manager);
+            const reconciledSettlement = await codService.reconcileSettlement(codSettlement.id, {}, manager);
 
             logStep(23, 'COD Financial Reconciliation Completed & Closed', {
                 settlement_number: reconciledSettlement.settlement_number,
@@ -489,9 +494,13 @@ class E2EAcceptanceService {
             });
 
             // Drain outbox queue to finalize all milestone communication dispatches
+            let totalDispatched = 0;
             let notificationDrain;
             do {
                 notificationDrain = await notificationService.processOutboxBatch(100);
+                if (notificationDrain && notificationDrain.success_count) {
+                    totalDispatched += notificationDrain.success_count;
+                }
             } while (notificationDrain && notificationDrain.total_selected > 0);
 
             const totalDurationMs = Date.now() - startTime;
@@ -527,7 +536,7 @@ class E2EAcceptanceService {
                         collected: codAmount,
                         status: 'RECONCILED'
                     },
-                    notifications_dispatched: notificationDrain.success_count
+                    notifications_dispatched: totalDispatched
                 }
             };
         } catch (err) {

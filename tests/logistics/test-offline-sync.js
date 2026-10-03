@@ -2,27 +2,27 @@
 // SwiftTrack Logistics: Durable Offline Operations & Idempotent Replay Verification Suite
 const assert = require('node:assert');
 const crypto = require('node:crypto');
-const { db } = require('../../server/db/database.js');
+const dbAdapter = require('../../server/db/dbAdapter.js');
 const shipmentService = require('../../server/services/shipmentService.js');
 const custodyService = require('../../server/services/custodyService.js');
 const deliveryExecutionService = require('../../server/services/deliveryExecutionService.js');
 const offlineSyncService = require('../../server/services/offlineSyncService.js');
 
-console.log('============================================================');
-console.log('  SWIFTTRACK LOGISTICS: DURABLE OFFLINE OPERATIONS SUITE');
-console.log('============================================================\n');
+async function runTests() {
+    console.log('============================================================');
+    console.log('  SWIFTTRACK LOGISTICS: DURABLE OFFLINE OPERATIONS SUITE');
+    console.log('============================================================\n');
 
-let passedTests = 0;
-const totalTests = 7;
+    let passedTests = 0;
+    const totalTests = 7;
 
-const adminUser = { id: 1, roleName: 'SUPER_ADMIN', fullName: 'Super Admin', branchId: 1 };
-const dispatcherUser = { id: 4, roleName: 'DISPATCHER', fullName: 'Nairobi Dispatcher', branchId: 1 };
-const driverUser = { id: 5, roleName: 'DRIVER', fullName: 'David Kamau', branchId: 1 };
+    const adminUser = { id: 1, roleName: 'SUPER_ADMIN', fullName: 'Super Admin', branchId: 1 };
+    const dispatcherUser = { id: 4, roleName: 'DISPATCHER', fullName: 'Nairobi Dispatcher', branchId: 1 };
+    const driverUser = { id: 5, roleName: 'DRIVER', fullName: 'David Kamau', branchId: 1 };
 
-let testDriver = db.prepare('SELECT * FROM drivers LIMIT 1').get();
-let testVehicle = db.prepare('SELECT * FROM vehicles LIMIT 1').get();
+    const testDriver = await dbAdapter.get('SELECT * FROM drivers LIMIT 1');
+    const testVehicle = await dbAdapter.get('SELECT * FROM vehicles LIMIT 1');
 
-try {
     const testDeviceId = 'PDA-ZEBRA-TEST-' + crypto.randomBytes(4).toString('hex');
     const appVersion = 'v2.4.1-field';
 
@@ -31,7 +31,7 @@ try {
     // -------------------------------------------------------------
     console.log('> TEST 1: Ingesting Offline Barcode Scan with Durable Audit...');
 
-    const shp1 = shipmentService.createShipment({
+    const shp1 = await shipmentService.createShipment({
         origin_hub_id: 1,
         destination_hub_id: 2,
         sender: { name: 'Offline Client Ltd', phone: '+254711999888', address: 'Industrial Area', city: 'Nairobi' },
@@ -61,7 +61,7 @@ try {
         ]
     };
 
-    const res1 = offlineSyncService.processOfflineSyncBatch(batch1, adminUser);
+    const res1 = await offlineSyncService.processOfflineSyncBatch(batch1, adminUser);
     assert.strictEqual(res1.total_operations, 1);
     assert.strictEqual(res1.processed_count, 1);
     assert.strictEqual(res1.duplicate_count, 0);
@@ -69,11 +69,11 @@ try {
     assert.strictEqual(res1.operations[0].status, 'ACKNOWLEDGED');
 
     // Verify shipment transitioned to AT_ORIGIN_HUB
-    const updatedShp1 = shipmentService.getShipmentById(shp1.id);
+    const updatedShp1 = await shipmentService.getShipmentById(shp1.id);
     assert.strictEqual(updatedShp1.status, 'AT_ORIGIN_HUB');
 
     // Verify sync log entry exists
-    const log1 = db.prepare('SELECT * FROM offline_sync_logs WHERE client_operation_id = ?').get(scanOpId);
+    const log1 = await dbAdapter.get('SELECT * FROM offline_sync_logs WHERE client_operation_id = ?', [scanOpId]);
     assert.ok(log1, 'offline_sync_logs must contain entry for client operation');
     assert.strictEqual(log1.status, 'PROCESSED');
     assert.strictEqual(log1.device_id, testDeviceId);
@@ -111,11 +111,11 @@ try {
         ]
     };
 
-    const res2 = offlineSyncService.processOfflineSyncBatch(batch2, adminUser);
+    const res2 = await offlineSyncService.processOfflineSyncBatch(batch2, adminUser);
     assert.strictEqual(res2.processed_count, 1);
     assert.strictEqual(res2.operations[0].status, 'ACKNOWLEDGED');
 
-    const log2 = db.prepare('SELECT * FROM offline_sync_logs WHERE client_operation_id = ?').get(handoffOpId);
+    const log2 = await dbAdapter.get('SELECT * FROM offline_sync_logs WHERE client_operation_id = ?', [handoffOpId]);
     assert.ok(log2);
     assert.strictEqual(log2.status, 'PROCESSED');
 
@@ -127,7 +127,7 @@ try {
     // -------------------------------------------------------------
     console.log('> TEST 3: Ingesting Offline Delivery Attempt...');
 
-    const shpDelivery = shipmentService.createShipment({
+    const shpDelivery = await shipmentService.createShipment({
         origin_hub_id: 1,
         destination_hub_id: 1,
         sender: { name: 'Fast Delivery Nairobi', phone: '+254711333444', address: 'Westlands', city: 'Nairobi' },
@@ -136,21 +136,21 @@ try {
         parcels: [{ weight_kg: 2.0, length_cm: 10, width_cm: 10, height_cm: 10, description: 'Medical Supplies' }]
     }, adminUser);
 
-    const deliveryTask = deliveryExecutionService.createDeliveryTask({
+    const deliveryTask = await deliveryExecutionService.createDeliveryTask({
         shipment_id: shpDelivery.id,
         priority: 'HIGH',
         max_attempts: 1
     }, dispatcherUser);
 
-    deliveryExecutionService.assignDeliveryTask(deliveryTask.id, {
+    await deliveryExecutionService.assignDeliveryTask(deliveryTask.id, {
         driver_id: testDriver.id,
         vehicle_id: testVehicle.id
     }, dispatcherUser);
 
-    deliveryExecutionService.startDelivery(deliveryTask.id, driverUser);
+    await deliveryExecutionService.startDelivery(deliveryTask.id, driverUser);
 
     // Verify shipment is OUT_FOR_DELIVERY
-    const outShp = shipmentService.getShipmentById(shpDelivery.id);
+    const outShp = await shipmentService.getShipmentById(shpDelivery.id);
     assert.strictEqual(outShp.status, 'OUT_FOR_DELIVERY');
 
     const attemptOpId = 'OP-ATTEMPT-' + crypto.randomUUID();
@@ -174,15 +174,15 @@ try {
         ]
     };
 
-    const res3 = offlineSyncService.processOfflineSyncBatch(batch3, driverUser);
+    const res3 = await offlineSyncService.processOfflineSyncBatch(batch3, driverUser);
     assert.strictEqual(res3.processed_count, 1);
     assert.strictEqual(res3.operations[0].status, 'ACKNOWLEDGED');
 
-    const updatedTask = deliveryExecutionService.getDeliveryById(deliveryTask.id);
+    const updatedTask = await deliveryExecutionService.getDeliveryById(deliveryTask.id);
     assert.strictEqual(updatedTask.attempt_count, 1);
     assert.strictEqual(updatedTask.status, 'RETURN_TO_HUB');
 
-    const failedShp = shipmentService.getShipmentById(shpDelivery.id);
+    const failedShp = await shipmentService.getShipmentById(shpDelivery.id);
     assert.strictEqual(failedShp.status, 'DELIVERY_FAILED');
 
     passedTests++;
@@ -204,7 +204,7 @@ try {
         ]
     };
 
-    const replayRes = offlineSyncService.processOfflineSyncBatch(replayBatch, adminUser);
+    const replayRes = await offlineSyncService.processOfflineSyncBatch(replayBatch, adminUser);
 
     assert.strictEqual(replayRes.total_operations, 3);
     assert.strictEqual(replayRes.processed_count, 0, 'No new operations should be processed on replay');
@@ -218,7 +218,7 @@ try {
     }
 
     // Verify task attempt count did NOT increment again
-    const taskAfterReplay = deliveryExecutionService.getDeliveryById(deliveryTask.id);
+    const taskAfterReplay = await deliveryExecutionService.getDeliveryById(deliveryTask.id);
     assert.strictEqual(taskAfterReplay.attempt_count, 1, 'Attempt count must remain 1 after replay');
 
     passedTests++;
@@ -247,13 +247,13 @@ try {
     };
 
     // Driver user id is 5, which corresponds to testDriver
-    const resLoc = offlineSyncService.processOfflineSyncBatch(batchLoc, driverUser);
+    const resLoc = await offlineSyncService.processOfflineSyncBatch(batchLoc, driverUser);
     assert.strictEqual(resLoc.processed_count, 1);
     assert.strictEqual(resLoc.operations[0].status, 'ACKNOWLEDGED');
 
-    const updatedDriver = db.prepare('SELECT current_latitude, current_longitude FROM drivers WHERE id = ?').get(testDriver.id);
-    assert.strictEqual(updatedDriver.current_latitude, -1.2921);
-    assert.strictEqual(updatedDriver.current_longitude, 36.8219);
+    const updatedDriver = await dbAdapter.get('SELECT current_latitude, current_longitude FROM drivers WHERE id = ?', [testDriver.id]);
+    assert.strictEqual(Number(updatedDriver.current_latitude), -1.2921);
+    assert.strictEqual(Number(updatedDriver.current_longitude), 36.8219);
 
     passedTests++;
     console.log('[PASS] [PASS] 5. Location Telemetry: Successfully synchronized driver GPS location offline\n');
@@ -281,7 +281,7 @@ try {
         ]
     };
 
-    const resBad = offlineSyncService.processOfflineSyncBatch(badBatch, adminUser);
+    const resBad = await offlineSyncService.processOfflineSyncBatch(badBatch, adminUser);
     assert.strictEqual(resBad.total_operations, 2);
     assert.strictEqual(resBad.processed_count, 0);
     assert.strictEqual(resBad.error_count, 2);
@@ -297,7 +297,7 @@ try {
     // -------------------------------------------------------------
     console.log('> TEST 7: Checking Offline Sync Statistics API...');
 
-    const stats = offlineSyncService.getOfflineSyncStats(testDeviceId);
+    const stats = await offlineSyncService.getOfflineSyncStats(testDeviceId);
     assert.ok(stats.stats && Array.isArray(stats.stats));
     assert.ok(stats.recent && Array.isArray(stats.recent));
 
@@ -312,9 +312,11 @@ try {
     console.log('============================================================');
     console.log(`[SUCCESS] ALL ${passedTests}/${totalTests} OFFLINE SYNC TESTS PASSED!`);
     console.log('============================================================\n');
+    process.exit(0);
+}
 
-} catch (err) {
+runTests().catch(err => {
     console.error('\n[FAIL] TEST FAILED:', err.message);
     console.error(err.stack);
     process.exit(1);
-}
+});
