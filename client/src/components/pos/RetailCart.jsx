@@ -53,7 +53,7 @@ export function RetailCart({
             <div className="flex items-center gap-2">
               <span className={`w-2 h-2 rounded-full ${activeShift ? 'bg-emerald-500' : 'bg-rose-500'}`} />
               <h2 className="text-xs font-bold text-white uppercase tracking-widest font-mono">
-                REGISTER // {selectedBranch ? `${selectedBranch.code}` : (user?.branch_code || 'T-01')}
+                REGISTER: {selectedBranch ? `${selectedBranch.code}` : (user?.branch_code || 'T-01')}
               </h2>
             </div>
             <div className="flex items-center gap-1.5">
@@ -198,7 +198,7 @@ export function RetailCart({
             {items.length === 0 ? (
               <div className="text-center py-16 text-slate-400 text-xs font-mono">
                 <ShoppingCart className="w-6 h-6 mx-auto mb-2 text-slate-500" />
-                <span>REGISTER EMPTY // SELECT ITEMS OR SCAN</span>
+                <span>REGISTER EMPTY • SELECT ITEMS OR SCAN</span>
               </div>
             ) : (
               items.map((item) => (

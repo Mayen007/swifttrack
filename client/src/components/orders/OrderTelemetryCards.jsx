@@ -32,10 +32,10 @@ export function OrderTelemetryCards({
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-sm font-bold text-slate-100 uppercase tracking-wider font-mono">
-                Orders Engine // State Machine
+                Customer Orders & Fulfillment
               </h1>
               <span className="px-2 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/30 text-[10px] font-mono text-emerald-400">
-                ETR & INVARIANT COMPLIANT
+                KRA ETR COMPLIANT
               </span>
             </div>
             <p className="text-[11px] text-slate-400 mt-0.5 font-mono">

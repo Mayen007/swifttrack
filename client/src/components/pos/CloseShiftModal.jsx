@@ -33,7 +33,7 @@ export function CloseShiftModal({
               </div>
               <div>
                 <h3 className="text-sm font-bold text-white uppercase font-mono">
-                  CLOSE SHIFT // RECONCILIATION
+                  CLOSE SHIFT RECONCILIATION
                 </h3>
                 <p className="text-[11px] text-slate-400">Shift #{activeShift.shift_number} End-of-Day Balancing</p>
               </div>

@@ -54,7 +54,7 @@ export function StaffInspectorDrawer({
             </div>
             <div className="min-w-0">
               <h3 id="staff-dossier-title" className="font-bold text-sm text-white font-mono uppercase tracking-wider truncate">
-                STAFF DOSSIER // {user.username.toUpperCase()}
+                STAFF PROFILE: {user.username.toUpperCase()}
               </h3>
               <p className="text-[10px] text-slate-400 font-mono">
                 Operator Security Profile & Credentials

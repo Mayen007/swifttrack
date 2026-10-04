@@ -45,10 +45,10 @@ export function PaymentsConsoleHeader({
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-sm font-bold text-slate-100 uppercase tracking-wider font-mono">
-                Payments Engine // Gateway
+                Payments & Gateway
               </h1>
               <span className="px-2 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/30 text-[10px] font-mono text-emerald-400 font-semibold">
-                DARAJA 2.0 & IDEMPOTENT
+                M-PESA DARAJA ACTIVE
               </span>
             </div>
             <p className="text-[11px] text-slate-400 mt-0.5 font-mono">

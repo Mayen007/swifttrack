@@ -43,7 +43,7 @@ export function SecurityAuditDrawer({
           <div className="flex items-center gap-2">
             <AlertTriangle className="w-4 h-4 text-amber-400" />
             <h3 id="security-audit-title" className="font-bold text-sm text-white font-mono uppercase tracking-wider">
-              SECURITY AUDIT // FAILED LOGINS & LOCKOUT EVENTS
+              SECURITY AUDIT: FAILED LOGINS & LOCKOUT EVENTS
             </h3>
           </div>
           <button

@@ -6,6 +6,7 @@ const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
+  const [company, setCompany] = useState(null);
   const [branches, setBranches] = useState([]);
   const [selectedBranch, setSelectedBranch] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -57,6 +58,9 @@ export function AuthProvider({ children }) {
       };
 
       setUser(normUser);
+      if (res.company) {
+        setCompany(res.company);
+      }
       setMustChangePassword(Boolean(normUser.mustChangePassword));
 
       const bList = await loadBranches();
@@ -316,6 +320,9 @@ export function AuthProvider({ children }) {
                 twoFactorEnabled: Boolean(me.user.twoFactorEnabled),
               };
               setUser(normUser);
+              if (me.company) {
+                setCompany(me.company);
+              }
               setMustChangePassword(Boolean(normUser.mustChangePassword));
 
               const bList = await loadBranches();
@@ -418,6 +425,8 @@ export function AuthProvider({ children }) {
     <AuthContext.Provider
       value={{
         user,
+        company,
+        setCompany,
         branches,
         selectedBranch: effectiveBranch,
         selectBranch,

@@ -15,19 +15,19 @@ export function AuditHeader({
         <div className="flex items-center gap-2">
           <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded bg-blue-500/10 border border-blue-500/30 text-blue-400 font-mono text-[10px] font-bold tracking-wider uppercase">
             <ShieldCheck className="w-3 h-3" />
-            CRYPTOGRAPHIC STATE FORENSICS
+            AUDIT FORENSICS
           </span>
           <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 font-mono text-[10px]">
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" />
-            SQL TRIGGER TAMPER-PROOF
+            TAMPER-PROTECTED
           </span>
         </div>
         <h1 className="text-lg font-bold text-white tracking-tight flex items-center gap-2 mt-1">
           <Lock className="w-5 h-5 text-blue-400" />
-          Immutable Forensic Platform Audit Trail
+          Immutable Platform Audit Trail
         </h1>
         <p className="text-xs text-slate-400 mt-0.5">
-          Append-only cryptographically verifiable event ledger recording every mutating platform state transition with before/after state diffs
+          Append-only verifiable event ledger recording every mutating platform state transition with before/after state diffs
         </p>
       </div>
 
@@ -36,7 +36,7 @@ export function AuditHeader({
         <button
           onClick={onVerifyIntegrity}
           disabled={isVerifyingIntegrity || loading}
-          title="Execute cryptographic validation of SQLite append-only trigger constraints"
+          title="Execute cryptographic validation of append-only audit constraints"
           className="px-3 py-1.5 rounded border border-[#222834] bg-[#181d28] hover:bg-[#202736] text-xs font-mono text-emerald-400 hover:text-emerald-300 flex items-center gap-1.5 transition-colors cursor-pointer disabled:opacity-50"
         >
           <ShieldCheck className={`w-3.5 h-3.5 ${isVerifyingIntegrity ? 'animate-spin text-emerald-400' : ''}`} />

@@ -44,7 +44,7 @@ export function DispatchConsoleHeader({
               <h1 className="text-sm font-bold text-slate-900 dark:text-slate-100 uppercase tracking-wider font-mono flex items-center gap-2">
                 Fleet Dispatch & Manifest Pipeline
                 <span className="text-[10px] font-normal px-2 py-0.5 rounded bg-[#181d28] border border-[#2a3447] text-slate-600 dark:text-slate-400">
-                  CONSOLE // V2.4
+                  DISPATCH CONSOLE
                 </span>
               </h1>
               <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 font-mono">

@@ -425,15 +425,13 @@ export function BranchesView() {
         <div className="flex items-center gap-2">
           <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
           <span className="font-mono text-[11px]">
-            CRYPTOGRAPHIC AUDIT // ALL REGIONAL NODE TRANSACTIONS ARE LOCALLY SCOPED & SECURED
+            SECURITY AUDIT: ALL REGIONAL TRANSACTIONS ARE BRANCH-SCOPED & SECURED
           </span>
         </div>
         <div className="flex items-center gap-3 font-mono text-[10px] text-slate-400">
-          <span>LATENCY: &lt;14ms</span>
+          <span>BRANCH ISOLATION: STRICT</span>
           <span>•</span>
-          <span>TENANT ISOLATION: STRICT</span>
-          <span>•</span>
-          <span>DARAJA PAYBILL: INTEGRATED</span>
+          <span>M-PESA PAYBILL: ACTIVE</span>
         </div>
       </div>
 

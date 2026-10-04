@@ -35,7 +35,7 @@ export function InitiatePaymentModal({
         <div className="flex items-center justify-between border-b border-[#222834] pb-3">
           <div className="flex items-center gap-2">
             <CreditCard className="w-5 h-5 text-amber-400" />
-            <h3 className="font-bold text-white text-sm">INITIATE PAYMENT // GATEWAY</h3>
+            <h3 className="font-bold text-white text-sm">INITIATE GATEWAY PAYMENT</h3>
           </div>
           <button
             onClick={onClose}

@@ -37,7 +37,7 @@ export function BranchInspectorModal({
           <div className="flex items-center gap-2">
             <Layers className="w-4 h-4 text-blue-400" />
             <h3 className="font-bold text-sm text-white font-mono uppercase tracking-wider">
-              FACILITY SPECIFICATIONS // HUB: {hub.code}
+              FACILITY SPECIFICATIONS: {hub.code}
             </h3>
           </div>
           <button

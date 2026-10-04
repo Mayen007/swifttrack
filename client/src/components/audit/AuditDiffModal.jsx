@@ -28,7 +28,7 @@ export function AuditDiffModal({
           <div className="flex items-center gap-2">
             <FileCode className="w-4 h-4 text-blue-400" />
             <h3 className="font-bold text-sm text-white font-mono uppercase tracking-wider">
-              FORENSIC AUDIT ENTRY #{log.id} // {log.action} [{log.resource}]
+              AUDIT ENTRY #{log.id} — {log.action} [{log.resource}]
             </h3>
           </div>
 

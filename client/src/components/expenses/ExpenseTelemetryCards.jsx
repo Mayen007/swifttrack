@@ -36,13 +36,13 @@ export function ExpenseTelemetryCards({
                 Branch Petty Cash & Operating Expenses
               </h1>
               <span className="px-2 py-0.5 rounded bg-[#181d28] border border-[#222834] text-[10px] font-mono text-slate-400">
-                OVERHEAD // DISBURSEMENTS
+                OPERATING EXPENSES
               </span>
             </div>
             <p className="text-[11px] text-slate-400 mt-0.5 font-mono">
               STATION: <span className="text-slate-200 font-semibold">{selectedBranch?.name || 'Central Hub'}</span>
               <span className="mx-2 text-[#222834]">|</span>
-              FLOAT: <span className="text-emerald-400 font-bold">KSh 50,000.00 REPLENISHED</span>
+              STATUS: <span className="text-emerald-400 font-bold">ACTIVE PETTY CASH LEDGER</span>
               {lastSyncTime && <span className="ml-1 text-slate-500 font-mono">({lastSyncTime} EAT)</span>}
             </p>
           </div>

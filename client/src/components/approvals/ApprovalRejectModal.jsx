@@ -27,7 +27,7 @@ export function ApprovalRejectModal({
 
         <div>
           <span className="text-[10px] font-mono text-rose-400 uppercase tracking-wider font-bold">
-            AUDIT REJECTION // MANAGEMENT DECISION
+            REJECTION DECISION
           </span>
           <h3 className="text-base font-bold text-white flex items-center gap-2 font-mono mt-0.5">
             <ShieldAlert className="w-4 h-4 text-rose-400" />

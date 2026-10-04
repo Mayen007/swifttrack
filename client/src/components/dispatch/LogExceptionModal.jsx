@@ -27,7 +27,7 @@ export function LogExceptionModal({
 
         <div>
           <span className="text-[10px] font-mono text-rose-400 uppercase tracking-wider block font-bold">
-            INCIDENT REPORT // EXCEPTION HANDLING
+            INCIDENT REPORT: EXCEPTION HANDLING
           </span>
           <h3 className="text-base font-bold text-white flex items-center gap-2 font-mono">
             <AlertTriangle className="w-4 h-4 text-rose-400" />

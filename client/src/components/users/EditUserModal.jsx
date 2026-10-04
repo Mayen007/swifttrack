@@ -51,7 +51,7 @@ export function EditUserModal({
           <div className="flex items-center gap-2">
             <Edit3 className="w-4 h-4 text-amber-400" />
             <h3 id="edit-user-modal-title" className="font-bold text-sm text-white font-mono uppercase tracking-wider">
-              EDIT STAFF RECORD // #{user.id}
+              EDIT STAFF RECORD: #{user.id}
             </h3>
           </div>
           <button

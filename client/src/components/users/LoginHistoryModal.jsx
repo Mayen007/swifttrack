@@ -44,7 +44,7 @@ export function LoginHistoryModal({
           <div className="flex items-center gap-2">
             <History className="w-4 h-4 text-blue-400" />
             <h3 id="login-history-modal-title" className="font-bold text-sm text-white font-mono uppercase tracking-wider">
-              LOGIN AUDIT TRAIL // @{user.username.toUpperCase()}
+              LOGIN AUDIT TRAIL: @{user.username.toUpperCase()}
             </h3>
           </div>
           <button

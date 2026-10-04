@@ -21,7 +21,7 @@ export function InspectManifestModal({
         <div>
           <div className="flex items-center gap-2">
             <span className="text-[10px] font-mono text-blue-400 uppercase tracking-wider font-bold">
-              MANIFEST LEDGER // {inspectDelivery.delivery_number}
+              MANIFEST LEDGER: {inspectDelivery.delivery_number}
             </span>
           </div>
           <h3 className="text-base font-bold text-slate-100 font-mono mt-0.5">

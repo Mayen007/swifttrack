@@ -30,7 +30,7 @@ export function RecordExpenseModal({
 
         <div>
           <span className="text-[10px] font-mono text-emerald-400 uppercase tracking-wider font-bold">
-            PETTY CASH // NEW DISBURSEMENT VOUCHER
+            PETTY CASH: NEW DISBURSEMENT VOUCHER
           </span>
           <h3 className="text-base font-bold text-slate-100 font-mono mt-0.5 flex items-center gap-2">
             <Banknote className="w-4 h-4 text-emerald-400" />

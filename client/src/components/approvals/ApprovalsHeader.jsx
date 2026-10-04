@@ -30,7 +30,7 @@ export function ApprovalsHeader({
               Manager Approvals & Authorization Console
             </h1>
             <span className="px-2 py-0.5 rounded bg-[#181d28] border border-[#222834] text-[10px] font-mono text-slate-400">
-              GOVERNANCE // INTERNAL CONTROLS
+              GOVERNANCE & CONTROLS
             </span>
           </div>
           <p className="text-[11px] text-slate-400 mt-0.5 font-mono">

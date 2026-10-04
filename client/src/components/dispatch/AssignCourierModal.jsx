@@ -34,7 +34,7 @@ export function AssignCourierModal({
 
         <div>
           <span className="text-[10px] font-mono text-blue-400 uppercase tracking-wider block font-bold">
-            DISPATCH // ALLOCATE FLEET COURIER
+            DISPATCH: ALLOCATE FLEET COURIER
           </span>
           <h3 className="text-base font-bold text-slate-100 flex items-center gap-2 font-mono">
             <Truck className="w-4 h-4 text-blue-400" />

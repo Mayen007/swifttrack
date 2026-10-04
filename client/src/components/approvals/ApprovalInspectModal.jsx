@@ -18,7 +18,7 @@ export function ApprovalInspectModal({ isOpen, item, onClose }) {
 
         <div>
           <span className="text-[10px] font-mono text-amber-400 uppercase tracking-wider font-bold">
-            AUDIT VERIFICATION // DETAILS
+            AUDIT VERIFICATION DETAILS
           </span>
           <h3 className="text-base font-bold text-slate-100 font-mono mt-0.5">
             {item.refund_request_number || item.transfer_number}

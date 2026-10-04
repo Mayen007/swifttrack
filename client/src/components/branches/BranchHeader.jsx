@@ -15,11 +15,11 @@ export function BranchHeader({
         <div className="flex items-center gap-2">
           <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded bg-blue-500/10 border border-blue-500/30 text-blue-400 font-mono text-[10px] font-bold tracking-wider uppercase">
             <Globe className="w-3 h-3" />
-            KENYA TOPOLOGY MESH
+            KENYA HUB NETWORK
           </span>
           <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 font-mono text-[10px]">
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" />
-            MULTITENANT NODE CLUSTER
+            MULTI-BRANCH ACTIVE
           </span>
         </div>
         <h1 className="text-lg font-bold text-white tracking-tight flex items-center gap-2 mt-1">

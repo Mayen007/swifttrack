@@ -18,7 +18,7 @@ export function InspectExpenseModal({ isOpen, onClose, expense }) {
 
         <div>
           <span className="text-[10px] font-mono text-emerald-400 uppercase tracking-wider font-bold">
-            AUDIT SLIP // PETTY CASH VOUCHER
+            PETTY CASH VOUCHER
           </span>
           <h3 className="text-base font-bold text-slate-100 font-mono mt-0.5">
             {expense.expense_number}

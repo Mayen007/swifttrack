@@ -173,7 +173,7 @@ export function ActiveRunCard({
               className="w-full py-2.5 px-4 rounded bg-cyan-600 hover:bg-cyan-500 text-black font-bold font-mono text-xs uppercase tracking-wider transition-colors cursor-pointer flex items-center justify-center gap-2 shadow-md shadow-cyan-900/30"
             >
               <Navigation className="w-3.5 h-3.5" />
-              <span>Depart Hub // Initiate Road Transit</span>
+              <span>Depart Hub & Initiate Transit</span>
             </button>
           ) : (
             <div className="flex flex-col sm:flex-row gap-2">

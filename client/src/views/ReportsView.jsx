@@ -27,7 +27,7 @@ import {
 } from 'lucide-react';
 
 export function ReportsView() {
-  const { user, selectedBranch, isSuperAdmin } = useAuth();
+  const { user, company, selectedBranch, isSuperAdmin } = useAuth();
   const [activeTab, setActiveTab] = useState('vat'); // 'vat', 'pnl', 'payments'
   const [vatReport, setVatReport] = useState(null);
   const [pnlReport, setPnlReport] = useState(null);
@@ -91,13 +91,13 @@ export function ReportsView() {
                   Financial Intelligence & Fiscal Governance
                 </h1>
                 <span className="px-2 py-0.5 rounded bg-[#181d28] border border-[#222834] text-[10px] font-mono text-slate-400">
-                  KRA ETR // VAT 16%
+                  KRA VAT COMPLIANCE ({company?.vat_rate ? `${parseFloat(company.vat_rate)}%` : '16%'})
                 </span>
               </div>
               <p className="text-[11px] text-slate-400 mt-0.5 font-mono">
                 STATION: <span className="text-slate-200 font-semibold">{selectedBranch?.name || 'All Regional Stations'}</span>
                 <span className="mx-2 text-[#222834]">|</span>
-                KRA PIN: <span className="text-slate-300 font-mono">P051982736X</span>
+                KRA PIN: <span className="text-slate-300 font-mono">{company?.kra_pin || 'P051234567Z'}</span>
                 <span className="mx-2 text-[#222834]">|</span>
                 CADENCE: <span className="text-emerald-400 font-bold">MONTHLY STATUTORY</span>
                 {lastSyncTime && <span className="ml-1 text-slate-500 font-mono">({lastSyncTime} EAT)</span>}
