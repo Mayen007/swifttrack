@@ -464,7 +464,93 @@ function bookCounterShipment(data, user = {}) {
         };
     });
 
-    return executeBookingTx();
+    const result = executeBookingTx();
+
+    // Mirror shipment into PostgreSQL if running in PostgreSQL mode
+    const isPostgres = process.env.DB_CLIENT === 'postgres' || (!!process.env.DATABASE_URL && process.env.DB_CLIENT !== 'sqlite');
+    if (isPostgres) {
+        try {
+            const pool = require('../db/postgres/pool.js');
+            const pg = pool.getPool();
+            (async () => {
+                try {
+                    const pgRes = await pg.query(`
+                        INSERT INTO shipments (
+                            tracking_number, waybill_number,
+                            origin_hub_id, destination_hub_id, current_hub_id, current_location_desc,
+                            sender_customer_id, sender_name, sender_phone, sender_email, sender_address, sender_city,
+                            recipient_customer_id, recipient_name, recipient_phone, recipient_email, recipient_address, recipient_city,
+                            service_type, delivery_type, status,
+                            total_parcels, actual_weight_kg, volumetric_weight_kg, chargeable_weight_kg, declared_value,
+                            currency, base_rate, weight_charge, surcharges, discount_amount, tax_amount, total_amount,
+                            payment_terms, payment_status, cod_amount, cod_fee,
+                            special_instructions, created_by_user_id
+                        ) VALUES (
+                            $1, $2,
+                            $3, $4, $5, $6,
+                            $7, $8, $9, $10, $11, $12,
+                            $13, $14, $15, $16, $17, $18,
+                            $19, $20, $21,
+                            $22, $23, $24, $25, $26,
+                            $27, $28, $29, $30, $31, $32, $33,
+                            $34, $35, $36, $37,
+                            $38, $39
+                        ) RETURNING id
+                    `, [
+                        result.tracking_number, result.waybill_number,
+                        originHubId, destinationHubId, originHubId, `${originHub.name} Counter`,
+                        data.sender?.customer_id || null, data.sender.name, data.sender.phone, data.sender.email || null, data.sender.address, data.sender.city || originHub.city,
+                        data.recipient?.customer_id || null, data.recipient.name, data.recipient.phone, data.recipient.email || null, data.recipient.address, data.recipient.city || destHub.city,
+                        data.service_type || 'STANDARD', data.delivery_type || 'LAST_MILE', result.status,
+                        pricing.total_parcels, pricing.actual_weight_kg, pricing.volumetric_weight_kg, pricing.chargeable_weight_kg, pricing.declared_value,
+                        pricing.currency, pricing.base_rate, pricing.weight_charge, pricing.surcharges, pricing.discount_amount, pricing.tax_amount, pricing.total_amount,
+                        result.waybill?.payment_terms || 'PREPAID', result.payment_status || 'PAID', pricing.cod_amount || 0, pricing.cod_fee || 0,
+                        data.special_instructions || null, user.id || 1
+                    ]);
+
+                    const pgShipmentId = pgRes.rows[0].id;
+
+                    for (const p of result.parcels) {
+                        await pg.query(`
+                            INSERT INTO parcels (
+                                shipment_id, parcel_number, parcel_index,
+                                weight_kg, length_cm, width_cm, height_cm, volumetric_weight_kg,
+                                package_type, description, condition_at_intake
+                            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+                        `, [
+                            pgShipmentId, p.parcel_number, p.parcel_index,
+                            p.weight_kg, p.length_cm || 0, p.width_cm || 0, p.height_cm || 0, p.volumetric_weight_kg || 0,
+                            p.package_type || 'BOX', p.description || null, 'INTACT'
+                        ]);
+                    }
+
+                    await pg.query(`
+                        INSERT INTO shipment_legs (
+                            shipment_id, leg_sequence, origin_hub_id, destination_hub_id, status
+                        ) VALUES ($1, 1, $2, $3, 'PENDING')
+                    `, [pgShipmentId, originHubId, destinationHubId]);
+
+                    await pg.query(`
+                        INSERT INTO tracking_events (
+                            shipment_id, event_code, event_name,
+                            hub_id, location_desc, actor_id, actor_type, actor_name,
+                            description, is_customer_visible
+                        ) VALUES ($1, 'BOOKED', 'Shipment Booked at Counter', $2, $3, $4, 'CASHIER', $5, $6, true)
+                    `, [
+                        pgShipmentId, originHubId, `${originHub.name} Counter Desk`,
+                        user.id || 1, user.fullName || user.username || 'Counter Cashier',
+                        `Consignment booked at ${originHub.name} counter for routing to ${destHub.name}`
+                    ]);
+                } catch (pgErr) {
+                    console.error('[PostgreSQL Mirror Error for Counter Booking]:', pgErr.message);
+                }
+            })();
+        } catch (e) {
+            console.error('Failed to initialize PG mirror:', e);
+        }
+    }
+
+    return result;
 }
 
 /**

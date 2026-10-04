@@ -26,7 +26,9 @@ export function ActiveRunCard({
 
   return (
     <div
-      className={`bg-[#12161f] border rounded transition-colors overflow-hidden ${
+      id={`delivery-${delivery.id}`}
+      className={`bg-[#12161f] border rounded transition-all duration-300 overflow-hidden ${
+        isExpanded ? 'border-blue-500 shadow-md shadow-blue-500/10 ring-1 ring-blue-500/30' :
         isInTransit ? 'border-cyan-500/50' : 'border-[#222834] hover:border-slate-700'
       }`}
     >

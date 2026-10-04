@@ -51,9 +51,9 @@ export function Sidebar({
         },
         {
           id: 'dashboard',
-          label: 'Command Center',
+          label: 'Executive Command Center',
           icon: LayoutDashboard,
-          roles: ['SUPER_ADMIN', 'BRANCH_MANAGER', 'DISPATCHER'],
+          roles: ['SUPER_ADMIN', 'BRANCH_MANAGER'],
         },
       ],
     },

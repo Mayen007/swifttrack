@@ -1,9 +1,11 @@
 // client/src/components/NotificationsDrawer.jsx
 import React, { useState, useEffect } from 'react';
 import { api } from '../services/api.js';
-import { Bell, AlertTriangle, RotateCcw, Truck, X, CheckCheck } from 'lucide-react';
+import { useAuth } from '../context/AuthContext.jsx';
+import { Bell, AlertTriangle, RotateCcw, Truck, X, CheckCheck, ArrowRight, Package, ShoppingBag, ShieldCheck } from 'lucide-react';
 
-export function NotificationsDrawer({ isOpen, onClose, onRefreshCount }) {
+export function NotificationsDrawer({ isOpen, onClose, onRefreshCount, onNavigate }) {
+  const { user } = useAuth();
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(false);
 
@@ -55,6 +57,57 @@ export function NotificationsDrawer({ isOpen, onClose, onRefreshCount }) {
     }
   };
 
+  const handleNotificationClick = async (n) => {
+    // 1. Mark as read
+    if (!n.is_read) {
+      markOneRead(n.id);
+    }
+
+    // 2. Resolve destination view and focus ID
+    let targetView = null;
+    let focusId = n.reference_id || null;
+
+    const refType = (n.reference_type || '').toUpperCase();
+    const notifType = (n.type || '').toUpperCase();
+
+    const role = (user?.role || user?.roleName || '').toUpperCase();
+
+    if (refType === 'DELIVERY' || notifType.includes('DELIVERY') || notifType.includes('DISPATCH')) {
+      // If user is a driver or supervisor viewing driver operations
+      if (role === 'DRIVER') {
+        targetView = 'driver';
+      } else {
+        targetView = 'dispatch';
+      }
+    } else if (refType === 'ORDER' || notifType.includes('ORDER')) {
+      targetView = 'orders';
+    } else if (refType === 'SHIPMENT') {
+      targetView = 'shipments';
+    } else if (refType === 'INVENTORY' || notifType === 'LOW_STOCK') {
+      targetView = 'inventory';
+    } else if (refType === 'APPROVAL' || notifType === 'REFUND_REQUEST') {
+      targetView = 'approvals';
+    } else if (refType === 'COMMUNICATION') {
+      targetView = 'communications';
+    }
+
+    if (targetView && onNavigate) {
+      if (focusId) {
+        try {
+          sessionStorage.setItem('swifttrack_focus_delivery_id', String(focusId));
+        } catch {}
+
+        setTimeout(() => {
+          window.dispatchEvent(new CustomEvent('swifttrack:focus_delivery', { detail: { deliveryId: focusId } }));
+        }, 150);
+      }
+
+      const navParams = focusId && targetView === 'driver' ? { delivery_id: focusId } : {};
+      onNavigate(targetView, navParams);
+      if (onClose) onClose();
+    }
+  };
+
   if (!isOpen) return null;
 
   const unreadTotal = notifications.filter((n) => !n.is_read).length;
@@ -81,7 +134,7 @@ export function NotificationsDrawer({ isOpen, onClose, onRefreshCount }) {
                   </span>
                 )}
               </h2>
-              <p className="text-xs text-gray-400 mt-1">Real-time alerts and system logs</p>
+              <p className="text-xs text-gray-400 mt-1">Real-time alerts, courier dispatches & system logs</p>
             </div>
 
             <div className="flex items-center gap-2">
@@ -117,37 +170,59 @@ export function NotificationsDrawer({ isOpen, onClose, onRefreshCount }) {
                 const getIcon = () => {
                   if (n.type === 'LOW_STOCK') return <AlertTriangle className="w-4 h-4 text-amber-400" />;
                   if (n.type === 'REFUND_REQUEST') return <RotateCcw className="w-4 h-4 text-rose-400" />;
-                  if (n.type === 'DISPATCH_ASSIGNED') return <Truck className="w-4 h-4 text-blue-400" />;
+                  if (n.type?.includes('DELIVERY') || n.type?.includes('DISPATCH') || n.reference_type === 'DELIVERY') {
+                    return <Truck className="w-4 h-4 text-cyan-400" />;
+                  }
+                  if (n.reference_type === 'SHIPMENT') return <Package className="w-4 h-4 text-indigo-400" />;
+                  if (n.reference_type === 'ORDER') return <ShoppingBag className="w-4 h-4 text-emerald-400" />;
                   return <Bell className="w-4 h-4 text-blue-400" />;
                 };
+
+                const hasTaskTarget = Boolean(n.reference_type || n.type?.includes('DELIVERY') || n.type?.includes('ORDER'));
 
                 return (
                   <div
                     key={n.id}
-                    onClick={() => !n.is_read && markOneRead(n.id)}
-                    title={!n.is_read ? 'Click to mark as read' : ''}
-                    className={`p-4 rounded-xl border transition-all duration-200 ${n.is_read
-                        ? 'bg-gray-800/40 border-gray-800 text-gray-400'
-                        : 'bg-blue-950/20 border-blue-900/40 text-white shadow-sm cursor-pointer hover:border-blue-700/60'
-                      }`}
+                    onClick={() => handleNotificationClick(n)}
+                    className={`p-4 rounded-xl border transition-all duration-200 group cursor-pointer ${
+                      n.is_read
+                        ? 'bg-gray-800/40 border-gray-800 text-gray-400 hover:border-gray-700 hover:bg-gray-800/60'
+                        : 'bg-blue-950/20 border-blue-900/40 text-white shadow-sm hover:border-blue-500/60 hover:bg-blue-950/40'
+                    }`}
                   >
                     <div className="flex items-start gap-3">
-                      <div className="p-2 rounded-lg bg-gray-800 border border-gray-700/60 shrink-0">
+                      <div className="p-2 rounded-lg bg-gray-800 border border-gray-700/60 shrink-0 group-hover:border-blue-500/40 transition-colors">
                         {getIcon()}
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-baseline justify-between gap-2">
                           <div className="flex items-center gap-1.5 truncate">
                             {!n.is_read && (
-                              <span className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" />
+                              <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 shrink-0 animate-pulse" />
                             )}
-                            <h4 className="text-xs font-bold text-white truncate">{n.title}</h4>
+                            <h4 className="text-xs font-bold text-white truncate group-hover:text-blue-400 transition-colors">
+                              {n.title}
+                            </h4>
                           </div>
                           <span className="text-[10px] text-gray-400 shrink-0 font-mono">
                             {new Date(n.created_at).toLocaleTimeString('en-KE', { hour: '2-digit', minute: '2-digit' })}
                           </span>
                         </div>
                         <p className="text-xs text-gray-300 mt-1 leading-relaxed">{n.message}</p>
+
+                        {hasTaskTarget && (
+                          <div className="mt-2.5 pt-2 border-t border-gray-800/80 flex items-center justify-between">
+                            <span className="text-[10px] font-mono text-blue-400 group-hover:text-cyan-300 flex items-center gap-1 font-semibold transition-colors">
+                              <span>Open Assigned Task</span>
+                              <ArrowRight className="w-3 h-3 group-hover:translate-x-0.5 transition-transform" />
+                            </span>
+                            {n.reference_id && (
+                              <span className="text-[10px] font-mono text-slate-500 bg-slate-900 px-1.5 py-0.2 rounded border border-[#222834]">
+                                #{n.reference_id}
+                              </span>
+                            )}
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>

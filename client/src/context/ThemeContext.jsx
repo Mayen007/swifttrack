@@ -36,7 +36,7 @@ export function ThemeProvider({ children }) {
     } catch (e) {
       console.warn('Unable to read theme from localStorage', e);
     }
-    return 'system';
+    return 'dark';
   });
 
   const [systemPreference, setSystemPreference] = useState(() => {

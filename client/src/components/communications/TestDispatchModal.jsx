@@ -78,11 +78,14 @@ export function TestDispatchModal({
               onChange={(e) => setTestForm({ ...testForm, template_code: e.target.value })}
               className="w-full bg-slate-950/60 border border-slate-800 rounded-xl px-3.5 py-2.5 text-sm text-slate-300 focus:outline-none focus:border-indigo-500 cursor-pointer"
             >
-              {templates.map((t) => (
-                <option key={t.template_code} value={t.template_code}>
-                  {t.name} ({t.template_code})
-                </option>
-              ))}
+              {templates.map((t) => {
+                const codeVal = t.code || t.template_code;
+                return (
+                  <option key={codeVal} value={codeVal}>
+                    {t.name} ({codeVal})
+                  </option>
+                );
+              })}
             </select>
           </div>
 
@@ -99,7 +102,7 @@ export function TestDispatchModal({
             />
           </div>
 
-          <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-800">
+          <div className="flex items-center justify-between gap-3 pt-3 border-t border-slate-800">
             <button
               type="button"
               onClick={onClose}

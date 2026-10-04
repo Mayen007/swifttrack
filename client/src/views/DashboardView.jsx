@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext.jsx';
 import { api } from '../services/api.js';
-import { Activity, BarChart2 } from 'lucide-react';
-import { OperationsControlTower } from '../components/dashboard/OperationsControlTower.jsx';
+import { LayoutDashboard, Activity } from 'lucide-react';
 import { CommercialBentoHeader, CommercialMetricStrip } from '../components/dashboard/CommercialBentoHeader.jsx';
 import { CommercialQuickNav } from '../components/dashboard/CommercialQuickNav.jsx';
 import { CommercialChartsGrid } from '../components/dashboard/CommercialChartsGrid.jsx';
@@ -10,7 +9,6 @@ import { CriticalInventoryGrid } from '../components/dashboard/CriticalInventory
 
 export function DashboardView({ onNavigate }) {
   const { user, selectedBranch, isSuperAdmin } = useAuth();
-  const [activeTab, setActiveTab] = useState('control_tower');
   const [stats, setStats] = useState(null);
   const [lowStock, setLowStock] = useState([]);
   const [branchPerformance, setBranchPerformance] = useState([]);
@@ -23,16 +21,20 @@ export function DashboardView({ onNavigate }) {
   const [shippedView, setShippedView] = useState('products');
   const [pendingView, setPendingView] = useState('products');
 
+  const canViewFinancials = isSuperAdmin || user?.role === 'BRANCH_MANAGER' || user?.roleName === 'BRANCH_MANAGER';
+
   async function loadDashboardData() {
     try {
       const activeBranchId = !isSuperAdmin && user?.branch_id ? user.branch_id : (selectedBranch?.id || null);
       const branchParam = activeBranchId ? `?branch_id=${activeBranchId}` : '';
 
       const [pnlData, stockData, branchesData, charts] = await Promise.all([
-        api.get(`/api/reports/pnl${branchParam}`).catch(() => null),
+        canViewFinancials ? api.get(`/api/reports/pnl${branchParam}`).catch(() => null) : Promise.resolve(null),
         api.get(`/api/inventory${branchParam}`).catch(() => []),
         api.get('/api/branches').catch(() => []),
-        api.get(`/api/reports/dashboard-charts?days=${chartDays}${branchParam ? `&${branchParam.slice(1)}` : ''}`).catch(() => null),
+        canViewFinancials
+          ? api.get(`/api/reports/dashboard-charts?days=${chartDays}${branchParam ? `&${branchParam.slice(1)}` : ''}`).catch(() => null)
+          : Promise.resolve(null),
       ]);
 
       const inventory = Array.isArray(stockData) ? stockData : [];
@@ -71,6 +73,7 @@ export function DashboardView({ onNavigate }) {
   }
 
   async function handleTimeRangeChange(days) {
+    if (!canViewFinancials) return;
     setChartDays(days);
     try {
       const activeBranchId = !isSuperAdmin && user?.branch_id ? user.branch_id : (selectedBranch?.id || null);
@@ -99,77 +102,69 @@ export function DashboardView({ onNavigate }) {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between bg-[#12161f] border border-[#222834] rounded-xl p-2 gap-3">
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => setActiveTab('control_tower')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-mono font-bold flex items-center gap-2 transition-all cursor-pointer ${
-              activeTab === 'control_tower'
-                ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40 shadow-sm'
-                : 'text-slate-400 hover:text-slate-200 hover:bg-[#18202d] border border-transparent'
-            }`}
-          >
-            <Activity className="w-3.5 h-3.5 text-amber-400" />
-            <span>OPERATIONS CONTROL TOWER</span>
-            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse ml-0.5" />
-          </button>
-
-          <button
-            onClick={() => setActiveTab('commercial_bi')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-mono font-bold flex items-center gap-2 transition-all cursor-pointer ${
-              activeTab === 'commercial_bi'
-                ? 'bg-blue-500/20 text-blue-300 border border-blue-500/40 shadow-sm'
-                : 'text-slate-400 hover:text-slate-200 hover:bg-[#18202d] border border-transparent'
-            }`}
-          >
-            <BarChart2 className="w-3.5 h-3.5 text-blue-400" />
-            <span>FINANCIAL & RETAIL BI</span>
-          </button>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between bg-[#12161f] border border-[#222834] rounded-xl p-3 gap-3">
+        <div className="flex items-center gap-3">
+          <div className="p-2 rounded-lg bg-blue-500/10 border border-blue-500/30 text-blue-400">
+            <LayoutDashboard className="w-5 h-5" />
+          </div>
+          <div>
+            <span className="text-[10px] font-mono text-blue-400 uppercase tracking-wider block font-bold">
+              EXECUTIVE INTELLIGENCE & COMMERCIAL BI
+            </span>
+            <h2 className="text-base font-bold text-white font-mono uppercase tracking-wide">
+              Executive Command Center
+            </h2>
+          </div>
         </div>
 
-        <div className="flex items-center gap-3 text-xs font-mono text-slate-400 px-2">
-          <span className="text-[10px] uppercase tracking-wider text-slate-400">HUB CONTEXT:</span>
-          <span className="text-amber-400 font-bold">
-            {selectedBranch ? `${selectedBranch.code} (${selectedBranch.name})` : 'HQ MASTER NETWORK'}
-          </span>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => onNavigate && onNavigate('control-tower')}
+            className="px-3 py-1.5 rounded-lg text-xs font-mono font-bold flex items-center gap-2 bg-[#18202d] hover:bg-amber-500/10 text-slate-300 hover:text-amber-300 border border-[#2c3548] hover:border-amber-500/30 transition-all cursor-pointer"
+            title="Switch to Operations Control Tower"
+          >
+            <Activity className="w-3.5 h-3.5 text-amber-400" />
+            <span>Operations Control Tower &rarr;</span>
+          </button>
+
+          <div className="flex items-center gap-2 text-xs font-mono text-slate-400 pl-2 border-l border-slate-800">
+            <span className="text-[10px] uppercase tracking-wider text-slate-500">CONTEXT:</span>
+            <span className="text-amber-400 font-bold">
+              {selectedBranch ? `${selectedBranch.code} (${selectedBranch.name})` : 'HQ MASTER NETWORK'}
+            </span>
+          </div>
         </div>
       </div>
 
-      {activeTab === 'control_tower' ? (
-        <OperationsControlTower onNavigate={onNavigate} />
-      ) : (
-        <>
-          <CommercialBentoHeader
-            user={user}
-            selectedBranch={selectedBranch}
-            refreshing={refreshing}
-            onRefresh={handleRefresh}
-            stats={stats}
-            deliverySuccessRate={deliverySuccessRate}
-          />
+      <CommercialBentoHeader
+        user={user}
+        selectedBranch={selectedBranch}
+        refreshing={refreshing}
+        onRefresh={handleRefresh}
+        stats={stats}
+        deliverySuccessRate={deliverySuccessRate}
+      />
 
-          <CommercialQuickNav onNavigate={onNavigate} />
+      <CommercialQuickNav onNavigate={onNavigate} />
 
-          <CommercialMetricStrip stats={stats} />
+      <CommercialMetricStrip stats={stats} />
 
-          <CommercialChartsGrid
-            chartData={chartData}
-            chartDays={chartDays}
-            handleTimeRangeChange={handleTimeRangeChange}
-            shippedView={shippedView}
-            setShippedView={setShippedView}
-            pendingView={pendingView}
-            setPendingView={setPendingView}
-            deliverySuccessRate={deliverySuccessRate}
-          />
+      <CommercialChartsGrid
+        chartData={chartData}
+        chartDays={chartDays}
+        handleTimeRangeChange={handleTimeRangeChange}
+        shippedView={shippedView}
+        setShippedView={setShippedView}
+        pendingView={pendingView}
+        setPendingView={setPendingView}
+        deliverySuccessRate={deliverySuccessRate}
+      />
 
-          <CriticalInventoryGrid
-            lowStock={lowStock}
-            branchPerformance={branchPerformance}
-            onNavigate={onNavigate}
-          />
-        </>
-      )}
+      <CriticalInventoryGrid
+        lowStock={lowStock}
+        branchPerformance={branchPerformance}
+        onNavigate={onNavigate}
+      />
     </div>
   );
 }

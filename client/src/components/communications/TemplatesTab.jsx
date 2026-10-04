@@ -25,7 +25,7 @@ export function TemplatesTab({ templates, canManage, onOpenEditTemplate }) {
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   {getEventBadge(tmpl.event_type)}
-                  <span className="font-mono text-xs text-slate-400">{tmpl.template_code}</span>
+                  <span className="font-mono text-xs text-slate-400">{tmpl.code || tmpl.template_code}</span>
                 </div>
                 <span className={`px-2 py-0.5 rounded text-[11px] font-mono font-semibold ${tmpl.is_active ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-slate-800 text-slate-500'}`}>
                   {tmpl.is_active ? 'Active' : 'Disabled'}

@@ -5,32 +5,58 @@ const { db } = require('../db/database.js');
 const { authenticateToken, requireRole, authorize } = require('../middleware/auth.js');
 const { logAuditEvent } = require('../middleware/audit.js');
 
-// GET /api/deliveries/driver/active - Active runs list for Driver View
+// // GET /api/deliveries/driver/active - Active runs list for Driver View
 router.get('/driver/active', authenticateToken, authorize('delivery', 'view_own'), (req, res) => {
-    const driver = db.prepare('SELECT id, status, license_number FROM drivers WHERE user_id = ?').get(req.user.id);
+    let driver = null;
+    if (req.query.driver_id && ['SUPER_ADMIN', 'DISPATCHER', 'BRANCH_MANAGER'].includes(req.user.roleName)) {
+        driver = db.prepare('SELECT id, status, license_number FROM drivers WHERE id = ?').get(Number(req.query.driver_id));
+    }
+    if (!driver) {
+        driver = db.prepare('SELECT id, status, license_number FROM drivers WHERE user_id = ?').get(req.user.id);
+    }
+    if (!driver && (req.user.phone || req.user.email)) {
+        driver = db.prepare('SELECT id, status, license_number FROM drivers WHERE phone = ? OR email = ?').get(req.user.phone || '', req.user.email || '');
+    }
+
     let deliveries = [];
     if (driver) {
         deliveries = db.prepare(`
-            SELECT d.*, o.order_number, o.total_amount, o.delivery_address, o.delivery_city,
-                   o.recipient_name, o.recipient_phone, o.special_instructions,
-                   c.full_name as customer_name, c.phone as customer_phone,
+            SELECT d.*, 
+                   COALESCE(o.order_number, s.tracking_number, d.delivery_number) as order_number, 
+                   COALESCE(d.cod_amount_expected, s.cod_amount, o.total_amount, 0) as total_amount, 
+                   COALESCE(d.destination_address, o.delivery_address, s.recipient_address) as delivery_address, 
+                   COALESCE(d.destination_city, o.delivery_city, s.recipient_city) as delivery_city,
+                   COALESCE(d.recipient_name, o.recipient_name, s.recipient_name, c.full_name) as recipient_name, 
+                   COALESCE(d.recipient_phone, o.recipient_phone, s.recipient_phone, c.phone) as recipient_phone, 
+                   COALESCE(o.special_instructions, s.special_instructions, d.failure_notes) as special_instructions,
+                   COALESCE(c.full_name, s.sender_name, 'Direct Client') as customer_name, 
+                   COALESCE(c.phone, s.sender_phone) as customer_phone,
                    v.registration_number as vehicle_reg, v.model as vehicle_model
             FROM deliveries d
-            JOIN orders o ON d.order_id = o.id
-            JOIN customers c ON o.customer_id = c.id
+            LEFT JOIN orders o ON d.order_id = o.id
+            LEFT JOIN customers c ON o.customer_id = c.id
+            LEFT JOIN shipments s ON d.shipment_id = s.id
             LEFT JOIN vehicles v ON d.vehicle_id = v.id
             WHERE d.driver_id = ? AND d.status IN ('ASSIGNED', 'PICKED_UP', 'IN_TRANSIT')
             ORDER BY CASE d.priority WHEN 'URGENT' THEN 1 WHEN 'HIGH' THEN 2 ELSE 3 END, d.id ASC
         `).all(driver.id);
     } else {
         deliveries = db.prepare(`
-            SELECT d.*, o.order_number, o.total_amount, o.delivery_address, o.delivery_city,
-                   o.recipient_name, o.recipient_phone, o.special_instructions,
-                   c.full_name as customer_name, c.phone as customer_phone,
+            SELECT d.*, 
+                   COALESCE(o.order_number, s.tracking_number, d.delivery_number) as order_number, 
+                   COALESCE(d.cod_amount_expected, s.cod_amount, o.total_amount, 0) as total_amount, 
+                   COALESCE(d.destination_address, o.delivery_address, s.recipient_address) as delivery_address, 
+                   COALESCE(d.destination_city, o.delivery_city, s.recipient_city) as delivery_city,
+                   COALESCE(d.recipient_name, o.recipient_name, s.recipient_name, c.full_name) as recipient_name, 
+                   COALESCE(d.recipient_phone, o.recipient_phone, s.recipient_phone, c.phone) as recipient_phone, 
+                   COALESCE(o.special_instructions, s.special_instructions, d.failure_notes) as special_instructions,
+                   COALESCE(c.full_name, s.sender_name, 'Direct Client') as customer_name, 
+                   COALESCE(c.phone, s.sender_phone) as customer_phone,
                    v.registration_number as vehicle_reg, v.model as vehicle_model
             FROM deliveries d
-            JOIN orders o ON d.order_id = o.id
-            JOIN customers c ON o.customer_id = c.id
+            LEFT JOIN orders o ON d.order_id = o.id
+            LEFT JOIN customers c ON o.customer_id = c.id
+            LEFT JOIN shipments s ON d.shipment_id = s.id
             LEFT JOIN vehicles v ON d.vehicle_id = v.id
             WHERE d.status IN ('ASSIGNED', 'PICKED_UP', 'IN_TRANSIT')
             ORDER BY d.id ASC
@@ -45,13 +71,20 @@ router.get('/driver/active', authenticateToken, authorize('delivery', 'view_own'
     `);
 
     const result = deliveries.map(d => {
-        const destination = [d.delivery_address, d.delivery_city].filter(Boolean).join(', ');
+        const destAddress = d.delivery_address || d.destination_address;
+        const destCity = d.delivery_city || d.destination_city;
+        const destination = [destAddress, destCity].filter(Boolean).join(', ');
+        const phone = d.recipient_phone || d.customer_phone;
         return {
             ...d,
+            delivery_address: destAddress,
+            delivery_city: destCity,
+            recipient_name: d.recipient_name || d.customer_name || 'Valued Customer',
+            recipient_phone: phone,
             items: itemsStmt.all(d.id),
             maps_url: destination ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(destination)}` : null,
-            call_url: d.recipient_phone ? `tel:${d.recipient_phone.replace(/\s+/g, '')}` : null,
-            whatsapp_url: d.recipient_phone ? `https://wa.me/${d.recipient_phone.replace(/[^0-9]/g, '')}` : null
+            call_url: phone ? `tel:${phone.replace(/\s+/g, '')}` : null,
+            whatsapp_url: phone ? `https://wa.me/${phone.replace(/[^0-9]/g, '')}` : null
         };
     });
 
@@ -60,8 +93,16 @@ router.get('/driver/active', authenticateToken, authorize('delivery', 'view_own'
 
 // GET /api/deliveries/my - Dedicated Driver View: assigned deliveries ONLY (supports DRIVER, SUPER_ADMIN, DISPATCHER, BRANCH_MANAGER)
 router.get('/my', authenticateToken, authorize('delivery', 'view_own'), (req, res) => {
-    // Find driver record for current user
-    let driver = db.prepare('SELECT id, status, license_number FROM drivers WHERE user_id = ?').get(req.user.id);
+    let driver = null;
+    if (req.query.driver_id && ['SUPER_ADMIN', 'DISPATCHER', 'BRANCH_MANAGER'].includes(req.user.roleName)) {
+        driver = db.prepare('SELECT id, status, license_number FROM drivers WHERE id = ?').get(Number(req.query.driver_id));
+    }
+    if (!driver) {
+        driver = db.prepare('SELECT id, status, license_number FROM drivers WHERE user_id = ?').get(req.user.id);
+    }
+    if (!driver && (req.user.phone || req.user.email)) {
+        driver = db.prepare('SELECT id, status, license_number FROM drivers WHERE phone = ? OR email = ?').get(req.user.phone || '', req.user.email || '');
+    }
     
     // If supervisor role (Super Admin, Dispatcher, Manager) without direct driver record, resolve to first driver for this branch or driver 1
     if (!driver && ['SUPER_ADMIN', 'DISPATCHER', 'BRANCH_MANAGER'].includes(req.user.roleName)) {
@@ -81,13 +122,21 @@ router.get('/my', authenticateToken, authorize('delivery', 'view_own'), (req, re
     }
 
     const deliveries = db.prepare(`
-        SELECT d.*, o.order_number, o.total_amount, o.delivery_address, o.delivery_city,
-               o.recipient_name, o.recipient_phone, o.special_instructions,
-               c.full_name as customer_name, c.phone as customer_phone,
+        SELECT d.*, 
+               COALESCE(o.order_number, s.tracking_number, d.delivery_number) as order_number, 
+               COALESCE(d.cod_amount_expected, s.cod_amount, o.total_amount, 0) as total_amount, 
+               COALESCE(d.destination_address, o.delivery_address, s.recipient_address) as delivery_address, 
+               COALESCE(d.destination_city, o.delivery_city, s.recipient_city) as delivery_city,
+               COALESCE(d.recipient_name, o.recipient_name, s.recipient_name, c.full_name) as recipient_name, 
+               COALESCE(d.recipient_phone, o.recipient_phone, s.recipient_phone, c.phone) as recipient_phone, 
+               COALESCE(o.special_instructions, s.special_instructions, d.failure_notes) as special_instructions,
+               COALESCE(c.full_name, s.sender_name, 'Direct Client') as customer_name, 
+               COALESCE(c.phone, s.sender_phone) as customer_phone,
                v.registration_number as vehicle_reg, v.model as vehicle_model
         FROM deliveries d
-        JOIN orders o ON d.order_id = o.id
-        JOIN customers c ON o.customer_id = c.id
+        LEFT JOIN orders o ON d.order_id = o.id
+        LEFT JOIN customers c ON o.customer_id = c.id
+        LEFT JOIN shipments s ON d.shipment_id = s.id
         LEFT JOIN vehicles v ON d.vehicle_id = v.id
         WHERE d.driver_id = ? AND d.status IN ('ASSIGNED', 'PICKED_UP', 'IN_TRANSIT')
         ORDER BY CASE d.priority WHEN 'URGENT' THEN 1 WHEN 'HIGH' THEN 2 ELSE 3 END, d.id ASC
@@ -102,13 +151,20 @@ router.get('/my', authenticateToken, authorize('delivery', 'view_own'), (req, re
     `);
 
     const result = deliveries.map(d => {
-        const destination = [d.delivery_address, d.delivery_city].filter(Boolean).join(', ');
+        const destAddress = d.delivery_address || d.destination_address;
+        const destCity = d.delivery_city || d.destination_city;
+        const destination = [destAddress, destCity].filter(Boolean).join(', ');
+        const phone = d.recipient_phone || d.customer_phone;
         return {
             ...d,
+            delivery_address: destAddress,
+            delivery_city: destCity,
+            recipient_name: d.recipient_name || d.customer_name || 'Valued Customer',
+            recipient_phone: phone,
             items: itemsStmt.all(d.id),
             maps_url: destination ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(destination)}` : null,
-            call_url: d.recipient_phone ? `tel:${d.recipient_phone.replace(/\s+/g, '')}` : null,
-            whatsapp_url: d.recipient_phone ? `https://wa.me/${d.recipient_phone.replace(/[^0-9]/g, '')}` : null
+            call_url: phone ? `tel:${phone.replace(/\s+/g, '')}` : null,
+            whatsapp_url: phone ? `https://wa.me/${phone.replace(/[^0-9]/g, '')}` : null
         };
     });
 
@@ -124,7 +180,16 @@ router.get('/my', authenticateToken, authorize('delivery', 'view_own'), (req, re
 
 // GET /api/deliveries/history - Driver completed/historical deliveries
 router.get('/history', authenticateToken, requireRole('DRIVER', 'SUPER_ADMIN', 'DISPATCHER', 'BRANCH_MANAGER'), (req, res) => {
-    let driver = db.prepare('SELECT id FROM drivers WHERE user_id = ?').get(req.user.id);
+    let driver = null;
+    if (req.query.driver_id && ['SUPER_ADMIN', 'DISPATCHER', 'BRANCH_MANAGER'].includes(req.user.roleName)) {
+        driver = db.prepare('SELECT id FROM drivers WHERE id = ?').get(Number(req.query.driver_id));
+    }
+    if (!driver) {
+        driver = db.prepare('SELECT id FROM drivers WHERE user_id = ?').get(req.user.id);
+    }
+    if (!driver && (req.user.phone || req.user.email)) {
+        driver = db.prepare('SELECT id FROM drivers WHERE phone = ? OR email = ?').get(req.user.phone || '', req.user.email || '');
+    }
     if (!driver && ['SUPER_ADMIN', 'DISPATCHER', 'BRANCH_MANAGER'].includes(req.user.roleName)) {
         if (req.user.branchId) {
             driver = db.prepare('SELECT id FROM drivers WHERE branch_id = ? ORDER BY id ASC LIMIT 1').get(req.user.branchId);
@@ -137,13 +202,18 @@ router.get('/history', authenticateToken, requireRole('DRIVER', 'SUPER_ADMIN', '
     if (!driver) return res.json([]);
 
     const history = db.prepare(`
-        SELECT d.*, o.order_number, o.delivery_address, o.recipient_name,
+        SELECT d.*, 
+               COALESCE(o.order_number, s.tracking_number, d.delivery_number) as order_number, 
+               COALESCE(d.destination_address, o.delivery_address, s.recipient_address) as delivery_address, 
+               COALESCE(d.destination_city, o.delivery_city, s.recipient_city) as delivery_city,
+               COALESCE(d.recipient_name, o.recipient_name, s.recipient_name) as recipient_name,
                pod.verified_at, pod.otp_verified
         FROM deliveries d
-        JOIN orders o ON d.order_id = o.id
+        LEFT JOIN orders o ON d.order_id = o.id
+        LEFT JOIN shipments s ON d.shipment_id = s.id
         LEFT JOIN proof_of_delivery pod ON d.id = pod.delivery_id
         WHERE d.driver_id = ? AND d.status IN ('DELIVERED', 'FAILED', 'RETURN_TO_BRANCH')
-        ORDER BY d.id DESC LIMIT 30
+        ORDER BY d.id DESC LIMIT 50
     `).all(driver.id);
 
     res.json(history);

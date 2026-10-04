@@ -79,9 +79,9 @@ export function DriverView() {
     };
   }, []);
 
-  const fetchDriverDeliveries = async () => {
+  const fetchDriverDeliveries = async (silent = false) => {
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
       let res = await api.get('/api/deliveries/my').catch(() => null);
       if (!res) {
         res = await api.get('/api/deliveries/driver/active').catch(() => null);
@@ -98,13 +98,83 @@ export function DriverView() {
     } catch (e) {
       console.warn('Driver manifests notice:', e.message);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
   useEffect(() => {
     fetchDriverDeliveries();
+
+    // 1. Background real-time polling every 12 seconds so dispatched tasks stream in live
+    const interval = setInterval(() => {
+      if (typeof document !== 'undefined' && !document.hidden) {
+        fetchDriverDeliveries(true);
+      }
+    }, 12000);
+
+    // 2. Refresh on window focus / tab visibility
+    const handleVisibility = () => {
+      if (typeof document !== 'undefined' && !document.hidden) {
+        fetchDriverDeliveries(true);
+      }
+    };
+    window.addEventListener('focus', handleVisibility);
+    document.addEventListener('visibilitychange', handleVisibility);
+
+    // 3. Listen for direct notification clicks / task focus events
+    const handleFocusDelivery = (e) => {
+      const deliveryId = e.detail?.deliveryId;
+      if (deliveryId) {
+        setActiveTab('ACTIVE');
+        setExpandedDeliveryId(Number(deliveryId));
+        fetchDriverDeliveries(true);
+        setTimeout(() => {
+          const el = document.getElementById(`delivery-${deliveryId}`);
+          if (el) {
+            el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }
+        }, 250);
+      }
+    };
+    window.addEventListener('swifttrack:focus_delivery', handleFocusDelivery);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('focus', handleVisibility);
+      document.removeEventListener('visibilitychange', handleVisibility);
+      window.removeEventListener('swifttrack:focus_delivery', handleFocusDelivery);
+    };
   }, []);
+
+  // Handle URL delivery_id query or sessionStorage focus on mount or when deliveries change
+  useEffect(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const deliveryParam = params.get('delivery_id') || sessionStorage.getItem('swifttrack_focus_delivery_id');
+      if (deliveryParam) {
+        const idNum = Number(deliveryParam);
+        setActiveTab('ACTIVE');
+        setExpandedDeliveryId(idNum);
+        sessionStorage.removeItem('swifttrack_focus_delivery_id');
+
+        // Clean delivery_id from URL so it doesn't linger
+        try {
+          const cleanUrl = new URL(window.location.href);
+          if (cleanUrl.searchParams.has('delivery_id')) {
+            cleanUrl.searchParams.delete('delivery_id');
+            window.history.replaceState({ view: 'driver' }, '', cleanUrl.toString());
+          }
+        } catch {}
+
+        setTimeout(() => {
+          const el = document.getElementById(`delivery-${idNum}`);
+          if (el) {
+            el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }
+        }, 200);
+      }
+    } catch {}
+  }, [deliveries.length]);
 
   useEffect(() => {
     const handleKeyDown = (e) => {

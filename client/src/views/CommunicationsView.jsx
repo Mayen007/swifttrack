@@ -63,16 +63,18 @@ export function CommunicationsView() {
       ]);
 
       if (statsRes.status === 'fulfilled' && statsRes.value) {
-        setStats(statsRes.value);
+        setStats(statsRes.value.data || statsRes.value);
       }
       if (outboxRes.status === 'fulfilled' && outboxRes.value) {
-        setOutbox(outboxRes.value.items || []);
-        if (outboxRes.value.pagination) {
-          setOutboxPagination(outboxRes.value.pagination);
+        const outboxData = outboxRes.value.data || outboxRes.value;
+        setOutbox(outboxData.items || []);
+        if (outboxData.pagination) {
+          setOutboxPagination(outboxData.pagination);
         }
       }
-      if (templatesRes.status === 'fulfilled' && Array.isArray(templatesRes.value)) {
-        setTemplates(templatesRes.value);
+      if (templatesRes.status === 'fulfilled' && templatesRes.value) {
+        const tplList = templatesRes.value.data?.templates || templatesRes.value.templates || (Array.isArray(templatesRes.value) ? templatesRes.value : []);
+        setTemplates(tplList);
       }
     } catch (err) {
       console.error('Error fetching communications data:', err);
@@ -156,9 +158,10 @@ export function CommunicationsView() {
     setActionLoading(true);
     sound.playClick();
     try {
-      await api.put(`/api/v1/notifications-engine/templates/${selectedTemplate.template_code}`, templateForm);
+      const targetCode = selectedTemplate.code || selectedTemplate.template_code;
+      await api.put(`/api/v1/notifications-engine/templates/${targetCode}`, templateForm);
       sound.playSuccess();
-      api.toast(`Template ${selectedTemplate.template_code} updated successfully`, 'success');
+      api.toast(`Template ${targetCode} updated successfully`, 'success');
       setEditTemplateModalOpen(false);
       await fetchData();
     } catch (err) {

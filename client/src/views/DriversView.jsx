@@ -49,6 +49,20 @@ export function DriversView() {
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [complianceFilter, setComplianceFilter] = useState('ALL');
   const [branchFilter, setBranchFilter] = useState(selectedBranch?.id || '');
+  const [isCompact, setIsCompact] = useState(() => {
+    try {
+      return localStorage.getItem('swifttrack_driver_compact') === 'true';
+    } catch {
+      return false;
+    }
+  });
+
+  const toggleCompact = (val) => {
+    setIsCompact(val);
+    try {
+      localStorage.setItem('swifttrack_driver_compact', String(val));
+    } catch {}
+  };
 
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [detailModalOpen, setDetailModalOpen] = useState(false);
@@ -310,16 +324,16 @@ export function DriversView() {
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+    <div className="space-y-3.5">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-blue-500/10 text-blue-400 border border-blue-500/20 flex items-center justify-center font-bold">
-              <Truck className="w-5 h-5" />
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-xl bg-blue-500/10 text-blue-400 border border-blue-500/20 flex items-center justify-center font-bold shrink-0">
+              <Truck className="w-4 h-4" />
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h1 className="text-xl font-bold tracking-tight text-white">Driver Fleet & Compliance</h1>
+                <h1 className="text-lg font-bold tracking-tight text-white leading-tight">Driver Fleet & Compliance</h1>
                 <span className="px-2 py-0.5 text-[10px] font-bold tracking-wider uppercase bg-blue-500/20 text-blue-400 border border-blue-500/30 rounded">
                   Personnel & Safety
                 </span>
@@ -331,21 +345,21 @@ export function DriversView() {
           </div>
         </div>
 
-        <div className="flex items-center gap-2.5">
+        <div className="flex items-center gap-2 shrink-0">
           <button
             onClick={() => fetchData()}
             disabled={loading}
-            className="p-2 rounded-lg bg-[#181d28] hover:bg-[#1f2534] border border-[#222834] text-slate-300 transition-colors"
+            className="p-2 rounded-lg bg-[#181d28] hover:bg-[#1f2534] border border-[#222834] text-slate-300 transition-colors cursor-pointer"
             title="Refresh Roster"
           >
-            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+            <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
           </button>
 
           <button
             onClick={() => setCreateModalOpen(true)}
-            className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-lg shadow-sm shadow-blue-500/20 transition-all hover:shadow"
+            className="flex items-center gap-1.5 px-3.5 py-2 bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold rounded-lg shadow-sm transition-all cursor-pointer"
           >
-            <Plus className="w-4 h-4" />
+            <Plus className="w-3.5 h-3.5" />
             <span>Onboard New Driver</span>
           </button>
         </div>
@@ -364,6 +378,9 @@ export function DriversView() {
         setBranchFilter={setBranchFilter}
         branches={branches}
         isSuperAdmin={user?.role === 'SUPER_ADMIN'}
+        totalDrivers={drivers.length}
+        isCompact={isCompact}
+        setIsCompact={toggleCompact}
       />
 
       <DriverTable
@@ -373,6 +390,7 @@ export function DriversView() {
         onOpenStatus={openStatusModal}
         onOpenVehicle={openVehicleModal}
         onOpenIncident={openIncidentModal}
+        isCompact={isCompact}
       />
 
       <CreateDriverModal

@@ -1,5 +1,4 @@
-// client/src/App.jsx
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext.jsx';
 import { CartProvider } from './context/CartContext.jsx';
 import { ThemeProvider } from './context/ThemeContext.jsx';
@@ -42,7 +41,7 @@ const VIEW_PERMISSIONS = {
   procurement: ['SUPER_ADMIN', 'BRANCH_MANAGER'],
   approvals: ['SUPER_ADMIN', 'BRANCH_MANAGER'],
   'control-tower': ['SUPER_ADMIN', 'BRANCH_MANAGER', 'DISPATCHER'],
-  dashboard: ['SUPER_ADMIN', 'BRANCH_MANAGER', 'DISPATCHER'],
+  dashboard: ['SUPER_ADMIN', 'BRANCH_MANAGER'],
   'hub-operations': ['SUPER_ADMIN', 'BRANCH_MANAGER', 'DISPATCHER'],
   communications: ['SUPER_ADMIN', 'BRANCH_MANAGER', 'DISPATCHER'],
   dispatch: ['SUPER_ADMIN', 'BRANCH_MANAGER', 'DISPATCHER'],
@@ -86,7 +85,7 @@ function AccessDeniedView({ currentView, userRole, onNavigateHome }) {
 
 function MainApp() {
   const { user, loading, quickSwitch } = useAuth();
-  const [currentView, setCurrentView] = useState(() => {
+  const [currentView, setCurrentViewState] = useState(() => {
     if (typeof window !== 'undefined') {
       try {
         const view = new URLSearchParams(window.location.search).get('view');
@@ -95,6 +94,49 @@ function MainApp() {
     }
     return 'dashboard';
   });
+
+  const setCurrentView = useCallback((newView, extraParams = {}, options = {}) => {
+    if (typeof newView === 'function') {
+      setCurrentViewState(newView);
+      return;
+    }
+    if (!newView) return;
+    setCurrentViewState(newView);
+
+    if (typeof window !== 'undefined') {
+      try {
+        const url = new URL(window.location.href);
+        const currentTheme = url.searchParams.get('theme');
+
+        // Reset query string completely so old tab parameters are not preserved
+        url.search = '';
+        url.searchParams.set('view', newView);
+
+        // Keep global app preferences like theme intact
+        if (currentTheme) {
+          url.searchParams.set('theme', currentTheme);
+        }
+
+        // Attach any explicitly passed parameters for this new view
+        if (extraParams && typeof extraParams === 'object') {
+          Object.entries(extraParams).forEach(([k, v]) => {
+            if (v !== undefined && v !== null && v !== '') {
+              url.searchParams.set(k, String(v));
+            }
+          });
+        }
+
+        if (options?.replace) {
+          window.history.replaceState({ view: newView }, '', url.toString());
+        } else {
+          window.history.pushState({ view: newView }, '', url.toString());
+        }
+      } catch (err) {
+        console.warn('URL routing notice:', err);
+      }
+    }
+  }, []);
+
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
 
@@ -177,28 +219,64 @@ function MainApp() {
     }
   }, [currentView]);
 
+  const getDefaultHomeView = (role) => {
+    if (role === 'CASHIER') return 'pos';
+    if (role === 'DRIVER') return 'driver';
+    if (role === 'DISPATCHER') return 'control-tower';
+    return 'dashboard';
+  };
+
+  // Synchronize view on browser back / forward navigation
+  useEffect(() => {
+    const handlePopState = () => {
+      try {
+        const urlParams = new URLSearchParams(window.location.search);
+        const view = urlParams.get('view') || getDefaultHomeView(user?.role);
+        if (view) {
+          if (user?.role !== 'SUPER_ADMIN') {
+            const allowedRoles = VIEW_PERMISSIONS[view];
+            if (allowedRoles && !allowedRoles.includes(user?.role)) {
+              return;
+            }
+          }
+          setCurrentViewState(view);
+        }
+      } catch {}
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [user?.role]);
+
   // Set default view based on user role (respecting URL ?view= param if provided)
   useEffect(() => {
     if (!user) return;
     try {
-      const urlView = new URLSearchParams(window.location.search).get('view');
+      const urlParams = new URLSearchParams(window.location.search);
+      const urlView = urlParams.get('view');
       if (urlView) {
         if (urlView === 'dashboard' && user.role === 'CASHIER') {
-          setCurrentView('pos');
+          setCurrentView('pos', {}, { replace: true });
           return;
         }
         if (urlView === 'dashboard' && user.role === 'DRIVER') {
-          setCurrentView('driver');
+          setCurrentView('driver', {}, { replace: true });
           return;
         }
-        setCurrentView(urlView);
-        return;
+        if (urlView === 'dashboard' && user.role === 'DISPATCHER') {
+          setCurrentView('control-tower', {}, { replace: true });
+          return;
+        }
+        const allowed = user.role === 'SUPER_ADMIN' || (VIEW_PERMISSIONS[urlView] && VIEW_PERMISSIONS[urlView].includes(user.role));
+        if (allowed) {
+          setCurrentViewState(urlView);
+          return;
+        }
       }
     } catch {}
-    if (user.role === 'CASHIER') setCurrentView('pos');
-    else if (user.role === 'DRIVER') setCurrentView('driver');
-    else if (user.role === 'DISPATCHER') setCurrentView('dispatch');
-    else setCurrentView('dashboard');
+
+    const home = getDefaultHomeView(user.role);
+    setCurrentView(home, {}, { replace: true });
   }, [user?.role]);
 
   if (loading && !user) {
@@ -215,13 +293,6 @@ function MainApp() {
   if (!user) {
     return <LoginView />;
   }
-
-  const getDefaultHomeView = (role) => {
-    if (role === 'CASHIER') return 'pos';
-    if (role === 'DRIVER') return 'driver';
-    if (role === 'DISPATCHER') return 'dispatch';
-    return 'dashboard';
-  };
 
   const renderView = () => {
     if (user?.role !== 'SUPER_ADMIN') {
@@ -316,7 +387,7 @@ function MainApp() {
           ref={mainScrollRef}
           className="flex-1 overflow-y-auto p-3 sm:p-4 lg:p-5 [scrollbar-gutter:stable]"
         >
-          <div className={`w-full ${currentView === 'vehicles' ? '' : 'max-w-[1760px] mx-auto'}`}>{renderView()}</div>
+          <div className={`w-full ${currentView === 'vehicles' || currentView === 'drivers' ? '' : 'max-w-[1760px] mx-auto'}`}>{renderView()}</div>
         </main>
       </div>
 
@@ -325,6 +396,7 @@ function MainApp() {
         isOpen={notificationsOpen}
         onClose={() => setNotificationsOpen(false)}
         onRefreshCount={setUnreadCount}
+        onNavigate={setCurrentView}
       />
 
       {/* Floating System Toasts */}

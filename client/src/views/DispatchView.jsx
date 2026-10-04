@@ -56,7 +56,7 @@ export function DispatchView() {
       const branchParam = selectedBranch ? `?branch_id=${selectedBranch.id}` : '';
       const [boardRes, drvData] = await Promise.all([
         api.get(`/api/dispatch/board${branchParam}`).catch(() => null),
-        api.get('/api/users?role=DRIVER').catch(() => []),
+        api.get('/api/v1/drivers?limit=100').catch(() => null),
       ]);
 
       let allItems = [];
@@ -74,7 +74,8 @@ export function DispatchView() {
       }
 
       setDeliveries(allItems);
-      setDrivers(boardRes?.drivers || (Array.isArray(drvData) ? drvData : []));
+      const fallbackDrivers = drvData?.drivers || (Array.isArray(drvData) ? drvData : []);
+      setDrivers(boardRes?.drivers || fallbackDrivers);
       setVehicles(boardRes?.vehicles || []);
 
       if (boardRes?.summary) {

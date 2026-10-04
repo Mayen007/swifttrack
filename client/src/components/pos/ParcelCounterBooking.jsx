@@ -54,18 +54,8 @@ export function ParcelCounterBooking({ user, activeShift, onRefreshShift, onOpen
   const [recipientAddress, setRecipientAddress] = useState('');
   const [recipientCity, setRecipientCity] = useState('');
 
-  // Parcels Array
-  const [parcels, setParcels] = useState([
-    {
-      id: 1,
-      package_type: 'BOX',
-      weight_kg: 2.5,
-      length_cm: 30,
-      width_cm: 20,
-      height_cm: 15,
-      description: 'General Merchandise'
-    }
-  ]);
+  // Parcels Array (starts empty until parcels are actually placed on scale)
+  const [parcels, setParcels] = useState([]);
 
   // Value Added Services
   const [declaredValue, setDeclaredValue] = useState('');
@@ -112,10 +102,6 @@ export function ParcelCounterBooking({ user, activeShift, onRefreshShift, onOpen
         const res = await api.get('/api/branches');
         const list = Array.isArray(res) ? res : (res?.data || []);
         setHubs(list);
-        // Default to first hub that is not origin hub
-        const originId = user?.branchId || 1;
-        const other = list.find(h => h.id !== originId);
-        if (other) setDestinationHubId(String(other.id));
       } catch (err) {
         console.error('Failed to load hubs:', err);
       } finally {
@@ -182,8 +168,14 @@ export function ParcelCounterBooking({ user, activeShift, onRefreshShift, onOpen
 
   // Remove Parcel
   const handleRemoveParcel = (id) => {
-    if (parcels.length <= 1) return;
-    setParcels(prev => prev.filter(p => p.id !== id));
+    setParcels(prev => {
+      const next = prev.filter(p => p.id !== id);
+      if (next.length === 0) {
+        setQuote(null);
+        setQuoteError(null);
+      }
+      return next;
+    });
   };
 
   // Update Parcel Field
@@ -226,7 +218,16 @@ export function ParcelCounterBooking({ user, activeShift, onRefreshShift, onOpen
 
   // Request Quote from Backend
   const fetchQuote = useCallback(async () => {
-    if (!destinationHubId || parcels.length === 0) return;
+    if (!destinationHubId || parcels.length === 0) {
+      setQuote(null);
+      setQuoteError(null);
+      return;
+    }
+    const hasValidWeight = parcels.some(p => Number(p.weight_kg) > 0);
+    if (!hasValidWeight) {
+      setQuote(null);
+      return;
+    }
     try {
       setCalculatingQuote(true);
       setQuoteError(null);
@@ -259,12 +260,16 @@ export function ParcelCounterBooking({ user, activeShift, onRefreshShift, onOpen
   }, [destinationHubId, parcels, serviceType, declaredValue, codAmount, user?.branchId]);
 
   useEffect(() => {
-    if (!destinationHubId || parcels.length === 0) return;
+    if (!destinationHubId || parcels.length === 0) {
+      setQuote(null);
+      setQuoteError(null);
+      return;
+    }
     const timer = setTimeout(() => {
       fetchQuote();
     }, 300);
     return () => clearTimeout(timer);
-  }, [fetchQuote]);
+  }, [fetchQuote, destinationHubId, parcels.length]);
 
   // Total Due
   const totalAmountDue = quote?.total_amount || 0;
@@ -293,6 +298,10 @@ export function ParcelCounterBooking({ user, activeShift, onRefreshShift, onOpen
     }
     if (!destinationHubId) {
       api.toast('Please select Destination Hub', 'error');
+      return;
+    }
+    if (parcels.length === 0) {
+      api.toast('Please add at least one parcel to the consignment', 'error');
       return;
     }
 
@@ -412,6 +421,8 @@ export function ParcelCounterBooking({ user, activeShift, onRefreshShift, onOpen
   // Reset form for next booking
   const handleResetForm = () => {
     setSenderCustomerId(null);
+    setDestinationHubId('');
+    setQuote(null);
     setQuoteError(null);
     setAccountPoRef('');
     setSenderName('');
@@ -427,17 +438,7 @@ export function ParcelCounterBooking({ user, activeShift, onRefreshShift, onOpen
     setDeclaredValue('');
     setCodAmount('');
     setSpecialInstructions('');
-    setParcels([
-      {
-        id: 1,
-        package_type: 'BOX',
-        weight_kg: 2.5,
-        length_cm: 30,
-        width_cm: 20,
-        height_cm: 15,
-        description: 'General Merchandise'
-      }
-    ]);
+    setParcels([]);
   };
 
   // Lookup Waybill for Reprint
@@ -790,31 +791,53 @@ export function ParcelCounterBooking({ user, activeShift, onRefreshShift, onOpen
 
             {/* Parcels Repeater */}
             <div className="space-y-3">
-              {parcels.map((p, idx) => {
-                const volWeight = getParcelVolumetric(p);
-                const actWeight = Number(p.weight_kg) || 0;
-                const chgWeight = Math.max(actWeight, volWeight);
+              {parcels.length === 0 ? (
+                <div className="bg-[#0b0e14]/60 border border-dashed border-[#222834] hover:border-[#30384a] rounded-xl p-8 text-center space-y-3 transition-colors">
+                  <div className="w-12 h-12 rounded-full bg-blue-500/10 border border-blue-500/25 text-blue-400 flex items-center justify-center mx-auto shadow-sm">
+                    <Package className="w-6 h-6" />
+                  </div>
+                  <div className="space-y-1">
+                    <h4 className="text-xs font-bold font-mono text-white uppercase tracking-wider">
+                      Counter Scale Ready — No Parcels Placed
+                    </h4>
+                    <p className="text-[11px] text-slate-400 max-w-md mx-auto">
+                      Place customer package on the scale or click below to record consignment dimensions and weight. No tariff is charged until items are placed.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleAddParcel}
+                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-mono font-bold transition-all shadow-md shadow-blue-900/30 cursor-pointer"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span>ADD FIRST PARCEL</span>
+                  </button>
+                </div>
+              ) : (
+                parcels.map((p, idx) => {
+                  const volWeight = getParcelVolumetric(p);
+                  const actWeight = Number(p.weight_kg) || 0;
+                  const chgWeight = Math.max(actWeight, volWeight);
 
-                return (
-                  <div key={p.id} className="bg-[#0b0e14] border border-[#1e2433] rounded-lg p-3 space-y-2.5">
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <div className="flex items-center gap-2">
-                        <span className="w-5 h-5 rounded-full bg-slate-800 text-slate-300 text-[10px] font-mono font-bold flex items-center justify-center">
-                          {idx + 1}
-                        </span>
-                        <span className="text-xs font-mono font-bold text-white uppercase">
-                          Parcel #{idx + 1}
-                        </span>
-                      </div>
+                  return (
+                    <div key={p.id} className="bg-[#0b0e14] border border-[#1e2433] rounded-lg p-3 space-y-2.5">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div className="flex items-center gap-2">
+                          <span className="w-5 h-5 rounded-full bg-slate-800 text-slate-300 text-[10px] font-mono font-bold flex items-center justify-center">
+                            {idx + 1}
+                          </span>
+                          <span className="text-xs font-mono font-bold text-white uppercase">
+                            Parcel #{idx + 1}
+                          </span>
+                        </div>
 
-                      <div className="flex flex-wrap items-center gap-2">
-                        <div className="text-[10px] font-mono text-slate-400">
-                          Volumetric: <span className="text-cyan-400 font-bold">{volWeight} kg</span>
-                        </div>
-                        <div className="text-[10px] font-mono text-slate-400 border-l border-[#222834] pl-2">
-                          Chargeable: <span className="text-emerald-400 font-bold">{chgWeight} kg</span>
-                        </div>
-                        {parcels.length > 1 && (
+                        <div className="flex flex-wrap items-center gap-2">
+                          <div className="text-[10px] font-mono text-slate-400">
+                            Volumetric: <span className="text-cyan-400 font-bold">{volWeight} kg</span>
+                          </div>
+                          <div className="text-[10px] font-mono text-slate-400 border-l border-[#222834] pl-2">
+                            Chargeable: <span className="text-emerald-400 font-bold">{chgWeight} kg</span>
+                          </div>
                           <button
                             type="button"
                             onClick={() => handleRemoveParcel(p.id)}
@@ -823,86 +846,86 @@ export function ParcelCounterBooking({ user, activeShift, onRefreshShift, onOpen
                           >
                             <Trash2 className="w-3.5 h-3.5" />
                           </button>
-                        )}
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
+                        <div>
+                          <label className="block text-[9px] font-mono uppercase text-slate-500 mb-0.5">Package Type</label>
+                          <select
+                            value={p.package_type}
+                            onChange={(e) => handleUpdateParcel(p.id, 'package_type', e.target.value)}
+                            className="w-full px-2 py-1.5 rounded bg-[#121622] border border-[#222834] text-white text-xs font-mono focus:border-blue-500 focus:outline-none"
+                          >
+                            <option value="BOX">Box / Carton</option>
+                            <option value="FLYER">Flyer / Bag</option>
+                            <option value="ENVELOPE">Envelope / Docs</option>
+                            <option value="CRATE">Wooden Crate</option>
+                            <option value="PALLET">Pallet Cargo</option>
+                            <option value="ROLL">Roll / Tube</option>
+                          </select>
+                        </div>
+
+                        <div>
+                          <label className="block text-[9px] font-mono uppercase text-slate-500 mb-0.5">Actual Wt (kg) *</label>
+                          <input
+                            type="number"
+                            step="0.1"
+                            min="0.1"
+                            value={p.weight_kg}
+                            onChange={(e) => handleUpdateParcel(p.id, 'weight_kg', e.target.value)}
+                            className="w-full px-2 py-1.5 rounded bg-[#121622] border border-[#222834] text-white text-xs font-mono focus:border-blue-500 focus:outline-none"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-[9px] font-mono uppercase text-slate-500 mb-0.5">Length (cm)</label>
+                          <input
+                            type="number"
+                            min="1"
+                            value={p.length_cm}
+                            onChange={(e) => handleUpdateParcel(p.id, 'length_cm', e.target.value)}
+                            className="w-full px-2 py-1.5 rounded bg-[#121622] border border-[#222834] text-white text-xs font-mono focus:border-blue-500 focus:outline-none"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-[9px] font-mono uppercase text-slate-500 mb-0.5">Width (cm)</label>
+                          <input
+                            type="number"
+                            min="1"
+                            value={p.width_cm}
+                            onChange={(e) => handleUpdateParcel(p.id, 'width_cm', e.target.value)}
+                            className="w-full px-2 py-1.5 rounded bg-[#121622] border border-[#222834] text-white text-xs font-mono focus:border-blue-500 focus:outline-none"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-[9px] font-mono uppercase text-slate-500 mb-0.5">Height (cm)</label>
+                          <input
+                            type="number"
+                            min="1"
+                            value={p.height_cm}
+                            onChange={(e) => handleUpdateParcel(p.id, 'height_cm', e.target.value)}
+                            className="w-full px-2 py-1.5 rounded bg-[#121622] border border-[#222834] text-white text-xs font-mono focus:border-blue-500 focus:outline-none"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-[9px] font-mono uppercase text-slate-500 mb-0.5">Content Description</label>
+                          <input
+                            type="text"
+                            placeholder="e.g. Spare parts"
+                            value={p.description}
+                            onChange={(e) => handleUpdateParcel(p.id, 'description', e.target.value)}
+                            className="w-full px-2 py-1.5 rounded bg-[#121622] border border-[#222834] text-white text-xs font-mono focus:border-blue-500 focus:outline-none"
+                          />
+                        </div>
                       </div>
                     </div>
-
-                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
-                      <div>
-                        <label className="block text-[9px] font-mono uppercase text-slate-500 mb-0.5">Package Type</label>
-                        <select
-                          value={p.package_type}
-                          onChange={(e) => handleUpdateParcel(p.id, 'package_type', e.target.value)}
-                          className="w-full px-2 py-1.5 rounded bg-[#121622] border border-[#222834] text-white text-xs font-mono focus:border-blue-500 focus:outline-none"
-                        >
-                          <option value="BOX">Box / Carton</option>
-                          <option value="FLYER">Flyer / Bag</option>
-                          <option value="ENVELOPE">Envelope / Docs</option>
-                          <option value="CRATE">Wooden Crate</option>
-                          <option value="PALLET">Pallet Cargo</option>
-                          <option value="ROLL">Roll / Tube</option>
-                        </select>
-                      </div>
-
-                      <div>
-                        <label className="block text-[9px] font-mono uppercase text-slate-500 mb-0.5">Actual Wt (kg) *</label>
-                        <input
-                          type="number"
-                          step="0.1"
-                          min="0.1"
-                          value={p.weight_kg}
-                          onChange={(e) => handleUpdateParcel(p.id, 'weight_kg', e.target.value)}
-                          className="w-full px-2 py-1.5 rounded bg-[#121622] border border-[#222834] text-white text-xs font-mono focus:border-blue-500 focus:outline-none"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="block text-[9px] font-mono uppercase text-slate-500 mb-0.5">Length (cm)</label>
-                        <input
-                          type="number"
-                          min="1"
-                          value={p.length_cm}
-                          onChange={(e) => handleUpdateParcel(p.id, 'length_cm', e.target.value)}
-                          className="w-full px-2 py-1.5 rounded bg-[#121622] border border-[#222834] text-white text-xs font-mono focus:border-blue-500 focus:outline-none"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="block text-[9px] font-mono uppercase text-slate-500 mb-0.5">Width (cm)</label>
-                        <input
-                          type="number"
-                          min="1"
-                          value={p.width_cm}
-                          onChange={(e) => handleUpdateParcel(p.id, 'width_cm', e.target.value)}
-                          className="w-full px-2 py-1.5 rounded bg-[#121622] border border-[#222834] text-white text-xs font-mono focus:border-blue-500 focus:outline-none"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="block text-[9px] font-mono uppercase text-slate-500 mb-0.5">Height (cm)</label>
-                        <input
-                          type="number"
-                          min="1"
-                          value={p.height_cm}
-                          onChange={(e) => handleUpdateParcel(p.id, 'height_cm', e.target.value)}
-                          className="w-full px-2 py-1.5 rounded bg-[#121622] border border-[#222834] text-white text-xs font-mono focus:border-blue-500 focus:outline-none"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="block text-[9px] font-mono uppercase text-slate-500 mb-0.5">Content Description</label>
-                        <input
-                          type="text"
-                          placeholder="e.g. Spare parts"
-                          value={p.description}
-                          onChange={(e) => handleUpdateParcel(p.id, 'description', e.target.value)}
-                          className="w-full px-2 py-1.5 rounded bg-[#121622] border border-[#222834] text-white text-xs font-mono focus:border-blue-500 focus:outline-none"
-                        />
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
+                  );
+                })
+              )}
             </div>
 
             {/* Optional Value-Added Services */}
@@ -1019,15 +1042,43 @@ export function ParcelCounterBooking({ user, activeShift, onRefreshShift, onOpen
                   <span>Re-calculate quote</span>
                 </button>
               </div>
+            ) : parcels.length === 0 ? (
+              <div className="p-3.5 rounded-lg bg-[#0b0e14] border border-[#1e2433] text-xs font-mono space-y-2.5">
+                <div className="flex items-center gap-2 text-slate-400">
+                  <Package className="w-4 h-4 text-blue-400 shrink-0" />
+                  <span className="text-[11px] font-bold text-slate-300">Intake Scale Waiting</span>
+                </div>
+                <p className="text-[11px] text-slate-500 leading-relaxed">
+                  Consignment is currently empty. Place an item on the scale or click <span className="text-blue-400 font-bold">ADD FIRST PARCEL</span> to calculate live freight tariff.
+                </p>
+                <div className="border-t border-[#222834] pt-2.5 flex items-baseline justify-between">
+                  <span className="text-xs font-bold text-slate-400 uppercase">Total Due:</span>
+                  <span className="text-xl font-bold text-slate-500 tabular-nums">KES 0.00</span>
+                </div>
+              </div>
+            ) : !destinationHubId ? (
+              <div className="p-3.5 rounded-lg bg-[#0b0e14] border border-[#1e2433] text-xs font-mono space-y-2.5">
+                <div className="flex items-center gap-2 text-amber-400">
+                  <MapPin className="w-4 h-4 shrink-0" />
+                  <span className="text-[11px] font-bold">Destination Hub Required</span>
+                </div>
+                <p className="text-[11px] text-slate-400 leading-relaxed">
+                  Select a destination hub / depot corridor in Step 1 to rate route distance and calculate total charges.
+                </p>
+                <div className="border-t border-[#222834] pt-2.5 flex items-baseline justify-between">
+                  <span className="text-xs font-bold text-slate-400 uppercase">Total Due:</span>
+                  <span className="text-xl font-bold text-slate-500 tabular-nums">KES 0.00</span>
+                </div>
+              </div>
             ) : (
               <div className="space-y-2 text-xs font-mono">
                 <div className="flex justify-between text-slate-400">
                   <span>Base Tariff (First 5kg):</span>
-                  <span className="text-white font-bold">KES {quote?.base_rate ? Number(quote.base_rate).toFixed(2) : '—'}</span>
+                  <span className="text-white font-bold">KES {quote?.base_rate ? Number(quote.base_rate).toFixed(2) : '0.00'}</span>
                 </div>
                 <div className="flex justify-between text-slate-400">
                   <span>Additional Weight Fee:</span>
-                  <span className="text-white font-bold">KES {quote?.weight_charge ? Number(quote.weight_charge).toFixed(2) : '—'}</span>
+                  <span className="text-white font-bold">KES {quote?.weight_charge ? Number(quote.weight_charge).toFixed(2) : '0.00'}</span>
                 </div>
                 {Number(quote?.surcharges) > 0 && (
                   <div className="flex justify-between text-slate-400">
@@ -1043,7 +1094,7 @@ export function ParcelCounterBooking({ user, activeShift, onRefreshShift, onOpen
                 )}
                 <div className="flex justify-between text-slate-400">
                   <span>VAT (16% KRA Standard):</span>
-                  <span className="text-slate-300 font-bold">KES {quote?.tax_amount ? Number(quote.tax_amount).toFixed(2) : '—'}</span>
+                  <span className="text-slate-300 font-bold">KES {quote?.tax_amount ? Number(quote.tax_amount).toFixed(2) : '0.00'}</span>
                 </div>
 
                 <div className="border-t border-[#222834] pt-3 flex items-baseline justify-between">
@@ -1070,9 +1121,9 @@ export function ParcelCounterBooking({ user, activeShift, onRefreshShift, onOpen
             <button
               type="button"
               onClick={handleOpenPayment}
-              disabled={!activeShift || calculatingQuote || !quote?.total_amount || quote?.total_amount <= 0 || !destinationHubId || !senderName || !recipientName}
+              disabled={!activeShift || calculatingQuote || !quote?.total_amount || quote?.total_amount <= 0 || !destinationHubId || !senderName || !recipientName || parcels.length === 0}
               className={`w-full py-3.5 rounded-xl font-mono font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg transition-all ${
-                activeShift && !calculatingQuote && quote?.total_amount > 0 && destinationHubId && senderName && recipientName
+                activeShift && !calculatingQuote && quote?.total_amount > 0 && destinationHubId && senderName && recipientName && parcels.length > 0
                   ? 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-600/20 cursor-pointer hover:scale-[1.01]'
                   : 'bg-slate-800 text-slate-500 cursor-not-allowed border border-slate-700'
               }`}

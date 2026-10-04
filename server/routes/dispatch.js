@@ -9,15 +9,22 @@ const { logAuditEvent } = require('../middleware/audit.js');
 router.get('/kanban', authenticateToken, authorize('dispatch', 'view'), (req, res) => {
     const branchId = req.effectiveBranchId;
     let deliveriesQuery = `
-        SELECT d.*, o.order_number, o.total_amount, o.delivery_address, o.delivery_city,
-               o.recipient_name, o.recipient_phone, o.special_instructions,
-               c.full_name as customer_name,
+        SELECT d.*, 
+               COALESCE(o.order_number, s.tracking_number, d.delivery_number) as order_number, 
+               COALESCE(d.cod_amount_expected, s.cod_amount, o.total_amount, 0) as total_amount, 
+               COALESCE(d.destination_address, o.delivery_address, s.recipient_address) as delivery_address, 
+               COALESCE(d.destination_city, o.delivery_city, s.recipient_city) as delivery_city,
+               COALESCE(d.recipient_name, o.recipient_name, s.recipient_name, c.full_name) as recipient_name, 
+               COALESCE(d.recipient_phone, o.recipient_phone, s.recipient_phone, c.phone) as recipient_phone, 
+               COALESCE(o.special_instructions, s.special_instructions, d.failure_notes) as special_instructions,
+               COALESCE(c.full_name, s.sender_name, 'Direct Client') as customer_name,
                drv_u.full_name as driver_name, drv.phone as driver_phone,
                v.registration_number as vehicle_reg, v.vehicle_type,
                b.name as branch_name
         FROM deliveries d
-        JOIN orders o ON d.order_id = o.id
-        JOIN customers c ON o.customer_id = c.id
+        LEFT JOIN orders o ON d.order_id = o.id
+        LEFT JOIN customers c ON o.customer_id = c.id
+        LEFT JOIN shipments s ON d.shipment_id = s.id
         JOIN branches b ON d.branch_id = b.id
         LEFT JOIN drivers drv ON d.driver_id = drv.id
         LEFT JOIN users drv_u ON drv.user_id = drv_u.id
@@ -38,15 +45,22 @@ router.get('/board', authenticateToken, authorize('dispatch', 'view'), (req, res
     const branchId = req.effectiveBranchId;
 
     let deliveriesQuery = `
-        SELECT d.*, o.order_number, o.total_amount, o.delivery_address, o.delivery_city,
-               o.recipient_name, o.recipient_phone, o.special_instructions,
-               c.full_name as customer_name,
+        SELECT d.*, 
+               COALESCE(o.order_number, s.tracking_number, d.delivery_number) as order_number, 
+               COALESCE(d.cod_amount_expected, s.cod_amount, o.total_amount, 0) as total_amount, 
+               COALESCE(d.destination_address, o.delivery_address, s.recipient_address) as delivery_address, 
+               COALESCE(d.destination_city, o.delivery_city, s.recipient_city) as delivery_city,
+               COALESCE(d.recipient_name, o.recipient_name, s.recipient_name, c.full_name) as recipient_name, 
+               COALESCE(d.recipient_phone, o.recipient_phone, s.recipient_phone, c.phone) as recipient_phone, 
+               COALESCE(o.special_instructions, s.special_instructions, d.failure_notes) as special_instructions,
+               COALESCE(c.full_name, s.sender_name, 'Direct Client') as customer_name,
                drv_u.full_name as driver_name, drv.phone as driver_phone,
                v.registration_number as vehicle_reg, v.vehicle_type,
                b.name as branch_name
         FROM deliveries d
-        JOIN orders o ON d.order_id = o.id
-        JOIN customers c ON o.customer_id = c.id
+        LEFT JOIN orders o ON d.order_id = o.id
+        LEFT JOIN customers c ON o.customer_id = c.id
+        LEFT JOIN shipments s ON d.shipment_id = s.id
         JOIN branches b ON d.branch_id = b.id
         LEFT JOIN drivers drv ON d.driver_id = drv.id
         LEFT JOIN users drv_u ON drv.user_id = drv_u.id
@@ -134,8 +148,8 @@ router.post('/assign', authenticateToken, authorize('dispatch', 'assign', { enti
         SELECT drv.*, u.full_name
         FROM drivers drv
         JOIN users u ON drv.user_id = u.id
-        WHERE drv.id = ?
-    `).get(driver_id);
+        WHERE drv.id = ? OR drv.user_id = ?
+    `).get(driver_id, driver_id);
 
     if (!driver) return res.status(404).json({ error: 'Driver not found' });
 
@@ -147,7 +161,7 @@ router.post('/assign', authenticateToken, authorize('dispatch', 'assign', { enti
                 status = 'ASSIGNED', priority = COALESCE(?, priority),
                 scheduled_pickup_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
             WHERE id = ?
-        `).run(driver_id, vehicle_id || driver.vehicle_id || null, req.user.id, priority || null, delivery_id);
+        `).run(driver.id, vehicle_id || driver.vehicle_id || null, req.user.id, priority || null, delivery_id);
 
         // Update driver status
         db.prepare("UPDATE drivers SET status = 'ON_DELIVERY' WHERE id = ?").run(driver_id);

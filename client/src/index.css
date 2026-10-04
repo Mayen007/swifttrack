@@ -63,6 +63,53 @@
     touch-action: manipulation;
   }
 
+  /* Universal dark-mode baseline for form controls */
+  :root {
+    color-scheme: dark;
+  }
+
+  select {
+    color-scheme: dark;
+    background-color: #12161f;
+    color: #f1f5f9;
+  }
+
+  select option {
+    background-color: #12161f !important;
+    color: #f1f5f9 !important;
+  }
+
+  select option:checked {
+    background-color: #2563eb !important;
+    color: #ffffff !important;
+  }
+
+  select option:hover,
+  select option:focus {
+    background-color: #1f2534 !important;
+    color: #ffffff !important;
+  }
+
+  /* Prevent browser default white backgrounds on form controls inside dark modals/containers */
+  input, select, textarea {
+    color-scheme: dark;
+  }
+
+  [data-theme='light'] :root {
+    color-scheme: light;
+  }
+
+  [data-theme='light'] select {
+    color-scheme: light;
+    background-color: #ffffff;
+    color: #0f172a;
+  }
+
+  [data-theme='light'] select option {
+    background-color: #ffffff !important;
+    color: #0f172a !important;
+  }
+
   /* Precision tabular numerals for data readability */
   .tabular-nums {
     font-variant-numeric: tabular-nums;

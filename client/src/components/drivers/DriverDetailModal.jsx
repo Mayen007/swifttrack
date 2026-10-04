@@ -123,10 +123,10 @@ export function DriverDetailModal({
                   {/* Compliance Banner */}
                   <div className={`p-4 rounded-xl border flex items-center justify-between ${
                     selectedDriver.compliance?.status === 'VALID'
-                      ? 'bg-emerald-50/50 border-emerald-200 text-emerald-900'
+                      ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
                       : selectedDriver.compliance?.status === 'EXPIRING_SOON'
-                      ? 'bg-amber-50/50 border-amber-200 text-amber-900'
-                      : 'bg-rose-50/50 border-rose-200 text-rose-900'
+                      ? 'bg-amber-500/10 border-amber-500/30 text-amber-400'
+                      : 'bg-rose-500/10 border-rose-500/30 text-rose-400'
                   }`}>
                     <div className="flex items-center gap-3">
                       <ShieldCheck className="w-6 h-6" />
@@ -145,30 +145,30 @@ export function DriverDetailModal({
                   {/* 2 Column Details */}
                   <div className="grid grid-cols-2 gap-6">
                     <div className="bg-[#181d28] p-4 rounded-xl border border-[#222834] space-y-3">
-                      <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Government Identity</h4>
+                      <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Government Identity</h4>
                       <div className="grid grid-cols-2 gap-2 text-xs">
-                        <span className="text-slate-500">National ID:</span>
-                        <span className="font-semibold text-slate-900 font-mono">{selectedDriver.national_id || 'Not recorded'}</span>
-                        <span className="text-slate-500">KRA PIN:</span>
-                        <span className="font-semibold text-slate-900 font-mono">{selectedDriver.kra_pin || 'Not recorded'}</span>
-                        <span className="text-slate-500">NSSF Number:</span>
-                        <span className="font-semibold text-slate-900">{selectedDriver.nssf_number || 'Not recorded'}</span>
-                        <span className="text-slate-500">NHIF / SHA:</span>
-                        <span className="font-semibold text-slate-900">{selectedDriver.nhif_number || 'Not recorded'}</span>
+                        <span className="text-slate-400">National ID:</span>
+                        <span className="font-semibold text-white font-mono">{selectedDriver.national_id || 'Not recorded'}</span>
+                        <span className="text-slate-400">KRA PIN:</span>
+                        <span className="font-semibold text-white font-mono">{selectedDriver.kra_pin || 'Not recorded'}</span>
+                        <span className="text-slate-400">NSSF Number:</span>
+                        <span className="font-semibold text-white">{selectedDriver.nssf_number || 'Not recorded'}</span>
+                        <span className="text-slate-400">NHIF / SHA:</span>
+                        <span className="font-semibold text-white">{selectedDriver.nhif_number || 'Not recorded'}</span>
                       </div>
                     </div>
 
                     <div className="bg-[#181d28] p-4 rounded-xl border border-[#222834] space-y-3">
-                      <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider">NTSA License Record</h4>
+                      <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">NTSA License Record</h4>
                       <div className="grid grid-cols-2 gap-2 text-xs">
-                        <span className="text-slate-500">License Number:</span>
-                        <span className="font-semibold text-slate-900 font-mono">{selectedDriver.license_number}</span>
-                        <span className="text-slate-500">Allowed Classes:</span>
-                        <span className="font-semibold text-slate-900">{selectedDriver.license_classes || 'B, C1'}</span>
-                        <span className="text-slate-500">Issue Date:</span>
-                        <span className="font-semibold text-slate-900">{selectedDriver.license_issue_date || 'N/A'}</span>
-                        <span className="text-slate-500">Expiry Date:</span>
-                        <span className="font-semibold text-slate-900">{selectedDriver.license_expiry_date || 'N/A'}</span>
+                        <span className="text-slate-400">License Number:</span>
+                        <span className="font-semibold text-white font-mono">{selectedDriver.license_number}</span>
+                        <span className="text-slate-400">Allowed Classes:</span>
+                        <span className="font-semibold text-white">{selectedDriver.license_classes || 'B, C1'}</span>
+                        <span className="text-slate-400">Issue Date:</span>
+                        <span className="font-semibold text-white">{selectedDriver.license_issue_date || 'N/A'}</span>
+                        <span className="text-slate-400">Expiry Date:</span>
+                        <span className="font-semibold text-white">{selectedDriver.license_expiry_date || 'N/A'}</span>
                       </div>
                     </div>
                   </div>
@@ -176,30 +176,30 @@ export function DriverDetailModal({
                   {/* Contact & Emergency */}
                   <div className="grid grid-cols-2 gap-6">
                     <div className="bg-[#181d28] p-4 rounded-xl border border-[#222834] space-y-3">
-                      <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Contact & Residential</h4>
+                      <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Contact & Residential</h4>
                       <div className="grid grid-cols-2 gap-2 text-xs">
-                        <span className="text-slate-500">Primary Phone:</span>
-                        <span className="font-semibold text-slate-900">{selectedDriver.phone}</span>
-                        <span className="text-slate-500">Alt Phone:</span>
-                        <span className="font-semibold text-slate-900">{selectedDriver.alt_phone || 'None'}</span>
-                        <span className="text-slate-500">Email:</span>
-                        <span className="font-semibold text-slate-900">{selectedDriver.email || 'None'}</span>
-                        <span className="text-slate-500">Address:</span>
-                        <span className="font-semibold text-slate-900">{selectedDriver.residential_address || '—'}</span>
+                        <span className="text-slate-400">Primary Phone:</span>
+                        <span className="font-semibold text-white">{selectedDriver.phone}</span>
+                        <span className="text-slate-400">Alt Phone:</span>
+                        <span className="font-semibold text-white">{selectedDriver.alt_phone || 'None'}</span>
+                        <span className="text-slate-400">Email:</span>
+                        <span className="font-semibold text-white">{selectedDriver.email || 'None'}</span>
+                        <span className="text-slate-400">Address:</span>
+                        <span className="font-semibold text-white">{selectedDriver.residential_address || '—'}</span>
                       </div>
                     </div>
 
                     <div className="bg-[#181d28] p-4 rounded-xl border border-[#222834] space-y-3">
-                      <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Emergency Contact</h4>
+                      <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Emergency Contact</h4>
                       <div className="grid grid-cols-2 gap-2 text-xs">
-                        <span className="text-slate-500">Contact Name:</span>
-                        <span className="font-semibold text-slate-900">{selectedDriver.emergency_contact_name || 'Not recorded'}</span>
-                        <span className="text-slate-500">Emergency Phone:</span>
-                        <span className="font-semibold text-slate-900">{selectedDriver.emergency_contact_phone || 'Not recorded'}</span>
-                        <span className="text-slate-500">Relationship:</span>
-                        <span className="font-semibold text-slate-900">{selectedDriver.emergency_contact_relation || 'Next of Kin'}</span>
-                        <span className="text-slate-500">Blood Group:</span>
-                        <span className="font-semibold text-slate-900 font-mono">{selectedDriver.blood_group || 'O+'}</span>
+                        <span className="text-slate-400">Contact Name:</span>
+                        <span className="font-semibold text-white">{selectedDriver.emergency_contact_name || 'Not recorded'}</span>
+                        <span className="text-slate-400">Emergency Phone:</span>
+                        <span className="font-semibold text-white">{selectedDriver.emergency_contact_phone || 'Not recorded'}</span>
+                        <span className="text-slate-400">Relationship:</span>
+                        <span className="font-semibold text-white">{selectedDriver.emergency_contact_relation || 'Next of Kin'}</span>
+                        <span className="text-slate-400">Blood Group:</span>
+                        <span className="font-semibold text-white font-mono">{selectedDriver.blood_group || 'O+'}</span>
                       </div>
                     </div>
                   </div>
@@ -235,42 +235,42 @@ export function DriverDetailModal({
 
                       {/* Drop volumes */}
                       <div className="bg-[#181d28] p-4 rounded-xl border border-[#222834] space-y-3">
-                        <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider">Historical Job Tally</h4>
+                        <h4 className="text-xs font-bold text-slate-300 uppercase tracking-wider">Historical Job Tally</h4>
                         <div className="grid grid-cols-4 gap-4 text-center">
                           <div>
-                            <div className="text-lg font-bold text-slate-900">{driverScorecard.metrics.total_assigned}</div>
-                            <div className="text-xs text-slate-500">Total Assigned</div>
+                            <div className="text-lg font-bold text-white">{driverScorecard.metrics.total_assigned}</div>
+                            <div className="text-xs text-slate-400">Total Assigned</div>
                           </div>
                           <div>
-                            <div className="text-lg font-bold text-emerald-600">{driverScorecard.metrics.total_completed}</div>
-                            <div className="text-xs text-slate-500">Delivered</div>
+                            <div className="text-lg font-bold text-emerald-400">{driverScorecard.metrics.total_completed}</div>
+                            <div className="text-xs text-slate-400">Delivered</div>
                           </div>
                           <div>
-                            <div className="text-lg font-bold text-rose-600">{driverScorecard.metrics.total_failed}</div>
-                            <div className="text-xs text-slate-500">Failed / Returned</div>
+                            <div className="text-lg font-bold text-rose-400">{driverScorecard.metrics.total_failed}</div>
+                            <div className="text-xs text-slate-400">Failed / Returned</div>
                           </div>
                           <div>
-                            <div className="text-lg font-bold text-blue-600">{driverScorecard.metrics.total_active}</div>
-                            <div className="text-xs text-slate-500">Active Transit</div>
+                            <div className="text-lg font-bold text-blue-400">{driverScorecard.metrics.total_active}</div>
+                            <div className="text-xs text-slate-400">Active Transit</div>
                           </div>
                         </div>
                       </div>
 
                       {/* Priority breakdown */}
                       <div className="bg-[#181d28] p-4 rounded-xl border border-[#222834] space-y-3">
-                        <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider">Priority Distribution</h4>
+                        <h4 className="text-xs font-bold text-slate-300 uppercase tracking-wider">Priority Distribution</h4>
                         <div className="grid grid-cols-3 gap-4 text-center">
                           <div className="p-3 bg-[#141822] rounded-lg border border-[#222834]">
-                            <span className="text-xs font-semibold text-rose-600">Urgent Runs</span>
-                            <div className="text-lg font-bold text-slate-900">{driverScorecard.priority_breakdown?.urgent || 0}</div>
+                            <span className="text-xs font-semibold text-rose-400">Urgent Runs</span>
+                            <div className="text-lg font-bold text-white">{driverScorecard.priority_breakdown?.urgent || 0}</div>
                           </div>
                           <div className="p-3 bg-[#141822] rounded-lg border border-[#222834]">
-                            <span className="text-xs font-semibold text-amber-600">High Priority</span>
-                            <div className="text-lg font-bold text-slate-900">{driverScorecard.priority_breakdown?.high || 0}</div>
+                            <span className="text-xs font-semibold text-amber-400">High Priority</span>
+                            <div className="text-lg font-bold text-white">{driverScorecard.priority_breakdown?.high || 0}</div>
                           </div>
                           <div className="p-3 bg-[#141822] rounded-lg border border-[#222834]">
-                            <span className="text-xs font-semibold text-slate-600">Standard Normal</span>
-                            <div className="text-lg font-bold text-slate-900">{driverScorecard.priority_breakdown?.normal || 0}</div>
+                            <span className="text-xs font-semibold text-slate-400">Standard Normal</span>
+                            <div className="text-lg font-bold text-white">{driverScorecard.priority_breakdown?.normal || 0}</div>
                           </div>
                         </div>
                       </div>
@@ -350,10 +350,10 @@ export function DriverDetailModal({
                   {/* Incidents Section */}
                   <div>
                     <div className="flex items-center justify-between mb-3">
-                      <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider">Safety & Incident Logs</h4>
+                      <h4 className="text-xs font-bold text-slate-300 uppercase tracking-wider">Safety & Incident Logs</h4>
                       <button
                         onClick={() => onOpenIncident()}
-                        className="px-3 py-1 bg-rose-50 text-rose-700 hover:bg-rose-100 text-xs font-semibold rounded border border-rose-200 flex items-center gap-1.5"
+                        className="px-3 py-1 bg-rose-500/10 text-rose-300 hover:bg-rose-500/20 text-xs font-semibold rounded border border-rose-500/30 flex items-center gap-1.5 cursor-pointer transition-colors"
                       >
                         <AlertTriangle className="w-3.5 h-3.5" />
                         <span>Log New Incident</span>
@@ -361,7 +361,7 @@ export function DriverDetailModal({
                     </div>
 
                     {driverIncidents.length === 0 ? (
-                      <div className="text-center py-6 text-slate-400 border border-dashed border-slate-200 rounded-xl text-xs">
+                      <div className="text-center py-6 text-slate-400 border border-dashed border-slate-700/60 rounded-xl text-xs">
                         Clean safety record. No incidents logged.
                       </div>
                     ) : (
@@ -393,7 +393,7 @@ export function DriverDetailModal({
                                   {new Date(inc.incident_date).toLocaleDateString()}
                                 </td>
                                 <td className="py-2.5 px-3 text-slate-300">{inc.description}</td>
-                                <td className="py-2.5 px-3 text-slate-500">{inc.action_taken || 'None'}</td>
+                                <td className="py-2.5 px-3 text-slate-400">{inc.action_taken || 'None'}</td>
                               </tr>
                             ))}
                           </tbody>
@@ -404,13 +404,13 @@ export function DriverDetailModal({
 
                   {/* Status Timeline */}
                   <div>
-                    <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-3">Status Transition Timeline</h4>
+                    <h4 className="text-xs font-bold text-slate-300 uppercase tracking-wider mb-3">Status Transition Timeline</h4>
                     <div className="space-y-2">
                       {driverHistory.map((hist, i) => (
                         <div key={hist.id || i} className="p-2.5 rounded-lg border border-[#222834] bg-[#141822] text-xs flex items-center justify-between">
                           <div>
-                            <span className="font-semibold text-slate-800">{hist.from_status || 'INITIAL'} &rarr; {hist.to_status}</span>
-                            {hist.reason && <p className="text-[11px] text-slate-500 mt-0.5">{hist.reason}</p>}
+                            <span className="font-semibold text-white">{hist.from_status || 'INITIAL'} &rarr; {hist.to_status}</span>
+                            {hist.reason && <p className="text-[11px] text-slate-400 mt-0.5">{hist.reason}</p>}
                           </div>
                           <span className="text-[11px] text-slate-400 font-mono">
                             {new Date(hist.created_at).toLocaleString()}

@@ -16,8 +16,8 @@
         try {
           var urlTheme = new URLSearchParams(window.location.search).get('theme');
           var saved = localStorage.getItem('swifttrack_theme');
-          var pref = (urlTheme === 'light' || urlTheme === 'dark') ? urlTheme : (saved || 'system');
-          var isDark = pref === 'dark' || (pref === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+          var pref = (urlTheme === 'light' || urlTheme === 'dark') ? urlTheme : (saved || 'dark');
+          var isDark = pref !== 'light';
           var resolved = isDark ? 'dark' : 'light';
           document.documentElement.setAttribute('data-theme', resolved);
           document.documentElement.classList.add(resolved);

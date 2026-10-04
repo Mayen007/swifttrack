@@ -20,7 +20,7 @@ export function EditTemplateModal({
             <Edit3 className="w-5 h-5 text-indigo-400" />
             <div>
               <h3 className="text-lg font-bold text-white">Edit Milestone Template</h3>
-              <p className="text-xs text-slate-400">{selectedTemplate.name} ({selectedTemplate.template_code})</p>
+              <p className="text-xs text-slate-400">{selectedTemplate.name} ({selectedTemplate.code || selectedTemplate.template_code})</p>
             </div>
           </div>
           <button
