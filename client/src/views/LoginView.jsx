@@ -216,7 +216,7 @@ export function LoginView() {
             <span>SYSTEM ONLINE</span>
           </div>
           <span className="hidden sm:inline text-slate-600">|</span>
-          <span className="hidden sm:inline text-[11px] text-slate-500">v1.0.0 Enterprise</span>
+          <span className="hidden sm:inline text-[11px] text-slate-400">ENTERPRISE PORTAL</span>
         </div>
       </header>
 
@@ -232,7 +232,7 @@ export function LoginView() {
                     OPERATOR AUTHENTICATION
                   </span>
                   <span className="text-[10px] font-mono text-slate-400 border border-[#222834] px-1.5 py-0.5 rounded bg-[#161c28]">
-                    {demoMode ? 'SANDBOX / EVALUATION' : 'PRODUCTION'}
+                    {demoMode ? 'DEMO ACCESS' : 'SECURE PRODUCTION'}
                   </span>
                 </div>
                 <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-white">
@@ -252,7 +252,7 @@ export function LoginView() {
                     TWO-FACTOR VERIFICATION
                   </span>
                   <span className="text-[10px] font-mono text-slate-400 border border-[#222834] px-1.5 py-0.5 rounded bg-[#161c28]">
-                    RFC 6238 TOTP
+                    AUTHENTICATOR APP
                   </span>
                 </div>
                 <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-white">
@@ -396,8 +396,8 @@ export function LoginView() {
             <div className="p-2.5 rounded-xl bg-[#0e1320] border border-[#1b2232] flex items-center justify-center gap-2 text-slate-400">
               <Building2 className="w-4 h-4 text-amber-400 shrink-0" />
               <div className="text-left">
-                <div className="text-[10px] font-bold font-mono text-slate-300">Multi-Hub Fleet</div>
-                <div className="text-[8px] font-mono text-slate-500">NBO • MBA • KSM</div>
+                <div className="text-[10px] font-bold font-mono text-slate-300">Multi-Hub Network</div>
+                <div className="text-[8px] font-mono text-slate-500">Regional Distribution</div>
               </div>
             </div>
           </div>
@@ -406,7 +406,7 @@ export function LoginView() {
 
       <footer className="h-10 border-t border-[#181f2c] px-4 sm:px-8 flex items-center justify-between text-[10px] font-mono text-slate-400 bg-[#0c101b]">
         <span>© 2026 SwiftTrack Kenya Logistics Ltd</span>
-        <span className="hidden sm:inline">Enterprise POS & Dispatch System • RFC 6238 TOTP</span>
+        <span className="hidden sm:inline">Enterprise Logistics & Retail Platform • 2FA Protected</span>
       </footer>
     </div>
   );
