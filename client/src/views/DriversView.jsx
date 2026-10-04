@@ -100,6 +100,7 @@ export function DriversView() {
     emergency_contact_phone: '',
     emergency_contact_relation: 'Next of Kin',
     base_salary_kes: '',
+    vehicle_id: '',
     assigned_vehicle_id: '',
     blood_group: 'O+'
   });
@@ -128,16 +129,20 @@ export function DriversView() {
       if (complianceFilter !== 'ALL') params.append('compliance', complianceFilter);
       if (branchFilter) params.append('branch_id', branchFilter);
 
+      const vehParams = new URLSearchParams();
+      if (branchFilter) vehParams.append('branch_id', branchFilter);
+      vehParams.append('limit', '100');
+
       const [drvRes, telRes, vehRes, branchRes] = await Promise.all([
         api.get(`/api/v1/drivers?${params.toString()}`),
         api.get('/api/v1/drivers/telemetry/summary').catch(() => null),
-        api.get('/api/v1/vehicles?status=AVAILABLE').catch(() => []),
+        api.get(`/api/v1/vehicles?${vehParams.toString()}`).catch(() => []),
         api.get('/api/v1/branches').catch(() => [])
       ]);
 
       setDrivers(Array.isArray(drvRes) ? drvRes : (drvRes?.drivers || []));
       if (telRes) setTelemetry(telRes);
-      if (Array.isArray(vehRes)) setVehicles(vehRes);
+      setVehicles(Array.isArray(vehRes) ? vehRes : (vehRes?.vehicles || []));
       if (Array.isArray(branchRes)) setBranches(branchRes);
     } catch (err) {
       console.error('Error fetching driver fleet:', err);
@@ -155,10 +160,12 @@ export function DriversView() {
     e.preventDefault();
     setActionLoading(true);
     try {
+      const chosenVehicle = createForm.vehicle_id || createForm.assigned_vehicle_id;
       const payload = {
         ...createForm,
         branch_id: Number(createForm.branch_id) || 1,
-        assigned_vehicle_id: createForm.assigned_vehicle_id ? Number(createForm.assigned_vehicle_id) : null,
+        vehicle_id: chosenVehicle ? Number(chosenVehicle) : null,
+        assigned_vehicle_id: chosenVehicle ? Number(chosenVehicle) : null,
         base_salary_kes: createForm.base_salary_kes ? Number(createForm.base_salary_kes) : null,
         ntsa_verified: createForm.ntsa_verified ? 1 : 0
       };
@@ -188,6 +195,7 @@ export function DriversView() {
         emergency_contact_phone: '',
         emergency_contact_relation: 'Next of Kin',
         base_salary_kes: '',
+        vehicle_id: '',
         assigned_vehicle_id: '',
         blood_group: 'O+'
       });
@@ -255,7 +263,7 @@ export function DriversView() {
   const openVehicleModal = (driver) => {
     sound.playClick();
     setSelectedDriver(driver);
-    setSelectedVehicleId(driver.assigned_vehicle_id || '');
+    setSelectedVehicleId(driver.vehicle_id || driver.assigned_vehicle_id || '');
     setVehicleModalOpen(true);
   };
 

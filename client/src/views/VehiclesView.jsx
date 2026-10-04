@@ -22,6 +22,7 @@ import { MaintenanceVehicleModal } from '../components/vehicles/MaintenanceVehic
 import { VehicleStatusModal } from '../components/vehicles/VehicleStatusModal.jsx';
 import { RecordMileageModal } from '../components/vehicles/RecordMileageModal.jsx';
 import { VehicleDetailModal } from '../components/vehicles/VehicleDetailModal.jsx';
+import { AssignDriverModal } from '../components/vehicles/AssignDriverModal.jsx';
 
 export {
   VEHICLE_STATUS_OPTIONS,
@@ -63,6 +64,8 @@ export function VehiclesView() {
   const [maintenanceModalOpen, setMaintenanceModalOpen] = useState(false);
   const [statusModalOpen, setStatusModalOpen] = useState(false);
   const [mileageModalOpen, setMileageModalOpen] = useState(false);
+  const [assignDriverModalOpen, setAssignDriverModalOpen] = useState(false);
+  const [selectedDriverId, setSelectedDriverId] = useState('');
 
   const [selectedVehicle, setSelectedVehicle] = useState(null);
   const [vehicleTelemetry, setVehicleTelemetry] = useState(null);
@@ -137,17 +140,20 @@ export function VehiclesView() {
       if (typeFilter !== 'ALL') params.append('vehicle_type', typeFilter);
       if (branchFilter) params.append('branch_id', branchFilter);
 
+      const driverParams = new URLSearchParams();
+      if (branchFilter) driverParams.append('branch_id', branchFilter);
+
       const [vehRes, telRes, branchRes, driverRes] = await Promise.all([
         api.get(`/api/v1/vehicles?${params.toString()}`),
         api.get('/api/v1/vehicles/telemetry/summary').catch(() => null),
         api.get('/api/v1/branches').catch(() => []),
-        api.get('/api/v1/drivers?status=ACTIVE').catch(() => [])
+        api.get(`/api/v1/drivers${driverParams.toString() ? '?' + driverParams.toString() : ''}`).catch(() => [])
       ]);
 
       setVehicles(Array.isArray(vehRes) ? vehRes : (vehRes?.vehicles || []));
       if (telRes) setTelemetry(telRes);
       if (Array.isArray(branchRes)) setBranches(branchRes);
-      if (Array.isArray(driverRes)) setDrivers(driverRes);
+      setDrivers(Array.isArray(driverRes) ? driverRes : (driverRes?.drivers || []));
     } catch (err) {
       console.error('Error fetching fleet vehicles:', err);
       api.errorToast('Failed to load fleet registry: ' + (err.message || 'Network error'));
@@ -228,6 +234,40 @@ export function VehiclesView() {
       setMileageLogs(Array.isArray(miles) ? miles : (miles?.mileage_logs || []));
     } catch (err) {
       console.error('Failed to load full vehicle dossier:', err);
+    }
+  };
+
+  const openAssignDriverModal = (vehicle) => {
+    sound.playClick();
+    setSelectedVehicle(vehicle);
+    setSelectedDriverId(vehicle.assigned_driver_id || vehicle.driver_id || '');
+    setAssignDriverModalOpen(true);
+  };
+
+  const handleAssignDriver = async (e) => {
+    e.preventDefault();
+    if (!selectedVehicle) return;
+    setActionLoading(true);
+    try {
+      await api.post(`/api/v1/vehicles/${selectedVehicle.id}/assign-driver`, {
+        driver_id: selectedDriverId ? Number(selectedDriverId) : null
+      });
+      sound.playSuccess();
+      api.successToast(
+        selectedDriverId
+          ? 'Driver successfully designated to vehicle'
+          : 'Vehicle unassigned from driver'
+      );
+      setAssignDriverModalOpen(false);
+      fetchData();
+      if (detailModalOpen) {
+        openVehicleDetail(selectedVehicle);
+      }
+    } catch (err) {
+      sound.playError();
+      api.errorToast(err.message || 'Failed to update vehicle driver assignment');
+    } finally {
+      setActionLoading(false);
     }
   };
 
@@ -448,7 +488,7 @@ export function VehiclesView() {
               )}
             </div>
 
-            <div className="flex items-center justify-end gap-2">
+            <div className="flex items-center justify-between gap-2">
               <button
                 onClick={() => {
                   sound.playClick();
@@ -513,6 +553,7 @@ export function VehiclesView() {
               onOpenRefuel={openRefuelModal}
               onOpenMaintenance={openMaintenanceModal}
               onOpenMileage={openMileageModal}
+              onOpenAssignDriver={openAssignDriverModal}
             />
           ))}
         </div>
@@ -585,6 +626,18 @@ export function VehiclesView() {
         onOpenMaintenance={() => setMaintenanceModalOpen(true)}
         onOpenMileage={() => setMileageModalOpen(true)}
         onOpenStatus={() => setStatusModalOpen(true)}
+        onOpenAssignDriver={openAssignDriverModal}
+      />
+
+      <AssignDriverModal
+        isOpen={assignDriverModalOpen}
+        selectedVehicle={selectedVehicle}
+        onClose={() => setAssignDriverModalOpen(false)}
+        selectedDriverId={selectedDriverId}
+        setSelectedDriverId={setSelectedDriverId}
+        drivers={drivers}
+        onSubmit={handleAssignDriver}
+        actionLoading={actionLoading}
       />
     </div>
   );

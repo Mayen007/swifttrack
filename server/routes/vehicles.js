@@ -96,6 +96,28 @@ router.put('/:id', authenticateToken, requireRole('SUPER_ADMIN', 'BRANCH_MANAGER
     }
 });
 
+// POST /:id/assign-driver - Assign or unassign designated driver
+router.post('/:id/assign-driver', authenticateToken, requireRole('SUPER_ADMIN', 'BRANCH_MANAGER', 'DISPATCHER'), (req, res) => {
+    try {
+        const vehicleId = Number(req.params.id);
+        const { driver_id } = req.body;
+
+        const existing = vehicleService.getVehicleById(vehicleId);
+        if (req.user.roleName !== 'SUPER_ADMIN' && existing.branch_id !== req.user.branchId) {
+            return res.status(403).json({ error: 'Forbidden: Vehicle belongs to another branch depot' });
+        }
+
+        const updated = vehicleService.assignVehicleDriver(
+            vehicleId,
+            driver_id ? Number(driver_id) : null,
+            req.user.id
+        );
+        res.json(updated);
+    } catch (err) {
+        res.status(err.statusCode || 400).json({ error: err.message });
+    }
+});
+
 // PATCH /:id/status - Update vehicle operational status
 router.patch('/:id/status', authenticateToken, requireRole('SUPER_ADMIN', 'BRANCH_MANAGER', 'DISPATCHER'), (req, res) => {
     try {

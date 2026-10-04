@@ -472,6 +472,7 @@ export function PosView({ onNavigate }) {
         ) : (
           <ParcelCounterBooking
             user={user}
+            selectedBranch={selectedBranch}
             activeShift={activeShift}
             onOpenShiftRequest={() => setOpenShiftModalOpen(true)}
             onRefreshShift={loadActiveShift}

@@ -30,15 +30,22 @@ import { api } from '../../services/api.js';
 import { sound } from '../../services/sound.js';
 import { PrintableWaybillModal } from './PrintableWaybillModal.jsx';
 
-export function ParcelCounterBooking({ user, activeShift, onRefreshShift, onOpenShiftRequest, onNavigate }) {
+export function ParcelCounterBooking({ user, selectedBranch, activeShift, onRefreshShift, onOpenShiftRequest, onNavigate }) {
   // Destination Hubs
   const [hubs, setHubs] = useState([]);
   const [loadingHubs, setLoadingHubs] = useState(true);
 
   // Form State
+  const [originHubId, setOriginHubId] = useState(() => selectedBranch?.id || user?.branchId || 1);
   const [destinationHubId, setDestinationHubId] = useState('');
   const [serviceType, setServiceType] = useState('STANDARD'); // STANDARD, EXPRESS, SAME_DAY
   const [deliveryType, setDeliveryType] = useState('LAST_MILE'); // LAST_MILE, PICKUP_AT_HUB
+
+  useEffect(() => {
+    if (selectedBranch?.id) {
+      setOriginHubId(selectedBranch.id);
+    }
+  }, [selectedBranch?.id]);
 
   // Shipper / Sender Details
   const [senderName, setSenderName] = useState('');
@@ -231,7 +238,7 @@ export function ParcelCounterBooking({ user, activeShift, onRefreshShift, onOpen
     try {
       setCalculatingQuote(true);
       setQuoteError(null);
-      const originId = user?.branchId || 1;
+      const originId = Number(originHubId) || user?.branchId || 1;
       const payload = {
         origin_hub_id: originId,
         destination_hub_id: Number(destinationHubId),
@@ -257,7 +264,7 @@ export function ParcelCounterBooking({ user, activeShift, onRefreshShift, onOpen
     } finally {
       setCalculatingQuote(false);
     }
-  }, [destinationHubId, parcels, serviceType, declaredValue, codAmount, user?.branchId]);
+  }, [originHubId, destinationHubId, parcels, serviceType, declaredValue, codAmount, user?.branchId]);
 
   useEffect(() => {
     if (!destinationHubId || parcels.length === 0) {
@@ -315,7 +322,7 @@ export function ParcelCounterBooking({ user, activeShift, onRefreshShift, onOpen
   const handleExecuteBooking = async () => {
     try {
       setSubmittingBooking(true);
-      const originId = user?.branchId || 1;
+      const originId = Number(originHubId) || user?.branchId || 1;
 
       let paymentPayload = {};
       if (paymentMethod === 'SPLIT') {
@@ -464,7 +471,7 @@ export function ParcelCounterBooking({ user, activeShift, onRefreshShift, onOpen
     }
   };
 
-  const originHub = hubs.find(h => h.id === (user?.branchId || user?.branch_id)) || hubs[0] || { name: 'Origin Hub', code: 'HUB' };
+  const originHub = hubs.find(h => h.id === Number(originHubId)) || hubs.find(h => h.id === (user?.branchId || user?.branch_id)) || hubs[0] || { name: 'Origin Hub', code: 'HUB' };
 
   return (
     <div className="space-y-4">
@@ -527,6 +534,30 @@ export function ParcelCounterBooking({ user, activeShift, onRefreshShift, onOpen
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-[11px] font-mono text-slate-400 mb-1">
+                  Origin Hub / Intake Depot <span className="text-rose-400">*</span>
+                </label>
+                <select
+                  value={originHubId}
+                  onChange={(e) => {
+                    const newOrig = Number(e.target.value);
+                    setOriginHubId(newOrig);
+                    if (Number(destinationHubId) === newOrig) {
+                      setDestinationHubId('');
+                    }
+                  }}
+                  className="w-full px-3 py-2 rounded-lg bg-[#0b0e14] border border-[#222834] text-white text-xs font-mono focus:border-blue-500 focus:outline-none"
+                  disabled={loadingHubs}
+                >
+                  {hubs.map((h) => (
+                    <option key={h.id} value={h.id}>
+                      {h.name} ({h.code}) — {h.city}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-mono text-slate-400 mb-1">
                   Destination Hub / Depot <span className="text-rose-400">*</span>
                 </label>
                 <select
@@ -537,14 +568,15 @@ export function ParcelCounterBooking({ user, activeShift, onRefreshShift, onOpen
                 >
                   <option value="">-- Select Destination Hub --</option>
                   {hubs
-                    .filter(h => h.id !== (user?.branchId || 1))
-                    .map(h => (
+                    .filter((h) => h.id !== Number(originHubId))
+                    .map((h) => (
                       <option key={h.id} value={h.id}>
                         {h.name} ({h.code}) — {h.city}
                       </option>
                     ))}
                 </select>
               </div>
+            </div>
 
               <div>
                 <label className="block text-[11px] font-mono text-slate-400 mb-1">
@@ -575,7 +607,6 @@ export function ParcelCounterBooking({ user, activeShift, onRefreshShift, onOpen
                   </button>
                 </div>
               </div>
-            </div>
 
             {/* Service Level Pills */}
             <div>

@@ -103,7 +103,7 @@ function listDrivers({ branchId, status, search, complianceStatus, page = 1, lim
         FROM drivers d
         JOIN users u ON d.user_id = u.id
         JOIN branches b ON d.branch_id = b.id
-        LEFT JOIN vehicles v ON d.vehicle_id = v.id
+        LEFT JOIN vehicles v ON (d.vehicle_id = v.id OR v.assigned_driver_id = d.id)
         WHERE 1=1
     `;
     const params = [];
@@ -137,6 +137,8 @@ function listDrivers({ branchId, status, search, complianceStatus, page = 1, lim
     const dataSql = `
         SELECT 
             d.*,
+            COALESCE(d.vehicle_id, v.id) as vehicle_id,
+            COALESCE(d.vehicle_id, v.id) as assigned_vehicle_id,
             u.full_name,
             u.username,
             u.is_active as user_is_active,
@@ -159,6 +161,7 @@ function listDrivers({ branchId, status, search, complianceStatus, page = 1, lim
         const comp = calculateCompliance(drv.license_expiry_date, drv.ntsa_verified);
         return {
             ...drv,
+            assigned_vehicle_id: drv.vehicle_id || null,
             compliance: comp
         };
     });
@@ -186,6 +189,8 @@ function getDriverById(id) {
     const driver = db.prepare(`
         SELECT 
             d.*,
+            COALESCE(d.vehicle_id, v.id) as vehicle_id,
+            COALESCE(d.vehicle_id, v.id) as assigned_vehicle_id,
             u.full_name,
             u.username,
             u.is_active as user_is_active,
@@ -202,7 +207,7 @@ function getDriverById(id) {
         FROM drivers d
         JOIN users u ON d.user_id = u.id
         JOIN branches b ON d.branch_id = b.id
-        LEFT JOIN vehicles v ON d.vehicle_id = v.id
+        LEFT JOIN vehicles v ON (d.vehicle_id = v.id OR v.assigned_driver_id = d.id)
         WHERE d.id = ?
     `).get(id);
 
@@ -212,6 +217,7 @@ function getDriverById(id) {
         throw err;
     }
 
+    driver.assigned_vehicle_id = driver.vehicle_id || null;
     driver.compliance = calculateCompliance(driver.license_expiry_date, driver.ntsa_verified);
     return driver;
 }
@@ -250,6 +256,8 @@ function createDriver(data, creatorUserId = null) {
         username = null,
         password = null
     } = data;
+
+    const chosenVehicleId = vehicle_id || data.assigned_vehicle_id ? Number(vehicle_id || data.assigned_vehicle_id) : null;
 
     if (!full_name || !phone || !branch_id || !license_number) {
         const err = new Error('Missing required fields: full_name, phone, branch_id, and license_number are required');
@@ -358,11 +366,33 @@ function createDriver(data, creatorUserId = null) {
             license_expiry_date || null,
             ntsa_verified ? 1 : 0,
             ntsa_verified ? (data.ntsa_verification_date || new Date().toISOString().split('T')[0]) : null,
-            vehicle_id || null,
+            chosenVehicleId || null,
             notes || null
         );
 
         const driverId = Number(result.lastInsertRowid);
+
+        // Sync vehicle assigned_driver_id if vehicle was chosen
+        if (chosenVehicleId) {
+            db.prepare('UPDATE drivers SET vehicle_id = NULL WHERE vehicle_id = ? AND id != ?').run(chosenVehicleId, driverId);
+            db.prepare('UPDATE vehicles SET assigned_driver_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(driverId, chosenVehicleId);
+
+            const isPostgres = process.env.DB_CLIENT === 'postgres' || (!!process.env.DATABASE_URL && process.env.DB_CLIENT !== 'sqlite');
+            if (isPostgres) {
+                try {
+                    const pool = require('../db/postgres/pool.js');
+                    const pg = pool.getPool();
+                    (async () => {
+                        try {
+                            await pg.query('UPDATE drivers SET vehicle_id = NULL WHERE vehicle_id = $1 AND id != $2', [chosenVehicleId, driverId]);
+                            await pg.query('UPDATE vehicles SET assigned_driver_id = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2', [driverId, chosenVehicleId]);
+                        } catch (e) {
+                            console.error('[DriverService Create PG Sync Error]:', e.message);
+                        }
+                    })();
+                } catch {}
+            }
+        }
 
         // 4. Log initial status
         db.prepare(`
@@ -621,21 +651,50 @@ function assignDriverBranch(driverId, newBranchId, userId = null) {
  */
 function assignDriverVehicle(driverId, vehicleId, userId = null) {
     const driver = getDriverById(driverId);
+    const isPostgres = process.env.DB_CLIENT === 'postgres' || (!!process.env.DATABASE_URL && process.env.DB_CLIENT !== 'sqlite');
 
     if (!vehicleId) {
-        // Unassign
-        db.prepare('UPDATE drivers SET vehicle_id = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(driverId);
-        logAuditEvent({
-            userId,
-            role: 'DISPATCHER',
-            action: 'UPDATE',
-            resource: 'DRIVER_VEHICLE',
-            resourceId: driverId,
-            branchId: driver.branch_id,
-            previousValue: { vehicle_id: driver.vehicle_id },
-            newValue: { vehicle_id: null },
-            reason: 'Driver unassigned from vehicle'
-        });
+        // Unassign driver from vehicle
+        db.transaction(() => {
+            db.prepare('UPDATE drivers SET vehicle_id = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(driverId);
+            db.prepare('UPDATE vehicles SET assigned_driver_id = NULL, updated_at = CURRENT_TIMESTAMP WHERE assigned_driver_id = ?').run(driverId);
+            if (driver.vehicle_id) {
+                db.prepare('UPDATE vehicles SET assigned_driver_id = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(driver.vehicle_id);
+            }
+
+            logAuditEvent({
+                userId,
+                role: 'DISPATCHER',
+                action: 'UPDATE',
+                resource: 'DRIVER_VEHICLE',
+                resourceId: driverId,
+                branchId: driver.branch_id,
+                previousValue: { vehicle_id: driver.vehicle_id },
+                newValue: { vehicle_id: null },
+                reason: 'Driver unassigned from vehicle'
+            });
+        })();
+
+        if (isPostgres) {
+            try {
+                const pool = require('../db/postgres/pool.js');
+                const pg = pool.getPool();
+                (async () => {
+                    try {
+                        await pg.query('UPDATE drivers SET vehicle_id = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = $1', [driverId]);
+                        await pg.query('UPDATE vehicles SET assigned_driver_id = NULL, updated_at = CURRENT_TIMESTAMP WHERE assigned_driver_id = $1', [driverId]);
+                        if (driver.vehicle_id) {
+                            await pg.query('UPDATE vehicles SET assigned_driver_id = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = $1', [driver.vehicle_id]);
+                        }
+                    } catch (e) {
+                        console.error('[DriverService PG Sync Error]:', e.message);
+                    }
+                })();
+            } catch (err) {
+                console.error('[DriverService PG Pool Error]:', err.message);
+            }
+        }
+
         return getDriverById(driverId);
     }
 
@@ -647,14 +706,28 @@ function assignDriverVehicle(driverId, vehicleId, userId = null) {
     }
 
     db.transaction(() => {
-        // If another driver currently has this vehicle, unassign them first
+        // 1. If another driver currently has this vehicle, unassign them first
         db.prepare('UPDATE drivers SET vehicle_id = NULL WHERE vehicle_id = ? AND id != ?').run(vehicleId, driverId);
 
+        // 2. If this driver previously had another vehicle, unassign that vehicle
+        if (driver.vehicle_id && driver.vehicle_id !== vehicleId) {
+            db.prepare('UPDATE vehicles SET assigned_driver_id = NULL WHERE id = ?').run(driver.vehicle_id);
+        }
+        db.prepare('UPDATE vehicles SET assigned_driver_id = NULL WHERE assigned_driver_id = ? AND id != ?').run(driverId, vehicleId);
+
+        // 3. Assign vehicle to driver
         db.prepare(`
             UPDATE drivers
             SET vehicle_id = ?, updated_at = CURRENT_TIMESTAMP
             WHERE id = ?
         `).run(vehicleId, driverId);
+
+        // 4. Assign driver to vehicle
+        db.prepare(`
+            UPDATE vehicles
+            SET assigned_driver_id = ?, updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+        `).run(driverId, vehicleId);
 
         logAuditEvent({
             userId,
@@ -668,6 +741,25 @@ function assignDriverVehicle(driverId, vehicleId, userId = null) {
             reason: `Driver assigned to vehicle ${vehicle.registration_number}`
         });
     })();
+
+    if (isPostgres) {
+        try {
+            const pool = require('../db/postgres/pool.js');
+            const pg = pool.getPool();
+            (async () => {
+                try {
+                    await pg.query('UPDATE drivers SET vehicle_id = NULL WHERE vehicle_id = $1 AND id != $2', [vehicleId, driverId]);
+                    await pg.query('UPDATE vehicles SET assigned_driver_id = NULL WHERE assigned_driver_id = $1 AND id != $2', [driverId, vehicleId]);
+                    await pg.query('UPDATE drivers SET vehicle_id = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2', [driverId, driverId]);
+                    await pg.query('UPDATE vehicles SET assigned_driver_id = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2', [driverId, vehicleId]);
+                } catch (e) {
+                    console.error('[DriverService PG Sync Error]:', e.message);
+                }
+            })();
+        } catch (err) {
+            console.error('[DriverService PG Pool Error]:', err.message);
+        }
+    }
 
     return getDriverById(driverId);
 }

@@ -1,6 +1,6 @@
 import React from 'react';
 import {
-  MapPin, User, Calendar, Wrench, Fuel, Gauge, Eye,
+  MapPin, User, UserPlus, Calendar, Wrench, Fuel, Gauge, Eye,
   Activity, CheckCircle2, AlertTriangle, ShieldCheck,
   RefreshCw, ChevronRight
 } from 'lucide-react';
@@ -13,7 +13,8 @@ export function VehicleCard({
   onOpenStatus,
   onOpenRefuel,
   onOpenMaintenance,
-  onOpenMileage
+  onOpenMileage,
+  onOpenAssignDriver
 }) {
   const isDue = veh.is_service_due;
   const currentOdo = Number(veh.current_odometer_km) || 0;
@@ -93,7 +94,11 @@ export function VehicleCard({
                   {/* Assigned Driver Chip */}
                   <div className="flex items-center justify-between gap-2 p-2.5 rounded-xl bg-slate-100 dark:bg-slate-800/40 border border-slate-200 dark:border-[#2a3447] mb-3.5 text-xs min-w-0">
                     <div className="flex items-center gap-2 min-w-0">
-                      <div className="w-7 h-7 rounded-full bg-blue-500/20 text-blue-600 dark:text-blue-400 flex items-center justify-center font-bold text-xs shrink-0">
+                      <div className={`w-7 h-7 rounded-full flex items-center justify-center font-bold text-xs shrink-0 ${
+                        veh.driver_name
+                          ? 'bg-blue-500/20 text-blue-600 dark:text-blue-400'
+                          : 'bg-slate-500/20 text-slate-400'
+                      }`}>
                         <User className="w-3.5 h-3.5" />
                       </div>
                       <div className="min-w-0">
@@ -103,11 +108,30 @@ export function VehicleCard({
                         </span>
                       </div>
                     </div>
-                    {veh.driver_phone && (
-                      <span className="text-[11px] text-slate-600 dark:text-slate-400 font-mono shrink-0">
-                        {veh.driver_phone}
-                      </span>
-                    )}
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      {veh.driver_phone && (
+                        <span className="text-[11px] text-slate-500 dark:text-slate-400 font-mono hidden sm:inline">
+                          {veh.driver_phone}
+                        </span>
+                      )}
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          sound.playClick();
+                          onOpenAssignDriver?.(veh);
+                        }}
+                        className={`px-2 py-1 rounded-lg text-[11px] font-semibold transition-all cursor-pointer flex items-center gap-1 ${
+                          veh.driver_name
+                            ? 'bg-blue-50 hover:bg-blue-100 dark:bg-blue-500/10 dark:hover:bg-blue-500/20 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-500/30'
+                            : 'bg-blue-600 hover:bg-blue-500 text-white shadow-xs'
+                        }`}
+                        title={veh.driver_name ? 'Reassign or change designated driver' : 'Assign a driver to this vehicle'}
+                      >
+                        <UserPlus className="w-3 h-3" />
+                        <span>{veh.driver_name ? 'Change' : 'Assign'}</span>
+                      </button>
+                    </div>
                   </div>
 
                   {/* Service Target Alert */}

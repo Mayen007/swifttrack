@@ -1,6 +1,6 @@
 import React from 'react';
 import {
-  X, Truck, Car, Bike, Fuel, Wrench, Gauge, Calendar, User,
+  X, Truck, Car, Bike, Fuel, Wrench, Gauge, Calendar, User, UserPlus,
   CheckCircle2, AlertTriangle, Clock, Plus, TrendingUp, History, Activity,
   Layers, FileText
 } from 'lucide-react';
@@ -19,7 +19,8 @@ export function VehicleDetailModal({
   onOpenRefuel,
   onOpenMaintenance,
   onOpenMileage,
-  onOpenStatus
+  onOpenStatus,
+  onOpenAssignDriver
 }) {
   if (!isOpen || !selectedVehicle) return null;
 
@@ -147,6 +148,52 @@ export function VehicleDetailModal({
                       </div>
                       <span className="text-[10px] text-slate-500">Total cost per km traveled</span>
                     </div>
+                  </div>
+
+                  {/* Designated Fleet Courier / Driver */}
+                  <div className="p-4 sm:p-5 rounded-2xl bg-slate-950/60 border border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div className="flex items-center gap-3.5 min-w-0">
+                      <div className={`w-11 h-11 rounded-2xl flex items-center justify-center shrink-0 border ${
+                        selectedVehicle.driver_name
+                          ? 'bg-blue-500/10 border-blue-500/30 text-blue-400'
+                          : 'bg-slate-800/40 border-slate-700/60 text-slate-500'
+                      }`}>
+                        <User className="w-5 h-5" />
+                      </div>
+                      <div className="min-w-0">
+                        <span className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold block">Designated Fleet Driver</span>
+                        <div className="text-sm sm:text-base font-bold text-white truncate mt-0.5">
+                          {selectedVehicle.driver_name || 'No Designated Driver Assigned'}
+                        </div>
+                        <div className="text-xs text-slate-400 flex items-center gap-2 mt-0.5">
+                          {selectedVehicle.driver_phone && (
+                            <span className="font-mono text-slate-300">{selectedVehicle.driver_phone}</span>
+                          )}
+                          {selectedVehicle.driver_code && (
+                            <>
+                              <span>•</span>
+                              <span className="font-mono text-slate-400">{selectedVehicle.driver_code}</span>
+                            </>
+                          )}
+                          {!selectedVehicle.driver_name && (
+                            <span>Assign a courier driver to dispatch runs and track vehicle custody</span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => onOpenAssignDriver?.(selectedVehicle)}
+                      className={`px-3.5 py-2 rounded-xl text-xs font-semibold transition-all flex items-center justify-center gap-1.5 self-start sm:self-auto cursor-pointer shadow-sm ${
+                        selectedVehicle.driver_name
+                          ? 'bg-slate-800 hover:bg-slate-700 text-blue-300 border border-blue-500/30'
+                          : 'bg-blue-600 hover:bg-blue-500 text-white'
+                      }`}
+                    >
+                      <UserPlus className="w-3.5 h-3.5" />
+                      <span>{selectedVehicle.driver_name ? 'Change Driver' : 'Assign Driver'}</span>
+                    </button>
                   </div>
 
                   {/* Technical Specifications */}
