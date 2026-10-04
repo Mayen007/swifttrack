@@ -92,7 +92,7 @@ In production, standard v1 REST queries and mutations return **raw domain object
   {
     "id": 42,
     "waybill_number": "WB-NRB-2026-0042",
-    "status": "CONFIRMED",
+    "status": "BOOKED",
     "origin_branch_id": 1,
     "destination_branch_id": 2
   }
@@ -257,7 +257,7 @@ When an error occurs, handlers return an appropriate non-2xx HTTP status code ac
   {
     "shipment_id": 42,
     "waybill_number": "WB-NRB-2026-0042",
-    "status": "CONFIRMED",
+    "status": "BOOKED",
     "parcel_count": 1,
     "parcels": [
       { "id": 101, "barcode": "PCL-WB-NRB-2026-0042-01", "weight_kg": 3.2 }
@@ -283,7 +283,7 @@ When an error occurs, handlers return an appropriate non-2xx HTTP status code ac
     "current_location": "Mtito Andei Checkpoint",
     "estimated_delivery": "2026-10-01T14:00:00.000Z",
     "milestones": [
-      { "status": "CONFIRMED", "location": "NRB-HQ", "timestamp": "2026-09-30T08:15:00.000Z" },
+      { "status": "BOOKED", "location": "NRB-HQ", "timestamp": "2026-09-30T08:15:00.000Z" },
       { "status": "DISPATCHED", "location": "Nairobi Outbound Bay", "timestamp": "2026-09-30T10:00:00.000Z" },
       { "status": "CHECKPOINT", "location": "Mtito Andei", "timestamp": "2026-09-30T13:30:00.000Z" }
     ]

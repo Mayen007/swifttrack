@@ -281,14 +281,33 @@ async function seedProductionBaseline(pool = null) {
             ON CONFLICT (id) DO NOTHING;
         `);
 
-        // 12. Reset all sequence values
+        // 12. Baseline Logistics Pricing Tariffs
+        await client.query(`
+            INSERT INTO logistics_pricing_tariffs 
+            (origin_hub_id, destination_hub_id, service_type, base_weight_kg, base_price, per_kg_above_base, cod_fee_percent, min_cod_fee, insurance_rate_percent, currency, is_active)
+            SELECT NULL, NULL, 'STANDARD', 5.0, 350.0, 50.0, 2.0, 100.0, 1.0, 'KES', true
+            WHERE NOT EXISTS (SELECT 1 FROM logistics_pricing_tariffs WHERE origin_hub_id IS NULL AND destination_hub_id IS NULL AND service_type = 'STANDARD');
+
+            INSERT INTO logistics_pricing_tariffs 
+            (origin_hub_id, destination_hub_id, service_type, base_weight_kg, base_price, per_kg_above_base, cod_fee_percent, min_cod_fee, insurance_rate_percent, currency, is_active)
+            SELECT NULL, NULL, 'EXPRESS', 5.0, 600.0, 80.0, 2.0, 100.0, 1.0, 'KES', true
+            WHERE NOT EXISTS (SELECT 1 FROM logistics_pricing_tariffs WHERE origin_hub_id IS NULL AND destination_hub_id IS NULL AND service_type = 'EXPRESS');
+
+            INSERT INTO logistics_pricing_tariffs 
+            (origin_hub_id, destination_hub_id, service_type, base_weight_kg, base_price, per_kg_above_base, cod_fee_percent, min_cod_fee, insurance_rate_percent, currency, is_active)
+            SELECT NULL, NULL, 'SAME_DAY', 5.0, 850.0, 120.0, 2.0, 100.0, 1.0, 'KES', true
+            WHERE NOT EXISTS (SELECT 1 FROM logistics_pricing_tariffs WHERE origin_hub_id IS NULL AND destination_hub_id IS NULL AND service_type = 'SAME_DAY');
+        `);
+
+        // 13. Reset all sequence values
         const serialTables = [
             'branches', 'warehouses', 'roles', 'permissions', 'users',
             'categories', 'products', 'inventory', 'customers',
             'orders', 'order_items', 'sales', 'sale_items', 'held_sales',
             'payments', 'refund_requests', 'refunds', 'expenses',
             'vehicles', 'drivers', 'deliveries', 'delivery_items',
-            'proof_of_delivery', 'revoked_tokens', 'password_reset_tokens'
+            'proof_of_delivery', 'revoked_tokens', 'password_reset_tokens',
+            'logistics_pricing_tariffs', 'offline_sync_logs'
         ];
 
         for (const tbl of serialTables) {

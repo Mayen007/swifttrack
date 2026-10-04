@@ -13,7 +13,7 @@ SwiftTrack has undergone comprehensive architectural remediation to permanently 
 
 ### Core Convergence Milestones Achieved:
 1. **Authoritative PostgreSQL Runtime**: The application runtime operates against PostgreSQL with connection pooling (`pg.Pool`). Production fail-fast validation strictly prevents silent fallbacks to SQLite when `DB_CLIENT=postgres` or `NODE_ENV=production`.
-2. **Unified Checksum-Verified Migrator**: All 25 database migrations (`001_initial_schema.sql` through `025_seed_default_tariffs.sql`) execute idempotently under transactional DDL guards with SHA-256 checksum verification.
+2. **Unified Checksum-Verified Migrator**: All 23 database migrations (`001_initial_schema.sql` through `023_logistics_notifications_engine.sql`) execute idempotently under transactional DDL guards with SHA-256 checksum verification.
 3. **Canonical Shipment Lifecycle**: Unified status vocabulary to `DELIVERY_FAILED` (eliminating ambiguous `FAILED_DELIVERY` synonyms), enforced mandatory failure reasons (`BR-008`), and guarded illegal jumps through atomic transitions.
 4. **Asynchronous Transactional Persistence**: Core domain services (`shipmentService`, `deliveryExecutionService`, `transportService`, `custodyService`, `codService`, `controlTowerService`, `notificationService`, `e2eAcceptanceService`, `offlineSyncService`) fully refactored to asynchronous parameterization with `dbAdapter.withTransaction()`.
 5. **Stage 10 End-to-End Multi-Leg Acceptance**: The 23-step PRD Section 30 multi-leg consignment journey (`Nairobi -> Nakuru -> Mombasa` with volumetric rating, manifest dispatch, transshipment bay receiving, driver delivery, OTP POD, and COD reconciliation) executes and passes 100% on live PostgreSQL.
@@ -32,7 +32,7 @@ Evaluation Scale:
 
 | # | Operational Domain | Status | Concrete Implementation Evidence | Last Verified | Blocking Issues / Live Requirements |
 | :-: | :--- | :---: | :--- | :---: | :--- |
-| **1** | **Database Architecture** | **PASS** | 25 sequential PostgreSQL migrations (`001`–`025`) with SHA-256 checksum tracking, foreign key constraints, unique waybill indexing, and PL/pgSQL audit triggers. | 2026-10-03 | None. Verified by `test-postgres-data-architecture.js` (10/10 tests passed). |
+| **1** | **Database Architecture** | **PASS** | 23 sequential PostgreSQL migrations (`001`–`023`) with SHA-256 checksum tracking, foreign key constraints, unique waybill indexing, and PL/pgSQL audit triggers. | 2026-10-03 | None. Verified by `test-postgres-data-architecture.js` (10/10 tests passed). |
 | **2** | **Application Runtime** | **PASS** | Express 5.2 application stack, async `dbAdapter` parameterization (`$1, $2`), fail-fast environment validation (`server/utils/env.js`), zero production SQLite fallback. | 2026-10-03 | None. Verified by `verify-system.js` (14/14 tests passed). |
 | **3** | **API Architecture & Parity** | **PASS** | 335 live Express endpoints. Documented routes in `docs/API.md` and `server/docs/openapi.json` pass 100% parity with live routing stack. | 2026-10-03 | None. Verified by `test-api-doc-parity.js`. |
 | **4** | **Authentication & Identity** | **PASS** | Node `crypto.scrypt` with 16-byte cryptographically random per-user salts. 15-minute JWT access tokens, 7-day rotating refresh tokens, session blacklist table, and 5-attempt account lockout (`HTTP 423`). | 2026-10-03 | None. Verified in `verify-system.js` and `verify-auth-phase1.js`. |
@@ -57,10 +57,10 @@ Evaluation Scale:
 
 ## 3. Authoritative PostgreSQL Database Migrations Registry
 
-The PostgreSQL database schema is governed by 25 version-controlled, sequential, idempotent SQL migrations located in `server/db/postgres/migrations/`:
+The PostgreSQL database schema is governed by 23 version-controlled, sequential, idempotent SQL migrations located in `server/db/postgres/migrations/` (with baseline tariffs seeded in `server/db/postgres/seed.js`):
 
 | Version | Migration Name | Applied In Production | Checksum Integrity | Description |
-| :-: | :--- | :---: | :---: | :--- |
+| :-: | :--- | :--- | :--- | :--- |
 | `001` | `001_initial_schema.sql` | YES | MATCH | Core branches, warehouses, roles, permissions, users, products, inventory, orders, sales, payments, audit logs. |
 | `002` | `002_soft_delete_and_retention.sql` | YES | MATCH | Soft-deletion timestamps, archival tables, and lifecycle retention flags. |
 | `003` | `003_performance_indexes.sql` | YES | MATCH | B-Tree indexing on foreign keys, customer search columns, barcode lookups, and order numbers. |
@@ -83,9 +83,7 @@ The PostgreSQL database schema is governed by 25 version-controlled, sequential,
 | `020` | `020_pos_counter_booking_and_waybills.sql` | YES | MATCH | Counter booking payment linkage (`shipment_id`), waybill viewing permissions, and POS counter sessions. |
 | `021` | `021_cod_settlements_and_reconciliation.sql` | YES | MATCH | Cash on Delivery float ledger, daily driver remittances, manager discrepancy justification (`BR-010`). |
 | `022` | `022_control_tower_and_network_telemetry.sql` | YES | MATCH | Control Tower bottleneck metrics, hub dwell times, active corridor alerts, and analytical views. |
-| `023` | `023_logistics_notifications_engine.sql` | YES | MATCH | Transactional outbox queue, exponential retry worker state, communication delivery logs, templates. |
-| `024` | `024_offline_operations_gateway.sql` | YES | MATCH | Durable offline operations log, client operation idempotency indexes, device telemetry sync. |
-| `025` | `025_seed_default_tariffs.sql` | YES | MATCH | Baseline nationwide pricing tariffs (`STANDARD`, `EXPRESS`, `SAME_DAY`) with base weight and per-kg band rates. |
+| `023` | `023_logistics_notifications_engine.sql` | YES | MATCH | Transactional outbox queue, exponential retry worker state, communication delivery logs, templates, and `offline_sync_logs`. |
 
 ---
 
@@ -135,15 +133,16 @@ PGPOOL_CONN_TIMEOUT_MS=5000
 
 # Security Credentials
 JWT_SECRET=<MINIMUM_64_CHAR_HEX_SECRET>
-REFRESH_TOKEN_SECRET=<MINIMUM_64_CHAR_HEX_SECRET>
+SESSION_EXPIRY=24h
 CORS_ORIGINS=https://app.swifttrack.co.ke,https://swifttrack.co.ke
 
-# External Provider Credentials (When transitioning to Live Network)
-MPESA_ENVIRONMENT=sandbox # Set to 'production' with live Daraja credentials
-MPESA_CONSUMER_KEY=<DARAJA_CONSUMER_KEY>
-MPESA_CONSUMER_SECRET=<DARAJA_CONSUMER_SECRET>
-MPESA_SHORTCODE=<SAFARICOM_PAYBILL_OR_TILL>
-MPESA_PASSKEY=<SAFARICOM_LNM_PASSKEY>
+# Safaricom M-Pesa (Daraja 3.0) Gateway
+DARAJA_ENVIRONMENT=sandbox # Set to 'production' with live Daraja credentials
+DARAJA_CONSUMER_KEY=<DARAJA_CONSUMER_KEY>
+DARAJA_CONSUMER_SECRET=<DARAJA_CONSUMER_SECRET>
+DARAJA_SHORTCODE=<SAFARICOM_PAYBILL_OR_TILL>
+DARAJA_PASSKEY=<SAFARICOM_LNM_PASSKEY>
+DARAJA_CALLBACK_URL=https://api.swifttrack.co.ke/api/payments/callbacks/mpesa
 
 # Background Outbox Dispatcher
 WORKER_INTERVAL_MS=15000

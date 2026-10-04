@@ -345,17 +345,18 @@ async function runTests() {
         console.log('> TEST 7: Audit Log Immutability & SQL Triggers...');
 
         // Verify audit logs were written
-        const auditEntries = db.prepare('SELECT count(*) as count FROM audit_logs').get().count;
+        const auditRow = await dbAdapter.get('SELECT count(*) as count FROM audit_logs');
+        const auditEntries = Number(auditRow?.count || 0);
         assert.ok(auditEntries >= 5, `Expected >= 5 audit entries, found ${auditEntries}`);
         console.log(`  [PASS] Verified ${auditEntries} immutable audit log entries recorded`);
 
         // Test Trigger: Attempt UPDATE on audit_logs
         let updateBlocked = false;
         try {
-            db.prepare("UPDATE audit_logs SET reason = 'Tampered Reason' WHERE id = 1").run();
+            await dbAdapter.run("UPDATE audit_logs SET reason = 'Tampered Reason' WHERE id = 1");
         } catch (err) {
             updateBlocked = true;
-            assert.ok(err.message.includes('append-only'), 'Expected append-only violation message');
+            assert.ok(err.message.includes('append-only') || err.message.includes('strictly prohibited') || err.message.includes('CRITICAL SECURITY VIOLATION'), 'Expected append-only violation message');
         }
         assert.strictEqual(updateBlocked, true, 'Database trigger failed to block UPDATE on audit_logs!');
         console.log('  [PASS] Database trigger blocked UPDATE on audit_logs with error');
@@ -363,10 +364,10 @@ async function runTests() {
         // Test Trigger: Attempt DELETE on audit_logs
         let deleteBlocked = false;
         try {
-            db.prepare('DELETE FROM audit_logs WHERE id = 1').run();
+            await dbAdapter.run('DELETE FROM audit_logs WHERE id = 1');
         } catch (err) {
             deleteBlocked = true;
-            assert.ok(err.message.includes('append-only'), 'Expected append-only violation message');
+            assert.ok(err.message.includes('append-only') || err.message.includes('strictly prohibited') || err.message.includes('CRITICAL SECURITY VIOLATION'), 'Expected append-only violation message');
         }
         assert.strictEqual(deleteBlocked, true, 'Database trigger failed to block DELETE on audit_logs!');
         console.log('  [PASS] Database trigger blocked DELETE on audit_logs with error\n');

@@ -168,3 +168,39 @@ WHERE p.code IN ('notifications:view', 'notifications:manage', 'notifications:re
       (r.id IN (4, 5) AND p.code = 'notifications:view')
   )
 ON CONFLICT DO NOTHING;
+
+-- 7. Durable Offline Operations Gateway (PRD Section 21)
+CREATE TABLE IF NOT EXISTS offline_sync_logs (
+    id SERIAL PRIMARY KEY,
+    client_operation_id VARCHAR(255) NOT NULL UNIQUE,
+    operation_type VARCHAR(100) NOT NULL,
+    device_id VARCHAR(255),
+    app_version VARCHAR(50),
+    user_id INTEGER REFERENCES users(id),
+    client_timestamp TIMESTAMPTZ,
+    synced_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    status VARCHAR(50) NOT NULL DEFAULT 'PROCESSED',
+    result_payload TEXT,
+    error_message TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_offline_sync_client_op ON offline_sync_logs(client_operation_id);
+CREATE INDEX IF NOT EXISTS idx_offline_sync_device ON offline_sync_logs(device_id);
+CREATE INDEX IF NOT EXISTS idx_offline_sync_status ON offline_sync_logs(status);
+
+-- 8. Seed Baseline Logistics Pricing Tariffs
+INSERT INTO logistics_pricing_tariffs 
+(origin_hub_id, destination_hub_id, service_type, base_weight_kg, base_price, per_kg_above_base, cod_fee_percent, min_cod_fee, insurance_rate_percent, currency, is_active)
+SELECT NULL, NULL, 'STANDARD', 5.0, 350.0, 50.0, 2.0, 100.0, 1.0, 'KES', true
+WHERE NOT EXISTS (SELECT 1 FROM logistics_pricing_tariffs WHERE origin_hub_id IS NULL AND destination_hub_id IS NULL AND service_type = 'STANDARD');
+
+INSERT INTO logistics_pricing_tariffs 
+(origin_hub_id, destination_hub_id, service_type, base_weight_kg, base_price, per_kg_above_base, cod_fee_percent, min_cod_fee, insurance_rate_percent, currency, is_active)
+SELECT NULL, NULL, 'EXPRESS', 5.0, 600.0, 80.0, 2.0, 100.0, 1.0, 'KES', true
+WHERE NOT EXISTS (SELECT 1 FROM logistics_pricing_tariffs WHERE origin_hub_id IS NULL AND destination_hub_id IS NULL AND service_type = 'EXPRESS');
+
+INSERT INTO logistics_pricing_tariffs 
+(origin_hub_id, destination_hub_id, service_type, base_weight_kg, base_price, per_kg_above_base, cod_fee_percent, min_cod_fee, insurance_rate_percent, currency, is_active)
+SELECT NULL, NULL, 'SAME_DAY', 5.0, 850.0, 120.0, 2.0, 100.0, 1.0, 'KES', true
+WHERE NOT EXISTS (SELECT 1 FROM logistics_pricing_tariffs WHERE origin_hub_id IS NULL AND destination_hub_id IS NULL AND service_type = 'SAME_DAY');
+

@@ -137,7 +137,7 @@ To prevent state corruption, audit gaps, and ambiguous field realities, SwiftTra
 - **Multi-Piece Tracking**: Consignments contain one or more physical parcels. Each parcel is assigned an individual barcode and tracked through physical scan sessions independently.
 - **Canonical Lifecycle**:
   ```text
-  [ DRAFT ] ──► (Quote Accepted) ──► [ CONFIRMED ] ──► (Dispatched) ──► [ IN_TRANSIT ]
+  [ DRAFT ] ──► (Quote Booked) ──► [ BOOKED ] ──► (Dispatched) ──► [ IN_TRANSIT ]
                                                                              │
                                                                              ▼
   [ DELIVERED ] ◄── (POD Capture) ◄── [ OUT_FOR_DELIVERY ] ◄── (Intake) ◄── [ AT_HUB ]

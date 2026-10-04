@@ -449,6 +449,12 @@ All environment variables are documented with sensible defaults in [`.env.exampl
 | `WORKER_INTERVAL_MS` | `15000` | Polling interval for background notifications outbox |
 | `PGPOOL_MAX` | `25` | Maximum pooled client connections in PostgreSQL mode |
 | `PGPOOL_MIN` | `5` | Minimum idle connections preserved in pool |
+| `DARAJA_ENVIRONMENT` | `sandbox` | Safaricom Daraja API mode (`sandbox` or `production`) |
+| `DARAJA_CONSUMER_KEY` | `""` | Safaricom Daraja 3.0 API Consumer Key |
+| `DARAJA_CONSUMER_SECRET` | `""` | Safaricom Daraja 3.0 API Consumer Secret |
+| `DARAJA_SHORTCODE` | `174379` | Safaricom M-Pesa Paybill or Till number |
+| `DARAJA_PASSKEY` | `...` | Lipa Na M-Pesa Online passkey for STK Push |
+| `DARAJA_CALLBACK_URL` | `https://...` | Public HTTPS webhook endpoint for payment callbacks |
 
 ---
 
