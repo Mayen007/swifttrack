@@ -120,13 +120,24 @@ async function authenticateToken(req, res, next) {
  * @param  {...string} allowedRoles
  */
 function requireRole(...allowedRoles) {
+    const flattened = allowedRoles.flat(Infinity);
     return (req, res, next) => {
         if (!req.user) {
             return res.status(401).json({ error: 'Authentication required' });
         }
-        if (!allowedRoles.includes(req.user.roleName)) {
+        if (req.user.roleName === 'SUPER_ADMIN') {
+            return next();
+        }
+        const userRoles = [
+            req.user.roleName,
+            req.user.roleDisplayName,
+            req.user.role
+        ].filter(Boolean);
+
+        const hasRole = flattened.some(r => userRoles.includes(r));
+        if (!hasRole) {
             return res.status(403).json({
-                error: `Forbidden: Action requires one of the following roles: [${allowedRoles.join(', ')}]. Your current role is '${req.user.roleDisplayName || req.user.roleName}'.`
+                error: `Forbidden: Action requires one of the following roles: [${flattened.join(', ')}]. Your current role is '${req.user.roleDisplayName || req.user.roleName}'.`
             });
         }
         next();
@@ -137,7 +148,7 @@ function requireRole(...allowedRoles) {
  * Restricts route based on granular permission code
  * @param {string} permissionCode
  */
-function requirePermission(permissionCode) {
+function requirePermission(resourceOrCode, action = null) {
     return (req, res, next) => {
         if (!req.user) {
             return res.status(401).json({ error: 'Authentication required' });
@@ -146,9 +157,40 @@ function requirePermission(permissionCode) {
         if (req.user.roleName === 'SUPER_ADMIN') {
             return next();
         }
-        if (!req.user.permissions || !req.user.permissions.includes(permissionCode)) {
+
+        let resource = resourceOrCode;
+        let act = action;
+        if (!act && typeof resourceOrCode === 'string') {
+            if (resourceOrCode.includes(':')) {
+                [resource, act] = resourceOrCode.split(':');
+            } else if (resourceOrCode.includes('.')) {
+                [resource, act] = resourceOrCode.split('.');
+            }
+        }
+
+        // 1. Check canonical authorization matrix
+        if (resource && act) {
+            const matrixCheck = checkPermission(req.user, resource, act, { branchId: req.user.branchId });
+            if (matrixCheck.granted) {
+                return next();
+            }
+        }
+
+        // 2. Check explicit permission codes
+        const candidates = [];
+        if (act) {
+            candidates.push(`${resource}:${act}`, `${resource}.${act}`, `${resource}_${act}`);
+        } else {
+            candidates.push(resourceOrCode);
+        }
+
+        const userPerms = req.user.permissions || [];
+        const hasPermission = candidates.some(code => userPerms.includes(code));
+
+        if (!hasPermission) {
+            const displayCode = act ? `${resource}:${act}` : resourceOrCode;
             return res.status(403).json({
-                error: `Forbidden: Missing required permission '${permissionCode}'.`
+                error: `Forbidden: Missing required permission '${displayCode}'.`
             });
         }
         next();

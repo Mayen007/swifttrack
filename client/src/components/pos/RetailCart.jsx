@@ -82,7 +82,7 @@ export function RetailCart({
             </div>
           </div>
 
-          {/* Customer Data Instrument (CRM Phase 4.1) */}
+          {/* Customer CRM Data Instrument */}
           <div className="py-2.5 border-b border-[#222834] space-y-2 text-xs font-sans relative">
             {selectedCustomer ? (
               <div className={`p-2 rounded border ${
@@ -121,7 +121,7 @@ export function RetailCart({
                 </div>
                 <div className="flex items-center justify-between text-[11px] text-gray-400 mt-1">
                   <span>{selectedCustomer.phone}</span>
-                  <span>{selectedCustomer.city || 'Nairobi'}</span>
+                  <span>{selectedCustomer.city || '—'}</span>
                 </div>
                 {(selectedCustomer.status === 'BLOCKED' || selectedCustomer.status === 'SUSPENDED') && (
                   <div className="mt-1.5 text-[10px] text-rose-400 font-bold flex items-center gap-1.5">

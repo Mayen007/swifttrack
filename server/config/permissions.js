@@ -228,7 +228,7 @@ const AUTHORIZATION_MATRIX = {
         },
         notifications: {
             view: SCOPES.OWN_BRANCH,
-            manage: SCOPES.DENIED,
+            manage: SCOPES.OWN_BRANCH,
             resend: SCOPES.OWN_BRANCH
         }
     },

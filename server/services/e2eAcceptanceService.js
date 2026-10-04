@@ -39,12 +39,26 @@ class E2EAcceptanceService {
             branchId: 1
         };
 
-        const nakuruBranch = await dbAdapter.get("SELECT id FROM branches WHERE code = 'NAK-01' OR city = 'Nakuru' LIMIT 1");
-        const defaultIntermediateId = nakuruBranch ? nakuruBranch.id : 12;
+        const nakuruBranch = await dbAdapter.get("SELECT id FROM branches WHERE code = 'NAK-01' OR code = 'NAK1' OR city = 'Nakuru' LIMIT 1");
+        const defaultIntermediateId = nakuruBranch ? nakuruBranch.id : 4;
 
-        const originHubId = Number(options.originHubId || 1);          // Nairobi HQ
-        const intermediateHubId = Number(options.intermediateHubId || defaultIntermediateId); // Nakuru
-        const destinationHubId = Number(options.destinationHubId || 2);   // Mombasa
+        const originHubId = Number(options.originHubId || 1);
+        let intermediateHubId = Number(options.intermediateHubId || defaultIntermediateId);
+        const destinationHubId = Number(options.destinationHubId || 2);
+
+        const intermediateExists = await dbAdapter.get('SELECT id FROM branches WHERE id = ?', [intermediateHubId]);
+        if (!intermediateExists) {
+            const fallback = await dbAdapter.get('SELECT id FROM branches WHERE id NOT IN (?, ?) AND is_active = true LIMIT 1', [originHubId, destinationHubId])
+                || await dbAdapter.get('SELECT id FROM branches WHERE id != ? LIMIT 1', [originHubId]);
+            if (fallback) intermediateHubId = fallback.id;
+        }
+
+        const originBranch = await dbAdapter.get('SELECT id, name, code, city, address, phone FROM branches WHERE id = ?', [originHubId])
+            || { name: 'Origin Central Hub', city: 'Origin Hub', address: 'Origin Depot', phone: '0711000111' };
+        const intermediateBranch = await dbAdapter.get('SELECT id, name, code, city, address, phone FROM branches WHERE id = ?', [intermediateHubId])
+            || { name: 'Intermediate Transfer Hub', city: 'Transit Hub', address: 'Transit Depot', phone: '0711000222' };
+        const destinationBranch = await dbAdapter.get('SELECT id, name, code, city, address, phone FROM branches WHERE id = ?', [destinationHubId])
+            || { name: 'Destination Port Hub', city: 'Destination Hub', address: 'Destination Dock', phone: '0722334455' };
 
         const codAmount = Number(options.codAmount !== undefined ? options.codAmount : 6500);
 
@@ -61,16 +75,16 @@ class E2EAcceptanceService {
                     { origin_hub_id: intermediateHubId, destination_hub_id: destinationHubId }
                 ],
                 sender: options.sender || {
-                    name: 'Alice Mutua',
-                    phone: '0711000111',
-                    email: 'alice.mutua@enterprise.co.ke',
-                    address: 'Westlands Commercial Center, Nairobi'
+                    name: `${originBranch.name} Logistics Shipper`,
+                    phone: originBranch.phone || '0711000111',
+                    email: `dispatch@${(originBranch.city || 'origin').toLowerCase().replace(/\s+/g, '')}.swifttrack.co.ke`,
+                    address: originBranch.address || `${originBranch.city || 'Origin'} Hub Facility`
                 },
                 recipient: options.recipient || {
-                    name: 'Grace Auma',
-                    phone: '0722334455',
-                    email: 'grace.auma@coastaltrading.co.ke',
-                    address: 'Mombasa Port Rd, Gate 4'
+                    name: `${destinationBranch.name} Receiving Consignee`,
+                    phone: destinationBranch.phone || '0722334455',
+                    email: `receiving@${(destinationBranch.city || 'dest').toLowerCase().replace(/\s+/g, '')}.swifttrack.co.ke`,
+                    address: destinationBranch.address || `${destinationBranch.city || 'Destination'} Receiving Dock`
                 },
                 parcels: options.parcels || [
                     {
@@ -147,7 +161,7 @@ class E2EAcceptanceService {
             // STEP 5: Parcel Intake Acceptance
             // =========================================================================
             await shipmentService.transitionShipmentStatus(shipment.id, 'ACCEPTED', {
-                location_desc: 'Nairobi Central Hub Booking Counter',
+                location_desc: `${originBranch.name} Booking Counter`,
                 description: 'Physical consignment accepted and verified by counter agent'
             }, admin);
 
@@ -163,24 +177,24 @@ class E2EAcceptanceService {
                 barcode: shipment.tracking_number,
                 scan_type: 'INTAKE',
                 hub_id: originHubId,
-                location_desc: 'Nairobi Sorting Station Bay 1',
-                device_id: 'SCANNER-NRB-01'
+                location_desc: `${originBranch.name} Sorting Bay 1`,
+                device_id: `SCANNER-${originBranch.code || 'HUB'}-01`
             }, admin);
 
             logStep(6, 'Shipment Physical Intake Scan Recorded', {
                 scan_id: intakeScan.id,
                 scan_type: 'INTAKE',
-                hub: 'Nairobi Central Hub'
+                hub: originBranch.name
             });
 
             // =========================================================================
-            // STEP 7 & 8: Provision Corridor 1 Run (Nairobi -> Nakuru) & Build Manifest
+            // STEP 7 & 8: Provision Corridor 1 Run & Build Manifest
             // =========================================================================
             let route1 = await dbAdapter.get('SELECT * FROM routes WHERE origin_hub_id = ? AND destination_hub_id = ?', [originHubId, intermediateHubId]);
             if (!route1) {
                 route1 = await transportService.createRoute({
-                    code: `RT-NRB-NAK-${Date.now().toString().slice(-4)}`,
-                    name: 'Nairobi to Nakuru Corridor',
+                    code: `RT-${originBranch.code || 'ORG'}-${intermediateBranch.code || 'INT'}-${Date.now().toString().slice(-4)}`,
+                    name: `${originBranch.city || 'Origin'} to ${intermediateBranch.city || 'Transit'} Corridor`,
                     origin_hub_id: originHubId,
                     destination_hub_id: intermediateHubId,
                     distance_km: 160.0,
@@ -213,13 +227,13 @@ class E2EAcceptanceService {
                 driver_id: driver1.id,
                 vehicle_id: vehicle1.id,
                 scheduled_departure: new Date().toISOString(),
-                notes: 'Leg 1 Linehaul: Nairobi Central to Nakuru Transfer'
+                notes: `Leg 1 Linehaul: ${originBranch.name} to ${intermediateBranch.name} Transfer`
             }, admin);
 
             logStep(7, 'Manifest Provisioned for Corridor Leg 1', {
                 manifest_id: run1.manifest.id,
                 manifest_number: run1.manifest.manifest_number,
-                corridor: 'Nairobi -> Nakuru'
+                corridor: `${originBranch.city || 'Origin'} -> ${intermediateBranch.city || 'Transit'}`
             });
 
             await transportService.addShipmentToManifest(run1.id, shipment.id, admin);
@@ -244,7 +258,7 @@ class E2EAcceptanceService {
             // =========================================================================
             await transportService.dispatchTransportRun(run1.id, {
                 departure_odometer_km: 14200.0,
-                notes: 'Departed Nairobi HQ via Waiyaki Way'
+                notes: `Departed ${originBranch.name} for ${intermediateBranch.name}`
             }, admin);
 
             logStep(10, 'Transport Run 1 Departed (IN_TRANSIT)', {
@@ -292,8 +306,8 @@ class E2EAcceptanceService {
             let route2 = await dbAdapter.get('SELECT * FROM routes WHERE origin_hub_id = ? AND destination_hub_id = ?', [intermediateHubId, destinationHubId]);
             if (!route2) {
                 route2 = await transportService.createRoute({
-                    code: `RT-NAK-MSA-${Date.now().toString().slice(-4)}`,
-                    name: 'Nakuru to Mombasa Corridor',
+                    code: `RT-${intermediateBranch.code || 'INT'}-${destinationBranch.code || 'DST'}-${Date.now().toString().slice(-4)}`,
+                    name: `${intermediateBranch.city || 'Transit'} to ${destinationBranch.city || 'Destination'} Corridor`,
                     origin_hub_id: intermediateHubId,
                     destination_hub_id: destinationHubId,
                     distance_km: 640.0,
@@ -319,32 +333,32 @@ class E2EAcceptanceService {
                 driver_id: driver2.id,
                 vehicle_id: vehicle2.id,
                 scheduled_departure: new Date().toISOString(),
-                notes: 'Leg 2 Linehaul: Nakuru Transfer to Mombasa Port'
+                notes: `Leg 2 Linehaul: ${intermediateBranch.name} Transfer to ${destinationBranch.name}`
             }, admin);
 
             await transportService.addShipmentToManifest(run2.id, shipment.id, admin);
             await transportService.lockManifest(run2.id, admin);
             await transportService.dispatchTransportRun(run2.id, {
                 departure_odometer_km: 28500.0,
-                notes: 'Departed Nakuru depot for Mombasa coast'
+                notes: `Departed ${intermediateBranch.name} for ${destinationBranch.name}`
             }, admin);
 
-            logStep(14, 'Shipment Assigned to Leg 2 (Nakuru -> Mombasa) & Dispatched', {
+            logStep(14, `Shipment Assigned to Leg 2 (${intermediateBranch.city} -> ${destinationBranch.city}) & Dispatched`, {
                 run2_number: run2.run_number,
                 leg_sequence: 2,
                 driver: driver2.full_name
             });
 
             // =========================================================================
-            // STEP 15: Arrival & Physical Receiving at Destination Hub (Mombasa)
+            // STEP 15: Arrival & Physical Receiving at Destination Hub
             // =========================================================================
             await transportService.arriveTransportRun(run2.id, { arrival_odometer_km: 29140.0 }, admin);
             await transportService.receiveManifest(run2.id, [shipment.id], admin);
 
-            logStep(15, 'Shipment Received at Final Destination Hub (Mombasa)', {
+            logStep(15, `Shipment Received at Final Destination Hub (${destinationBranch.city || destinationBranch.name})`, {
                 hub_id: destinationHubId,
                 status: 'AT_HUB',
-                current_location: 'Mombasa Port & Coastal Branch'
+                current_location: destinationBranch.name
             });
 
             // =========================================================================
@@ -353,10 +367,10 @@ class E2EAcceptanceService {
             const deliveryTask = await deliveryExecutionService.createDeliveryTask({
                 shipment_id: shipment.id,
                 hub_id: destinationHubId,
-                recipient_name: 'Grace Auma',
-                recipient_phone: '+254722334455',
-                destination_address: 'Mombasa Port Rd, Gate 4, Coastal Trading Plaza',
-                destination_city: 'Mombasa',
+                recipient_name: options.recipient?.name || `${destinationBranch.name} Consignee`,
+                recipient_phone: options.recipient?.phone || destinationBranch.phone || '+254722334455',
+                destination_address: options.recipient?.address || destinationBranch.address || `${destinationBranch.city} Receiving Dock`,
+                destination_city: destinationBranch.city || 'Destination Hub',
                 pod_required_methods: ['OTP', 'SIGNATURE', 'GPS'],
                 notes: 'Call 15 minutes before arrival. Gate 4 entrance.'
             }, admin);
@@ -401,7 +415,7 @@ class E2EAcceptanceService {
                 otp_code: activeDelivery.pod_otp,
                 otp_verified: true,
                 signature_data: 'data:image/svg+xml;utf8,<svg><path d="M10 10 L50 50"/></svg>',
-                recipient_name: 'Grace Auma',
+                recipient_name: options.recipient?.name || `${destinationBranch.name} Consignee`,
                 recipient_id_type: 'NATIONAL_ID',
                 recipient_id_number: '28475920',
                 latitude: -4.0435,
@@ -507,7 +521,7 @@ class E2EAcceptanceService {
 
             return {
                 success: true,
-                scenario_name: 'PRD Section 30: Multi-Leg End-to-End Acceptance Test',
+                scenario_name: 'Multi-Leg End-to-End Corridor Acceptance Test',
                 duration_ms: totalDurationMs,
                 total_steps_executed: steps.length,
                 steps,
@@ -517,9 +531,9 @@ class E2EAcceptanceService {
                         tracking_number: shipment.tracking_number,
                         status: 'DELIVERED',
                         chargeable_weight_kg: chargeableWeight,
-                        origin: 'Nairobi Central Hub',
-                        intermediate: 'Nakuru Transfer Station',
-                        destination: 'Mombasa Port & Coastal Branch'
+                        origin: originBranch.name,
+                        intermediate: intermediateBranch.name,
+                        destination: destinationBranch.name
                     },
                     transport: {
                         leg1_run: run1.run_number,

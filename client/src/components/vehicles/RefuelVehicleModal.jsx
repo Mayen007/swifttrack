@@ -16,7 +16,7 @@ export function RefuelVehicleModal({
   return (
         <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl">
-            <div className="p-6 border-b border-slate-800 flex items-center justify-between bg-slate-900/90">
+            <div className="p-6 border-b border-slate-800 flex items-center justify-between gap-4 bg-slate-900/90">
               <div className="flex items-center gap-3">
                 <div className="p-2 rounded-xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
                   <Fuel className="w-6 h-6" />
@@ -47,7 +47,7 @@ export function RefuelVehicleModal({
                     step="0.01"
                     required
                     placeholder="e.g. 45.0"
-                    value={refuelForm.quantity_liters}
+                    value={refuelForm.quantity_liters ?? ''}
                     onChange={(e) => {
                       const liters = e.target.value;
                       const price = refuelForm.cost_per_liter;
@@ -69,7 +69,7 @@ export function RefuelVehicleModal({
                     type="number"
                     step="0.01"
                     required
-                    value={refuelForm.cost_per_liter}
+                    value={refuelForm.cost_per_liter ?? ''}
                     onChange={(e) => {
                       const price = e.target.value;
                       const liters = refuelForm.quantity_liters;
@@ -91,7 +91,7 @@ export function RefuelVehicleModal({
                     type="number"
                     step="0.01"
                     required
-                    value={refuelForm.total_cost}
+                    value={refuelForm.total_cost ?? ''}
                     onChange={(e) => setRefuelForm({ ...refuelForm, total_cost: e.target.value })}
                     className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-sm text-emerald-400 font-bold font-mono focus:outline-none focus:border-emerald-500"
                   />
@@ -105,7 +105,7 @@ export function RefuelVehicleModal({
                     type="number"
                     required
                     placeholder={selectedVehicle.current_odometer_km}
-                    value={refuelForm.odometer_km}
+                    value={refuelForm.odometer_km ?? ''}
                     onChange={(e) => setRefuelForm({ ...refuelForm, odometer_km: e.target.value })}
                     className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-sm text-slate-100 font-mono focus:outline-none focus:border-emerald-500"
                   />
@@ -117,7 +117,7 @@ export function RefuelVehicleModal({
                   </label>
                   <input
                     type="text"
-                    value={refuelForm.gas_station_vendor}
+                    value={refuelForm.gas_station_vendor ?? ''}
                     onChange={(e) => setRefuelForm({ ...refuelForm, gas_station_vendor: e.target.value })}
                     className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-sm text-slate-100 focus:outline-none focus:border-emerald-500"
                   />
@@ -130,7 +130,7 @@ export function RefuelVehicleModal({
                   <input
                     type="text"
                     placeholder="e.g. VCH-98124"
-                    value={refuelForm.voucher_number}
+                    value={refuelForm.voucher_number ?? ''}
                     onChange={(e) => setRefuelForm({ ...refuelForm, voucher_number: e.target.value })}
                     className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-sm text-slate-100 uppercase font-mono focus:outline-none focus:border-emerald-500"
                   />
@@ -141,7 +141,7 @@ export function RefuelVehicleModal({
                     Full Tank Refill?
                   </label>
                   <select
-                    value={refuelForm.is_full_tank}
+                    value={refuelForm.is_full_tank ?? 1}
                     onChange={(e) => setRefuelForm({ ...refuelForm, is_full_tank: Number(e.target.value) })}
                     className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-sm text-slate-100 focus:outline-none focus:border-emerald-500"
                   >
@@ -151,7 +151,7 @@ export function RefuelVehicleModal({
                 </div>
               </div>
 
-              <div className="pt-4 border-t border-slate-800 flex items-center justify-end gap-3">
+              <div className="pt-4 border-t border-slate-800 flex items-center justify-between gap-3">
                 <button
                   type="button"
                   onClick={onClose}

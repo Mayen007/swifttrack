@@ -90,13 +90,14 @@ export function VehiclesView() {
   });
 
   const [refuelForm, setRefuelForm] = useState({
-    liters: '',
-    cost_per_liter: '205.50',
+    quantity_liters: '',
+    cost_per_liter: '',
     total_cost: '',
     odometer_km: '',
-    fuel_station: 'TotalEnergies Nairobi West',
-    fuel_card_number: '',
-    payment_method: 'FUEL_CARD',
+    gas_station_vendor: '',
+    voucher_number: '',
+    is_full_tank: 1,
+    payment_method: 'CORPORATE_CARD',
     driver_id: '',
     notes: ''
   });
@@ -234,13 +235,14 @@ export function VehiclesView() {
     sound.playClick();
     setSelectedVehicle(vehicle);
     setRefuelForm({
-      liters: '',
-      cost_per_liter: '205.50',
+      quantity_liters: '',
+      cost_per_liter: '',
       total_cost: '',
       odometer_km: vehicle.current_odometer_km || '',
-      fuel_station: 'Rubis Energy Nairobi Central',
-      fuel_card_number: 'FC-NRB-8921',
-      payment_method: 'FUEL_CARD',
+      gas_station_vendor: '',
+      voucher_number: '',
+      is_full_tank: 1,
+      payment_method: 'CORPORATE_CARD',
       driver_id: vehicle.assigned_driver_id || '',
       notes: ''
     });
@@ -252,12 +254,16 @@ export function VehiclesView() {
     setActionLoading(true);
     try {
       const payload = {
-        ...refuelForm,
-        liters: Number(refuelForm.liters),
+        quantity_liters: Number(refuelForm.quantity_liters),
         cost_per_liter: Number(refuelForm.cost_per_liter),
-        total_cost: Number(refuelForm.total_cost) || (Number(refuelForm.liters) * Number(refuelForm.cost_per_liter)),
+        total_cost: Number(refuelForm.total_cost) || (Number(refuelForm.quantity_liters) * Number(refuelForm.cost_per_liter)),
         odometer_km: Number(refuelForm.odometer_km) || Number(selectedVehicle.current_odometer_km),
-        driver_id: refuelForm.driver_id ? Number(refuelForm.driver_id) : null
+        fuel_station: refuelForm.gas_station_vendor || '',
+        receipt_voucher_no: refuelForm.voucher_number || '',
+        payment_method: refuelForm.payment_method || 'CORPORATE_CARD',
+        full_tank_flag: refuelForm.is_full_tank !== undefined ? refuelForm.is_full_tank : 1,
+        driver_id: refuelForm.driver_id ? Number(refuelForm.driver_id) : (selectedVehicle.assigned_driver_id || null),
+        notes: refuelForm.notes || ''
       };
 
       await api.post(`/api/v1/vehicles/${selectedVehicle.id}/fuel`, payload);
@@ -282,14 +288,14 @@ export function VehiclesView() {
     const curr = Number(vehicle.current_odometer_km) || 0;
     setMaintenanceForm({
       service_type: 'PREVENTIVE_SCHEDULED',
-      service_center: 'AutoXpress Nairobi HQ Depot',
+      service_center: '',
       service_odometer_km: curr,
       next_service_odometer_km: curr + 5000,
       cost: '',
-      invoice_number: `INV-${Date.now().toString().slice(-6)}`,
-      parts_replaced: 'Engine Oil 5W-30, Oil Filter, Air Filter',
+      invoice_number: '',
+      parts_replaced: '',
       service_date: new Date().toISOString().split('T')[0],
-      notes: 'Scheduled periodic maintenance completed.',
+      notes: '',
       mark_under_maintenance: false
     });
     setMaintenanceModalOpen(true);
@@ -403,7 +409,7 @@ export function VehiclesView() {
               <div className="flex flex-wrap items-center gap-2">
                 <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-white">Fleet Vehicles</h1>
                 <span className="px-2 py-0.5 text-[10px] font-bold tracking-wider uppercase bg-blue-500/20 text-blue-400 border border-blue-500/40 rounded">
-                  Phase 9.2
+                  Fleet Operations
                 </span>
               </div>
               <p className="text-xs sm:text-sm text-slate-400 mt-1 leading-relaxed">

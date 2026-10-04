@@ -486,7 +486,7 @@ router.post('/checkout', authenticateToken, authorize('pos', 'create'), (req, re
                 etims_invoice_number: etimsInvoiceNumber,
                 payments: createdPayments,
                 customer: customer || { full_name: 'Walk-in Customer' },
-                branch: branch || { name: 'Nairobi Central Hub', address: 'Enterprise Rd, Nairobi' },
+                branch: branch || { name: 'Operating Branch', address: '' },
                 company: {
                     name: company ? company.company_name : 'SwiftTrack Kenya',
                     pin: company ? company.kra_pin : '',

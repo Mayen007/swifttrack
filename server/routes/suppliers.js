@@ -104,7 +104,7 @@ router.post('/', authenticateToken, requireRole('SUPER_ADMIN', 'BRANCH_MANAGER')
             email || '',
             phone.trim(),
             address || '',
-            city || 'Nairobi',
+            city || '',
             country || 'Kenya',
             Number(lead_time_days) || 3,
             payment_terms || 'NET30',

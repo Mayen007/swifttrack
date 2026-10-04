@@ -7,6 +7,7 @@ export function BranchHeader({
   isSuperAdmin,
   onRefresh,
   onOpenCreateModal,
+  onOpenCompanySettings,
 }) {
   return (
     <div className="bg-[#12161f] border border-[#222834] rounded p-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -43,13 +44,24 @@ export function BranchHeader({
         </button>
 
         {isSuperAdmin && (
-          <button
-            onClick={onOpenCreateModal}
-            className="px-3 py-1.5 rounded bg-blue-600 hover:bg-blue-500 text-white text-xs font-mono font-bold flex items-center gap-1.5 shadow-sm shadow-blue-900/40 transition-colors cursor-pointer"
-          >
-            <Plus className="w-3.5 h-3.5" />
-            <span>PROVISION REGIONAL HUB</span>
-          </button>
+          <>
+            {onOpenCompanySettings && (
+              <button
+                onClick={onOpenCompanySettings}
+                className="px-3 py-1.5 rounded border border-amber-500/40 bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 text-xs font-mono font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
+              >
+                <Building2 className="w-3.5 h-3.5" />
+                <span>ORGANIZATION SETTINGS</span>
+              </button>
+            )}
+            <button
+              onClick={onOpenCreateModal}
+              className="px-3 py-1.5 rounded bg-blue-600 hover:bg-blue-500 text-white text-xs font-mono font-bold flex items-center gap-1.5 shadow-sm shadow-blue-900/40 transition-colors cursor-pointer"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>PROVISION REGIONAL HUB</span>
+            </button>
+          </>
         )}
       </div>
     </div>

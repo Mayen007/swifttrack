@@ -38,7 +38,7 @@ export function CommunicationsView() {
 
   const [testForm, setTestForm] = useState({
     channel: 'SMS',
-    destination: '+254712345678',
+    destination: user?.phone || '',
     template_code: 'BOOKED_CONFIRMATION',
     custom_message: ''
   });

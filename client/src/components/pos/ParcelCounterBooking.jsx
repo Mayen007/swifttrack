@@ -368,14 +368,14 @@ export function ParcelCounterBooking({ user, activeShift, onRefreshShift, onOpen
           phone: senderPhone,
           email: senderEmail,
           address: senderAddress,
-          city: senderCity || 'Nairobi'
+          city: senderCity || originHub?.city || ''
         },
         recipient: {
           name: recipientName,
           phone: recipientPhone,
           email: recipientEmail,
           address: recipientAddress,
-          city: recipientCity || 'Mombasa'
+          city: recipientCity || (hubs.find(h => String(h.id) === String(destinationHubId))?.city || '')
         },
         parcels: parcels.map(p => ({
           package_type: p.package_type,
@@ -463,7 +463,7 @@ export function ParcelCounterBooking({ user, activeShift, onRefreshShift, onOpen
     }
   };
 
-  const originHub = hubs.find(h => h.id === (user?.branchId || 1)) || { name: 'Nairobi Central Hub', code: 'NRB-HQ' };
+  const originHub = hubs.find(h => h.id === (user?.branchId || user?.branch_id)) || hubs[0] || { name: 'Origin Hub', code: 'HUB' };
 
   return (
     <div className="space-y-4">

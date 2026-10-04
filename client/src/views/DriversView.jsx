@@ -321,7 +321,7 @@ export function DriversView() {
               <div className="flex items-center gap-2">
                 <h1 className="text-xl font-bold tracking-tight text-white">Driver Fleet & Compliance</h1>
                 <span className="px-2 py-0.5 text-[10px] font-bold tracking-wider uppercase bg-blue-500/20 text-blue-400 border border-blue-500/30 rounded">
-                  Phase 9.1
+                  Personnel & Safety
                 </span>
               </div>
               <p className="text-xs text-slate-400 mt-0.5">

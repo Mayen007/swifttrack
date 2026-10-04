@@ -38,6 +38,7 @@ router.get('/health', async (req, res) => {
 
 // Mount All Resource Modules
 router.use('/auth', require('../auth.js'));
+router.use('/company', require('../company.js'));
 router.use('/branches', require('../branches.js'));
 router.use('/warehouses', require('../warehouses.js'));
 router.use('/users', require('../users.js'));

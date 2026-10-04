@@ -82,7 +82,7 @@ export function InspectManifestModal({
           )}
           <a
             href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
-              `${inspectDelivery.delivery_address || ''}, ${inspectDelivery.delivery_city || 'Nairobi'}`
+              [inspectDelivery.delivery_address, inspectDelivery.delivery_city].filter(Boolean).join(', ')
             )}`}
             target="_blank"
             rel="noreferrer"

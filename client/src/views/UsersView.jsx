@@ -101,16 +101,16 @@ export function UsersView() {
   const openCreateModal = () => {
     sound.playScan();
     setCreateError('');
-    const defBranch = isBranchManager ? String(user?.branch_id || 1) : '1';
-    const cashierRole = availableRoles.find((r) => r.name === 'CASHIER');
+    const defBranch = isBranchManager ? String(user?.branch_id || (branches[0]?.id || 1)) : String(branches[0]?.id || 1);
+    const cashierRole = availableRoles.find((r) => r.name === 'CASHIER') || availableRoles[0];
     setCreateFormData({
       full_name: '',
       username: '',
       email: '',
-      phone: '+254 7',
-      role_id: cashierRole ? String(cashierRole.id) : '4',
+      phone: '',
+      role_id: cashierRole ? String(cashierRole.id) : '',
       branch_id: defBranch,
-      password: 'Password123!',
+      password: '',
       license_number: '',
     });
     setIsCreateModalOpen(true);
@@ -159,11 +159,11 @@ export function UsersView() {
         full_name: createFormData.full_name.trim(),
         username: createFormData.username.toLowerCase().trim(),
         email: createFormData.email.toLowerCase().trim(),
-        phone: createFormData.phone.trim() || '+254 700 000 000',
+        phone: createFormData.phone.trim(),
         password: createFormData.password,
         role_id: Number(createFormData.role_id),
         branch_id: selectedRoleObj?.name === 'SUPER_ADMIN' ? null : Number(createFormData.branch_id),
-        license_number: isDriverRole ? (createFormData.license_number.trim() || `DL-${createFormData.username.toUpperCase()}-01`) : undefined,
+        license_number: isDriverRole ? createFormData.license_number.trim() : undefined,
       };
 
       await api.post('/api/users', payload);

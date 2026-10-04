@@ -76,7 +76,7 @@ export function ExceptionsTab({
                     <button
                       onClick={() => onRequeueDelivery(item)}
                       className="px-2.5 py-1 rounded bg-[#0c0e12] hover:bg-blue-600/20 text-blue-400 hover:text-blue-300 border border-[#222834] hover:border-blue-500/40 text-[10px] font-mono font-bold cursor-pointer transition-colors"
-                      title="Re-queue to Stage 1 Ready for Dispatch"
+                      title="Re-queue to Ready for Dispatch"
                     >
                       RE-QUEUE
                     </button>

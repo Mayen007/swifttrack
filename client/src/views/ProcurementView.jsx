@@ -197,7 +197,7 @@ export function ProcurementView() {
             <h1 className="text-xl font-bold tracking-tight text-white flex items-center gap-2">
               Suppliers & Procurement Cockpit
               <span className="text-[10px] font-mono uppercase px-2 py-0.5 bg-amber-500/10 text-amber-300 border border-amber-500/20 rounded-md">
-                Phase 8
+                Supply Chain & POs
               </span>
             </h1>
             <p className="text-xs text-slate-400">

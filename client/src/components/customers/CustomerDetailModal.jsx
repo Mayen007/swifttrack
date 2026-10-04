@@ -38,7 +38,7 @@ export function CustomerDetailModal({ customerId, isOpen, onClose, onCustomerUpd
   const [addressForm, setAddressForm] = useState({
     address_label: '',
     address_line: '',
-    city: 'Nairobi',
+    city: '',
     contact_name: '',
     contact_phone: '',
     is_default: false,
@@ -149,7 +149,7 @@ export function CustomerDetailModal({ customerId, isOpen, onClose, onCustomerUpd
       setAddressForm({
         address_label: '',
         address_line: '',
-        city: 'Nairobi',
+        city: customer?.city || '',
         contact_name: '',
         contact_phone: '',
         is_default: false,
@@ -410,7 +410,7 @@ export function CustomerDetailModal({ customerId, isOpen, onClose, onCustomerUpd
                         </div>
                         <div className="flex justify-between py-1">
                           <span className="text-gray-400">Operating City:</span>
-                          <span className="text-slate-200">{customer.city || 'Nairobi'}</span>
+                          <span className="text-slate-200">{customer.city || '—'}</span>
                         </div>
                       </div>
                     </div>
@@ -488,7 +488,7 @@ export function CustomerDetailModal({ customerId, isOpen, onClose, onCustomerUpd
                           <label className="block text-gray-400 mb-1">City / Region</label>
                           <input
                             type="text"
-                            placeholder="Nairobi"
+                            placeholder="e.g. Coastal / Upcountry"
                             value={addressForm.city}
                             onChange={(e) => setAddressForm({ ...addressForm, city: e.target.value })}
                             className="w-full bg-gray-950 border border-gray-800 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-blue-500"
@@ -519,7 +519,7 @@ export function CustomerDetailModal({ customerId, isOpen, onClose, onCustomerUpd
                           <label className="block text-gray-400 mb-1">Contact Phone</label>
                           <input
                             type="text"
-                            placeholder="+254 700 000 000"
+                            placeholder="e.g. 0712345678"
                             value={addressForm.contact_phone}
                             onChange={(e) => setAddressForm({ ...addressForm, contact_phone: e.target.value })}
                             className="w-full bg-gray-950 border border-gray-800 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-blue-500"

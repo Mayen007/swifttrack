@@ -19,7 +19,7 @@ export function OrderReceiptModal({
             <div className="bg-white text-black p-4 rounded font-mono text-[11px] space-y-2 shadow">
               <div className="text-center border-b pb-2">
                 <h4 className="font-bold text-xs uppercase">SWIFTTRACK KENYA</h4>
-                <p className="text-[10px]">{order.branch_name || 'Nairobi Central Station'}</p>
+                <p className="text-[10px]">{order.branch_name || 'Operating Branch'}</p>
                 <p className="text-[9px] text-neutral-600">ETR KRA PIN: P051234567Z</p>
                 <p className="text-[9px]">{order.order_number}</p>
               </div>

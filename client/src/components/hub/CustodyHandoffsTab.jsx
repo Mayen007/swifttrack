@@ -7,18 +7,7 @@ export function CustodyHandoffsTab({
   setHandoffTypeFilter,
   onRecordHandoff
 }) {
-  const allHandoffs = [
-    {
-      id: 1,
-      handoff_number: 'HND-20260928-8812',
-      transfer_type: 'HUB_TO_DRIVER',
-      releasing_actor: 'Nairobi Hub Dispatcher',
-      receiving_actor: 'Driver: John Mwangi (KDA 123A)',
-      security_seal: '#SEAL-NRB-9981',
-      timestamp: '14:20:15'
-    },
-    ...handoffs
-  ];
+  const allHandoffs = handoffs || [];
 
   const filteredHandoffs = allHandoffs.filter(
     (h) => handoffTypeFilter === 'ALL' || h.transfer_type === handoffTypeFilter

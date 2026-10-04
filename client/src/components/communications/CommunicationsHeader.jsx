@@ -39,7 +39,7 @@ export function CommunicationsHeader({
                 <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-indigo-500" />
               </span>
               <span className="text-[11px] font-mono font-bold uppercase tracking-wider text-indigo-400 bg-indigo-950/40 px-2 py-0.5 rounded border border-indigo-800/40">
-                Stage 9 Communications Engine Active
+                Automated Communications Engine Active
               </span>
               <span className="text-xs text-slate-400 font-mono">
                 SMS • WhatsApp • Email Relay
@@ -49,7 +49,7 @@ export function CommunicationsHeader({
             <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-white tracking-tight flex flex-wrap items-center gap-2.5 font-sans">
               Communications Dispatch Engine
               <span className="text-xs px-2.5 py-0.5 rounded bg-indigo-500/10 border border-indigo-500/30 text-indigo-400 font-medium font-mono">
-                Rules NTF-001..004
+                Automated Event Triggers
               </span>
             </h1>
 

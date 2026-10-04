@@ -41,7 +41,7 @@ export function FleetRosterTab({
                   </div>
                   <div>
                     <h4 className="text-xs font-bold text-slate-100">{drv.full_name}</h4>
-                    <span className="text-[10px] text-slate-400 font-mono">{drv.phone || '+254 7XX XXX XXX'}</span>
+                    <span className="text-[10px] text-slate-400 font-mono">{drv.phone || '—'}</span>
                   </div>
                 </div>
 

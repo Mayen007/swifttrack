@@ -116,7 +116,7 @@ export function ActiveRunCard({
 
             <a
               href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
-                `${delivery.delivery_address || ''}, ${delivery.delivery_city || 'Nairobi'}`
+                [delivery.delivery_address, delivery.delivery_city].filter(Boolean).join(', ')
               )}`}
               target="_blank"
               rel="noreferrer"

@@ -67,7 +67,7 @@ export function OrderTable({
                     <span className="text-[10px] text-slate-500 block truncate">{ord.customer_phone}</span>
                   </td>
                   <td className="p-3 text-slate-300 text-[11px] truncate max-w-[130px]">
-                    {ord.delivery_city || 'Nairobi'}
+                    {ord.delivery_city || '—'}
                   </td>
                   <td className="p-3 text-center tabular-nums text-slate-300">
                     {ord.items_count || 1}

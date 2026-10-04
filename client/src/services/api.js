@@ -224,6 +224,18 @@ class ApiService {
   delete(endpoint) {
     return this.request(endpoint, { method: 'DELETE' });
   }
+
+  successToast(message) {
+    if (typeof this.toast === 'function') {
+      this.toast(message, 'success');
+    }
+  }
+
+  errorToast(message) {
+    if (typeof this.toast === 'function') {
+      this.toast(message, 'error');
+    }
+  }
 }
 
 export const api = new ApiService();

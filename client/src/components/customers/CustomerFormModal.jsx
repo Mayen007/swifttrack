@@ -15,7 +15,7 @@ export function CustomerFormModal({ isOpen, onClose, customerToEdit, onSaved }) 
     phone: '',
     email: '',
     address: '',
-    city: 'Nairobi',
+    city: '',
     kra_pin: '',
     status: 'ACTIVE',
     branch_id: 1,
@@ -44,7 +44,7 @@ export function CustomerFormModal({ isOpen, onClose, customerToEdit, onSaved }) 
         phone: customerToEdit.phone || '',
         email: customerToEdit.email || '',
         address: customerToEdit.address || '',
-        city: customerToEdit.city || 'Nairobi',
+        city: customerToEdit.city || '',
         kra_pin: customerToEdit.kra_pin || '',
         status: customerToEdit.status || 'ACTIVE',
         branch_id: customerToEdit.branch_id || (selectedBranch?.id || 1),
@@ -57,7 +57,7 @@ export function CustomerFormModal({ isOpen, onClose, customerToEdit, onSaved }) 
         phone: '',
         email: '',
         address: '',
-        city: 'Nairobi',
+        city: selectedBranch?.city || '',
         kra_pin: '',
         status: 'ACTIVE',
         branch_id: selectedBranch?.id || user?.branchId || 1,
@@ -92,7 +92,7 @@ export function CustomerFormModal({ isOpen, onClose, customerToEdit, onSaved }) 
           phone: formData.phone.trim(),
           email: formData.email ? formData.email.trim() : null,
           address: formData.address ? formData.address.trim() : null,
-          city: formData.city ? formData.city.trim() : 'Nairobi',
+          city: formData.city ? formData.city.trim() : null,
           kra_pin: formData.kra_pin ? formData.kra_pin.trim().toUpperCase() : null,
           branch_id: user?.role === 'SUPER_ADMIN' ? Number(formData.branch_id) : undefined
         });
@@ -102,7 +102,7 @@ export function CustomerFormModal({ isOpen, onClose, customerToEdit, onSaved }) 
           phone: formData.phone.trim(),
           email: formData.email ? formData.email.trim() : null,
           address: formData.address ? formData.address.trim() : null,
-          city: formData.city ? formData.city.trim() : 'Nairobi',
+          city: formData.city ? formData.city.trim() : null,
           kra_pin: formData.kra_pin ? formData.kra_pin.trim().toUpperCase() : null,
           status: formData.status,
           branch_id: user?.role === 'SUPER_ADMIN' ? Number(formData.branch_id) : (selectedBranch?.id || user?.branchId || 1),
@@ -199,7 +199,7 @@ export function CustomerFormModal({ isOpen, onClose, customerToEdit, onSaved }) 
               <label className="block text-gray-300 font-semibold mb-1">City / Region</label>
               <input
                 type="text"
-                placeholder="Nairobi"
+                placeholder="e.g. Coast / Upcountry"
                 value={formData.city}
                 onChange={(e) => setFormData({ ...formData, city: e.target.value })}
                 className="w-full bg-gray-950 border border-gray-800 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-blue-500"

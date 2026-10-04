@@ -37,12 +37,14 @@ function translatePlaceholdersToPg(sql) {
  * safely ignoring any '$' inside single-quoted string literals.
  */
 function translatePlaceholdersToSqlite(sql) {
-    return sql.replace(/'(?:''|[^'])*'|\$[0-9]+/g, (match) => {
-        if (match.startsWith('$')) {
-            return '?';
-        }
-        return match;
-    });
+    return sql
+        .replace(/::(?:jsonb|json|text|varchar|integer|int|boolean)/gi, '')
+        .replace(/'(?:''|[^'])*'|\$[0-9]+/g, (match) => {
+            if (match.startsWith('$')) {
+                return '?';
+            }
+            return match;
+        });
 }
 
 /**

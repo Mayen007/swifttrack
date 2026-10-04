@@ -12,6 +12,7 @@ import { BranchCard } from '../components/branches/BranchCard.jsx';
 import { BranchCreateModal } from '../components/branches/BranchCreateModal.jsx';
 import { BranchEditModal } from '../components/branches/BranchEditModal.jsx';
 import { BranchInspectorModal } from '../components/branches/BranchInspectorModal.jsx';
+import { CompanySettingsModal } from '../components/settings/CompanySettingsModal.jsx';
 
 export function BranchesView() {
   const {
@@ -34,6 +35,7 @@ export function BranchesView() {
   // Modal states
   const [isCreateHubModalOpen, setIsCreateHubModalOpen] = useState(false);
   const [isEditHubModalOpen, setIsEditHubModalOpen] = useState(false);
+  const [isCompanySettingsOpen, setIsCompanySettingsOpen] = useState(false);
   const [selectedHubForEdit, setSelectedHubForEdit] = useState(null);
   const [inspectingHub, setInspectingHub] = useState(null);
 
@@ -352,6 +354,10 @@ export function BranchesView() {
         loading={loading}
         isSuperAdmin={isSuperAdmin}
         onRefresh={handleManualRefresh}
+        onOpenCompanySettings={() => {
+          sound.playScan();
+          setIsCompanySettingsOpen(true);
+        }}
         onOpenCreateModal={() => {
           sound.playScan();
           setCreateHubError('');
@@ -477,6 +483,15 @@ export function BranchesView() {
           setInspectingHub(null);
         }}
         onAddWarehouse={handleAddWarehouse}
+      />
+
+      {/* MODAL 4: ENTERPRISE ORGANIZATION & TAX SETTINGS */}
+      <CompanySettingsModal
+        isOpen={isCompanySettingsOpen}
+        onClose={() => {
+          sound.playScan();
+          setIsCompanySettingsOpen(false);
+        }}
       />
     </div>
   );

@@ -236,7 +236,7 @@ function createCustomer(data, user) {
             data.phone.trim(),
             data.email ? data.email.trim().toLowerCase() : null,
             data.address ? data.address.trim() : null,
-            data.city ? data.city.trim() : 'Nairobi',
+            data.city ? data.city.trim() : null,
             data.kra_pin ? data.kra_pin.trim().toUpperCase() : null,
             status,
             data.notes ? data.notes.trim() : null
@@ -256,7 +256,7 @@ function createCustomer(data, user) {
                 customerId,
                 data.address_label ? data.address_label.trim() : 'Primary Location',
                 primaryAddress.trim(),
-                data.city ? data.city.trim() : 'Nairobi',
+                data.city ? data.city.trim() : null,
                 data.contact_name ? data.contact_name.trim() : data.full_name.trim(),
                 data.contact_phone ? data.contact_phone.trim() : data.phone.trim(),
                 data.delivery_notes ? data.delivery_notes.trim() : null
@@ -437,7 +437,7 @@ function addDeliveryAddress(customerId, addressData, user) {
             custId,
             addressData.address_label ? addressData.address_label.trim() : 'Branch / Site',
             addressData.address_line.trim(),
-            addressData.city ? addressData.city.trim() : 'Nairobi',
+            addressData.city ? addressData.city.trim() : (customer.city || null),
             addressData.contact_name ? addressData.contact_name.trim() : customer.full_name,
             addressData.contact_phone ? addressData.contact_phone.trim() : customer.phone,
             shouldBeDefault ? 1 : 0,

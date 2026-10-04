@@ -44,7 +44,7 @@ export function HubHeaderNav({
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-base sm:text-lg font-bold text-white tracking-tight font-mono">
-                {selectedBranch?.name || 'Nairobi Central HQ Hub'}
+                {selectedBranch?.name || 'Distribution Hub'}
               </h1>
               <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-blue-500/10 text-blue-400 border border-blue-500/20">
                 Station #{currentHubId}

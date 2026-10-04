@@ -48,7 +48,7 @@ export function DispatchConsoleHeader({
                 </span>
               </h1>
               <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 font-mono">
-                HUB: <span className="text-slate-800 dark:text-slate-200 font-semibold">{selectedBranch?.name || 'Nairobi Central Distribution Hub'}</span>
+                HUB: <span className="text-slate-800 dark:text-slate-200 font-semibold">{selectedBranch?.name || 'Distribution Hub'}</span>
                 <span className="mx-2 text-slate-400 dark:text-[#2a3447]">|</span>
                 TELEMETRY: <span className="text-emerald-600 dark:text-emerald-400 font-bold">100% LIVE SYNC</span>
                 {lastSyncTime && <span className="ml-1 text-slate-500 font-mono">({lastSyncTime} EAT)</span>}

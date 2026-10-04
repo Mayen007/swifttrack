@@ -34,7 +34,7 @@ export function AssignCourierModal({
 
         <div>
           <span className="text-[10px] font-mono text-blue-400 uppercase tracking-wider block font-bold">
-            STAGE-01 // ALLOCATE FLEET COURIER
+            DISPATCH // ALLOCATE FLEET COURIER
           </span>
           <h3 className="text-base font-bold text-slate-100 flex items-center gap-2 font-mono">
             <Truck className="w-4 h-4 text-blue-400" />
@@ -45,7 +45,7 @@ export function AssignCourierModal({
         <div className="bg-[#0c0e12] border border-[#222834] rounded p-3 text-xs font-mono space-y-1.5">
           <div className="flex justify-between">
             <span className="text-slate-500">Destination:</span>
-            <span className="text-slate-200 font-semibold">{selectedDelivery.delivery_address} ({selectedDelivery.delivery_city || 'Nairobi'})</span>
+            <span className="text-slate-200 font-semibold">{selectedDelivery.delivery_address}{selectedDelivery.delivery_city ? ` (${selectedDelivery.delivery_city})` : ''}</span>
           </div>
           <div className="flex justify-between">
             <span className="text-slate-500">Recipient:</span>

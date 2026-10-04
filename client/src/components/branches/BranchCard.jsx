@@ -82,7 +82,7 @@ export function BranchCard({
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1 border-t border-[#222834]/80">
             <div className="flex items-center gap-1.5">
               <Phone className="w-3.5 h-3.5 text-blue-400 shrink-0" />
-              <span className="truncate text-slate-400">{branch.phone || '+254 20 123 4567'}</span>
+              <span className="truncate text-slate-400">{branch.phone || '—'}</span>
             </div>
             <div className="flex items-center gap-1.5">
               <Mail className="w-3.5 h-3.5 text-slate-400 shrink-0" />

@@ -185,7 +185,7 @@ export function DriverDetailModal({
                         <span className="text-slate-500">Email:</span>
                         <span className="font-semibold text-slate-900">{selectedDriver.email || 'None'}</span>
                         <span className="text-slate-500">Address:</span>
-                        <span className="font-semibold text-slate-900">{selectedDriver.residential_address || 'Nairobi'}</span>
+                        <span className="font-semibold text-slate-900">{selectedDriver.residential_address || '—'}</span>
                       </div>
                     </div>
 

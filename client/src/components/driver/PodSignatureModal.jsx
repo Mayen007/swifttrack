@@ -177,7 +177,7 @@ export function PodSignatureModal({
 
         <div>
           <span className="text-[10px] font-mono text-emerald-400 uppercase tracking-wider block font-bold">
-            STAGE-05 // PROOF OF DELIVERY (POD)
+            FINAL CONFIRMATION // PROOF OF DELIVERY (POD)
           </span>
           <h3 className="text-base font-bold text-slate-100 flex items-center gap-2 font-mono">
             <ShieldCheck className="w-4 h-4 text-emerald-400" />

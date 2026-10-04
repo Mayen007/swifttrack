@@ -44,13 +44,16 @@ router.get('/driver/active', authenticateToken, authorize('delivery', 'view_own'
         WHERE di.delivery_id = ?
     `);
 
-    const result = deliveries.map(d => ({
-        ...d,
-        items: itemsStmt.all(d.id),
-        maps_url: `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent((d.delivery_address || '') + ', ' + (d.delivery_city || 'Nairobi'))}`,
-        call_url: `tel:${(d.recipient_phone || '').replace(/\\s+/g, '')}`,
-        whatsapp_url: `https://wa.me/${(d.recipient_phone || '').replace(/[^0-9]/g, '')}`
-    }));
+    const result = deliveries.map(d => {
+        const destination = [d.delivery_address, d.delivery_city].filter(Boolean).join(', ');
+        return {
+            ...d,
+            items: itemsStmt.all(d.id),
+            maps_url: destination ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(destination)}` : null,
+            call_url: d.recipient_phone ? `tel:${d.recipient_phone.replace(/\s+/g, '')}` : null,
+            whatsapp_url: d.recipient_phone ? `https://wa.me/${d.recipient_phone.replace(/[^0-9]/g, '')}` : null
+        };
+    });
 
     res.json(result);
 });
@@ -98,13 +101,16 @@ router.get('/my', authenticateToken, authorize('delivery', 'view_own'), (req, re
         WHERE di.delivery_id = ?
     `);
 
-    const result = deliveries.map(d => ({
-        ...d,
-        items: itemsStmt.all(d.id),
-        maps_url: `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent((d.delivery_address || '') + ', ' + (d.delivery_city || 'Nairobi'))}`,
-        call_url: `tel:${(d.recipient_phone || '').replace(/\s+/g, '')}`,
-        whatsapp_url: `https://wa.me/${(d.recipient_phone || '').replace(/[^0-9]/g, '')}`
-    }));
+    const result = deliveries.map(d => {
+        const destination = [d.delivery_address, d.delivery_city].filter(Boolean).join(', ');
+        return {
+            ...d,
+            items: itemsStmt.all(d.id),
+            maps_url: destination ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(destination)}` : null,
+            call_url: d.recipient_phone ? `tel:${d.recipient_phone.replace(/\s+/g, '')}` : null,
+            whatsapp_url: d.recipient_phone ? `https://wa.me/${d.recipient_phone.replace(/[^0-9]/g, '')}` : null
+        };
+    });
 
     res.json({
         driver: {

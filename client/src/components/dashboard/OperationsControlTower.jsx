@@ -31,7 +31,7 @@ import {
 } from 'lucide-react';
 
 export function OperationsControlTower({ onNavigate }) {
-  const { user, selectedBranch } = useAuth();
+  const { user, selectedBranch, branches } = useAuth();
 
   const [summary, setSummary] = useState(null);
   const [alertsData, setAlertsData] = useState({ alerts: [], critical_count: 0, high_count: 0, total_alerts: 0 });
@@ -62,6 +62,25 @@ export function OperationsControlTower({ onNavigate }) {
   const [simRunning, setSimRunning] = useState(false);
   const [simResult, setSimResult] = useState(null);
   const [simError, setSimError] = useState(null);
+  const [simOriginId, setSimOriginId] = useState('');
+  const [simIntermediateId, setSimIntermediateId] = useState('');
+  const [simDestinationId, setSimDestinationId] = useState('');
+  const [simCodAmount, setSimCodAmount] = useState('6500');
+
+  const availableHubs = hubTelemetry?.hubs?.length ? hubTelemetry.hubs : (branches || []);
+
+  useEffect(() => {
+    if (availableHubs.length >= 2 && !simOriginId) {
+      setSimOriginId(String(availableHubs[0].id));
+      if (availableHubs.length >= 3) {
+        setSimIntermediateId(String(availableHubs[2]?.id || availableHubs[1]?.id));
+        setSimDestinationId(String(availableHubs[1]?.id));
+      } else {
+        setSimIntermediateId(String(availableHubs[0].id));
+        setSimDestinationId(String(availableHubs[1].id));
+      }
+    }
+  }, [availableHubs, simOriginId]);
 
   // Load all telemetry from Control Tower API
   const loadTelemetry = useCallback(async (isSilent = false) => {
@@ -142,7 +161,7 @@ export function OperationsControlTower({ onNavigate }) {
     }
   };
 
-  // Stage 10: Run PRD Section 30 Multi-Leg Acceptance Scenario
+  // Run Multi-Leg Corridor Acceptance Scenario
   const handleRunAcceptanceScenario = async () => {
     try {
       setSimRunning(true);
@@ -151,15 +170,15 @@ export function OperationsControlTower({ onNavigate }) {
       sound.playClick();
 
       const res = await api.post('/api/v1/e2e/simulate-acceptance-run', {
-        originHubId: 1,
-        intermediateHubId: 4,
-        destinationHubId: 2,
-        codAmount: 6500
+        originHubId: Number(simOriginId) || (availableHubs[0]?.id || 1),
+        intermediateHubId: Number(simIntermediateId) || (availableHubs[2]?.id || availableHubs[0]?.id || 4),
+        destinationHubId: Number(simDestinationId) || (availableHubs[1]?.id || 2),
+        codAmount: Number(simCodAmount) || 0
       });
 
       setSimResult(res);
       sound.playSuccess();
-      api.toast('PRD Section 30 Multi-Leg Acceptance Scenario Verified (23/23 Steps Passed)', 'success');
+      api.toast('Corridor Multi-Leg Acceptance Scenario Verified (23/23 Steps Passed)', 'success');
       loadTelemetry(true);
     } catch (err) {
       sound.playError();
@@ -272,7 +291,7 @@ export function OperationsControlTower({ onNavigate }) {
               <button
                 onClick={() => { sound.playClick(); setSimModalOpen(true); }}
                 className="flex items-center justify-center space-x-1.5 py-2 px-2 bg-emerald-600 hover:bg-emerald-500 border border-emerald-500/60 text-slate-950 font-bold text-xs rounded transition-all active:scale-95 cursor-pointer shadow-sm"
-                title="Launch PRD Section 30 Multi-Leg Acceptance Scenario Simulator"
+                title="Launch Multi-Leg Acceptance Scenario Simulator"
               >
                 <Sparkles className="w-3.5 h-3.5 text-slate-950" />
                 <span className="truncate">E2E Test</span>
@@ -598,7 +617,7 @@ export function OperationsControlTower({ onNavigate }) {
               What Is Moving? (Active Transport Corridors & Fleet Movement)
             </h2>
             <p className="text-xs text-slate-400">
-              Live linehaul movements connecting Nairobi Central Hub, Mombasa Port Branch, and Western Kenya regional depots.
+              Live linehaul movements connecting network hub facilities and regional depots.
             </p>
           </div>
 
@@ -921,14 +940,14 @@ export function OperationsControlTower({ onNavigate }) {
                   <Sparkles className="w-6 h-6 animate-pulse" />
                 </div>
                 <div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <h3 className="text-xl font-bold text-white">Multi-Leg Acceptance Simulator</h3>
                     <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
-                      PRD SECTION 30
+                      CORRIDOR SIMULATOR
                     </span>
                   </div>
                   <p className="text-xs text-slate-400 mt-0.5">
-                    Live execution of the canonical 23-step multi-hub journey (Nairobi HQ → Nakuru Transfer → Mombasa Port)
+                    Live execution of multi-hub corridor transit journey across network branches
                   </p>
                 </div>
               </div>
@@ -940,40 +959,80 @@ export function OperationsControlTower({ onNavigate }) {
               </button>
             </div>
 
-            {/* Scenario Blueprint Card */}
-            <div className="bg-slate-950/60 border border-slate-800/80 p-4 rounded-2xl space-y-3">
-              <div className="flex items-center justify-between text-xs">
-                <span className="text-slate-400 font-medium">Corridor Route:</span>
-                <span className="font-mono text-emerald-300 font-semibold flex items-center gap-1.5">
-                  <span>Nairobi (Hub 1)</span>
-                  <ArrowRight className="w-3.5 h-3.5 text-slate-500" />
-                  <span>Nakuru (Hub 4)</span>
-                  <ArrowRight className="w-3.5 h-3.5 text-slate-500" />
-                  <span>Mombasa (Hub 2)</span>
-                </span>
+            {/* Scenario Configuration Controls */}
+            <div className="bg-slate-950/60 border border-slate-800/80 p-4 rounded-2xl space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <label className="text-[10px] font-mono text-slate-400 block uppercase mb-1">
+                    1. Origin Facility
+                  </label>
+                  <select
+                    value={simOriginId}
+                    onChange={(e) => setSimOriginId(e.target.value)}
+                    className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-emerald-500"
+                  >
+                    {availableHubs.map((h) => (
+                      <option key={h.id} value={h.id}>{h.name || h.code} {h.city ? `(${h.city})` : ''}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-[10px] font-mono text-slate-400 block uppercase mb-1">
+                    2. Transit Hub
+                  </label>
+                  <select
+                    value={simIntermediateId}
+                    onChange={(e) => setSimIntermediateId(e.target.value)}
+                    className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-emerald-500"
+                  >
+                    {availableHubs.map((h) => (
+                      <option key={h.id} value={h.id}>{h.name || h.code} {h.city ? `(${h.city})` : ''}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-[10px] font-mono text-slate-400 block uppercase mb-1">
+                    3. Destination Facility
+                  </label>
+                  <select
+                    value={simDestinationId}
+                    onChange={(e) => setSimDestinationId(e.target.value)}
+                    className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-emerald-500"
+                  >
+                    {availableHubs.map((h) => (
+                      <option key={h.id} value={h.id}>{h.name || h.code} {h.city ? `(${h.city})` : ''}</option>
+                    ))}
+                  </select>
+                </div>
               </div>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs pt-1 border-t border-slate-800/80">
                 <div className="bg-slate-900/60 p-2.5 rounded-xl border border-slate-800">
                   <span className="text-[10px] text-slate-500 block uppercase tracking-wider">Service</span>
-                  <span className="font-bold text-white">EXPRESS Courier</span>
+                  <span className="font-bold text-white leading-normal">EXPRESS Courier</span>
                 </div>
                 <div className="bg-slate-900/60 p-2.5 rounded-xl border border-slate-800">
                   <span className="text-[10px] text-slate-500 block uppercase tracking-wider">Consignment</span>
-                  <span className="font-bold text-white">Telecom Hardware</span>
+                  <span className="font-bold text-white leading-normal">Telecom Hardware</span>
                 </div>
                 <div className="bg-slate-900/60 p-2.5 rounded-xl border border-slate-800">
-                  <span className="text-[10px] text-slate-500 block uppercase tracking-wider">COD Expected</span>
-                  <span className="font-bold text-amber-400 font-mono">KES 6,500</span>
+                  <span className="text-[10px] text-slate-500 block uppercase tracking-wider">COD Expected (KES)</span>
+                  <input
+                    type="number"
+                    value={simCodAmount}
+                    onChange={(e) => setSimCodAmount(e.target.value)}
+                    className="bg-slate-950 border border-slate-700 rounded px-2 py-0.5 text-xs font-mono font-bold text-amber-400 w-full mt-0.5 focus:outline-none focus:border-amber-400"
+                  />
                 </div>
                 <div className="bg-slate-900/60 p-2.5 rounded-xl border border-slate-800">
                   <span className="text-[10px] text-slate-500 block uppercase tracking-wider">Required POD</span>
-                  <span className="font-bold text-indigo-400">OTP + GPS + Sign</span>
+                  <span className="font-bold text-indigo-400 leading-normal">OTP + GPS + Sign</span>
                 </div>
               </div>
             </div>
 
             {/* Simulator Action Trigger */}
-            <div className="flex items-center justify-between p-3.5 bg-emerald-950/20 border border-emerald-500/20 rounded-2xl">
+            <div className="flex items-center justify-between flex-wrap p-3.5 bg-emerald-950/20 border border-emerald-500/20 rounded-2xl">
               <div>
                 <div className="text-sm font-bold text-white flex items-center gap-2">
                   <span>Execute Full 23-Step Operational Lifecycle</span>
@@ -986,7 +1045,7 @@ export function OperationsControlTower({ onNavigate }) {
               <button
                 onClick={handleRunAcceptanceScenario}
                 disabled={simRunning}
-                className="px-5 py-2.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-sm rounded-xl transition-all shadow-sm disabled:opacity-50 flex items-center gap-2 whitespace-nowrap cursor-pointer"
+                className="px-5 py-2.5 bg-emerald-500 hover:bg-emerald-400 md:mt-2 text-slate-950 font-bold text-sm rounded-xl transition-all shadow-sm disabled:opacity-50 flex items-center gap-2 whitespace-nowrap cursor-pointer"
               >
                 {simRunning ? (
                   <>
@@ -1077,13 +1136,13 @@ export function OperationsControlTower({ onNavigate }) {
             )}
 
             {/* Modal Footer */}
-            <div className="flex items-center justify-between border-t border-slate-800 pt-4">
+            <div className="flex items-center justify-between gap-2 border-t border-slate-800 pt-4">
               <span className="text-xs text-slate-500">
                 Rule E2E-001: Every milestone atomically updates custody, fleet, financial and communication states.
               </span>
               <button
                 onClick={() => setSimModalOpen(false)}
-                className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold rounded-xl"
+                className="w-40 px-4 py-3 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold rounded-xl"
               >
                 Close Simulator
               </button>

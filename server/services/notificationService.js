@@ -16,20 +16,20 @@ class NotificationService {
      */
     normalizePhone(phone) {
         if (!phone) return null;
-        let cleaned = String(phone).replace(/[^\d+]/g, '').trim();
-        if (cleaned.startsWith('+')) {
-            return cleaned;
+        let str = String(phone).trim();
+        // Extract digits only to prevent duplicate or misplaced pluses
+        const digits = str.replace(/\D/g, '');
+        if (!digits) return null;
+        if (digits.startsWith('254')) {
+            return '+' + digits;
         }
-        if (cleaned.startsWith('07') || cleaned.startsWith('01')) {
-            return '+254' + cleaned.substring(1);
+        if (digits.startsWith('07') || digits.startsWith('01')) {
+            return '+254' + digits.substring(1);
         }
-        if (cleaned.startsWith('254')) {
-            return '+' + cleaned;
+        if (digits.startsWith('7') || digits.startsWith('1')) {
+            return '+254' + digits;
         }
-        if (cleaned.startsWith('7') || cleaned.startsWith('1')) {
-            return '+254' + cleaned;
-        }
-        return '+' + cleaned;
+        return '+' + digits;
     }
 
     /**

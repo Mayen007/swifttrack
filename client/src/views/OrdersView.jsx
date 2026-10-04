@@ -51,10 +51,10 @@ export function OrdersView() {
   const [formCustomerDropdown, setFormCustomerDropdown] = useState(false);
   const [formSelectedCustomer, setFormSelectedCustomer] = useState(null);
   const [formDeliveryAddress, setFormDeliveryAddress] = useState('');
-  const [formDeliveryCity, setFormDeliveryCity] = useState('Nairobi');
+  const [formDeliveryCity, setFormDeliveryCity] = useState('');
   const [formRecipientName, setFormRecipientName] = useState('');
   const [formRecipientPhone, setFormRecipientPhone] = useState('');
-  const [formDeliveryFee, setFormDeliveryFee] = useState(350);
+  const [formDeliveryFee, setFormDeliveryFee] = useState(0);
   const [formSpecialInstructions, setFormSpecialInstructions] = useState('');
   const [formItems, setFormItems] = useState([]);
   const [formSubmitting, setFormSubmitting] = useState(false);
@@ -177,10 +177,10 @@ export function OrdersView() {
     setFormCustomerSearch('');
     setFormSelectedCustomer(null);
     setFormDeliveryAddress('');
-    setFormDeliveryCity('Nairobi');
+    setFormDeliveryCity(selectedBranch?.city || '');
     setFormRecipientName('');
     setFormRecipientPhone('');
-    setFormDeliveryFee(350);
+    setFormDeliveryFee(0);
     setFormSpecialInstructions('');
     setFormItems(
       catalogProducts.length > 0
@@ -209,7 +209,7 @@ export function OrdersView() {
       });
       setFormCustomerSearch(full.customer_name);
       setFormDeliveryAddress(full.delivery_address || '');
-      setFormDeliveryCity(full.delivery_city || 'Nairobi');
+      setFormDeliveryCity(full.delivery_city || selectedBranch?.city || '');
       setFormRecipientName(full.recipient_name || '');
       setFormRecipientPhone(full.recipient_phone || '');
       setFormDeliveryFee(Number(full.delivery_fee) || 0);

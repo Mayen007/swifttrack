@@ -265,7 +265,7 @@ function createOrder(orderData, user) {
             finalRecipientPhone = recipient_phone || defaultAddr.contact_phone || customer.phone;
         } else {
             finalDeliveryAddress = customer.address || 'Customer Delivery Address';
-            finalDeliveryCity = finalDeliveryCity || customer.city || 'Nairobi';
+            finalDeliveryCity = finalDeliveryCity || customer.city || '';
         }
     }
 
@@ -333,7 +333,7 @@ function createOrder(orderData, user) {
             totalAmount,
             delFee,
             finalDeliveryAddress,
-            finalDeliveryCity || 'Nairobi',
+            finalDeliveryCity || '',
             finalRecipientName,
             finalRecipientPhone,
             special_instructions || ''
@@ -844,11 +844,11 @@ function generateInvoiceData(orderId, user) {
     }
 
     const company = db.prepare('SELECT * FROM company_settings WHERE id = 1').get() || {
-        company_name: 'SwiftTrack Kenya Limited',
-        kra_pin: 'P051234567Z',
-        address: 'Nairobi Logistics Hub, Enterprise Road',
-        phone: '+254 700 000 000',
-        email: 'billing@swifttrack.co.ke'
+        company_name: 'SwiftTrack Logistics',
+        kra_pin: '',
+        address: '',
+        phone: '',
+        email: ''
     };
 
     return {

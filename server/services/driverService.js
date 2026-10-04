@@ -240,7 +240,7 @@ function createDriver(data, creatorUserId = null) {
         avatar_url,
         blood_group,
         residential_address,
-        city = 'Nairobi',
+        city = null,
         emergency_contact_name,
         emergency_contact_phone,
         emergency_contact_relation,
@@ -258,7 +258,7 @@ function createDriver(data, creatorUserId = null) {
     }
 
     // Verify branch exists
-    const branch = db.prepare('SELECT id, name FROM branches WHERE id = ?').get(branch_id);
+    const branch = db.prepare('SELECT id, name, city FROM branches WHERE id = ?').get(branch_id);
     if (!branch) {
         const err = new Error(`Branch with ID ${branch_id} does not exist`);
         err.statusCode = 400;
@@ -344,7 +344,7 @@ function createDriver(data, creatorUserId = null) {
             alt_phone || null,
             email || null,
             residential_address || null,
-            city || 'Nairobi',
+            city || (branch && branch.city) || null,
             emergency_contact_name || null,
             emergency_contact_phone || null,
             emergency_contact_relation || null,

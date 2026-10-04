@@ -85,7 +85,7 @@ export function DriverTable({
                         </div>
                         <div className="text-xs text-slate-600 dark:text-slate-400 flex items-center gap-1.5 mt-0.5">
                           <MapPin className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400" />
-                          <span>{drv.branch_name} ({drv.city || 'Nairobi'})</span>
+                          <span>{drv.branch_name}{drv.city ? ` (${drv.city})` : ''}</span>
                         </div>
                       </td>
 

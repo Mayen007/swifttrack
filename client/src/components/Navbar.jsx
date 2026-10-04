@@ -4,6 +4,7 @@ import { useTheme } from '../context/ThemeContext.jsx';
 import { sound } from '../services/sound.js';
 import { PasswordChangeModal } from './auth/PasswordChangeModal.jsx';
 import { SecuritySettingsModal } from './auth/SecuritySettingsModal.jsx';
+import { CompanySettingsModal } from './settings/CompanySettingsModal.jsx';
 import {
   Truck,
   MapPin,
@@ -44,6 +45,7 @@ export function Navbar({
   const [branchDropdownOpen, setBranchDropdownOpen] = useState(false);
   const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
   const [securityModalOpen, setSecurityModalOpen] = useState(false);
+  const [companySettingsOpen, setCompanySettingsOpen] = useState(false);
   const [branchFilter, setBranchFilter] = useState('');
   const [audioMuted, setAudioMuted] = useState(() => sound.isMuted());
   const [currentTime, setCurrentTime] = useState(() => new Date());
@@ -510,6 +512,27 @@ export function Navbar({
                 </div>
               )}
 
+              {/* Organization & Tax Settings (Super Admin Only) */}
+              {isSuperAdmin && (
+                <div className="p-1.5 border-b border-[#222834]">
+                  <button
+                    onClick={() => {
+                      setProfileDropdownOpen(false);
+                      setCompanySettingsOpen(true);
+                    }}
+                    className="w-full px-2.5 py-1.5 rounded text-left text-xs text-slate-300 hover:text-white hover:bg-[#161b26] flex items-center justify-between transition-colors cursor-pointer"
+                  >
+                    <div className="flex items-center gap-2">
+                      <Building2 className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                      <span>Organization & Tax Settings</span>
+                    </div>
+                    <span className="text-[9px] font-mono font-bold text-amber-400 bg-amber-500/10 border border-amber-500/20 px-1.5 py-0.2 rounded">
+                      HQ
+                    </span>
+                  </button>
+                </div>
+              )}
+
               {/* Security & Sessions */}
               <div className="p-1.5 border-b border-[#222834]">
                 <button
@@ -549,6 +572,12 @@ export function Navbar({
         </div>
       </div>
     </header>
+
+    {/* Organization & Tax Settings Modal (Super Admin) */}
+    <CompanySettingsModal
+      isOpen={companySettingsOpen}
+      onClose={() => setCompanySettingsOpen(false)}
+    />
 
     {/* Operator Security & Sessions Management Modal */}
     <SecuritySettingsModal

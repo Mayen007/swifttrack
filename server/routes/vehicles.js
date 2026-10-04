@@ -61,7 +61,7 @@ router.get('/:id', authenticateToken, (req, res) => {
 });
 
 // POST / - Register new fleet vehicle
-router.post('/', authenticateToken, requireRole(['SUPER_ADMIN', 'BRANCH_MANAGER', 'DISPATCHER']), (req, res) => {
+router.post('/', authenticateToken, requireRole('SUPER_ADMIN', 'BRANCH_MANAGER', 'DISPATCHER'), (req, res) => {
     try {
         const branchId = req.user.roleName === 'SUPER_ADMIN'
             ? (req.body.branch_id ? Number(req.body.branch_id) : req.user.branchId)
@@ -80,7 +80,7 @@ router.post('/', authenticateToken, requireRole(['SUPER_ADMIN', 'BRANCH_MANAGER'
 });
 
 // PUT /:id - Update vehicle profile specifications
-router.put('/:id', authenticateToken, requireRole(['SUPER_ADMIN', 'BRANCH_MANAGER', 'DISPATCHER']), (req, res) => {
+router.put('/:id', authenticateToken, requireRole('SUPER_ADMIN', 'BRANCH_MANAGER', 'DISPATCHER'), (req, res) => {
     try {
         const vehicleId = Number(req.params.id);
         const existing = vehicleService.getVehicleById(vehicleId);
@@ -97,7 +97,7 @@ router.put('/:id', authenticateToken, requireRole(['SUPER_ADMIN', 'BRANCH_MANAGE
 });
 
 // PATCH /:id/status - Update vehicle operational status
-router.patch('/:id/status', authenticateToken, requireRole(['SUPER_ADMIN', 'BRANCH_MANAGER', 'DISPATCHER']), (req, res) => {
+router.patch('/:id/status', authenticateToken, requireRole('SUPER_ADMIN', 'BRANCH_MANAGER', 'DISPATCHER'), (req, res) => {
     try {
         const vehicleId = Number(req.params.id);
         const { status, reason } = req.body;
@@ -137,7 +137,7 @@ router.get('/:id/fuel', authenticateToken, (req, res) => {
 });
 
 // POST /:id/fuel - Record new refuel voucher/receipt
-router.post('/:id/fuel', authenticateToken, requireRole(['SUPER_ADMIN', 'BRANCH_MANAGER', 'DISPATCHER']), (req, res) => {
+router.post('/:id/fuel', authenticateToken, requireRole('SUPER_ADMIN', 'BRANCH_MANAGER', 'DISPATCHER'), (req, res) => {
     try {
         const vehicleId = Number(req.params.id);
         const existing = vehicleService.getVehicleById(vehicleId);
@@ -172,7 +172,7 @@ router.get('/:id/maintenance', authenticateToken, (req, res) => {
 });
 
 // POST /:id/maintenance - Schedule or record maintenance/repairs
-router.post('/:id/maintenance', authenticateToken, requireRole(['SUPER_ADMIN', 'BRANCH_MANAGER', 'DISPATCHER']), (req, res) => {
+router.post('/:id/maintenance', authenticateToken, requireRole('SUPER_ADMIN', 'BRANCH_MANAGER', 'DISPATCHER'), (req, res) => {
     try {
         const vehicleId = Number(req.params.id);
         const existing = vehicleService.getVehicleById(vehicleId);
@@ -189,7 +189,7 @@ router.post('/:id/maintenance', authenticateToken, requireRole(['SUPER_ADMIN', '
 });
 
 // PATCH /maintenance/:recordId/status - Update maintenance job state (e.g. IN_PROGRESS -> COMPLETED)
-router.patch('/maintenance/:recordId/status', authenticateToken, requireRole(['SUPER_ADMIN', 'BRANCH_MANAGER', 'DISPATCHER']), (req, res) => {
+router.patch('/maintenance/:recordId/status', authenticateToken, requireRole('SUPER_ADMIN', 'BRANCH_MANAGER', 'DISPATCHER'), (req, res) => {
     try {
         const recordId = Number(req.params.recordId);
         const { status, total_cost, labor_cost, parts_cost, actual_completion_date, notes } = req.body;
@@ -231,7 +231,7 @@ router.get('/:id/mileage', authenticateToken, (req, res) => {
 });
 
 // POST /:id/mileage - Log trip mileage
-router.post('/:id/mileage', authenticateToken, requireRole(['SUPER_ADMIN', 'BRANCH_MANAGER', 'DISPATCHER']), (req, res) => {
+router.post('/:id/mileage', authenticateToken, requireRole('SUPER_ADMIN', 'BRANCH_MANAGER', 'DISPATCHER'), (req, res) => {
     try {
         const vehicleId = Number(req.params.id);
         const existing = vehicleService.getVehicleById(vehicleId);

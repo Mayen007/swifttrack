@@ -396,10 +396,12 @@ router.post('/demo-switch', async (req, res) => {
                 FROM users u
                 JOIN roles r ON u.role_id = r.id
                 LEFT JOIN branches b ON u.branch_id = b.id
-                WHERE u.username = 'superadmin'
+                WHERE u.username IN ('superadmin', 'admin') OR r.name = 'SUPER_ADMIN'
+                ORDER BY u.id ASC
+                LIMIT 1
             `);
         } else if (targetBranchId) {
-            user = await dbAdapter.get(`
+            let branchUserSql = `
                 SELECT u.id, u.username, u.email, u.full_name, u.phone, u.branch_id, u.is_active,
                        u.token_version, u.must_change_password, u.two_factor_enabled,
                        r.name as role_name, r.display_name as role_display_name,
@@ -407,9 +409,18 @@ router.post('/demo-switch', async (req, res) => {
                 FROM users u
                 JOIN roles r ON u.role_id = r.id
                 LEFT JOIN branches b ON u.branch_id = b.id
-                WHERE u.branch_id = ? AND (r.name = ? OR ? IS NULL)
-                ORDER BY CASE WHEN r.name = ? THEN 1 ELSE 2 END, u.id ASC
-            `, [targetBranchId, role || null, role || null, role || 'BRANCH_MANAGER']);
+                WHERE u.branch_id = ?
+            `;
+            const branchUserParams = [targetBranchId];
+
+            if (role) {
+                branchUserSql += ' AND r.name = ? ORDER BY u.id ASC';
+                branchUserParams.push(role);
+            } else {
+                branchUserSql += " ORDER BY CASE WHEN r.name = 'BRANCH_MANAGER' THEN 1 ELSE 2 END, u.id ASC";
+            }
+
+            user = await dbAdapter.get(branchUserSql, branchUserParams);
 
             if (!user) {
                 const targetBranch = await dbAdapter.get('SELECT * FROM branches WHERE id = ?', [targetBranchId]);
@@ -489,7 +500,7 @@ router.post('/demo-switch', async (req, res) => {
         });
     } catch (err) {
         console.error('Demo switch error:', err);
-        res.status(500).json({ error: 'Demo switch error' });
+        res.status(500).json({ error: 'Demo switch error: ' + err.message });
     }
 });
 

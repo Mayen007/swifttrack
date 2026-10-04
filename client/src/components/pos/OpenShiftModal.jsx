@@ -42,7 +42,7 @@ export function OpenShiftModal({
                 </div>
                 <div className="bg-[#0c0e12] p-2.5 rounded border border-[#222834]">
                   <span className="text-[10px] text-slate-500 uppercase block">Station Hub</span>
-                  <span className="font-bold text-white">{selectedBranch?.name || 'Nairobi Central Hub'}</span>
+                  <span className="font-bold text-white">{selectedBranch?.name || 'Primary Branch'}</span>
                 </div>
               </div>
 

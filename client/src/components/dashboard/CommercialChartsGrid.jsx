@@ -252,7 +252,7 @@ export function CommercialChartsGrid({
           </div>
 
           <div className="mt-4 pt-3 border-t border-[#1e2532] flex items-center justify-between text-[11px] font-mono text-slate-400">
-            <span>Nairobi Central • Mombasa Port • Kisumu Basin</span>
+            <span>{chartData?.branch_performance?.map(b => b.name || b.code).join(' • ') || 'Active Network Branches'}</span>
             <span>Gross Sales (KES)</span>
           </div>
         </div>

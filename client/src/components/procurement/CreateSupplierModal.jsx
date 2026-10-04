@@ -14,7 +14,7 @@ export function CreateSupplierModal({ onClose, onSuccess }) {
     email: '',
     phone: '',
     address: '',
-    city: 'Nairobi',
+    city: '',
     country: 'Kenya',
     lead_time_days: 3,
     payment_terms: 'NET30',

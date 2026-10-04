@@ -132,7 +132,7 @@ export function CustomersView() {
               <h1 className="text-xl sm:text-2xl font-black text-white tracking-tight flex items-center gap-2">
                 Customer Directory & CRM
                 <span className="text-xs px-2.5 py-0.5 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20 font-mono font-medium">
-                  Phase 4.1
+                  Client Registry
                 </span>
               </h1>
               <p className="text-xs text-gray-400 mt-0.5">
@@ -315,7 +315,7 @@ export function CustomersView() {
                           {cust.default_address || cust.address || '—'}
                         </span>
                         <div className="flex items-center gap-1.5 text-[11px] text-gray-400">
-                          <span>{cust.default_city || cust.city || 'Nairobi'}</span>
+                          <span>{cust.default_city || cust.city || '—'}</span>
                           {cust.address_count > 1 && (
                             <span className="px-1.5 py-0.2 rounded bg-gray-800 text-blue-400 font-mono text-[10px] font-bold">
                               +{cust.address_count - 1} more

@@ -40,7 +40,7 @@ class DeliveryRepository {
             deliveryData.dispatcher_user_id || 1,
             deliveryData.status || 'PENDING', deliveryData.recipient_name,
             deliveryData.recipient_phone, deliveryData.destination_address,
-            deliveryData.destination_city || 'Nairobi', deliveryData.cod_amount_expected || 0.00
+            deliveryData.destination_city || null, deliveryData.cod_amount_expected || 0.00
         ];
         const res = await dbAdapter.run(sql, params, tx?.client);
         return res.insertId;

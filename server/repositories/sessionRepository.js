@@ -56,7 +56,7 @@ class SessionRepository {
             INSERT INTO user_sessions (
                 id, user_id, refresh_token_hash, ip_address, user_agent, device_info,
                 is_active, last_activity_at, expires_at, created_at
-            ) VALUES (?, ?, ?, ?, ?, ?, true, CURRENT_TIMESTAMP, ?, CURRENT_TIMESTAMP)
+            ) VALUES (?, ?, ?, ?, ?, ?::jsonb, true, CURRENT_TIMESTAMP, ?, CURRENT_TIMESTAMP)
         `;
         const res = await dbAdapter.run(sql, [
             sessionData.id,

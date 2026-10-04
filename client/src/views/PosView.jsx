@@ -92,7 +92,7 @@ export function PosView({ onNavigate }) {
   const [customerDropdownOpen, setCustomerDropdownOpen] = useState(false);
 
   const [mpesaModalOpen, setMpesaModalOpen] = useState(false);
-  const [mpesaPhone, setMpesaPhone] = useState('254712345678');
+  const [mpesaPhone, setMpesaPhone] = useState('');
   const [mpesaStep, setMpesaStep] = useState('idle');
   const [countdown, setCountdown] = useState(15);
 
@@ -329,7 +329,7 @@ export function PosView({ onNavigate }) {
 
       setReceiptData({
         orderNumber: result.sale?.sale_number || orderNum,
-        branchName: selectedBranch?.name || 'Nairobi Central Hub',
+        branchName: selectedBranch?.name || 'Primary Branch',
         cashier: user?.full_name || user?.username,
         date: new Date().toLocaleString('en-KE'),
         customerName: selectedCustomer ? selectedCustomer.full_name : (customerName || 'Walk-in Customer'),

@@ -98,7 +98,7 @@ export function OrderFormModal({
                               setFormSelectedCustomer(c);
                               setFormCustomerId(c.id);
                               setFormDeliveryAddress(c.address || '');
-                              setFormDeliveryCity(c.city || 'Nairobi');
+                              setFormDeliveryCity(c.city || '');
                               setFormRecipientName(c.full_name);
                               setFormRecipientPhone(c.phone);
                               setFormCustomerDropdown(false);
