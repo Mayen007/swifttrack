@@ -221,7 +221,7 @@ router.patch('/:id/start', authenticateToken, authorize('delivery', 'start', { e
         driverId = driver.id;
     }
 
-    const delivery = req.targetEntity || db.prepare('SELECT * FROM deliveries WHERE id = ?').get(deliveryId);
+    const delivery = db.prepare('SELECT * FROM deliveries WHERE id = ?').get(deliveryId) || req.targetEntity;
     if (!delivery) return res.status(404).json({ error: 'Delivery not found' });
 
     // Strictly restrict delivery start to assigned driver (or Super Admin emergency override)
@@ -281,7 +281,7 @@ router.post('/:id/pod', authenticateToken, authorize('delivery', 'pod_submit', {
         return res.status(400).json({ error: 'Recipient name is required for proof of delivery.' });
     }
 
-    const delivery = req.targetEntity || db.prepare('SELECT * FROM deliveries WHERE id = ?').get(deliveryId);
+    const delivery = db.prepare('SELECT * FROM deliveries WHERE id = ?').get(deliveryId) || req.targetEntity;
     if (!delivery) return res.status(404).json({ error: 'Delivery not found' });
 
     // Strict Courier Identity & Ownership Check
