@@ -104,14 +104,11 @@ router.get('/my', authenticateToken, authorize('delivery', 'view_own'), (req, re
         driver = db.prepare('SELECT id, status, license_number FROM drivers WHERE phone = ? OR email = ?').get(req.user.phone || '', req.user.email || '');
     }
     
-    // If supervisor role (Super Admin, Dispatcher, Manager) without direct driver record, resolve to first driver for this branch or driver 1
-    if (!driver && ['SUPER_ADMIN', 'DISPATCHER', 'BRANCH_MANAGER'].includes(req.user.roleName)) {
-        if (req.user.branchId) {
-            driver = db.prepare('SELECT id, status, license_number FROM drivers WHERE branch_id = ? ORDER BY id ASC LIMIT 1').get(req.user.branchId);
-        }
-        if (!driver) {
-            driver = db.prepare('SELECT id, status, license_number FROM drivers ORDER BY id ASC LIMIT 1').get();
-        }
+    if (!driver) {
+        return res.json({
+            driver: null,
+            active_deliveries: []
+        });
     }
 
     if (!driver) {
@@ -190,14 +187,7 @@ router.get('/history', authenticateToken, requireRole('DRIVER', 'SUPER_ADMIN', '
     if (!driver && (req.user.phone || req.user.email)) {
         driver = db.prepare('SELECT id FROM drivers WHERE phone = ? OR email = ?').get(req.user.phone || '', req.user.email || '');
     }
-    if (!driver && ['SUPER_ADMIN', 'DISPATCHER', 'BRANCH_MANAGER'].includes(req.user.roleName)) {
-        if (req.user.branchId) {
-            driver = db.prepare('SELECT id FROM drivers WHERE branch_id = ? ORDER BY id ASC LIMIT 1').get(req.user.branchId);
-        }
-        if (!driver) {
-            driver = db.prepare('SELECT id FROM drivers ORDER BY id ASC LIMIT 1').get();
-        }
-    }
+    if (!driver) return res.json([]);
 
     if (!driver) return res.json([]);
 
@@ -234,9 +224,15 @@ router.patch('/:id/start', authenticateToken, authorize('delivery', 'start', { e
     const delivery = req.targetEntity || db.prepare('SELECT * FROM deliveries WHERE id = ?').get(deliveryId);
     if (!delivery) return res.status(404).json({ error: 'Delivery not found' });
 
-    // Enforce driver ownership only for actual drivers (Super Admin / Dispatcher can supervise)
-    if (req.user.roleName === 'DRIVER' && delivery.driver_id !== driverId) {
-        return res.status(403).json({ error: 'Forbidden: You can only start deliveries assigned to you.' });
+    // Strictly restrict delivery start to assigned driver (or Super Admin emergency override)
+    if (req.user.roleName === 'DRIVER') {
+        if (!driverId || delivery.driver_id !== driverId) {
+            return res.status(403).json({ error: 'Forbidden: You can only start deliveries assigned to you.' });
+        }
+    } else if (req.user.roleName === 'SUPER_ADMIN' && req.body.admin_override && req.body.override_reason?.trim()) {
+        // Permitted under emergency admin override
+    } else {
+        return res.status(403).json({ error: 'Forbidden: Starting delivery transit is restricted to the assigned courier driver.' });
     }
 
     db.transaction(() => {
@@ -288,11 +284,23 @@ router.post('/:id/pod', authenticateToken, authorize('delivery', 'pod_submit', {
     const delivery = req.targetEntity || db.prepare('SELECT * FROM deliveries WHERE id = ?').get(deliveryId);
     if (!delivery) return res.status(404).json({ error: 'Delivery not found' });
 
-    // Driver ownership check
+    // Strict Courier Identity & Ownership Check
+    let isAssignedDriver = false;
     if (req.user.roleName === 'DRIVER') {
         const driver = db.prepare('SELECT id FROM drivers WHERE user_id = ?').get(req.user.id);
-        if (!driver || delivery.driver_id !== driver.id) {
-            return res.status(403).json({ error: 'Forbidden: You can only complete deliveries assigned to you.' });
+        if (driver && delivery.driver_id === driver.id) {
+            isAssignedDriver = true;
+        }
+    }
+
+    if (!isAssignedDriver) {
+        // Admin exception override requires explicit flag and mandatory justification
+        if (req.user.roleName === 'SUPER_ADMIN' && req.body.admin_override && req.body.override_reason?.trim()) {
+            // Permitted with explicit override audit
+        } else {
+            return res.status(403).json({
+                error: 'Forbidden: Delivery POD signatures must be captured by the assigned courier driver in the field.'
+            });
         }
     }
 

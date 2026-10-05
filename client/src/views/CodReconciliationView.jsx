@@ -328,7 +328,7 @@ export function CodReconciliationView() {
                           </button>
                         )}
 
-                        {s.status === 'REMITTED' && (
+                        {s.status === 'REMITTED' && ['SUPER_ADMIN', 'BRANCH_MANAGER'].includes(user?.role) && (
                           <button
                             onClick={() => handleOpenReconcile(s)}
                             className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[11px]"

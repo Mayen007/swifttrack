@@ -82,13 +82,18 @@ router.post('/', authenticateToken, authorize('expenses', 'create'), (req, res) 
 });
 
 // POST /api/expenses/:id/approve - Approve expense (Branch Manager / Super Admin)
-router.post('/:id/approve', authenticateToken, authorize('expenses', 'approve', { entityTable: 'expenses', idParam: 'id' }), (req, res) => {
+router.post('/:id/approve', authenticateToken, authorize('expenses', 'approve', { entityTable: 'expenses', idParam: 'id', preventSelfApproval: true, ownerColumn: 'created_by_user_id' }), (req, res) => {
     const expenseId = Number(req.params.id);
     const exp = req.targetEntity || db.prepare('SELECT * FROM expenses WHERE id = ?').get(expenseId);
 
     if (!exp) return res.status(404).json({ error: 'Expense not found' });
     if (req.user.roleName !== 'SUPER_ADMIN' && exp.branch_id !== req.user.branchId) {
         return res.status(403).json({ error: 'Forbidden: Cannot approve expenses for another branch.' });
+    }
+
+    // Separation of duties: Creator cannot approve their own expense voucher
+    if (exp.created_by_user_id === req.user.id && req.user.roleName !== 'SUPER_ADMIN') {
+        return res.status(403).json({ error: 'Forbidden: Separation of duties violation. You cannot approve your own expense voucher.' });
     }
 
     db.prepare(`

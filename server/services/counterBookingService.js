@@ -95,15 +95,22 @@ function bookCounterShipment(data, user = {}) {
         : (user.branchId || originHubId);
     
     let activeShift = posShiftService.getCurrentShift(user.id, branchForShift);
-    if (!activeShift) {
-        if (user.roleName === 'SUPER_ADMIN') {
-            activeShift = posShiftService.openShift({ opening_cash: 5000, notes: 'Super Admin Auto-Open Shift' }, user);
+    if (!activeShift && user.branchId) {
+        activeShift = posShiftService.getCurrentShift(user.id, user.branchId);
+    }
+    if (!activeShift && user.roleName === 'SUPER_ADMIN') {
+        const anyShift = db.prepare("SELECT branch_id FROM pos_shifts WHERE cashier_user_id = ? AND status = 'OPEN' ORDER BY id DESC LIMIT 1").get(user.id);
+        if (anyShift) {
+            activeShift = posShiftService.getCurrentShift(user.id, anyShift.branch_id);
         } else {
-            const err = new Error('Cannot process counter booking: No active shift open for this cashier. Please open a shift with starting cash float to begin.');
-            err.statusCode = 403;
-            err.code = 'NO_ACTIVE_SHIFT';
-            throw err;
+            activeShift = posShiftService.openShift({ opening_cash: 5000, notes: 'Super Admin Auto-Open Shift', branch_id: branchForShift }, user);
         }
+    }
+    if (!activeShift) {
+        const err = new Error('Cannot process counter booking: No active shift open for this cashier. Please open a shift with starting cash float to begin.');
+        err.statusCode = 403;
+        err.code = 'NO_ACTIVE_SHIFT';
+        throw err;
     }
 
     // 2. Calculate Rated Pricing Breakdown

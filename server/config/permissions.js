@@ -47,8 +47,8 @@ const AUTHORIZATION_MATRIX = {
         },
         delivery: {
             view_own: SCOPES.GLOBAL,
-            start: SCOPES.GLOBAL,
-            pod_submit: SCOPES.GLOBAL,
+            start: SCOPES.DENIED,
+            pod_submit: SCOPES.DENIED,
             problem: SCOPES.GLOBAL
         },
         users: {
@@ -155,8 +155,8 @@ const AUTHORIZATION_MATRIX = {
         },
         delivery: {
             view_own: SCOPES.OWN_BRANCH,
-            start: SCOPES.OWN_BRANCH,
-            pod_submit: SCOPES.OWN_BRANCH,
+            start: SCOPES.DENIED,
+            pod_submit: SCOPES.DENIED,
             problem: SCOPES.OWN_BRANCH
         },
         users: {
@@ -259,8 +259,8 @@ const AUTHORIZATION_MATRIX = {
         },
         delivery: {
             view_own: SCOPES.OWN_BRANCH,
-            start: SCOPES.OWN_BRANCH,
-            pod_submit: SCOPES.OWN_BRANCH,
+            start: SCOPES.DENIED,
+            pod_submit: SCOPES.DENIED,
             problem: SCOPES.OWN_BRANCH
         },
         users: {

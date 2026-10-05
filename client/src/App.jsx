@@ -35,7 +35,7 @@ import { CodReconciliationView } from './views/CodReconciliationView.jsx';
 import { LoginView } from './views/LoginView.jsx';
 const VIEW_PERMISSIONS = {
   audit: ['SUPER_ADMIN'],
-  users: ['SUPER_ADMIN'],
+  users: ['SUPER_ADMIN', 'BRANCH_MANAGER'],
   branches: ['SUPER_ADMIN'],
   reports: ['SUPER_ADMIN', 'BRANCH_MANAGER'],
   procurement: ['SUPER_ADMIN', 'BRANCH_MANAGER'],
@@ -47,7 +47,7 @@ const VIEW_PERMISSIONS = {
   dispatch: ['SUPER_ADMIN', 'BRANCH_MANAGER', 'DISPATCHER'],
   drivers: ['SUPER_ADMIN', 'BRANCH_MANAGER', 'DISPATCHER'],
   vehicles: ['SUPER_ADMIN', 'BRANCH_MANAGER', 'DISPATCHER'],
-  driver: ['DRIVER', 'SUPER_ADMIN', 'DISPATCHER'],
+  driver: ['DRIVER'],
   pos: ['CASHIER', 'SUPER_ADMIN', 'BRANCH_MANAGER'],
   'cod-finance': ['SUPER_ADMIN', 'BRANCH_MANAGER', 'CASHIER'],
   shipments: ['SUPER_ADMIN', 'BRANCH_MANAGER', 'DISPATCHER', 'CASHIER'],
@@ -71,6 +71,11 @@ function AccessDeniedView({ currentView, userRole, onNavigateHome }) {
           Your role (<span className="text-amber-400 font-bold">{userRole || 'ANONYMOUS'}</span>) does not have permission to view the{' '}
           <span className="text-white font-bold">{currentView}</span> module.
         </p>
+        {currentView === 'Courier Driver Portal' && (
+          <p className="text-[11px] text-slate-500 font-mono mt-1">
+            To evaluate or test last-mile delivery, switch to a Driver persona (e.g. Courier Driver Nairobi) via the top right profile menu.
+          </p>
+        )}
       </div>
       <button
         type="button"
@@ -295,6 +300,17 @@ function MainApp() {
   }
 
   const renderView = () => {
+    // Courier Driver Portal is strictly restricted to DRIVER role
+    if (currentView === 'driver' && user?.role !== 'DRIVER') {
+      return (
+        <AccessDeniedView
+          currentView="Courier Driver Portal"
+          userRole={user?.role}
+          onNavigateHome={() => setCurrentView(getDefaultHomeView(user?.role))}
+        />
+      );
+    }
+
     if (user?.role !== 'SUPER_ADMIN') {
       const allowedRoles = VIEW_PERMISSIONS[currentView];
       if (allowedRoles && !allowedRoles.includes(user?.role)) {

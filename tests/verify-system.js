@@ -3,6 +3,7 @@
 const assert = require('node:assert');
 const { db } = require('../server/db/database.js');
 const dbAdapter = require('../server/db/dbAdapter.js');
+const { initProductionBootstrap } = require('../server/db/seed.js');
 const app = require('../server/server.js');
 
 let server;
@@ -34,6 +35,12 @@ async function runTests() {
     console.log('================================================================\n');
 
     server = app.listen(PORT);
+
+    // Ensure SQLite database has baseline bootstrap data (required in fresh checkout / CI)
+    const invCheck = db.prepare("SELECT count(*) as count FROM inventory").get();
+    if (!invCheck || Number(invCheck.count) === 0) {
+        initProductionBootstrap();
+    }
 
     try {
         // -------------------------------------------------------------
@@ -173,7 +180,7 @@ async function runTests() {
         console.log('> TEST 4: POS Checkout, Stock Deduction & Ledger Creation...');
 
         // Check stock of Product 1 (Heavy Duty Box) before checkout
-        const stockBefore = db.prepare('SELECT quantity_on_hand FROM inventory WHERE warehouse_id = 1 AND product_id = 1').get().quantity_on_hand;
+        const stockBefore = db.prepare('SELECT quantity_on_hand FROM inventory WHERE warehouse_id = 1 AND product_id = 1').get()?.quantity_on_hand || 0;
 
         // Ensure cashier has an active shift for POS transactions
         const currentShift = await request('/api/pos/shift/current', {
@@ -205,7 +212,7 @@ async function runTests() {
         console.log(`  [PASS] POS sale completed successfully: ${saleNumber}`);
 
         // Verify stock deducted
-        const stockAfter = db.prepare('SELECT quantity_on_hand FROM inventory WHERE warehouse_id = 1 AND product_id = 1').get().quantity_on_hand;
+        const stockAfter = db.prepare('SELECT quantity_on_hand FROM inventory WHERE warehouse_id = 1 AND product_id = 1').get()?.quantity_on_hand || 0;
         assert.strictEqual(stockAfter, stockBefore - 3, 'Stock was not decremented correctly');
         console.log(`  [PASS] Stock accurately decremented from ${stockBefore} to ${stockAfter}`);
 
@@ -213,7 +220,7 @@ async function runTests() {
         const movement = db.prepare('SELECT * FROM inventory_movements WHERE reference_id = ?').get(saleNumber);
         assert.ok(movement, 'No inventory_movements record was created for the sale');
         assert.strictEqual(movement.movement_type, 'SALE_DEDUCTION');
-        assert.strictEqual(movement.quantity_change, -3);
+        assert.strictEqual(Number(movement.quantity_change), -3);
         console.log('  [PASS] Immutable stock movement ledger entry verified (SALE_DEDUCTION -3)\n');
 
         // -------------------------------------------------------------
@@ -247,7 +254,7 @@ async function runTests() {
         console.log(`  [PASS] Branch Manager approved refund ${reqNumber}`);
 
         // Verify stock restored
-        const stockRestored = db.prepare('SELECT quantity_on_hand FROM inventory WHERE warehouse_id = 1 AND product_id = 1').get().quantity_on_hand;
+        const stockRestored = db.prepare('SELECT quantity_on_hand FROM inventory WHERE warehouse_id = 1 AND product_id = 1').get()?.quantity_on_hand || 0;
         assert.strictEqual(stockRestored, stockAfter + 3, 'Stock was not restored upon refund approval');
         console.log(`  [PASS] Inventory automatically restocked back to ${stockRestored}`);
 
@@ -356,7 +363,14 @@ async function runTests() {
             await dbAdapter.run("UPDATE audit_logs SET reason = 'Tampered Reason' WHERE id = 1");
         } catch (err) {
             updateBlocked = true;
-            assert.ok(err.message.includes('append-only') || err.message.includes('strictly prohibited') || err.message.includes('CRITICAL SECURITY VIOLATION'), 'Expected append-only violation message');
+            assert.ok(
+                err.message.includes('append-only') ||
+                err.message.includes('strictly prohibited') ||
+                err.message.includes('CRITICAL SECURITY VIOLATION') ||
+                err.message.includes('Application Control') ||
+                err.message.includes('plpgsql'),
+                `Expected append-only or trigger security violation, got: ${err.message}`
+            );
         }
         assert.strictEqual(updateBlocked, true, 'Database trigger failed to block UPDATE on audit_logs!');
         console.log('  [PASS] Database trigger blocked UPDATE on audit_logs with error');
@@ -367,7 +381,14 @@ async function runTests() {
             await dbAdapter.run('DELETE FROM audit_logs WHERE id = 1');
         } catch (err) {
             deleteBlocked = true;
-            assert.ok(err.message.includes('append-only') || err.message.includes('strictly prohibited') || err.message.includes('CRITICAL SECURITY VIOLATION'), 'Expected append-only violation message');
+            assert.ok(
+                err.message.includes('append-only') ||
+                err.message.includes('strictly prohibited') ||
+                err.message.includes('CRITICAL SECURITY VIOLATION') ||
+                err.message.includes('Application Control') ||
+                err.message.includes('plpgsql'),
+                `Expected append-only or trigger security violation, got: ${err.message}`
+            );
         }
         assert.strictEqual(deleteBlocked, true, 'Database trigger failed to block DELETE on audit_logs!');
         console.log('  [PASS] Database trigger blocked DELETE on audit_logs with error\n');
@@ -536,7 +557,7 @@ async function runTests() {
             body: JSON.stringify({ action: 'DISPATCH' })
         });
         assert.strictEqual(trfDispatch.status, 200, 'Transfer dispatch failed');
-        const nrbStockAfterDispatch = db.prepare('SELECT quantity_on_hand FROM inventory WHERE warehouse_id = 1 AND product_id = 1').get().quantity_on_hand;
+        const nrbStockAfterDispatch = db.prepare('SELECT quantity_on_hand FROM inventory WHERE warehouse_id = 1 AND product_id = 1').get()?.quantity_on_hand || 0;
         assert.strictEqual(nrbStockAfterDispatch, nrbStockBefore - 5, 'Source stock was not decremented on dispatch');
         console.log(`  [PASS] Transfer dispatched: Source inventory decremented from ${nrbStockBefore} to ${nrbStockAfterDispatch} (TRANSFER_OUT)`);
 
@@ -547,7 +568,7 @@ async function runTests() {
             body: JSON.stringify({ action: 'RECEIVE' })
         });
         assert.strictEqual(trfReceive.status, 200, 'Transfer receive failed');
-        const msaStockAfterReceive = db.prepare('SELECT quantity_on_hand FROM inventory WHERE warehouse_id = 3 AND product_id = 1').get().quantity_on_hand;
+        const msaStockAfterReceive = db.prepare('SELECT quantity_on_hand FROM inventory WHERE warehouse_id = 3 AND product_id = 1').get()?.quantity_on_hand || 0;
         assert.strictEqual(msaStockAfterReceive, msaStockBefore + 5, 'Target stock was not incremented on receive');
         console.log(`  [PASS] Transfer received: Target inventory incremented from ${msaStockBefore} to ${msaStockAfterReceive} (TRANSFER_IN)`);
 
@@ -654,7 +675,12 @@ async function runTests() {
 }
 
 if (require.main === module) {
-    runTests();
+    runTests().then(() => {
+        process.exit(0);
+    }).catch((err) => {
+        console.error(err);
+        process.exit(1);
+    });
 }
 
 module.exports = runTests;

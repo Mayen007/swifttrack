@@ -180,8 +180,7 @@ router.post('/checkout', authenticateToken, authorize('pos', 'create'), (req, re
         let activeShift = posShiftService.getCurrentShift(req.user.id, branchId);
         if (!activeShift) {
             if (req.user.roleName === 'SUPER_ADMIN') {
-                // Auto-open administrative shift for Super Admin to streamline testing
-                activeShift = posShiftService.openShift({ opening_cash: 5000, notes: 'Super Admin Auto-Open Shift' }, req.user);
+                activeShift = posShiftService.openShift({ opening_cash: 5000, notes: 'Super Admin Auto-Open Shift', branch_id: branchId }, req.user);
             } else {
                 return res.status(403).json({
                     error: 'Cannot process sale: No active shift open for this cashier. Please open a shift with starting cash float to begin checkout.',
@@ -656,7 +655,7 @@ router.post('/exchange', authenticateToken, authorize('pos', 'create'), (req, re
         let activeShift = posShiftService.getCurrentShift(req.user.id, branchId);
         if (!activeShift) {
             if (req.user.roleName === 'SUPER_ADMIN') {
-                activeShift = posShiftService.openShift({ opening_cash: 5000, notes: 'Super Admin Auto-Open' }, req.user);
+                activeShift = posShiftService.openShift({ opening_cash: 5000, notes: 'Super Admin Auto-Open', branch_id: branchId }, req.user);
             } else {
                 return res.status(403).json({ error: 'Cannot process exchange: No active shift open.', code: 'NO_ACTIVE_SHIFT' });
             }

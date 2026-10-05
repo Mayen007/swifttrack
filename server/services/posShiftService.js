@@ -48,17 +48,25 @@ function getCurrentShift(cashierId, branchId) {
 /**
  * Open a new shift with starting cash float
  */
-function openShift({ opening_cash = 0, notes }, user) {
-    const branchId = user.branchId || 1;
+function openShift({ opening_cash = 0, notes, branch_id }, user) {
+    const branchId = branch_id || user.branchId || 1;
     const cashierId = user.id;
 
     // Check if cashier already has an active open shift
     const existing = db.prepare(`
-        SELECT id, shift_number FROM pos_shifts
-        WHERE cashier_user_id = ? AND branch_id = ? AND status = 'OPEN'
-    `).get(cashierId, branchId);
+        SELECT id, shift_number, branch_id FROM pos_shifts
+        WHERE cashier_user_id = ? AND status = 'OPEN'
+    `).get(cashierId);
 
     if (existing) {
+        // If shift already open at the requested branch, return it gracefully
+        if (Number(existing.branch_id) === Number(branchId)) {
+            return getCurrentShift(cashierId, branchId);
+        }
+        // Super Admin has global authority, reuse their open shift
+        if (user.roleName === 'SUPER_ADMIN') {
+            return getCurrentShift(cashierId, existing.branch_id);
+        }
         const err = new Error(`Cannot open shift: Cashier already has active open shift #${existing.shift_number}`);
         err.statusCode = 400;
         throw err;

@@ -121,7 +121,7 @@ export function Sidebar({
           id: 'driver',
           label: 'Courier Driver Portal',
           icon: Bike,
-          roles: ['DRIVER', 'SUPER_ADMIN', 'DISPATCHER'],
+          roles: ['DRIVER'],
         },
       ],
     },
@@ -173,7 +173,7 @@ export function Sidebar({
           id: 'users',
           label: 'Staff Directory',
           icon: Users,
-          roles: ['SUPER_ADMIN'],
+          roles: ['SUPER_ADMIN', 'BRANCH_MANAGER'],
         },
         {
           id: 'audit',

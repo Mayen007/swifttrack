@@ -345,6 +345,19 @@ async function completeDeliveryWithPOD(deliveryId, podData, user = {}) {
         throw new Error(`Delivery ${delivery.delivery_number} has already been completed`);
     }
 
+    // Role-based capability check: Only assigned driver (or Super Admin emergency override) can submit POD
+    if (user.roleName) {
+        if (user.roleName !== 'DRIVER' && user.roleName !== 'SUPER_ADMIN') {
+            throw new Error(`Vertical Privilege Escalation Blocked: Role '${user.roleDisplayName || user.roleName}' is not authorized to submit recipient proof of delivery. Delivery POD must be captured by the assigned courier driver.`);
+        }
+        if (user.roleName === 'DRIVER' && delivery.driver_id) {
+            const driverRec = await dbAdapter.get('SELECT id FROM drivers WHERE user_id = ?', [user.id]);
+            if (driverRec && Number(delivery.driver_id) !== Number(driverRec.id)) {
+                throw new Error('Forbidden: You can only complete deliveries assigned to your driver profile.');
+            }
+        }
+    }
+
     const requiredMethods = (delivery.pod_required_methods || 'SIGNATURE,GPS').toUpperCase().split(',');
 
     // Rule BR-007: Successful delivery requires configured POD evidence
