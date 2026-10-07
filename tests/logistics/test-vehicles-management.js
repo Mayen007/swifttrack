@@ -1,7 +1,7 @@
 // tests/logistics/test-vehicles-management.js
 // SwiftTrack Kenya: Phase 9 Logistics & Fleet — Vehicle Management Integration Suite (9.2)
 const assert = require('assert');
-const { db } = require('../../server/db/database.js');
+const dbAdapter = require('../../server/db/dbAdapter.js');
 const vehicleService = require('../../server/services/vehicleService.js');
 const driverService = require('../../server/services/driverService.js');
 
@@ -26,38 +26,41 @@ async function runTest(name, fn) {
   }
 }
 
-// Setup fixtures
-const adminUser = db.prepare(`
-  SELECT u.*, r.name as roleName
-  FROM users u
-  JOIN roles r ON u.role_id = r.id
-  WHERE r.name = 'SUPER_ADMIN'
-  LIMIT 1
-`).get() || { id: 1, roleName: 'SUPER_ADMIN', branch_id: 1 };
-
-const branch1 = db.prepare('SELECT * FROM branches ORDER BY id ASC LIMIT 1').get() || { id: 1, name: 'Nairobi Central' };
-const branch2 = db.prepare('SELECT * FROM branches WHERE id != ? LIMIT 1').get(branch1.id) || { id: 2, name: 'Mombasa Port' };
-
+let adminUser = null;
+let branch1 = null;
+let branch2 = null;
 let createdVehicle1 = null;
 let createdVehicle2 = null;
 let testDriver = null;
 
-function generateUniquePlate(prefix = 'KDA') {
+async function generateUniquePlate(prefix = 'KDA') {
   for (let i = 0; i < 50; i++) {
     const num = Math.floor(100 + Math.random() * 899);
     const letter = String.fromCharCode(65 + Math.floor(Math.random() * 26));
     const plate = `${prefix} ${num}${letter}`;
-    const exists = db.prepare('SELECT id FROM vehicles WHERE registration_number = ?').get(plate);
+    const exists = await dbAdapter.get('SELECT id FROM vehicles WHERE registration_number = ?', [plate]);
     if (!exists) return plate;
   }
   return `${prefix} 999Z`;
 }
 
 async function executeSuite() {
+  adminUser = await dbAdapter.get(`
+    SELECT u.*, r.name as roleName
+    FROM users u
+    JOIN roles r ON u.role_id = r.id
+    WHERE r.name = 'SUPER_ADMIN'
+    LIMIT 1
+  `) || { id: 1, roleName: 'SUPER_ADMIN', branch_id: 1 };
+
+  branch1 = await dbAdapter.get('SELECT * FROM branches ORDER BY id ASC LIMIT 1') || { id: 1, name: 'Nairobi Central' };
+  branch2 = await dbAdapter.get('SELECT * FROM branches WHERE id != ? LIMIT 1', [branch1.id]) || { id: 2, name: 'Mombasa Port' };
+
   // TEST 1: Vehicle Registry Creation
   await runTest('1. Vehicle Registry Creation: Registration plate, type, capacity (kg/m3), specs, odometer', async () => {
+    const plate = await generateUniquePlate('KDX');
     const payload = {
-      registration_number: generateUniquePlate('KDX'),
+      registration_number: plate,
       vehicle_type: 'VAN',
       make: 'Toyota',
       model: 'HiAce Commuter',
@@ -78,14 +81,14 @@ async function executeSuite() {
       notes: 'Westlands and Kilimani express delivery van'
     };
 
-    createdVehicle1 = vehicleService.createVehicle(payload, adminUser.id);
+    createdVehicle1 = await vehicleService.createVehicle(payload, adminUser.id);
     assert(createdVehicle1, 'Vehicle should be created and returned');
     assert(createdVehicle1.id, 'Vehicle must have an ID');
     assert.strictEqual(createdVehicle1.registration_number, payload.registration_number);
     assert.strictEqual(createdVehicle1.vehicle_type, 'VAN');
-    assert.strictEqual(createdVehicle1.capacity_kg, 1400);
-    assert.strictEqual(createdVehicle1.cargo_volume_cbm, 7.2);
-    assert.strictEqual(createdVehicle1.current_odometer_km, 18000);
+    assert.strictEqual(Number(createdVehicle1.capacity_kg), 1400);
+    assert.strictEqual(Number(createdVehicle1.cargo_volume_cbm), 7.2);
+    assert.strictEqual(Number(createdVehicle1.current_odometer_km), 18000);
     assert.strictEqual(createdVehicle1.status, 'AVAILABLE');
     assert.strictEqual(createdVehicle1.branch_id, branch1.id);
   });
@@ -93,8 +96,8 @@ async function executeSuite() {
   // TEST 2: Registration Plate Validation & Uniqueness
   await runTest('2. Registration Plate Validation & Uniqueness: Rejects duplicates & malformed plates', async () => {
     // Duplicate plate rejection
-    assert.throws(() => {
-      vehicleService.createVehicle({
+    await assert.rejects(async () => {
+      await vehicleService.createVehicle({
         registration_number: createdVehicle1.registration_number,
         vehicle_type: 'VAN',
         make: 'Toyota',
@@ -102,11 +105,11 @@ async function executeSuite() {
         capacity_kg: 1200,
         branch_id: branch1.id
       }, adminUser.id);
-    }, /already registered|UNIQUE constraint/i);
+    }, /already registered|duplicate key|unique constraint/i);
 
     // Invalid plate format rejection
-    assert.throws(() => {
-      vehicleService.createVehicle({
+    await assert.rejects(async () => {
+      await vehicleService.createVehicle({
         registration_number: 'INVALID_PLATE_12345',
         vehicle_type: 'VAN',
         make: 'Toyota',
@@ -119,7 +122,7 @@ async function executeSuite() {
 
   // TEST 3: Vehicle Specifications Update
   await runTest('3. Vehicle Specifications Update: Make, model, payload, and color modification', async () => {
-    const updated = vehicleService.updateVehicle(createdVehicle1.id, {
+    const updated = await vehicleService.updateVehicle(createdVehicle1.id, {
       make: 'Toyota Kenya',
       model: 'HiAce Super GL High-Roof',
       capacity_kg: 1550,
@@ -130,8 +133,8 @@ async function executeSuite() {
 
     assert.strictEqual(updated.make, 'Toyota Kenya');
     assert.strictEqual(updated.model, 'HiAce Super GL High-Roof');
-    assert.strictEqual(updated.capacity_kg, 1550);
-    assert.strictEqual(updated.cargo_volume_cbm, 8.0);
+    assert.strictEqual(Number(updated.capacity_kg), 1550);
+    assert.strictEqual(Number(updated.cargo_volume_cbm), 8.0);
     assert.strictEqual(updated.color, 'Metallic Silver');
     assert.strictEqual(updated.notes, 'Upgraded with heavy duty rear suspension');
   });
@@ -139,7 +142,7 @@ async function executeSuite() {
   // TEST 4: Operational Status Lifecycle & Audit Trail
   await runTest('4. Operational Status Lifecycle: Transitions with reason and historical audit records', async () => {
     // Transition to IN_TRANSIT
-    const trans1 = vehicleService.updateVehicleStatus(
+    const trans1 = await vehicleService.updateVehicleStatus(
       createdVehicle1.id,
       'IN_TRANSIT',
       'Assigned to Route 4: Industrial Area & Nairobi CBD deliveries',
@@ -149,7 +152,7 @@ async function executeSuite() {
     assert.strictEqual(trans1.status_reason, 'Assigned to Route 4: Industrial Area & Nairobi CBD deliveries');
 
     // Transition to UNDER_MAINTENANCE
-    const trans2 = vehicleService.updateVehicleStatus(
+    const trans2 = await vehicleService.updateVehicleStatus(
       createdVehicle1.id,
       'UNDER_MAINTENANCE',
       'Scheduled 20,000km workshop service at DT Dobie',
@@ -158,11 +161,11 @@ async function executeSuite() {
     assert.strictEqual(trans2.status, 'UNDER_MAINTENANCE');
 
     // Verify history audit records exist
-    const historyRows = db.prepare(`
+    const historyRows = await dbAdapter.all(`
       SELECT * FROM vehicle_status_history 
       WHERE vehicle_id = ? 
       ORDER BY id DESC
-    `).all(createdVehicle1.id);
+    `, [createdVehicle1.id]);
 
     assert(historyRows.length >= 2, 'Should have at least 2 historical status changes');
     assert.strictEqual(historyRows[0].to_status, 'UNDER_MAINTENANCE');
@@ -171,15 +174,15 @@ async function executeSuite() {
     assert.strictEqual(historyRows[1].from_status, 'AVAILABLE');
 
     // Return to AVAILABLE
-    vehicleService.updateVehicleStatus(createdVehicle1.id, 'AVAILABLE', 'Ready for dispatch', adminUser.id);
+    await vehicleService.updateVehicleStatus(createdVehicle1.id, 'AVAILABLE', 'Ready for dispatch', adminUser.id);
   });
 
   // TEST 5: Driver Pairing & Bidirectional Synchronization
   await runTest('5. Driver Pairing: Assigns compatible driver and updates bidirectional link', async () => {
     // Find or create test driver
-    testDriver = db.prepare('SELECT * FROM drivers WHERE branch_id = ? LIMIT 1').get(branch1.id);
+    testDriver = await dbAdapter.get('SELECT * FROM drivers WHERE branch_id = ? LIMIT 1', [branch1.id]);
     if (!testDriver) {
-      testDriver = driverService.createDriver({
+      testDriver = await driverService.createDriver({
         full_name: 'Juma Hassan',
         email: `juma.${Date.now()}@swifttrack.co.ke`,
         phone: `+254 744 ${Date.now().toString().slice(-6)}`,
@@ -194,13 +197,13 @@ async function executeSuite() {
     }
 
     // Assign driver to vehicle
-    const pairedVeh = vehicleService.updateVehicle(createdVehicle1.id, {
+    const pairedVeh = await vehicleService.updateVehicle(createdVehicle1.id, {
       assigned_driver_id: testDriver.id
     }, adminUser.id);
     assert.strictEqual(pairedVeh.assigned_driver_id, testDriver.id);
 
     // Verify driver's vehicle_id is updated
-    const driverInDb = db.prepare('SELECT vehicle_id FROM drivers WHERE id = ?').get(testDriver.id);
+    const driverInDb = await dbAdapter.get('SELECT vehicle_id FROM drivers WHERE id = ?', [testDriver.id]);
     assert.strictEqual(driverInDb.vehicle_id, createdVehicle1.id);
   });
 
@@ -209,7 +212,7 @@ async function executeSuite() {
     const vId = createdVehicle1.id;
 
     // First full tank refuel at 18,000 km
-    const fuel1 = vehicleService.recordFuelLog(vId, {
+    const fuel1 = await vehicleService.recordFuelLog(vId, {
       fuel_date: '2026-09-01',
       quantity_liters: 60.0,
       cost_per_liter: 195.50,
@@ -226,7 +229,7 @@ async function executeSuite() {
     assert.strictEqual(fuel1.calculated_consumption_kml, null, 'First full fill cannot compute km/L yet');
 
     // Second full tank refuel at 18,540 km (540 km driven / 60 liters = 9.0 km/L)
-    const fuel2 = vehicleService.recordFuelLog(vId, {
+    const fuel2 = await vehicleService.recordFuelLog(vId, {
       fuel_date: '2026-09-08',
       quantity_liters: 60.0,
       cost_per_liter: 196.00,
@@ -240,18 +243,18 @@ async function executeSuite() {
     }, adminUser.id);
 
     assert(fuel2.id, 'Fuel log 2 should be created');
-    assert.strictEqual(fuel2.calculated_consumption_kml, 9.0, 'Consumption should be 540km / 60L = 9.0 km/L');
+    assert.strictEqual(Number(fuel2.calculated_consumption_kml), 9.0, 'Consumption should be 540km / 60L = 9.0 km/L');
 
     // Verify vehicle odometer was advanced to 18,540 km
-    const veh = vehicleService.getVehicleById(vId);
-    assert.strictEqual(veh.current_odometer_km, 18540, 'Vehicle odometer must advance to refuel reading');
+    const veh = await vehicleService.getVehicleById(vId);
+    assert.strictEqual(Number(veh.current_odometer_km), 18540, 'Vehicle odometer must advance to refuel reading');
 
     // Retrieve fuel logs history
-    const logsRes = vehicleService.getVehicleFuelLogs(vId);
+    const logsRes = await vehicleService.getVehicleFuelLogs(vId);
     assert(logsRes.fuel_logs.length >= 2, 'Should return both fuel logs');
-    assert.strictEqual(logsRes.summary.total_liters, 120.0);
-    assert.strictEqual(logsRes.summary.total_spend, 23490.0);
-    assert.strictEqual(logsRes.summary.average_consumption_kml, 9.0);
+    assert.strictEqual(Number(logsRes.summary.total_liters), 120.0);
+    assert.strictEqual(Number(logsRes.summary.total_spend), 23490.0);
+    assert.strictEqual(Number(logsRes.summary.average_consumption_kml), 9.0);
   });
 
   // TEST 7: Maintenance Records & Service Lifecycle
@@ -259,7 +262,7 @@ async function executeSuite() {
     const vId = createdVehicle1.id;
 
     // Schedule maintenance in progress
-    const maintRecord = vehicleService.recordMaintenance(vId, {
+    const maintRecord = await vehicleService.recordMaintenance(vId, {
       service_type: 'PREVENTIVE_SCHEDULED',
       service_date: '2026-09-12',
       service_provider: 'DT Dobie Authorized Workshop Nairobi',
@@ -279,11 +282,11 @@ async function executeSuite() {
     assert.strictEqual(maintRecord.status, 'IN_PROGRESS');
 
     // Vehicle status should automatically transition to UNDER_MAINTENANCE
-    let veh = vehicleService.getVehicleById(vId);
+    let veh = await vehicleService.getVehicleById(vId);
     assert.strictEqual(veh.status, 'UNDER_MAINTENANCE', 'Vehicle status should automatically become UNDER_MAINTENANCE');
 
     // Update maintenance job to COMPLETED
-    const completedRecord = vehicleService.updateMaintenanceStatus(maintRecord.id, 'COMPLETED', {
+    const completedRecord = await vehicleService.updateMaintenanceStatus(maintRecord.id, 'COMPLETED', {
       total_cost: 25000.0,
       parts_cost: 17500.0,
       actual_completion_date: '2026-09-13',
@@ -291,13 +294,13 @@ async function executeSuite() {
     }, adminUser.id);
 
     assert.strictEqual(completedRecord.status, 'COMPLETED');
-    assert.strictEqual(completedRecord.total_cost, 25000.0);
+    assert.strictEqual(Number(completedRecord.total_cost), 25000.0);
 
     // Vehicle status should automatically transition back to AVAILABLE
-    veh = vehicleService.getVehicleById(vId);
+    veh = await vehicleService.getVehicleById(vId);
     assert.strictEqual(veh.status, 'AVAILABLE', 'Vehicle status should automatically return to AVAILABLE');
-    assert.strictEqual(veh.last_service_odometer_km, 18600);
-    assert.strictEqual(veh.next_service_odometer_km, 23600);
+    assert.strictEqual(Number(veh.last_service_odometer_km), 18600);
+    assert.strictEqual(Number(veh.next_service_odometer_km), 23600);
   });
 
   // TEST 8: Trip & Mileage Tracking
@@ -307,7 +310,7 @@ async function executeSuite() {
     const endKm = 18685;
     const distance = endKm - startKm; // 85 km
 
-    const tripLog = vehicleService.recordMileageLog(vId, {
+    const tripLog = await vehicleService.recordMileageLog(vId, {
       log_date: '2026-09-14',
       trip_type: 'DELIVERY_RUN',
       start_odometer_km: startKm,
@@ -320,24 +323,25 @@ async function executeSuite() {
     }, adminUser.id);
 
     assert(tripLog.id, 'Trip log should be created');
-    assert.strictEqual(tripLog.distance_km, 85);
+    assert.strictEqual(Number(tripLog.distance_km), 85);
     assert.strictEqual(tripLog.trip_type, 'DELIVERY_RUN');
 
     // Vehicle odometer should advance to 18,685 km
-    const veh = vehicleService.getVehicleById(vId);
-    assert.strictEqual(veh.current_odometer_km, 18685, 'Vehicle current odometer should advance to trip end km');
+    const veh = await vehicleService.getVehicleById(vId);
+    assert.strictEqual(Number(veh.current_odometer_km), 18685, 'Vehicle current odometer should advance to trip end km');
 
     // Query trip logs
-    const trips = vehicleService.getVehicleMileageLogs(vId);
+    const trips = await vehicleService.getVehicleMileageLogs(vId);
     assert(trips.mileage_logs.length >= 1, 'Should contain logged trip');
-    assert(trips.summary.total_logged_distance_km >= 85);
+    assert(Number(trips.summary.total_logged_distance_km) >= 85);
   });
 
   // TEST 9: Service Countdown & Preventive Proximity Alerting
   await runTest('9. Service Due Proximity: Computes km_until_service and triggers alert when <= 500 km', async () => {
+    const plate = await generateUniquePlate('KCA');
     // Register vehicle that is close to service target
-    createdVehicle2 = vehicleService.createVehicle({
-      registration_number: generateUniquePlate('KCA'),
+    createdVehicle2 = await vehicleService.createVehicle({
+      registration_number: plate,
       vehicle_type: 'MOTORCYCLE',
       make: 'Bajaj',
       model: 'Boxer BM150',
@@ -348,29 +352,29 @@ async function executeSuite() {
       branch_id: branch1.id
     }, adminUser.id);
 
-    const list = vehicleService.listVehicles({ branchId: branch1.id });
+    const list = await vehicleService.listVehicles({ branchId: branch1.id });
     const targetVeh = list.vehicles.find(v => v.id === createdVehicle2.id);
 
     assert(targetVeh, 'Target vehicle must be in list');
-    assert.strictEqual(targetVeh.km_until_service, 200, 'Remaining km should be 10000 - 9800 = 200 km');
+    assert.strictEqual(Number(targetVeh.km_until_service), 200, 'Remaining km should be 10000 - 9800 = 200 km');
     assert.strictEqual(targetVeh.is_service_due, true, 'is_service_due must be TRUE when <= 500 km');
   });
 
   // TEST 10: Vehicle Telemetry & Operating Cost per Kilometer
   await runTest('10. Vehicle Telemetry & Operating Cost / km: Fuel spend, service spend, and KES/km', async () => {
-    const tel = vehicleService.getVehicleTelemetry(createdVehicle1.id);
+    const tel = await vehicleService.getVehicleTelemetry(createdVehicle1.id);
     assert(tel, 'Telemetry object must be returned');
-    assert(tel.total_distance_km >= 685, `Total distance should be >= 685 km, got ${tel.total_distance_km}`);
-    assert.strictEqual(tel.total_fuel_spend, 23490.0, 'Total fuel spend must match logged vouchers');
-    assert.strictEqual(tel.total_maintenance_spend, 25000.0, 'Total maintenance spend must match service records');
+    assert(Number(tel.total_distance_km) >= 685, `Total distance should be >= 685 km, got ${tel.total_distance_km}`);
+    assert.strictEqual(Number(tel.total_fuel_spend), 23490.0, 'Total fuel spend must match logged vouchers');
+    assert.strictEqual(Number(tel.total_maintenance_spend), 25000.0, 'Total maintenance spend must match service records');
     assert(Number(tel.operating_cost_per_km) > 0, `Operating cost per km must be positive, got ${tel.operating_cost_per_km}`);
 
     // Fleet-wide aggregate telemetry
-    const fleetTel = vehicleService.getFleetVehiclesTelemetry(branch1.id);
+    const fleetTel = await vehicleService.getFleetVehiclesTelemetry(branch1.id);
     assert(fleetTel, 'Fleet telemetry must be returned');
-    assert(fleetTel.total_vehicles >= 2, 'Fleet should have at least 2 vehicles');
-    assert(fleetTel.total_payload_capacity_kg >= 1480, 'Total payload capacity must be aggregated');
-    assert(fleetTel.monthly_fuel_spend >= 23490.0, 'Fleet fuel spend should be aggregated');
+    assert(Number(fleetTel.total_vehicles) >= 2, 'Fleet should have at least 2 vehicles');
+    assert(Number(fleetTel.total_payload_capacity_kg) >= 1480, 'Total payload capacity must be aggregated');
+    assert(Number(fleetTel.monthly_fuel_spend) >= 23490.0, 'Fleet fuel spend should be aggregated');
   });
 
   console.log('\n============================================================');
@@ -380,6 +384,7 @@ async function executeSuite() {
   if (passedTests !== totalTests) {
     process.exit(1);
   }
+  process.exit(0);
 }
 
 executeSuite().catch((err) => {

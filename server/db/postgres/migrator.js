@@ -32,24 +32,110 @@ async function ensureMigrationsTable(client) {
 }
 
 /**
- * Discovers and parses all available migration files in alphabetical/version order.
+ * Verifies that the list of migrations has valid sequential ordering and no duplicate versions.
+ * Throws a fatal Error if any integrity checks fail.
+ *
+ * @param {Array<{version: string, filename: string}>} migrations
  */
-function getAvailableMigrations() {
-    if (!fs.existsSync(MIGRATIONS_DIR)) {
+function verifyMigrationOrderingAndVersions(migrations) {
+    if (!Array.isArray(migrations) || migrations.length === 0) {
+        return;
+    }
+
+    const seenVersions = new Map();
+    const seenNumericVersions = new Map();
+    let prevNum = 0;
+
+    for (let i = 0; i < migrations.length; i++) {
+        const m = migrations[i];
+        const version = m.version || (m.filename && m.filename.split('_')[0]);
+        const num = parseInt(version, 10);
+
+        if (!version || isNaN(num) || num <= 0) {
+            throw new Error(`[Migration Integrity Error] Invalid migration version '${version}' in file '${m.filename || i}'. Versions must be positive integers.`);
+        }
+
+        // 1. Duplicate version checks (both string prefix and numeric value)
+        if (seenVersions.has(version)) {
+            throw new Error(`[Migration Integrity Error] Duplicate migration version '${version}' detected: '${seenVersions.get(version)}' and '${m.filename}'`);
+        }
+        seenVersions.set(version, m.filename);
+
+        if (seenNumericVersions.has(num)) {
+            throw new Error(`[Migration Integrity Error] Duplicate numeric migration version '${num}' detected: '${seenNumericVersions.get(num)}' and '${m.filename}'`);
+        }
+        seenNumericVersions.set(num, m.filename);
+
+        // 2. Ordering check (strictly increasing without gaps)
+        const expectedNum = i + 1;
+        if (num !== expectedNum) {
+            if (num <= prevNum) {
+                throw new Error(`[Migration Integrity Error] Out-of-order migration detected at index ${i}: '${m.filename}' (version ${version}) was found after version ${prevNum}. Migrations must be ordered sequentially.`);
+            } else {
+                throw new Error(`[Migration Integrity Error] Non-sequential migration sequence gap at index ${i}: expected migration version ${expectedNum}, but found '${m.filename}' (version ${version}). Migration versions must be strictly contiguous without gaps.`);
+            }
+        }
+
+        prevNum = num;
+    }
+}
+
+/**
+ * Verifies that all applied migrations match current codebase checksums.
+ * Throws a fatal Error if any checksum drift is detected.
+ *
+ * @param {Array<{version: string, checksum: string, name?: string}>} applied
+ * @param {Array<{version: string, checksum: string, filename?: string}>} available
+ */
+function verifyAppliedIntegrity(applied, available) {
+    const appliedMap = new Map(applied.map(a => [a.version, a]));
+
+    for (const m of available) {
+        const app = appliedMap.get(m.version);
+        if (app && app.checksum !== m.checksum) {
+            throw new Error(
+                `[FATAL] Migration checksum drift detected in applied migration ${m.filename || m.version}!\n` +
+                `  Applied checksum: ${app.checksum}\n` +
+                `  Current checksum: ${m.checksum}\n` +
+                `Applied migrations are immutable. Do not alter previously executed migration files.`
+            );
+        }
+    }
+}
+
+/**
+ * Discovers, parses, and validates all available migration files in sequential version order.
+ */
+function getAvailableMigrations(migrationsDir = MIGRATIONS_DIR) {
+    if (!fs.existsSync(migrationsDir)) {
         return [];
     }
-    const files = fs.readdirSync(MIGRATIONS_DIR)
-        .filter(f => f.endsWith('.sql') && !f.endsWith('.down.sql'))
-        .sort();
+    const files = fs.readdirSync(migrationsDir)
+        .filter(f => f.endsWith('.sql') && !f.endsWith('.down.sql'));
 
-    return files.map(filename => {
-        const fullPath = path.join(MIGRATIONS_DIR, filename);
+    // Sort naturally / numerically by version prefix
+    files.sort((a, b) => {
+        const numA = parseInt(a.split('_')[0], 10);
+        const numB = parseInt(b.split('_')[0], 10);
+        if (!isNaN(numA) && !isNaN(numB) && numA !== numB) {
+            return numA - numB;
+        }
+        return a.localeCompare(b);
+    });
+
+    const migrations = files.map(filename => {
+        const fullPath = path.join(migrationsDir, filename);
         const content = fs.readFileSync(fullPath, 'utf8');
         const version = filename.split('_')[0];
         const name = filename.replace(/\.sql$/, '');
         const checksum = calculateChecksum(content);
         return { filename, fullPath, version, name, content, checksum };
     });
+
+    // Enforce ordering and uniqueness validation
+    verifyMigrationOrderingAndVersions(migrations);
+
+    return migrations;
 }
 
 /**
@@ -78,6 +164,7 @@ async function migrationStatus() {
 
         const appliedMap = new Map(applied.map(a => [a.version, a]));
 
+        let driftCount = 0;
         console.log('\n=== PostgreSQL Schema Migration Status ===');
         console.table(available.map(m => {
             const app = appliedMap.get(m.version);
@@ -86,7 +173,12 @@ async function migrationStatus() {
 
             if (app) {
                 status = 'APPLIED';
-                checksumMatch = app.checksum === m.checksum ? 'MATCH' : 'DRIFT_DETECTED';
+                if (app.checksum === m.checksum) {
+                    checksumMatch = 'MATCH';
+                } else {
+                    checksumMatch = 'DRIFT_DETECTED';
+                    driftCount++;
+                }
             }
 
             return {
@@ -99,7 +191,11 @@ async function migrationStatus() {
             };
         }));
 
-        return { applied, available };
+        if (driftCount > 0) {
+            console.error(`\n[FATAL WARNING] Detected ${driftCount} applied migration(s) with checksum drift!`);
+        }
+
+        return { applied, available, driftCount };
     } finally {
         client.release();
     }
@@ -119,13 +215,8 @@ async function migrateUp() {
         const available = getAvailableMigrations();
         const appliedMap = new Map(applied.map(a => [a.version, a]));
 
-        // 1. Verify integrity of existing applied migrations
-        for (const m of available) {
-            const app = appliedMap.get(m.version);
-            if (app && app.checksum !== m.checksum) {
-                console.warn(`[Migration Warning] Checksum drift detected in applied migration ${m.filename}!`);
-            }
-        }
+        // 1. Verify integrity of existing applied migrations (fatal on checksum drift)
+        verifyAppliedIntegrity(applied, available);
 
         // 2. Identify pending migrations
         const pending = available.filter(m => !appliedMap.has(m.version));
@@ -240,5 +331,7 @@ module.exports = {
     migrateRollback,
     getAvailableMigrations,
     ensureMigrationsTable,
-    calculateChecksum
+    calculateChecksum,
+    verifyMigrationOrderingAndVersions,
+    verifyAppliedIntegrity
 };

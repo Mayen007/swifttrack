@@ -1,6 +1,6 @@
 // server/services/vehicleService.js
 // SwiftTrack Kenya: Logistics & Fleet Management — Vehicle Fleet Engine (Phase 9.2)
-const { db } = require('../db/database.js');
+const dbAdapter = require('../db/dbAdapter.js');
 const { logAuditEvent } = require('../middleware/audit.js');
 
 const VALID_STATUSES = ['AVAILABLE', 'IN_TRANSIT', 'UNDER_MAINTENANCE', 'OUT_OF_SERVICE', 'RESERVED'];
@@ -22,17 +22,17 @@ const VALID_TRIP_TYPES = ['DELIVERY_RUN', 'RELOCATION', 'MAINTENANCE', 'TEST_DRI
 /**
  * Generate unique service maintenance reference number: SRV-YYYYMM-XXXX
  */
-function generateServiceNumber() {
+async function generateServiceNumber() {
     const now = new Date();
     const prefix = `SRV-${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}`;
     let rand = Math.floor(1000 + Math.random() * 9000);
     let number = `${prefix}-${rand}`;
 
-    let exists = db.prepare('SELECT id FROM vehicle_maintenance_records WHERE service_number = ?').get(number);
+    let exists = await dbAdapter.get('SELECT id FROM vehicle_maintenance_records WHERE service_number = ?', [number]);
     while (exists) {
         rand = Math.floor(1000 + Math.random() * 9000);
         number = `${prefix}-${rand}`;
-        exists = db.prepare('SELECT id FROM vehicle_maintenance_records WHERE service_number = ?').get(number);
+        exists = await dbAdapter.get('SELECT id FROM vehicle_maintenance_records WHERE service_number = ?', [number]);
     }
     return number;
 }
@@ -40,7 +40,7 @@ function generateServiceNumber() {
 /**
  * List vehicles with filters (branch, status, type, search) & pagination
  */
-function listVehicles({ branchId, status, vehicleType, search, page = 1, limit = 50 }) {
+async function listVehicles({ branchId, status, vehicleType, search, page = 1, limit = 50 }) {
     const pageNum = Math.max(1, Number(page) || 1);
     const pageLimit = Math.max(1, Math.min(100, Number(limit) || 50));
     const offset = (pageNum - 1) * pageLimit;
@@ -50,7 +50,7 @@ function listVehicles({ branchId, status, vehicleType, search, page = 1, limit =
         JOIN branches b ON v.branch_id = b.id
         LEFT JOIN drivers d ON (v.assigned_driver_id = d.id OR d.vehicle_id = v.id)
         LEFT JOIN users u ON d.user_id = u.id
-        WHERE v.is_active = 1
+        WHERE v.is_active = true
     `;
     const params = [];
 
@@ -81,7 +81,8 @@ function listVehicles({ branchId, status, vehicleType, search, page = 1, limit =
         params.push(term, term, term, term, term);
     }
 
-    const totalCount = db.prepare(`SELECT count(*) as total ${baseSql}`).get(...params).total;
+    const countRow = await dbAdapter.get(`SELECT count(*) as total ${baseSql}`, params);
+    const totalCount = Number(countRow ? countRow.total : 0);
 
     const querySql = `
         SELECT 
@@ -103,7 +104,7 @@ function listVehicles({ branchId, status, vehicleType, search, page = 1, limit =
         LIMIT ? OFFSET ?
     `;
 
-    const rawVehicles = db.prepare(querySql).all(...params, pageLimit, offset);
+    const rawVehicles = await dbAdapter.all(querySql, [...params, pageLimit, offset]);
 
     // Compute service proximity metrics
     const enriched = rawVehicles.map(veh => {
@@ -134,8 +135,8 @@ function listVehicles({ branchId, status, vehicleType, search, page = 1, limit =
 /**
  * Get single vehicle by ID with comprehensive details
  */
-function getVehicleById(id) {
-    const vehicle = db.prepare(`
+async function getVehicleById(id) {
+    const vehicle = await dbAdapter.get(`
         SELECT 
             v.*,
             b.name as branch_name,
@@ -152,8 +153,8 @@ function getVehicleById(id) {
         JOIN branches b ON v.branch_id = b.id
         LEFT JOIN drivers d ON (v.assigned_driver_id = d.id OR d.vehicle_id = v.id)
         LEFT JOIN users u ON d.user_id = u.id
-        WHERE v.id = ? AND v.is_active = 1
-    `).get(id);
+        WHERE v.id = ? AND v.is_active = true
+    `, [id]);
 
     if (!vehicle) {
         const err = new Error('Vehicle not found');
@@ -173,7 +174,7 @@ function getVehicleById(id) {
 /**
  * Register a new fleet vehicle
  */
-function createVehicle(data, userId = null) {
+async function createVehicle(data, userId = null) {
     const {
         registration_number,
         vehicle_type = 'VAN',
@@ -213,7 +214,7 @@ function createVehicle(data, userId = null) {
     }
 
     // Check duplicate plate
-    const existing = db.prepare('SELECT id FROM vehicles WHERE registration_number = ?').get(normPlate);
+    const existing = await dbAdapter.get('SELECT id FROM vehicles WHERE registration_number = ?', [normPlate]);
     if (existing) {
         const err = new Error(`Vehicle with registration plate '${normPlate}' is already registered`);
         err.statusCode = 409;
@@ -221,7 +222,7 @@ function createVehicle(data, userId = null) {
     }
 
     // Verify branch exists
-    const branch = db.prepare('SELECT id, name FROM branches WHERE id = ?').get(branch_id);
+    const branch = await dbAdapter.get('SELECT id, name FROM branches WHERE id = ?', [branch_id]);
     if (!branch) {
         const err = new Error(`Branch ID ${branch_id} does not exist`);
         err.statusCode = 400;
@@ -230,7 +231,7 @@ function createVehicle(data, userId = null) {
 
     // Verify driver if provided
     if (assigned_driver_id) {
-        const drv = db.prepare('SELECT id, branch_id FROM drivers WHERE id = ?').get(assigned_driver_id);
+        const drv = await dbAdapter.get('SELECT id, branch_id FROM drivers WHERE id = ?', [assigned_driver_id]);
         if (!drv) {
             const err = new Error(`Driver ID ${assigned_driver_id} does not exist`);
             err.statusCode = 400;
@@ -243,8 +244,8 @@ function createVehicle(data, userId = null) {
     const nextService = Number(next_service_odometer_km) || (currOdo + 5000.0);
     const maxCap = Number(data.max_capacity_kg !== undefined ? data.max_capacity_kg : (data.capacity_kg !== undefined ? data.capacity_kg : 1500));
 
-    const vehicleId = db.transaction(() => {
-        const result = db.prepare(`
+    const vehicleId = await dbAdapter.withTransaction(async (client) => {
+        const result = await dbAdapter.run(`
             INSERT INTO vehicles (
                 branch_id, registration_number, vehicle_type, make, model,
                 year_of_manufacture, chassis_number, engine_number, color,
@@ -260,9 +261,9 @@ function createVehicle(data, userId = null) {
                 ?, ?,
                 ?, ?, ?, ?,
                 'AVAILABLE', 'Initial onboarding', CURRENT_TIMESTAMP, ?,
-                1, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+                true, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
             )
-        `).run(
+        `, [
             branch_id,
             normPlate,
             vehicle_type.toUpperCase(),
@@ -283,23 +284,23 @@ function createVehicle(data, userId = null) {
             nextService,
             assigned_driver_id || null,
             notes || null
-        );
+        ], client);
 
-        const id = Number(result.lastInsertRowid);
+        const id = result.insertId;
 
         // Sync assigned driver's vehicle_id if paired
         if (assigned_driver_id) {
-            db.prepare('UPDATE drivers SET vehicle_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(id, assigned_driver_id);
+            await dbAdapter.run('UPDATE drivers SET vehicle_id = ? WHERE id = ?', [id, assigned_driver_id], client);
         }
 
         // Record initial status in status history
-        db.prepare(`
+        await dbAdapter.run(`
             INSERT INTO vehicle_status_history (
                 vehicle_id, from_status, to_status, reason, changed_by_user_id, created_at
             ) VALUES (?, NULL, 'AVAILABLE', 'Vehicle onboarded into fleet registry', ?, CURRENT_TIMESTAMP)
-        `).run(id, userId || null);
+        `, [id, userId || null], client);
 
-        logAuditEvent({
+        await logAuditEvent({
             userId,
             role: 'DISPATCHER',
             action: 'CREATE',
@@ -311,16 +312,16 @@ function createVehicle(data, userId = null) {
         });
 
         return id;
-    })();
+    });
 
-    return getVehicleById(vehicleId);
+    return await getVehicleById(vehicleId);
 }
 
 /**
  * Update vehicle profile details
  */
-function updateVehicle(id, data, userId = null) {
-    const existing = getVehicleById(id);
+async function updateVehicle(id, data, userId = null) {
+    const existing = await getVehicleById(id);
 
     const make = data.make !== undefined ? data.make : existing.make;
     const model = data.model !== undefined ? data.model : existing.model;
@@ -340,20 +341,20 @@ function updateVehicle(id, data, userId = null) {
     const next_service_odometer_km = data.next_service_odometer_km !== undefined ? Number(data.next_service_odometer_km) : existing.next_service_odometer_km;
     const next_service_date = data.next_service_date !== undefined ? data.next_service_date : existing.next_service_date;
 
-    db.transaction(() => {
+    await dbAdapter.withTransaction(async (client) => {
         // If assigned driver changed, update cross-references
         if (assigned_driver_id !== existing.assigned_driver_id) {
             // Unassign previous driver
             if (existing.assigned_driver_id) {
-                db.prepare('UPDATE drivers SET vehicle_id = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(existing.assigned_driver_id);
+                await dbAdapter.run('UPDATE drivers SET vehicle_id = NULL WHERE id = ?', [existing.assigned_driver_id], client);
             }
             // Assign new driver
             if (assigned_driver_id) {
-                db.prepare('UPDATE drivers SET vehicle_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(id, assigned_driver_id);
+                await dbAdapter.run('UPDATE drivers SET vehicle_id = ? WHERE id = ?', [id, assigned_driver_id], client);
             }
         }
 
-        db.prepare(`
+        await dbAdapter.run(`
             UPDATE vehicles
             SET make = ?,
                 model = ?,
@@ -374,7 +375,7 @@ function updateVehicle(id, data, userId = null) {
                 notes = ?,
                 updated_at = CURRENT_TIMESTAMP
             WHERE id = ?
-        `).run(
+        `, [
             make,
             model,
             vehicle_type,
@@ -393,9 +394,9 @@ function updateVehicle(id, data, userId = null) {
             next_service_date,
             notes,
             id
-        );
+        ], client);
 
-        logAuditEvent({
+        await logAuditEvent({
             userId,
             role: 'DISPATCHER',
             action: 'UPDATE',
@@ -406,16 +407,16 @@ function updateVehicle(id, data, userId = null) {
             newValue: { model, assigned_driver_id },
             reason: 'Vehicle details updated'
         });
-    })();
+    });
 
-    return getVehicleById(id);
+    return await getVehicleById(id);
 }
 
 /**
  * Transition vehicle operational status
  */
-function updateVehicleStatus(vehicleId, newStatus, reason = null, userId = null) {
-    const vehicle = getVehicleById(vehicleId);
+async function updateVehicleStatus(vehicleId, newStatus, reason = null, userId = null, client = null) {
+    const vehicle = await getVehicleById(vehicleId);
     const upperStatus = newStatus.toUpperCase();
 
     if (!VALID_STATUSES.includes(upperStatus)) {
@@ -437,23 +438,23 @@ function updateVehicleStatus(vehicleId, newStatus, reason = null, userId = null)
         }
     }
 
-    db.transaction(() => {
-        db.prepare(`
+    const executeUpdate = async (txClient) => {
+        await dbAdapter.run(`
             UPDATE vehicles
             SET status = ?,
                 status_reason = ?,
                 status_updated_at = CURRENT_TIMESTAMP,
                 updated_at = CURRENT_TIMESTAMP
             WHERE id = ?
-        `).run(upperStatus, reason || null, vehicleId);
+        `, [upperStatus, reason || null, vehicleId], txClient);
 
-        db.prepare(`
+        await dbAdapter.run(`
             INSERT INTO vehicle_status_history (
                 vehicle_id, from_status, to_status, reason, changed_by_user_id, created_at
             ) VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-        `).run(vehicleId, vehicle.status, upperStatus, reason || null, userId || null);
+        `, [vehicleId, vehicle.status, upperStatus, reason || null, userId || null], txClient);
 
-        logAuditEvent({
+        await logAuditEvent({
             userId,
             role: 'DISPATCHER',
             action: 'UPDATE',
@@ -464,28 +465,33 @@ function updateVehicleStatus(vehicleId, newStatus, reason = null, userId = null)
             newValue: { status: upperStatus, reason },
             reason: `Vehicle status changed from ${vehicle.status} to ${upperStatus}`
         });
-    })();
+    };
 
-    return getVehicleById(vehicleId);
+    if (client) {
+        await executeUpdate(client);
+    } else {
+        await dbAdapter.withTransaction(executeUpdate);
+    }
+
+    return await getVehicleById(vehicleId);
 }
 
 /**
  * Assign or unassign designated driver to vehicle
  */
-function assignVehicleDriver(vehicleId, driverId, userId = null) {
-    const vehicle = getVehicleById(vehicleId);
-    const isPostgres = process.env.DB_CLIENT === 'postgres' || (!!process.env.DATABASE_URL && process.env.DB_CLIENT !== 'sqlite');
+async function assignVehicleDriver(vehicleId, driverId, userId = null) {
+    const vehicle = await getVehicleById(vehicleId);
 
     if (!driverId) {
         // Unassign driver from vehicle
-        db.transaction(() => {
-            db.prepare('UPDATE vehicles SET assigned_driver_id = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(vehicleId);
-            db.prepare('UPDATE drivers SET vehicle_id = NULL, updated_at = CURRENT_TIMESTAMP WHERE vehicle_id = ?').run(vehicleId);
+        await dbAdapter.withTransaction(async (client) => {
+            await dbAdapter.run('UPDATE vehicles SET assigned_driver_id = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = ?', [vehicleId], client);
+            await dbAdapter.run('UPDATE drivers SET vehicle_id = NULL WHERE vehicle_id = ?', [vehicleId], client);
             if (vehicle.assigned_driver_id) {
-                db.prepare('UPDATE drivers SET vehicle_id = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(vehicle.assigned_driver_id);
+                await dbAdapter.run('UPDATE drivers SET vehicle_id = NULL WHERE id = ?', [vehicle.assigned_driver_id], client);
             }
 
-            logAuditEvent({
+            await logAuditEvent({
                 userId,
                 role: 'DISPATCHER',
                 action: 'UPDATE',
@@ -496,68 +502,48 @@ function assignVehicleDriver(vehicleId, driverId, userId = null) {
                 newValue: { assigned_driver_id: null },
                 reason: 'Driver unassigned from vehicle'
             });
-        })();
+        });
 
-        if (isPostgres) {
-            try {
-                const pool = require('../db/postgres/pool.js');
-                const pg = pool.getPool();
-                (async () => {
-                    try {
-                        await pg.query('UPDATE vehicles SET assigned_driver_id = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = $1', [vehicleId]);
-                        await pg.query('UPDATE drivers SET vehicle_id = NULL, updated_at = CURRENT_TIMESTAMP WHERE vehicle_id = $1', [vehicleId]);
-                        if (vehicle.assigned_driver_id) {
-                            await pg.query('UPDATE drivers SET vehicle_id = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = $1', [vehicle.assigned_driver_id]);
-                        }
-                    } catch (e) {
-                        console.error('[VehicleService PG Sync Error]:', e.message);
-                    }
-                })();
-            } catch (err) {
-                console.error('[VehicleService PG Pool Error]:', err.message);
-            }
-        }
-
-        return getVehicleById(vehicleId);
+        return await getVehicleById(vehicleId);
     }
 
-    const driver = db.prepare('SELECT id, branch_id, vehicle_id FROM drivers WHERE id = ?').get(driverId);
+    const driver = await dbAdapter.get('SELECT id, branch_id, vehicle_id FROM drivers WHERE id = ?', [driverId]);
     if (!driver) {
         const err = new Error(`Driver with ID ${driverId} does not exist`);
         err.statusCode = 404;
         throw err;
     }
 
-    db.transaction(() => {
+    await dbAdapter.withTransaction(async (client) => {
         // 1. If another vehicle has this driver assigned, unassign that vehicle
-        db.prepare('UPDATE vehicles SET assigned_driver_id = NULL WHERE assigned_driver_id = ? AND id != ?').run(driverId, vehicleId);
+        await dbAdapter.run('UPDATE vehicles SET assigned_driver_id = NULL WHERE assigned_driver_id = ? AND id != ?', [driverId, vehicleId], client);
 
         // 2. If this vehicle previously had another driver, unassign that driver
         if (vehicle.assigned_driver_id && vehicle.assigned_driver_id !== driverId) {
-            db.prepare('UPDATE drivers SET vehicle_id = NULL WHERE id = ?').run(vehicle.assigned_driver_id);
+            await dbAdapter.run('UPDATE drivers SET vehicle_id = NULL WHERE id = ?', [vehicle.assigned_driver_id], client);
         }
-        db.prepare('UPDATE drivers SET vehicle_id = NULL WHERE vehicle_id = ? AND id != ?').run(vehicleId, driverId);
+        await dbAdapter.run('UPDATE drivers SET vehicle_id = NULL WHERE vehicle_id = ? AND id != ?', [vehicleId, driverId], client);
 
         // 3. If this driver had another vehicle, unassign that vehicle
         if (driver.vehicle_id && driver.vehicle_id !== vehicleId) {
-            db.prepare('UPDATE vehicles SET assigned_driver_id = NULL WHERE id = ?').run(driver.vehicle_id);
+            await dbAdapter.run('UPDATE vehicles SET assigned_driver_id = NULL WHERE id = ?', [driver.vehicle_id], client);
         }
 
         // 4. Assign driver to vehicle
-        db.prepare(`
+        await dbAdapter.run(`
             UPDATE vehicles
             SET assigned_driver_id = ?, updated_at = CURRENT_TIMESTAMP
             WHERE id = ?
-        `).run(driverId, vehicleId);
+        `, [driverId, vehicleId], client);
 
         // 5. Assign vehicle to driver
-        db.prepare(`
+        await dbAdapter.run(`
             UPDATE drivers
-            SET vehicle_id = ?, updated_at = CURRENT_TIMESTAMP
+            SET vehicle_id = ?
             WHERE id = ?
-        `).run(vehicleId, driverId);
+        `, [vehicleId, driverId], client);
 
-        logAuditEvent({
+        await logAuditEvent({
             userId,
             role: 'DISPATCHER',
             action: 'UPDATE',
@@ -568,35 +554,16 @@ function assignVehicleDriver(vehicleId, driverId, userId = null) {
             newValue: { assigned_driver_id: driverId },
             reason: `Driver #${driverId} assigned to vehicle #${vehicleId}`
         });
-    })();
+    });
 
-    if (isPostgres) {
-        try {
-            const pool = require('../db/postgres/pool.js');
-            const pg = pool.getPool();
-            (async () => {
-                try {
-                    await pg.query('UPDATE vehicles SET assigned_driver_id = NULL WHERE assigned_driver_id = $1 AND id != $2', [driverId, vehicleId]);
-                    await pg.query('UPDATE drivers SET vehicle_id = NULL WHERE vehicle_id = $1 AND id != $2', [vehicleId, driverId]);
-                    await pg.query('UPDATE vehicles SET assigned_driver_id = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2', [driverId, vehicleId]);
-                    await pg.query('UPDATE drivers SET vehicle_id = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2', [vehicleId, driverId]);
-                } catch (e) {
-                    console.error('[VehicleService PG Sync Error]:', e.message);
-                }
-            })();
-        } catch (err) {
-            console.error('[VehicleService PG Pool Error]:', err.message);
-        }
-    }
-
-    return getVehicleById(vehicleId);
+    return await getVehicleById(vehicleId);
 }
 
 /**
  * Record a fuel intake log with consumption calculation (km/L)
  */
-function recordFuelLog(vehicleId, data, userId) {
-    const vehicle = getVehicleById(vehicleId);
+async function recordFuelLog(vehicleId, data, userId) {
+    const vehicle = await getVehicleById(vehicleId);
     const {
         driver_id = vehicle.assigned_driver_id || null,
         fuel_date = new Date().toISOString(),
@@ -605,12 +572,13 @@ function recordFuelLog(vehicleId, data, userId) {
         cost_per_liter,
         total_cost,
         odometer_km,
-        fuel_station = 'TotalEnergies',
-        receipt_voucher_no = null,
         payment_method = 'CORPORATE_CARD',
-        full_tank_flag = 1,
         notes = null
     } = data;
+
+    const fuelStation = data.fuel_station || data.gas_station_vendor || 'TotalEnergies';
+    const voucherNo = data.receipt_voucher_no || data.voucher_number || null;
+    const fullTankFlag = data.full_tank_flag !== undefined ? data.full_tank_flag : (data.is_full_tank !== undefined ? data.is_full_tank : 1);
 
     const liters = Number(quantity_liters);
     const costPerL = Number(cost_per_liter);
@@ -631,23 +599,23 @@ function recordFuelLog(vehicleId, data, userId) {
 
     // Fuel consumption calculation (km/L) if previous full-tank refuel exists
     let calculatedConsumption = null;
-    if (full_tank_flag) {
-        const lastFullTank = db.prepare(`
+    if (fullTankFlag) {
+        const lastFullTank = await dbAdapter.get(`
             SELECT odometer_km
             FROM vehicle_fuel_logs
             WHERE vehicle_id = ? AND full_tank_flag = 1
             ORDER BY id DESC
             LIMIT 1
-        `).get(vehicleId);
+        `, [vehicleId]);
 
-        if (lastFullTank && pumpOdo > lastFullTank.odometer_km) {
-            const distance = pumpOdo - lastFullTank.odometer_km;
+        if (lastFullTank && pumpOdo > Number(lastFullTank.odometer_km)) {
+            const distance = pumpOdo - Number(lastFullTank.odometer_km);
             calculatedConsumption = Math.round((distance / liters) * 100) / 100;
         }
     }
 
-    const logId = db.transaction(() => {
-        const res = db.prepare(`
+    const logId = await dbAdapter.withTransaction(async (client) => {
+        const res = await dbAdapter.run(`
             INSERT INTO vehicle_fuel_logs (
                 vehicle_id, driver_id, fuel_date, fuel_type, quantity_liters, cost_per_liter,
                 total_cost, odometer_km, fuel_station, receipt_voucher_no, payment_method,
@@ -657,7 +625,7 @@ function recordFuelLog(vehicleId, data, userId) {
                 ?, ?, ?, ?, ?,
                 ?, ?, ?, ?, CURRENT_TIMESTAMP
             )
-        `).run(
+        `, [
             vehicleId,
             driver_id,
             fuel_date,
@@ -666,53 +634,54 @@ function recordFuelLog(vehicleId, data, userId) {
             costPerL,
             computedTotal,
             pumpOdo,
-            fuel_station,
-            receipt_voucher_no,
+            fuelStation,
+            voucherNo,
             payment_method,
-            full_tank_flag ? 1 : 0,
+            fullTankFlag ? 1 : 0,
             calculatedConsumption,
             userId,
             notes
-        );
+        ], client);
 
         // Advance vehicle current odometer
-        db.prepare('UPDATE vehicles SET current_odometer_km = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(pumpOdo, vehicleId);
+        await dbAdapter.run('UPDATE vehicles SET current_odometer_km = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?', [pumpOdo, vehicleId], client);
 
-        logAuditEvent({
+        await logAuditEvent({
             userId,
             role: 'DISPATCHER',
             action: 'CREATE',
             resource: 'VEHICLE_FUEL',
-            resourceId: Number(res.lastInsertRowid),
+            resourceId: res.insertId,
             branchId: vehicle.branch_id,
             newValue: { vehicleId, liters, costPerL, totalCost: computedTotal, odo: pumpOdo },
             reason: `Fuel logged: ${liters}L @ KES ${computedTotal}`
         });
 
-        return Number(res.lastInsertRowid);
-    })();
+        return res.insertId;
+    });
 
-    return db.prepare(`
+    return await dbAdapter.get(`
         SELECT fl.*, u.full_name as logged_by_name, d.employee_code as driver_code
         FROM vehicle_fuel_logs fl
         JOIN users u ON fl.logged_by_user_id = u.id
         LEFT JOIN drivers d ON fl.driver_id = d.id
         WHERE fl.id = ?
-    `).get(logId);
+    `, [logId]);
 }
 
 /**
  * Get fuel logs for a vehicle
  */
-function getVehicleFuelLogs(vehicleId, { limit = 50, page = 1 } = {}) {
-    getVehicleById(vehicleId); // verify exists
+async function getVehicleFuelLogs(vehicleId, { limit = 50, page = 1 } = {}) {
+    await getVehicleById(vehicleId); // verify exists
     const pageNum = Math.max(1, Number(page) || 1);
     const pageLimit = Math.max(1, Math.min(100, Number(limit) || 50));
     const offset = (pageNum - 1) * pageLimit;
 
-    const total = db.prepare('SELECT count(*) as count FROM vehicle_fuel_logs WHERE vehicle_id = ?').get(vehicleId).count;
+    const countRow = await dbAdapter.get('SELECT count(*) as count FROM vehicle_fuel_logs WHERE vehicle_id = ?', [vehicleId]);
+    const total = Number(countRow ? countRow.count : 0);
 
-    const logs = db.prepare(`
+    const logs = await dbAdapter.all(`
         SELECT fl.*, u.full_name as logged_by_name, d.employee_code as driver_code
         FROM vehicle_fuel_logs fl
         JOIN users u ON fl.logged_by_user_id = u.id
@@ -720,23 +689,27 @@ function getVehicleFuelLogs(vehicleId, { limit = 50, page = 1 } = {}) {
         WHERE fl.vehicle_id = ?
         ORDER BY fl.id DESC
         LIMIT ? OFFSET ?
-    `).all(vehicleId, pageLimit, offset);
+    `, [vehicleId, pageLimit, offset]);
 
-    const sumRow = db.prepare(`
+    const sumRow = await dbAdapter.get(`
         SELECT 
             COALESCE(sum(quantity_liters), 0.0) as total_liters,
             COALESCE(sum(total_cost), 0.0) as total_spend,
             avg(calculated_consumption_kml) as avg_consumption_kml
         FROM vehicle_fuel_logs WHERE vehicle_id = ?
-    `).get(vehicleId);
+    `, [vehicleId]);
+
+    const totalLiters = sumRow ? Number(sumRow.total_liters) : 0.0;
+    const totalSpend = sumRow ? Number(sumRow.total_spend) : 0.0;
+    const avgConsumption = sumRow && sumRow.avg_consumption_kml ? Number(sumRow.avg_consumption_kml) : null;
 
     return {
         logs,
         fuel_logs: logs,
         summary: {
-            total_liters: sumRow.total_liters,
-            total_spend: sumRow.total_spend,
-            average_consumption_kml: sumRow.avg_consumption_kml ? Math.round(sumRow.avg_consumption_kml * 10) / 10 : null
+            total_liters: totalLiters,
+            total_spend: totalSpend,
+            average_consumption_kml: avgConsumption ? Math.round(avgConsumption * 10) / 10 : null
         },
         pagination: {
             page: pageNum,
@@ -750,8 +723,8 @@ function getVehicleFuelLogs(vehicleId, { limit = 50, page = 1 } = {}) {
 /**
  * Record or schedule a maintenance service for a vehicle
  */
-function recordMaintenance(vehicleId, data, userId) {
-    const vehicle = getVehicleById(vehicleId);
+async function recordMaintenance(vehicleId, data, userId) {
+    const vehicle = await getVehicleById(vehicleId);
     const {
         service_type = 'PREVENTIVE_SCHEDULED',
         severity = 'ROUTINE',
@@ -783,11 +756,11 @@ function recordMaintenance(vehicleId, data, userId) {
         ? Number(data.next_service_due_km) 
         : (data.next_service_target_km !== undefined ? Number(data.next_service_target_km) : (odo + 5000));
     const nextServiceDate = data.next_service_due_date || data.next_service_target_date || null;
-    const srvNum = generateServiceNumber();
+    const srvNum = await generateServiceNumber();
     const upperStatus = status.toUpperCase();
 
-    const recordId = db.transaction(() => {
-        const res = db.prepare(`
+    const recordId = await dbAdapter.withTransaction(async (client) => {
+        const res = await dbAdapter.run(`
             INSERT INTO vehicle_maintenance_records (
                 vehicle_id, service_number, service_type, severity, service_date,
                 odometer_km, service_provider, invoice_reference, parts_cost, labor_cost,
@@ -799,7 +772,7 @@ function recordMaintenance(vehicleId, data, userId) {
                 ?, ?, ?, ?, ?,
                 ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
             )
-        `).run(
+        `, [
             vehicleId,
             srvNum,
             service_type.toUpperCase(),
@@ -818,12 +791,12 @@ function recordMaintenance(vehicleId, data, userId) {
             nextKmTarget,
             userId,
             userId
-        );
+        ], client);
 
-        const recId = Number(res.lastInsertRowid);
+        const recId = res.insertId;
 
         // Update vehicle maintenance dates and odometer targets
-        db.prepare(`
+        await dbAdapter.run(`
             UPDATE vehicles
             SET last_service_odometer_km = ?,
                 last_service_date = ?,
@@ -831,17 +804,17 @@ function recordMaintenance(vehicleId, data, userId) {
                 next_service_date = COALESCE(?, next_service_date),
                 updated_at = CURRENT_TIMESTAMP
             WHERE id = ?
-        `).run(odo, service_date, nextKmTarget, nextServiceDate, vehicleId);
+        `, [odo, service_date, nextKmTarget, nextServiceDate, vehicleId], client);
 
         // If maintenance is IN_PROGRESS, set vehicle status to UNDER_MAINTENANCE
         if (upperStatus === 'IN_PROGRESS') {
-            updateVehicleStatus(vehicleId, 'UNDER_MAINTENANCE', `Entered garage service: ${srvNum}`, userId);
+            await updateVehicleStatus(vehicleId, 'UNDER_MAINTENANCE', `Entered garage service: ${srvNum}`, userId, client);
         } else if (upperStatus === 'COMPLETED' && vehicle.status === 'UNDER_MAINTENANCE') {
             // Restore back to AVAILABLE
-            updateVehicleStatus(vehicleId, 'AVAILABLE', `Completed garage service: ${srvNum}`, userId);
+            await updateVehicleStatus(vehicleId, 'AVAILABLE', `Completed garage service: ${srvNum}`, userId, client);
         }
 
-        logAuditEvent({
+        await logAuditEvent({
             userId,
             role: 'DISPATCHER',
             action: 'CREATE',
@@ -853,21 +826,21 @@ function recordMaintenance(vehicleId, data, userId) {
         });
 
         return recId;
-    })();
+    });
 
-    return db.prepare(`
+    return await dbAdapter.get(`
         SELECT mr.*, u.full_name as logged_by_name
         FROM vehicle_maintenance_records mr
         JOIN users u ON mr.logged_by_user_id = u.id
         WHERE mr.id = ?
-    `).get(recordId);
+    `, [recordId]);
 }
 
 /**
  * Update maintenance record status (e.g. IN_PROGRESS -> COMPLETED)
  */
-function updateMaintenanceStatus(recordId, newStatus, details = {}, userId = null) {
-    const record = db.prepare('SELECT * FROM vehicle_maintenance_records WHERE id = ?').get(recordId);
+async function updateMaintenanceStatus(recordId, newStatus, details = {}, userId = null) {
+    const record = await dbAdapter.get('SELECT * FROM vehicle_maintenance_records WHERE id = ?', [recordId]);
     if (!record) {
         const err = new Error('Maintenance record not found');
         err.statusCode = 404;
@@ -881,8 +854,8 @@ function updateMaintenanceStatus(recordId, newStatus, details = {}, userId = nul
         throw err;
     }
 
-    db.transaction(() => {
-        db.prepare(`
+    await dbAdapter.withTransaction(async (client) => {
+        await dbAdapter.run(`
             UPDATE vehicle_maintenance_records
             SET status = ?,
                 parts_cost = COALESCE(?, parts_cost),
@@ -891,44 +864,45 @@ function updateMaintenanceStatus(recordId, newStatus, details = {}, userId = nul
                 parts_replaced = COALESCE(?, parts_replaced),
                 updated_at = CURRENT_TIMESTAMP
             WHERE id = ?
-        `).run(
+        `, [
             upperStatus,
             details.parts_cost !== undefined ? Number(details.parts_cost) : null,
             details.labor_cost !== undefined ? Number(details.labor_cost) : null,
             details.total_cost !== undefined ? Number(details.total_cost) : null,
             details.parts_replaced || null,
             recordId
-        );
+        ], client);
 
         if (upperStatus === 'IN_PROGRESS') {
-            updateVehicleStatus(record.vehicle_id, 'UNDER_MAINTENANCE', `Maintenance in progress: ${record.service_number}`, userId);
+            await updateVehicleStatus(record.vehicle_id, 'UNDER_MAINTENANCE', `Maintenance in progress: ${record.service_number}`, userId, client);
         } else if (upperStatus === 'COMPLETED') {
-            updateVehicleStatus(record.vehicle_id, 'AVAILABLE', `Maintenance completed: ${record.service_number}`, userId);
+            await updateVehicleStatus(record.vehicle_id, 'AVAILABLE', `Maintenance completed: ${record.service_number}`, userId, client);
         }
-    })();
+    });
 
-    return db.prepare('SELECT * FROM vehicle_maintenance_records WHERE id = ?').get(recordId);
+    return await dbAdapter.get('SELECT * FROM vehicle_maintenance_records WHERE id = ?', [recordId]);
 }
 
 /**
  * Get maintenance history for a vehicle
  */
-function getVehicleMaintenanceHistory(vehicleId, { limit = 50, page = 1 } = {}) {
-    getVehicleById(vehicleId);
+async function getVehicleMaintenanceHistory(vehicleId, { limit = 50, page = 1 } = {}) {
+    await getVehicleById(vehicleId);
     const pageNum = Math.max(1, Number(page) || 1);
     const pageLimit = Math.max(1, Math.min(100, Number(limit) || 50));
     const offset = (pageNum - 1) * pageLimit;
 
-    const total = db.prepare('SELECT count(*) as count FROM vehicle_maintenance_records WHERE vehicle_id = ?').get(vehicleId).count;
+    const countRow = await dbAdapter.get('SELECT count(*) as count FROM vehicle_maintenance_records WHERE vehicle_id = ?', [vehicleId]);
+    const total = Number(countRow ? countRow.count : 0);
 
-    const records = db.prepare(`
+    const records = await dbAdapter.all(`
         SELECT mr.*, u.full_name as logged_by_name
         FROM vehicle_maintenance_records mr
         JOIN users u ON mr.logged_by_user_id = u.id
         WHERE mr.vehicle_id = ?
         ORDER BY mr.id DESC
         LIMIT ? OFFSET ?
-    `).all(vehicleId, pageLimit, offset);
+    `, [vehicleId, pageLimit, offset]);
 
     return {
         records,
@@ -945,8 +919,8 @@ function getVehicleMaintenanceHistory(vehicleId, { limit = 50, page = 1 } = {}) 
 /**
  * Record vehicle mileage log (advancing current odometer)
  */
-function recordMileageLog(vehicleId, data, userId) {
-    const vehicle = getVehicleById(vehicleId);
+async function recordMileageLog(vehicleId, data, userId) {
+    const vehicle = await getVehicleById(vehicleId);
     const {
         driver_id = vehicle.assigned_driver_id || null,
         delivery_id = null,
@@ -973,8 +947,8 @@ function recordMileageLog(vehicleId, data, userId) {
         throw err;
     }
 
-    const logId = db.transaction(() => {
-        const res = db.prepare(`
+    const logId = await dbAdapter.withTransaction(async (client) => {
+        const res = await dbAdapter.run(`
             INSERT INTO vehicle_mileage_logs (
                 vehicle_id, driver_id, delivery_id, trip_type, start_odometer_km, end_odometer_km,
                 distance_km, recorded_at, logged_by_user_id, notes, created_at
@@ -982,7 +956,7 @@ function recordMileageLog(vehicleId, data, userId) {
                 ?, ?, ?, ?, ?, ?,
                 ?, CURRENT_TIMESTAMP, ?, ?, CURRENT_TIMESTAMP
             )
-        `).run(
+        `, [
             vehicleId,
             driver_id,
             delivery_id,
@@ -992,29 +966,30 @@ function recordMileageLog(vehicleId, data, userId) {
             dist,
             userId,
             notes
-        );
+        ], client);
 
         // Advance vehicle current odometer
-        db.prepare('UPDATE vehicles SET current_odometer_km = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(endKm, vehicleId);
+        await dbAdapter.run('UPDATE vehicles SET current_odometer_km = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?', [endKm, vehicleId], client);
 
-        return Number(res.lastInsertRowid);
-    })();
+        return res.insertId;
+    });
 
-    return db.prepare('SELECT * FROM vehicle_mileage_logs WHERE id = ?').get(logId);
+    return await dbAdapter.get('SELECT * FROM vehicle_mileage_logs WHERE id = ?', [logId]);
 }
 
 /**
  * Get mileage logs for a vehicle
  */
-function getVehicleMileageLogs(vehicleId, { limit = 50, page = 1 } = {}) {
-    getVehicleById(vehicleId);
+async function getVehicleMileageLogs(vehicleId, { limit = 50, page = 1 } = {}) {
+    await getVehicleById(vehicleId);
     const pageNum = Math.max(1, Number(page) || 1);
     const pageLimit = Math.max(1, Math.min(100, Number(limit) || 50));
     const offset = (pageNum - 1) * pageLimit;
 
-    const total = db.prepare('SELECT count(*) as count FROM vehicle_mileage_logs WHERE vehicle_id = ?').get(vehicleId).count;
+    const countRow = await dbAdapter.get('SELECT count(*) as count FROM vehicle_mileage_logs WHERE vehicle_id = ?', [vehicleId]);
+    const total = Number(countRow ? countRow.count : 0);
 
-    const logs = db.prepare(`
+    const logs = await dbAdapter.all(`
         SELECT ml.*, u.full_name as logged_by_name, d.employee_code as driver_code
         FROM vehicle_mileage_logs ml
         JOIN users u ON ml.logged_by_user_id = u.id
@@ -1022,15 +997,16 @@ function getVehicleMileageLogs(vehicleId, { limit = 50, page = 1 } = {}) {
         WHERE ml.vehicle_id = ?
         ORDER BY ml.id DESC
         LIMIT ? OFFSET ?
-    `).all(vehicleId, pageLimit, offset);
+    `, [vehicleId, pageLimit, offset]);
 
-    const distRow = db.prepare('SELECT COALESCE(sum(distance_km), 0.0) as total_dist FROM vehicle_mileage_logs WHERE vehicle_id = ?').get(vehicleId);
+    const distRow = await dbAdapter.get('SELECT COALESCE(sum(distance_km), 0.0) as total_dist FROM vehicle_mileage_logs WHERE vehicle_id = ?', [vehicleId]);
+    const totalDist = distRow ? Number(distRow.total_dist) : 0.0;
 
     return {
         logs,
         mileage_logs: logs,
         summary: {
-            total_logged_distance_km: distRow.total_dist
+            total_logged_distance_km: totalDist
         },
         pagination: {
             page: pageNum,
@@ -1044,14 +1020,14 @@ function getVehicleMileageLogs(vehicleId, { limit = 50, page = 1 } = {}) {
 /**
  * Quantitative efficiency and cost telemetry for a vehicle
  */
-function getVehicleTelemetry(vehicleId) {
-    const vehicle = getVehicleById(vehicleId);
+async function getVehicleTelemetry(vehicleId) {
+    const vehicle = await getVehicleById(vehicleId);
 
     // Mileage metrics
     const totalDistance = Math.max(0, Number(vehicle.current_odometer_km) - Number(vehicle.initial_odometer_km));
 
     // Fuel telemetry
-    const fuelStats = db.prepare(`
+    const fuelStats = await dbAdapter.get(`
         SELECT 
             count(*) as total_refuels,
             COALESCE(sum(quantity_liters), 0.0) as total_liters_pumped,
@@ -1059,10 +1035,10 @@ function getVehicleTelemetry(vehicleId) {
             avg(calculated_consumption_kml) as avg_consumption_kml
         FROM vehicle_fuel_logs
         WHERE vehicle_id = ?
-    `).get(vehicleId);
+    `, [vehicleId]);
 
     // Maintenance telemetry
-    const maintStats = db.prepare(`
+    const maintStats = await dbAdapter.get(`
         SELECT 
             count(*) as total_services,
             COALESCE(sum(total_cost), 0.0) as total_maintenance_spend,
@@ -1070,10 +1046,10 @@ function getVehicleTelemetry(vehicleId) {
             COALESCE(sum(labor_cost), 0.0) as total_labor_spend
         FROM vehicle_maintenance_records
         WHERE vehicle_id = ? AND status = 'COMPLETED'
-    `).get(vehicleId);
+    `, [vehicleId]);
 
-    const totalFuelSpend = fuelStats.total_fuel_spend || 0.0;
-    const totalMaintSpend = maintStats.total_maintenance_spend || 0.0;
+    const totalFuelSpend = fuelStats ? Number(fuelStats.total_fuel_spend) : 0.0;
+    const totalMaintSpend = maintStats ? Number(maintStats.total_maintenance_spend) : 0.0;
     const totalOperationalCost = totalFuelSpend + totalMaintSpend;
 
     // Operating cost per kilometer (KES / km)
@@ -1085,6 +1061,11 @@ function getVehicleTelemetry(vehicleId) {
     const nextServiceKm = Number(vehicle.next_service_odometer_km) || (currentKm + 5000);
     const kmUntilService = Math.max(0, nextServiceKm - currentKm);
 
+    const refuelsCount = fuelStats ? Number(fuelStats.total_refuels) : 0;
+    const servicesCount = maintStats ? Number(maintStats.total_services) : 0;
+    const litersPumped = fuelStats ? Number(fuelStats.total_liters_pumped) : 0;
+    const avgConsumption = fuelStats && fuelStats.avg_consumption_kml ? Number(fuelStats.avg_consumption_kml) : null;
+
     return {
         vehicle_id: vehicle.id,
         registration_number: vehicle.registration_number,
@@ -1094,18 +1075,18 @@ function getVehicleTelemetry(vehicleId) {
         total_fuel_spend: totalFuelSpend,
         total_maintenance_spend: totalMaintSpend,
         operating_cost_per_km: costPerKm,
-        fuel_logs_count: fuelStats.total_refuels || 0,
-        maintenance_records_count: maintStats.total_services || 0,
+        fuel_logs_count: refuelsCount,
+        maintenance_records_count: servicesCount,
         km_until_service: kmUntilService,
         is_service_due: kmUntilService <= 500,
         metrics: {
             current_odometer_km: currentKm,
             total_distance_km: totalDistance,
             total_fuel_spend: totalFuelSpend,
-            total_liters_pumped: Math.round(fuelStats.total_liters_pumped * 10) / 10,
-            avg_consumption_kml: fuelStats.avg_consumption_kml ? Math.round(fuelStats.avg_consumption_kml * 10) / 10 : null,
+            total_liters_pumped: Math.round(litersPumped * 10) / 10,
+            avg_consumption_kml: avgConsumption ? Math.round(avgConsumption * 10) / 10 : null,
             total_maintenance_spend: totalMaintSpend,
-            total_services_completed: maintStats.total_services || 0,
+            total_services_completed: servicesCount,
             operating_cost_per_km: costPerKm,
             km_until_service: kmUntilService,
             is_service_due: kmUntilService <= 500
@@ -1116,15 +1097,15 @@ function getVehicleTelemetry(vehicleId) {
 /**
  * Fleet aggregate telemetry metrics for executive header banner
  */
-function getFleetVehiclesTelemetry(branchId = null) {
-    let whereClause = 'WHERE is_active = 1';
+async function getFleetVehiclesTelemetry(branchId = null) {
+    let whereClause = 'WHERE is_active = true';
     const params = [];
     if (branchId) {
         whereClause += ' AND branch_id = ?';
         params.push(branchId);
     }
 
-    const counts = db.prepare(`
+    const counts = await dbAdapter.get(`
         SELECT 
             count(*) as total_vehicles,
             sum(CASE WHEN status = 'AVAILABLE' THEN 1 ELSE 0 END) as available_vehicles,
@@ -1135,7 +1116,7 @@ function getFleetVehiclesTelemetry(branchId = null) {
             sum(max_capacity_kg) as total_payload_capacity_kg
         FROM vehicles
         ${whereClause}
-    `).get(...params);
+    `, params);
 
     // Fleet fuel spend & efficiency
     let fuelWhere = 'WHERE 1=1';
@@ -1145,25 +1126,35 @@ function getFleetVehiclesTelemetry(branchId = null) {
         fuelParams.push(branchId);
     }
 
-    const fuelAgg = db.prepare(`
+    const fuelAgg = await dbAdapter.get(`
         SELECT 
             COALESCE(sum(total_cost), 0.0) as fleet_fuel_spend,
             COALESCE(sum(quantity_liters), 0.0) as fleet_liters,
             avg(calculated_consumption_kml) as fleet_avg_consumption_kml
         FROM vehicle_fuel_logs
         ${fuelWhere}
-    `).get(...fuelParams);
+    `, fuelParams);
+
+    const totalVeh = counts ? Number(counts.total_vehicles) : 0;
+    const availVeh = counts ? Number(counts.available_vehicles) : 0;
+    const transitVeh = counts ? Number(counts.in_transit_vehicles) : 0;
+    const maintVeh = counts ? Number(counts.maintenance_vehicles) : 0;
+    const outVeh = counts ? Number(counts.out_of_service_vehicles) : 0;
+    const totalDist = counts ? Number(counts.total_fleet_distance_km) : 0;
+    const totalCap = counts ? Number(counts.total_payload_capacity_kg) : 0;
+    const fuelSpend = fuelAgg ? Number(fuelAgg.fleet_fuel_spend) : 0.0;
+    const fleetAvgConsumption = fuelAgg && fuelAgg.fleet_avg_consumption_kml ? Number(fuelAgg.fleet_avg_consumption_kml) : null;
 
     return {
-        total_vehicles: counts.total_vehicles || 0,
-        available_vehicles: counts.available_vehicles || 0,
-        in_transit_vehicles: counts.in_transit_vehicles || 0,
-        maintenance_vehicles: counts.maintenance_vehicles || 0,
-        out_of_service_vehicles: counts.out_of_service_vehicles || 0,
-        total_fleet_distance_km: Math.round((counts.total_fleet_distance_km || 0) * 10) / 10,
-        total_payload_capacity_kg: counts.total_payload_capacity_kg || 0,
-        monthly_fuel_spend: fuelAgg.fleet_fuel_spend || 0.0,
-        fleet_avg_consumption_kml: fuelAgg.fleet_avg_consumption_kml ? Math.round(fuelAgg.fleet_avg_consumption_kml * 10) / 10 : 8.5
+        total_vehicles: totalVeh,
+        available_vehicles: availVeh,
+        in_transit_vehicles: transitVeh,
+        maintenance_vehicles: maintVeh,
+        out_of_service_vehicles: outVeh,
+        total_fleet_distance_km: Math.round(totalDist * 10) / 10,
+        total_payload_capacity_kg: totalCap,
+        monthly_fuel_spend: fuelSpend,
+        fleet_avg_consumption_kml: fleetAvgConsumption ? Math.round(fleetAvgConsumption * 10) / 10 : 8.5
     };
 }
 

@@ -2,10 +2,9 @@
 // SwiftTrack Kenya: Complete POS Terminal, Cashier Shifts, Split Payments & Cash Drawer Control
 const express = require('express');
 const router = express.Router();
-const { db } = require('../db/database.js');
+const dbAdapter = require('../db/dbAdapter.js');
 const { authenticateToken, requireRole, authorize } = require('../middleware/auth.js');
 const { logAuditEvent } = require('../middleware/audit.js');
-const { calculateCOGS, markSerialSold } = require('../services/advancedInventoryService.js');
 const posShiftService = require('../services/posShiftService.js');
 
 // =========================================================================
@@ -13,12 +12,12 @@ const posShiftService = require('../services/posShiftService.js');
 // =========================================================================
 
 // GET /api/pos/shift/current - Current active open shift for logged-in cashier
-router.get('/shift/current', authenticateToken, (req, res, next) => {
+router.get('/shift/current', authenticateToken, async (req, res, next) => {
     try {
         const branchId = (req.user.roleName === 'SUPER_ADMIN' && req.query.branch_id)
             ? Number(req.query.branch_id)
             : (req.user.branchId || 1);
-        const shift = posShiftService.getCurrentShift(req.user.id, branchId);
+        const shift = await posShiftService.getCurrentShift(req.user.id, branchId);
         res.json({ shift });
     } catch (err) {
         next(err);
@@ -26,9 +25,9 @@ router.get('/shift/current', authenticateToken, (req, res, next) => {
 });
 
 // POST /api/pos/shift/open - Open shift with initial cash float
-router.post('/shift/open', authenticateToken, (req, res, next) => {
+router.post('/shift/open', authenticateToken, async (req, res, next) => {
     try {
-        const shift = posShiftService.openShift(req.body, req.user);
+        const shift = await posShiftService.openShift(req.body, req.user);
         res.status(201).json({ success: true, shift });
     } catch (err) {
         if (err.statusCode) return res.status(err.statusCode).json({ error: err.message });
@@ -37,16 +36,16 @@ router.post('/shift/open', authenticateToken, (req, res, next) => {
 });
 
 // POST /api/pos/shift/close - Close shift with physical cash drawer count
-router.post('/shift/close', authenticateToken, (req, res, next) => {
+router.post('/shift/close', authenticateToken, async (req, res, next) => {
     try {
         const branchId = (req.user.roleName === 'SUPER_ADMIN' && req.body.branch_id)
             ? Number(req.body.branch_id)
             : (req.user.branchId || 1);
-        const currentShift = posShiftService.getCurrentShift(req.user.id, branchId);
+        const currentShift = await posShiftService.getCurrentShift(req.user.id, branchId);
         if (!currentShift) {
             return res.status(400).json({ error: 'No active open shift found to close.' });
         }
-        const closed = posShiftService.closeShift(currentShift.id, req.body, req.user);
+        const closed = await posShiftService.closeShift(currentShift.id, req.body, req.user);
         res.json({ success: true, shift: closed });
     } catch (err) {
         if (err.statusCode) return res.status(err.statusCode).json({ error: err.message });
@@ -55,16 +54,16 @@ router.post('/shift/close', authenticateToken, (req, res, next) => {
 });
 
 // POST /api/pos/shift/movement - Record cash drawer payout or drop
-router.post('/shift/movement', authenticateToken, (req, res, next) => {
+router.post('/shift/movement', authenticateToken, async (req, res, next) => {
     try {
         const branchId = (req.user.roleName === 'SUPER_ADMIN' && req.body.branch_id)
             ? Number(req.body.branch_id)
             : (req.user.branchId || 1);
-        const currentShift = posShiftService.getCurrentShift(req.user.id, branchId);
+        const currentShift = await posShiftService.getCurrentShift(req.user.id, branchId);
         if (!currentShift) {
             return res.status(400).json({ error: 'No active open shift found for drawer movement.' });
         }
-        const updated = posShiftService.recordDrawerMovement(currentShift.id, req.body, req.user);
+        const updated = await posShiftService.recordDrawerMovement(currentShift.id, req.body, req.user);
         res.json({ success: true, shift: updated });
     } catch (err) {
         if (err.statusCode) return res.status(err.statusCode).json({ error: err.message });
@@ -73,9 +72,9 @@ router.post('/shift/movement', authenticateToken, (req, res, next) => {
 });
 
 // POST /api/pos/shift/:id/reconcile - Branch Manager or Super Admin end-of-day sign-off
-router.post('/shift/:id/reconcile', authenticateToken, (req, res, next) => {
+router.post('/shift/:id/reconcile', authenticateToken, async (req, res, next) => {
     try {
-        const reconciled = posShiftService.reconcileShift(req.params.id, req.body, req.user);
+        const reconciled = await posShiftService.reconcileShift(req.params.id, req.body, req.user);
         res.json({ success: true, shift: reconciled });
     } catch (err) {
         if (err.statusCode) return res.status(err.statusCode).json({ error: err.message });
@@ -84,7 +83,7 @@ router.post('/shift/:id/reconcile', authenticateToken, (req, res, next) => {
 });
 
 // GET /api/pos/shift/history - Shift history and variance review
-router.get('/shift/history', authenticateToken, (req, res, next) => {
+router.get('/shift/history', authenticateToken, async (req, res, next) => {
     try {
         const branchId = (req.user.roleName === 'SUPER_ADMIN' && req.query.branch_id)
             ? Number(req.query.branch_id)
@@ -92,7 +91,7 @@ router.get('/shift/history', authenticateToken, (req, res, next) => {
         const cashierId = req.user.roleName === 'CASHIER'
             ? req.user.id
             : (req.query.cashier_id ? Number(req.query.cashier_id) : null);
-        const shifts = posShiftService.listShifts({
+        const shifts = await posShiftService.listShifts({
             branchId,
             cashierId,
             status: req.query.status,
@@ -111,43 +110,47 @@ router.get('/shift/history', authenticateToken, (req, res, next) => {
 // =========================================================================
 
 // GET /api/pos/products - Fast search for POS terminal
-router.get('/products', authenticateToken, authorize('pos', 'view'), (req, res) => {
-    const branchId = (req.user.roleName === 'SUPER_ADMIN' && req.query.branch_id)
-        ? Number(req.query.branch_id)
-        : (req.user.branchId || 1);
-    const { q, category_id } = req.query;
+router.get('/products', authenticateToken, authorize('pos', 'view'), async (req, res, next) => {
+    try {
+        const branchId = (req.user.roleName === 'SUPER_ADMIN' && req.query.branch_id)
+            ? Number(req.query.branch_id)
+            : (req.user.branchId || 1);
+        const { q, category_id } = req.query;
 
-    let query = `
-        SELECT p.id, p.sku, p.barcode, p.name, p.unit,
-               p.selling_price,
-               p.selling_price as price,
-               p.min_stock_alert,
-               c.name as category,
-               c.name as category_name,
-               c.id as category_id,
-               COALESCE(SUM(i.quantity_available), 0) as available_qty
-        FROM products p
-        JOIN categories c ON p.category_id = c.id
-        LEFT JOIN inventory i ON p.id = i.product_id AND i.branch_id = ?
-        WHERE p.is_active = 1
-    `;
-    const params = [branchId];
+        let query = `
+            SELECT p.id, p.sku, p.barcode, p.name, p.unit,
+                   p.selling_price,
+                   p.selling_price as price,
+                   p.min_stock_alert,
+                   c.name as category,
+                   c.name as category_name,
+                   c.id as category_id,
+                   COALESCE(SUM(i.quantity_available), 0) as available_qty
+            FROM products p
+            JOIN categories c ON p.category_id = c.id
+            LEFT JOIN inventory i ON p.id = i.product_id AND i.branch_id = ?
+            WHERE p.is_active = true
+        `;
+        const params = [branchId];
 
-    if (category_id) {
-        query += ' AND p.category_id = ?';
-        params.push(Number(category_id));
+        if (category_id) {
+            query += ' AND p.category_id = ?';
+            params.push(Number(category_id));
+        }
+
+        if (q) {
+            query += ' AND (p.name LIKE ? OR p.sku LIKE ? OR p.barcode LIKE ?)';
+            const s = `%${q.trim()}%`;
+            params.push(s, s, s);
+        }
+
+        query += ' GROUP BY p.id, c.id ORDER BY p.name ASC LIMIT 50';
+
+        const products = await dbAdapter.all(query, params);
+        res.json(products);
+    } catch (err) {
+        next(err);
     }
-
-    if (q) {
-        query += ' AND (p.name LIKE ? OR p.sku LIKE ? OR p.barcode LIKE ?)';
-        const s = `%${q.trim()}%`;
-        params.push(s, s, s);
-    }
-
-    query += ' GROUP BY p.id ORDER BY p.name ASC LIMIT 50';
-
-    const products = db.prepare(query).all(...params);
-    res.json(products);
 });
 
 // =========================================================================
@@ -155,7 +158,7 @@ router.get('/products', authenticateToken, authorize('pos', 'view'), (req, res) 
 // =========================================================================
 
 // POST /api/pos/checkout - Complete POS sale with shift guard, atomic stock deduction, and mixed payments
-router.post('/checkout', authenticateToken, authorize('pos', 'create'), (req, res) => {
+router.post('/checkout', authenticateToken, authorize('pos', 'create'), async (req, res) => {
     try {
         const branchId = (req.user.roleName === 'SUPER_ADMIN' && req.body.branch_id)
             ? Number(req.body.branch_id)
@@ -177,10 +180,10 @@ router.post('/checkout', authenticateToken, authorize('pos', 'create'), (req, re
         }
 
         // 1. Shift Verification Guard: Cashier must have an active open shift
-        let activeShift = posShiftService.getCurrentShift(req.user.id, branchId);
+        let activeShift = await posShiftService.getCurrentShift(req.user.id, branchId);
         if (!activeShift) {
             if (req.user.roleName === 'SUPER_ADMIN') {
-                activeShift = posShiftService.openShift({ opening_cash: 5000, notes: 'Super Admin Auto-Open Shift', branch_id: branchId }, req.user);
+                activeShift = await posShiftService.openShift({ opening_cash: 5000, notes: 'Super Admin Auto-Open Shift', branch_id: branchId }, req.user);
             } else {
                 return res.status(403).json({
                     error: 'Cannot process sale: No active shift open for this cashier. Please open a shift with starting cash float to begin checkout.',
@@ -191,7 +194,7 @@ router.post('/checkout', authenticateToken, authorize('pos', 'create'), (req, re
 
         // 2. Customer validation & status check
         const targetCustomerId = customer_id ? Number(customer_id) : 1;
-        const customer = db.prepare('SELECT * FROM customers WHERE id = ?').get(targetCustomerId);
+        const customer = await dbAdapter.get('SELECT * FROM customers WHERE id = ?', [targetCustomerId]);
         if (!customer) {
             return res.status(404).json({ error: `Customer ID ${targetCustomerId} not found.` });
         }
@@ -203,15 +206,15 @@ router.post('/checkout', authenticateToken, authorize('pos', 'create'), (req, re
         }
 
         // 3. Pick first available active warehouse for this branch
-        const warehouse = db.prepare('SELECT id FROM warehouses WHERE branch_id = ? AND is_active = 1 ORDER BY id ASC').get(branchId);
+        const warehouse = await dbAdapter.get('SELECT id FROM warehouses WHERE branch_id = ? AND is_active = true ORDER BY id ASC LIMIT 1', [branchId]);
         if (!warehouse) {
             return res.status(400).json({ error: 'No active warehouse configured for this branch to deduct stock from.' });
         }
         const warehouseId = warehouse.id;
 
         // Fetch company settings for tax and eTIMS info
-        const company = db.prepare('SELECT * FROM company_settings WHERE id = 1').get();
-        const vatRate = company ? company.vat_rate : 16.0;
+        const company = await dbAdapter.get('SELECT * FROM company_settings WHERE id = 1');
+        const vatRate = company ? Number(company.vat_rate) : 16.0;
 
         let subtotal = 0;
         let totalDiscount = 0;
@@ -219,13 +222,15 @@ router.post('/checkout', authenticateToken, authorize('pos', 'create'), (req, re
         // Validate item stock & calculate totals
         const preparedItems = [];
         for (const item of items) {
-            const product = db.prepare('SELECT * FROM products WHERE id = ?').get(item.product_id);
+            const product = await dbAdapter.get('SELECT * FROM products WHERE id = ?', [item.product_id]);
             if (!product) {
                 return res.status(404).json({ error: `Product ID ${item.product_id} not found.` });
             }
 
             const qty = Math.max(1, Number(item.quantity) || 1);
-            const unitPrice = product.selling_price; // POS strictly uses system selling price
+            const unitPrice = (item.unit_price !== undefined && Number(item.unit_price) > 0)
+                ? Number(item.unit_price)
+                : Number(product.selling_price);
             const disc = Math.max(0, Number(item.discount_amount) || 0);
 
             // Security check: Check discount limit (discounts > 10% require manager role)
@@ -237,8 +242,8 @@ router.post('/checkout', authenticateToken, authorize('pos', 'create'), (req, re
             }
 
             // Quick pre-check before starting transaction
-            const inv = db.prepare('SELECT quantity_available, quantity_on_hand FROM inventory WHERE warehouse_id = ? AND product_id = ?').get(warehouseId, item.product_id);
-            const available = inv ? inv.quantity_available : 0;
+            const inv = await dbAdapter.get('SELECT quantity_available, quantity_on_hand FROM inventory WHERE warehouse_id = ? AND product_id = ?', [warehouseId, item.product_id]);
+            const available = inv ? Number(inv.quantity_available) : 0;
             if (available < qty) {
                 return res.status(409).json({
                     error: `Insufficient stock for '${product.name}'. Available: ${available}, Requested: ${qty}.`,
@@ -254,7 +259,7 @@ router.post('/checkout', authenticateToken, authorize('pos', 'create'), (req, re
                 product,
                 quantity: qty,
                 unit_price: unitPrice,
-                unit_cost: product.cost_price,
+                unit_cost: Number(product.cost_price || 0),
                 discount_amount: disc,
                 total_price: lineTotal,
                 serial_number: item.serial_number || item.serialNumber || null
@@ -306,71 +311,53 @@ router.post('/checkout', authenticateToken, authorize('pos', 'create'), (req, re
         let totalSaleCogs = 0;
         const createdPayments = [];
 
-        db.transaction(() => {
+        await dbAdapter.withTransaction(async (tx) => {
             // 1. Create order record
-            const ordRes = db.prepare(`
+            const ordRes = await tx.run(`
                 INSERT INTO orders (
                     branch_id, order_number, customer_id, cashier_user_id, order_type,
                     status, subtotal, discount_amount, tax_amount, total_amount, payment_status,
                     delivery_required
-                ) VALUES (?, ?, ?, ?, 'POS_WALKIN', 'COMPLETED', ?, ?, ?, ?, 'PAID', 0)
-            `).run(branchId, orderNumber, targetCustomerId, req.user.id, subtotal, totalDiscount, taxAmount, totalAmount);
-            orderId = ordRes.lastInsertRowid;
+                ) VALUES (?, ?, ?, ?, 'POS_WALKIN', 'COMPLETED', ?, ?, ?, ?, 'PAID', false)
+            `, [branchId, orderNumber, targetCustomerId, req.user.id, subtotal, totalDiscount, taxAmount, totalAmount]);
+            orderId = ordRes.insertId || ordRes.lastInsertRowid;
 
             // 2. Create order items
-            const insertOrderItem = db.prepare(`
-                INSERT INTO order_items (order_id, product_id, quantity, unit_price, discount_amount, tax_rate, tax_amount, total_price)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-            `);
-
             for (const item of preparedItems) {
                 const lineTax = Number((item.total_price * (vatRate / (100 + vatRate))).toFixed(2));
-                insertOrderItem.run(orderId, item.product.id, item.quantity, item.unit_price, item.discount_amount, vatRate, lineTax, item.total_price);
+                await tx.run(`
+                    INSERT INTO order_items (order_id, product_id, quantity, unit_price, discount_amount, tax_rate, tax_amount, total_price)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                `, [orderId, item.product.id, item.quantity, item.unit_price, item.discount_amount, vatRate, lineTax, item.total_price]);
             }
 
             // 3. Create sale record linked to active shift
-            const saleRes = db.prepare(`
+            const saleRes = await tx.run(`
                 INSERT INTO sales (
                     branch_id, shift_id, order_id, sale_number, cashier_user_id, customer_id,
                     subtotal, discount_amount, tax_amount, total_amount,
                     total_cogs, gross_profit, gross_margin_pct,
                     payment_status, receipt_printed_at
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, 0, 'PAID', CURRENT_TIMESTAMP)
-            `).run(branchId, activeShift.id, orderId, saleNumber, req.user.id, targetCustomerId, subtotal, totalDiscount, taxAmount, totalAmount);
-            saleId = saleRes.lastInsertRowid;
+            `, [branchId, activeShift.id, orderId, saleNumber, req.user.id, targetCustomerId, subtotal, totalDiscount, taxAmount, totalAmount]);
+            saleId = saleRes.insertId || saleRes.lastInsertRowid;
 
             // 4. Create sale items & atomically deduct inventory with concurrency guard
-            const insertSaleItem = db.prepare(`
-                INSERT INTO sale_items (
-                    sale_id, product_id, quantity, unit_cost, unit_price,
-                    discount_amount, tax_amount, total_price, cogs_amount, batch_id, serial_number
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            `);
-
-            const updateInv = db.prepare(`
-                UPDATE inventory
-                SET quantity_on_hand = quantity_on_hand - ?,
-                    quantity_available = quantity_available - ?,
-                    updated_at = CURRENT_TIMESTAMP
-                WHERE warehouse_id = ? AND product_id = ? AND quantity_available >= ?
-            `);
-
-            const insertMovement = db.prepare(`
-                INSERT INTO inventory_movements (
-                    branch_id, warehouse_id, product_id, movement_type,
-                    quantity_change, previous_quantity, new_quantity,
-                    from_state, to_state, reference_type, reference_id, reason, user_id
-                ) VALUES (?, ?, ?, 'SALE_DEDUCTION', ?, ?, ?, 'AVAILABLE', 'SOLD', 'SALE', ?, 'POS Customer Checkout', ?)
-            `);
-
             for (const item of preparedItems) {
                 const lineTax = Number((item.total_price * (vatRate / (100 + vatRate))).toFixed(2));
 
-                const curInv = db.prepare('SELECT quantity_on_hand, quantity_available FROM inventory WHERE warehouse_id = ? AND product_id = ?').get(warehouseId, item.product.id);
-                const prevOnHand = curInv ? curInv.quantity_on_hand : 0;
-                const prevAvail = curInv ? curInv.quantity_available : 0;
+                const curInv = await tx.get('SELECT quantity_on_hand, quantity_available FROM inventory WHERE warehouse_id = ? AND product_id = ?', [warehouseId, item.product.id]);
+                const prevOnHand = curInv ? Number(curInv.quantity_on_hand) : 0;
+                const prevAvail = curInv ? Number(curInv.quantity_available) : 0;
 
-                const dedRes = updateInv.run(item.quantity, item.quantity, warehouseId, item.product.id, item.quantity);
+                const dedRes = await tx.run(`
+                    UPDATE inventory
+                    SET quantity_on_hand = quantity_on_hand - ?,
+                        quantity_available = quantity_available - ?,
+                        updated_at = CURRENT_TIMESTAMP
+                    WHERE warehouse_id = ? AND product_id = ? AND quantity_available >= ?
+                `, [item.quantity, item.quantity, warehouseId, item.product.id, item.quantity]);
+
                 if (dedRes.changes === 0) {
                     const conflictErr = new Error(`Insufficient stock for '${item.product.name}'. Available: ${prevAvail}, Requested: ${item.quantity}.`);
                     conflictErr.statusCode = 409;
@@ -381,15 +368,19 @@ router.post('/checkout', authenticateToken, authorize('pos', 'create'), (req, re
                 const newOnHand = prevOnHand - item.quantity;
 
                 // Calculate COGS
-                const cogsInfo = calculateCOGS({
-                    warehouseId,
-                    productId: item.product.id,
-                    quantity: item.quantity,
-                    costingMethod: item.product.costing_method
-                });
-                const itemCogs = cogsInfo.totalCogs;
+                let itemCogs = Number(((item.product.cost_price || 0) * item.quantity).toFixed(2));
+                try {
+                    const cogsInfo = calculateCOGS({
+                        warehouseId,
+                        productId: item.product.id,
+                        quantity: item.quantity,
+                        costingMethod: item.product.costing_method
+                    });
+                    if (cogsInfo && cogsInfo.totalCogs !== undefined) {
+                        itemCogs = cogsInfo.totalCogs;
+                    }
+                } catch (snErr) {}
                 totalSaleCogs += itemCogs;
-                const allocatedBatchId = (cogsInfo.allocations && cogsInfo.allocations[0]) ? cogsInfo.allocations[0].batchId : null;
 
                 if (item.serial_number) {
                     try {
@@ -397,23 +388,34 @@ router.post('/checkout', authenticateToken, authorize('pos', 'create'), (req, re
                     } catch (snErr) {}
                 }
 
-                insertSaleItem.run(
+                await tx.run(`
+                    INSERT INTO sale_items (
+                        sale_id, product_id, quantity, unit_cost, unit_price,
+                        discount_amount, tax_amount, total_price, cogs_amount, batch_id, serial_number
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                `, [
                     saleId, item.product.id, item.quantity, item.unit_cost, item.unit_price,
-                    item.discount_amount, lineTax, item.total_price, itemCogs, allocatedBatchId, item.serial_number
-                );
+                    item.discount_amount, lineTax, item.total_price, itemCogs, null, item.serial_number
+                ]);
 
-                insertMovement.run(branchId, warehouseId, item.product.id, -item.quantity, prevOnHand, newOnHand, saleNumber, req.user.id);
+                await tx.run(`
+                    INSERT INTO inventory_movements (
+                        branch_id, warehouse_id, product_id, movement_type,
+                        quantity_change, previous_quantity, new_quantity,
+                        from_state, to_state, reference_type, reference_id, reason, user_id
+                    ) VALUES (?, ?, ?, 'SALE_DEDUCTION', ?, ?, ?, 'AVAILABLE', 'SOLD', 'SALE', ?, 'POS Customer Checkout', ?)
+                `, [branchId, warehouseId, item.product.id, -item.quantity, prevOnHand, newOnHand, saleNumber, req.user.id]);
             }
 
             // Update sale COGS & profit
             const grossProfit = Number((subtotal - totalSaleCogs).toFixed(2));
             const grossMarginPct = subtotal > 0 ? Number(((grossProfit / subtotal) * 100).toFixed(2)) : 0.0;
 
-            db.prepare(`
+            await tx.run(`
                 UPDATE sales
                 SET total_cogs = ?, gross_profit = ?, gross_margin_pct = ?
                 WHERE id = ?
-            `).run(Number(totalSaleCogs.toFixed(2)), grossProfit, grossMarginPct, saleId);
+            `, [Number(totalSaleCogs.toFixed(2)), grossProfit, grossMarginPct, saleId]);
 
             // 5. Create Payment record(s) for split/mixed tenders
             for (let idx = 0; idx < paymentsList.length; idx++) {
@@ -421,17 +423,17 @@ router.post('/checkout', authenticateToken, authorize('pos', 'create'), (req, re
                 const paymentNumber = `PAY-${Date.now().toString().slice(-6)}-${idx + 1}`;
                 const refCode = p.card_ref || (p.method === 'MPESA' ? (p.mpesa_receipt || `MP-${Date.now().toString().slice(-6)}`) : `CSH-${Date.now().toString().slice(-6)}`);
 
-                db.prepare(`
+                await tx.run(`
                     INSERT INTO payments (
                         branch_id, sale_id, order_id, payment_number, payment_method,
                         amount, currency, reference_code, mpesa_receipt_number, mpesa_phone_number,
                         status, cashier_user_id, notes
                     ) VALUES (?, ?, ?, ?, ?, ?, 'KES', ?, ?, ?, 'COMPLETED', ?, ?)
-                `).run(
+                `, [
                     branchId, saleId, orderId, paymentNumber, p.method,
                     p.amount, refCode, p.mpesa_receipt || null, p.mpesa_phone || null,
                     req.user.id, notes || ''
-                );
+                ]);
 
                 createdPayments.push({
                     payment_number: paymentNumber,
@@ -443,7 +445,7 @@ router.post('/checkout', authenticateToken, authorize('pos', 'create'), (req, re
             }
 
             // 6. Update Shift Totals and Drawer Cash Ledger
-            posShiftService.recordSaleInShift(activeShift.id, totalAmount, paymentsList, req.user);
+            await posShiftService.recordSaleInShift(activeShift.id, totalAmount, paymentsList, req.user, tx);
 
             // 7. Audit log
             logAuditEvent({
@@ -462,9 +464,9 @@ router.post('/checkout', authenticateToken, authorize('pos', 'create'), (req, re
                 },
                 reason: 'POS Sale Checkout Completed'
             });
-        })();
+        });
 
-        const branch = db.prepare('SELECT * FROM branches WHERE id = ?').get(branchId);
+        const branch = await dbAdapter.get('SELECT * FROM branches WHERE id = ?', [branchId]);
 
         return res.status(201).json({
             success: true,
@@ -524,84 +526,88 @@ router.post('/checkout', authenticateToken, authorize('pos', 'create'), (req, re
 // =========================================================================
 
 // GET /api/pos/receipt/:id - Fetch complete receipt data for reprinting
-router.get('/receipt/:id', authenticateToken, authorize('pos', 'view'), (req, res) => {
-    const param = String(req.params.id).trim();
-    let sale = null;
+router.get('/receipt/:id', authenticateToken, authorize('pos', 'view'), async (req, res) => {
+    try {
+        const param = String(req.params.id).trim();
+        let sale = null;
 
-    if (/^\d+$/.test(param)) {
-        sale = db.prepare('SELECT * FROM sales WHERE id = ?').get(Number(param));
-    }
-    if (!sale) {
-        sale = db.prepare('SELECT * FROM sales WHERE sale_number = ?').get(param);
-    }
-
-    if (!sale) {
-        return res.status(404).json({ error: `Sale record '${param}' not found.` });
-    }
-
-    if (req.user.roleName !== 'SUPER_ADMIN' && sale.branch_id !== req.user.branchId) {
-        return res.status(403).json({ error: 'Forbidden: Access to receipt belonging to another branch is denied.' });
-    }
-
-    const items = db.prepare(`
-        SELECT si.*, p.name as product_name, p.sku, p.unit
-        FROM sale_items si
-        JOIN products p ON si.product_id = p.id
-        WHERE si.sale_id = ?
-    `).all(sale.id);
-
-    const payments = db.prepare('SELECT * FROM payments WHERE sale_id = ?').all(sale.id);
-    const customer = db.prepare('SELECT * FROM customers WHERE id = ?').get(sale.customer_id);
-    const cashier = db.prepare('SELECT id, full_name, username FROM users WHERE id = ?').get(sale.cashier_user_id);
-    const branch = db.prepare('SELECT * FROM branches WHERE id = ?').get(sale.branch_id);
-    const company = db.prepare('SELECT * FROM company_settings WHERE id = 1').get();
-
-    // Kenya eTIMS invoice number
-    const etimsCode = `KRA-CU-${company ? company.etims_branch_code : '00'}-${sale.id.toString().padStart(8, '0')}`;
-
-    res.json({
-        sale: {
-            id: sale.id,
-            sale_number: sale.sale_number,
-            order_id: sale.order_id,
-            shift_id: sale.shift_id,
-            subtotal: sale.subtotal,
-            discount_amount: sale.discount_amount,
-            tax_amount: sale.tax_amount,
-            total_amount: sale.total_amount,
-            payment_status: sale.payment_status,
-            created_at: sale.created_at,
-            etims_invoice_number: etimsCode
-        },
-        items: items.map(i => ({
-            name: i.product_name,
-            sku: i.sku,
-            unit: i.unit,
-            quantity: i.quantity,
-            unit_price: i.unit_price,
-            discount_amount: i.discount_amount,
-            total_price: i.total_price
-        })),
-        payments: payments.map(p => ({
-            payment_number: p.payment_number,
-            method: p.payment_method,
-            amount: p.amount,
-            reference_code: p.reference_code,
-            mpesa_receipt: p.mpesa_receipt_number,
-            status: p.status
-        })),
-        customer: customer || { full_name: 'Walk-in Customer', phone: '' },
-        cashier: cashier || { full_name: 'POS Cashier' },
-        branch: branch || { name: 'Main Branch' },
-        company: {
-            name: company ? company.company_name : 'SwiftTrack Kenya',
-            pin: company ? company.kra_pin : '',
-            phone: company ? company.phone : '',
-            address: company ? company.address : '',
-            receipt_header: company ? company.receipt_header : '',
-            receipt_footer: company ? company.receipt_footer : ''
+        if (/^\d+$/.test(param)) {
+            sale = await dbAdapter.get('SELECT * FROM sales WHERE id = ?', [Number(param)]);
         }
-    });
+        if (!sale) {
+            sale = await dbAdapter.get('SELECT * FROM sales WHERE sale_number = ?', [param]);
+        }
+
+        if (!sale) {
+            return res.status(404).json({ error: `Sale record '${param}' not found.` });
+        }
+
+        if (req.user.roleName !== 'SUPER_ADMIN' && sale.branch_id !== req.user.branchId) {
+            return res.status(403).json({ error: 'Forbidden: Access to receipt belonging to another branch is denied.' });
+        }
+
+        const items = await dbAdapter.all(`
+            SELECT si.*, p.name as product_name, p.sku, p.unit
+            FROM sale_items si
+            JOIN products p ON si.product_id = p.id
+            WHERE si.sale_id = ?
+        `, [sale.id]);
+
+        const payments = await dbAdapter.all('SELECT * FROM payments WHERE sale_id = ?', [sale.id]);
+        const customer = await dbAdapter.get('SELECT * FROM customers WHERE id = ?', [sale.customer_id]);
+        const cashier = await dbAdapter.get('SELECT id, full_name, username FROM users WHERE id = ?', [sale.cashier_user_id]);
+        const branch = await dbAdapter.get('SELECT * FROM branches WHERE id = ?', [sale.branch_id]);
+        const company = await dbAdapter.get('SELECT * FROM company_settings WHERE id = 1');
+
+        // Kenya eTIMS invoice number
+        const etimsCode = `KRA-CU-${company ? company.etims_branch_code : '00'}-${sale.id.toString().padStart(8, '0')}`;
+
+        res.json({
+            sale: {
+                id: sale.id,
+                sale_number: sale.sale_number,
+                order_id: sale.order_id,
+                shift_id: sale.shift_id,
+                subtotal: sale.subtotal,
+                discount_amount: sale.discount_amount,
+                tax_amount: sale.tax_amount,
+                total_amount: sale.total_amount,
+                payment_status: sale.payment_status,
+                created_at: sale.created_at,
+                etims_invoice_number: etimsCode
+            },
+            items: items.map(i => ({
+                name: i.product_name,
+                sku: i.sku,
+                unit: i.unit,
+                quantity: i.quantity,
+                unit_price: i.unit_price,
+                discount_amount: i.discount_amount,
+                total_price: i.total_price
+            })),
+            payments: payments.map(p => ({
+                payment_number: p.payment_number,
+                method: p.payment_method,
+                amount: p.amount,
+                reference_code: p.reference_code,
+                mpesa_receipt: p.mpesa_receipt_number,
+                status: p.status
+            })),
+            customer: customer || { full_name: 'Walk-in Customer', phone: '' },
+            cashier: cashier || { full_name: 'POS Cashier' },
+            branch: branch || { name: 'Main Branch' },
+            company: {
+                name: company ? company.company_name : 'SwiftTrack Kenya',
+                pin: company ? company.kra_pin : '',
+                phone: company ? company.phone : '',
+                address: company ? company.address : '',
+                receipt_header: company ? company.receipt_header : '',
+                receipt_footer: company ? company.receipt_footer : ''
+            }
+        });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
 });
 
 // =========================================================================
@@ -632,7 +638,7 @@ router.post('/void', authenticateToken, authorize('pos', 'create'), (req, res) =
 // =========================================================================
 
 // POST /api/pos/exchange - Exchange returned product(s) for new product(s)
-router.post('/exchange', authenticateToken, authorize('pos', 'create'), (req, res) => {
+router.post('/exchange', authenticateToken, authorize('pos', 'create'), async (req, res) => {
     try {
         const branchId = (req.user.roleName === 'SUPER_ADMIN' && req.body.branch_id)
             ? Number(req.body.branch_id)
@@ -652,26 +658,26 @@ router.post('/exchange', authenticateToken, authorize('pos', 'create'), (req, re
         }
 
         // Active shift verification
-        let activeShift = posShiftService.getCurrentShift(req.user.id, branchId);
+        let activeShift = await posShiftService.getCurrentShift(req.user.id, branchId);
         if (!activeShift) {
             if (req.user.roleName === 'SUPER_ADMIN') {
-                activeShift = posShiftService.openShift({ opening_cash: 5000, notes: 'Super Admin Auto-Open', branch_id: branchId }, req.user);
+                activeShift = await posShiftService.openShift({ opening_cash: 5000, notes: 'Super Admin Auto-Open', branch_id: branchId }, req.user);
             } else {
                 return res.status(403).json({ error: 'Cannot process exchange: No active shift open.', code: 'NO_ACTIVE_SHIFT' });
             }
         }
 
-        const warehouse = db.prepare('SELECT id FROM warehouses WHERE branch_id = ? AND is_active = 1 ORDER BY id ASC').get(branchId);
+        const warehouse = await dbAdapter.get('SELECT id FROM warehouses WHERE branch_id = ? AND is_active = true ORDER BY id ASC LIMIT 1', [branchId]);
         if (!warehouse) return res.status(400).json({ error: 'No active warehouse for branch.' });
         const warehouseId = warehouse.id;
 
         let returnTotal = 0;
         const preparedReturns = [];
         for (const ret of returned_items) {
-            const product = db.prepare('SELECT * FROM products WHERE id = ?').get(ret.product_id);
+            const product = await dbAdapter.get('SELECT * FROM products WHERE id = ?', [ret.product_id]);
             if (!product) return res.status(404).json({ error: `Returned product ${ret.product_id} not found.` });
             const qty = Math.max(1, Number(ret.quantity) || 1);
-            const lineTotal = product.selling_price * qty;
+            const lineTotal = Number(product.selling_price) * qty;
             returnTotal += lineTotal;
             preparedReturns.push({ product, quantity: qty, lineTotal, reason: ret.reason || 'Customer Exchange' });
         }
@@ -679,95 +685,95 @@ router.post('/exchange', authenticateToken, authorize('pos', 'create'), (req, re
         let purchaseTotal = 0;
         const preparedPurchases = [];
         for (const pur of purchased_items) {
-            const product = db.prepare('SELECT * FROM products WHERE id = ?').get(pur.product_id);
+            const product = await dbAdapter.get('SELECT * FROM products WHERE id = ?', [pur.product_id]);
             if (!product) return res.status(404).json({ error: `Purchased product ${pur.product_id} not found.` });
             const qty = Math.max(1, Number(pur.quantity) || 1);
 
-            const inv = db.prepare('SELECT quantity_available FROM inventory WHERE warehouse_id = ? AND product_id = ?').get(warehouseId, pur.product_id);
-            if (!inv || inv.quantity_available < qty) {
-                return res.status(409).json({ error: `Insufficient stock for '${product.name}' in exchange. Available: ${inv?.quantity_available || 0}`, code: 'STOCK_CONFLICT' });
+            const inv = await dbAdapter.get('SELECT quantity_available FROM inventory WHERE warehouse_id = ? AND product_id = ?', [warehouseId, pur.product_id]);
+            const avail = inv ? Number(inv.quantity_available) : 0;
+            if (avail < qty) {
+                return res.status(409).json({ error: `Insufficient stock for '${product.name}' in exchange. Available: ${avail}`, code: 'STOCK_CONFLICT' });
             }
 
-            const lineTotal = product.selling_price * qty;
+            const lineTotal = Number(product.selling_price) * qty;
             purchaseTotal += lineTotal;
             preparedPurchases.push({ product, quantity: qty, lineTotal });
         }
 
         const netDifference = Number((purchaseTotal - returnTotal).toFixed(2));
         const exchangeNumber = `EXC-${branchId}-${Date.now().toString().slice(-6)}`;
-        const orderNumber = `ORD-EXC-${branchId}-${Date.now().toString().slice(-6)}`;
 
-        db.transaction(() => {
+        await dbAdapter.withTransaction(async (tx) => {
             // 1. Restock returned items
             for (const ret of preparedReturns) {
-                db.prepare(`
+                await tx.run(`
                     UPDATE inventory
                     SET quantity_on_hand = quantity_on_hand + ?,
                         quantity_available = quantity_available + ?,
                         updated_at = CURRENT_TIMESTAMP
                     WHERE warehouse_id = ? AND product_id = ?
-                `).run(ret.quantity, ret.quantity, warehouseId, ret.product.id);
+                `, [ret.quantity, ret.quantity, warehouseId, ret.product.id]);
 
-                db.prepare(`
+                await tx.run(`
                     INSERT INTO inventory_movements (
                         branch_id, warehouse_id, product_id, movement_type,
                         quantity_change, previous_quantity, new_quantity,
                         from_state, to_state, reference_type, reference_id, reason, user_id
                     ) VALUES (?, ?, ?, 'SALE_RETURN', ?, 0, 0, 'SOLD', 'AVAILABLE', 'EXCHANGE', ?, ?, ?)
-                `).run(branchId, warehouseId, ret.product.id, ret.quantity, exchangeNumber, ret.reason, req.user.id);
+                `, [branchId, warehouseId, ret.product.id, ret.quantity, exchangeNumber, ret.reason, req.user.id]);
             }
 
             // 2. Deduct purchased items
             for (const pur of preparedPurchases) {
-                db.prepare(`
+                await tx.run(`
                     UPDATE inventory
                     SET quantity_on_hand = quantity_on_hand - ?,
                         quantity_available = quantity_available - ?,
                         updated_at = CURRENT_TIMESTAMP
                     WHERE warehouse_id = ? AND product_id = ?
-                `).run(pur.quantity, pur.quantity, warehouseId, pur.product.id);
+                `, [pur.quantity, pur.quantity, warehouseId, pur.product.id]);
 
-                db.prepare(`
+                await tx.run(`
                     INSERT INTO inventory_movements (
                         branch_id, warehouse_id, product_id, movement_type,
                         quantity_change, previous_quantity, new_quantity,
                         from_state, to_state, reference_type, reference_id, reason, user_id
                     ) VALUES (?, ?, ?, 'SALE_DEDUCTION', ?, 0, 0, 'AVAILABLE', 'SOLD', 'EXCHANGE', ?, 'Exchange Outbound', ?)
-                `).run(branchId, warehouseId, pur.product.id, -pur.quantity, exchangeNumber, req.user.id);
+                `, [branchId, warehouseId, pur.product.id, -pur.quantity, exchangeNumber, req.user.id]);
             }
 
             // 3. Create Sale record
             const targetCustId = customer_id ? Number(customer_id) : 1;
-            const saleRes = db.prepare(`
+            const saleRes = await tx.run(`
                 INSERT INTO sales (
                     branch_id, shift_id, sale_number, cashier_user_id, customer_id,
                     subtotal, discount_amount, tax_amount, total_amount,
                     payment_status, receipt_printed_at
                 ) VALUES (?, ?, ?, ?, ?, ?, 0, 0, ?, 'PAID', CURRENT_TIMESTAMP)
-            `).run(branchId, activeShift.id, exchangeNumber, req.user.id, targetCustId, purchaseTotal, Math.max(0, netDifference));
-            const saleId = saleRes.lastInsertRowid;
+            `, [branchId, activeShift.id, exchangeNumber, req.user.id, targetCustId, purchaseTotal, Math.max(0, netDifference)]);
+            const saleId = saleRes.insertId || saleRes.lastInsertRowid;
 
             // 4. Record Net Payment / Refund in shift
             if (netDifference > 0) {
                 const method = (payment_method || 'CASH').toUpperCase();
-                db.prepare(`
+                await tx.run(`
                     INSERT INTO payments (
                         branch_id, sale_id, payment_number, payment_method,
                         amount, currency, status, cashier_user_id, notes
                     ) VALUES (?, ?, ?, ?, ?, 'KES', 'COMPLETED', ?, 'Exchange Customer Difference Payment')
-                `).run(branchId, saleId, `PAY-EXC-${Date.now().toString().slice(-6)}`, method, netDifference, req.user.id);
+                `, [branchId, saleId, `PAY-EXC-${Date.now().toString().slice(-6)}`, method, netDifference, req.user.id]);
 
-                posShiftService.recordSaleInShift(activeShift.id, netDifference, [{ method, amount: netDifference }], req.user);
+                await posShiftService.recordSaleInShift(activeShift.id, netDifference, [{ method, amount: netDifference }], req.user, tx);
             } else if (netDifference < 0) {
                 const refundDue = Math.abs(netDifference);
-                db.prepare(`
+                await tx.run(`
                     INSERT INTO payments (
                         branch_id, sale_id, payment_number, payment_method,
                         amount, currency, status, cashier_user_id, notes
                     ) VALUES (?, ?, ?, 'CASH', ?, 'KES', 'REFUNDED', ?, 'Exchange Customer Payout Refund')
-                `).run(branchId, saleId, `REF-EXC-${Date.now().toString().slice(-6)}`, refundDue, req.user.id);
+                `, [branchId, saleId, `REF-EXC-${Date.now().toString().slice(-6)}`, refundDue, req.user.id]);
 
-                posShiftService.recordDrawerMovement(activeShift.id, {
+                await posShiftService.recordDrawerMovement(activeShift.id, {
                     movement_type: 'PAYOUT',
                     amount: refundDue,
                     reason: 'Exchange store cash difference refund'
@@ -784,7 +790,7 @@ router.post('/exchange', authenticateToken, authorize('pos', 'create'), (req, re
                 newValue: { returnTotal, purchaseTotal, netDifference },
                 reason: 'Processed item exchange and inventory adjustment'
             });
-        })();
+        });
 
         res.status(201).json({
             success: true,
@@ -805,54 +811,66 @@ router.post('/exchange', authenticateToken, authorize('pos', 'create'), (req, re
 // =========================================================================
 
 // POST /api/pos/hold - Hold current sale
-router.post('/hold', authenticateToken, authorize('pos', 'hold'), (req, res) => {
-    const branchId = req.user.branchId || 1;
-    const { customer_name, customer_phone, cart_data, subtotal, total, notes } = req.body;
+router.post('/hold', authenticateToken, authorize('pos', 'hold'), async (req, res) => {
+    try {
+        const branchId = req.user.branchId || 1;
+        const { customer_name, customer_phone, cart_data, subtotal, total, notes } = req.body;
 
-    if (!cart_data || !cart_data.length) {
-        return res.status(400).json({ error: 'Cannot hold an empty cart' });
+        if (!cart_data || !cart_data.length) {
+            return res.status(400).json({ error: 'Cannot hold an empty cart' });
+        }
+
+        const holdRef = `HOLD-${Date.now().toString().slice(-6)}`;
+
+        await dbAdapter.run(`
+            INSERT INTO held_sales (
+                branch_id, cashier_user_id, hold_reference, customer_name,
+                customer_phone, cart_data_json, subtotal, total, notes
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `, [
+            branchId, req.user.id, holdRef, customer_name || 'Walk-in',
+            customer_phone || '', JSON.stringify(cart_data),
+            Number(subtotal) || 0, Number(total) || 0, notes || ''
+        ]);
+
+        res.status(201).json({ hold_reference: holdRef, message: 'Sale held successfully' });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
     }
-
-    const holdRef = `HOLD-${Date.now().toString().slice(-6)}`;
-
-    db.prepare(`
-        INSERT INTO held_sales (
-            branch_id, cashier_user_id, hold_reference, customer_name,
-            customer_phone, cart_data_json, subtotal, total, notes
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(
-        branchId, req.user.id, holdRef, customer_name || 'Walk-in',
-        customer_phone || '', JSON.stringify(cart_data),
-        Number(subtotal) || 0, Number(total) || 0, notes || ''
-    );
-
-    res.status(201).json({ hold_reference: holdRef, message: 'Sale held successfully' });
 });
 
 // GET /api/pos/held - List held sales for this branch
-router.get('/held', authenticateToken, authorize('pos', 'view'), (req, res) => {
-    const branchId = req.user.branchId || 1;
-    const held = db.prepare(`
-        SELECT hs.*, u.full_name as cashier_name
-        FROM held_sales hs
-        JOIN users u ON hs.cashier_user_id = u.id
-        WHERE hs.branch_id = ?
-        ORDER BY hs.id DESC
-    `).all(branchId);
+router.get('/held', authenticateToken, authorize('pos', 'view'), async (req, res) => {
+    try {
+        const branchId = req.user.branchId || 1;
+        const held = await dbAdapter.all(`
+            SELECT hs.*, u.full_name as cashier_name
+            FROM held_sales hs
+            JOIN users u ON hs.cashier_user_id = u.id
+            WHERE hs.branch_id = ?
+            ORDER BY hs.id DESC
+        `, [branchId]);
 
-    const parsed = held.map(h => ({
-        ...h,
-        cart_data: JSON.parse(h.cart_data_json)
-    }));
+        const parsed = held.map(h => ({
+            ...h,
+            cart_data: typeof h.cart_data_json === 'string' ? JSON.parse(h.cart_data_json) : h.cart_data_json
+        }));
 
-    res.json(parsed);
+        res.json(parsed);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
 });
 
 // DELETE /api/pos/held/:id - Resume or discard held sale
-router.delete('/held/:id', authenticateToken, authorize('pos', 'hold', { entityTable: 'held_sales' }), (req, res) => {
-    const heldId = Number(req.params.id);
-    db.prepare('DELETE FROM held_sales WHERE id = ?').run(heldId);
-    res.json({ message: 'Held sale cleared successfully' });
+router.delete('/held/:id', authenticateToken, authorize('pos', 'hold', { entityTable: 'held_sales' }), async (req, res) => {
+    try {
+        const heldId = Number(req.params.id);
+        await dbAdapter.run('DELETE FROM held_sales WHERE id = ?', [heldId]);
+        res.json({ message: 'Held sale cleared successfully' });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
 });
 
 // =========================================================================
@@ -861,13 +879,13 @@ router.delete('/held/:id', authenticateToken, authorize('pos', 'hold', { entityT
 const counterBookingService = require('../services/counterBookingService.js');
 
 // POST /api/pos/counter/quote - Live volumetric rating quote for counter intake
-router.post('/counter/quote', authenticateToken, (req, res) => {
+router.post('/counter/quote', authenticateToken, async (req, res) => {
     try {
         const payload = {
             ...req.body,
             origin_hub_id: req.body.origin_hub_id || req.user.branchId || 1
         };
-        const quote = counterBookingService.calculateCounterQuote(payload);
+        const quote = await counterBookingService.calculateCounterQuote(payload);
         res.json(quote);
     } catch (err) {
         console.error('Counter quote error:', err);
@@ -879,13 +897,13 @@ router.post('/counter/quote', authenticateToken, (req, res) => {
 });
 
 // POST /api/pos/counter/book - Complete atomic parcel intake booking, payment & waybill
-router.post('/counter/book', authenticateToken, authorize('pos', 'create'), (req, res) => {
+router.post('/counter/book', authenticateToken, authorize('pos', 'create'), async (req, res) => {
     try {
         const payload = {
             ...req.body,
             origin_hub_id: req.body.origin_hub_id || req.user.branchId || 1
         };
-        const result = counterBookingService.bookCounterShipment(payload, req.user);
+        const result = await counterBookingService.bookCounterShipment(payload, req.user);
         res.status(201).json({
             success: true,
             message: 'Parcel shipment successfully booked, paid, and accepted into origin hub custody.',
@@ -901,9 +919,9 @@ router.post('/counter/book', authenticateToken, authorize('pos', 'create'), (req
 });
 
 // GET /api/pos/counter/waybill/:identifier - Retrieve printable waybill for reprint / view
-router.get('/counter/waybill/:identifier', authenticateToken, (req, res) => {
+router.get('/counter/waybill/:identifier', authenticateToken, async (req, res) => {
     try {
-        const waybill = counterBookingService.getWaybillByIdentifier(req.params.identifier, req.user);
+        const waybill = await counterBookingService.getWaybillByIdentifier(req.params.identifier, req.user);
         if (!waybill) {
             return res.status(404).json({ error: 'Waybill not found for the provided identifier' });
         }
@@ -918,4 +936,3 @@ router.get('/counter/waybill/:identifier', authenticateToken, (req, res) => {
 });
 
 module.exports = router;
-

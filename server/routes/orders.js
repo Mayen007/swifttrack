@@ -5,9 +5,9 @@ const { authenticateToken, enforceBranchIsolation } = require('../middleware/aut
 const orderService = require('../services/orderService.js');
 
 // GET /api/orders/export - Export filtered orders to CSV
-router.get('/export', authenticateToken, (req, res) => {
+router.get('/export', authenticateToken, async (req, res) => {
     try {
-        const csv = orderService.exportOrdersToCsv(req.query, req.user);
+        const csv = await orderService.exportOrdersToCsv(req.query, req.user);
         res.setHeader('Content-Type', 'text/csv');
         res.setHeader('Content-Disposition', `attachment; filename="orders-export-${Date.now()}.csv"`);
         res.status(200).send(csv);
@@ -18,13 +18,13 @@ router.get('/export', authenticateToken, (req, res) => {
 });
 
 // GET /api/orders - List orders scoped by branch isolation and multi-axis filters
-router.get('/', authenticateToken, enforceBranchIsolation, (req, res) => {
+router.get('/', authenticateToken, enforceBranchIsolation, async (req, res) => {
     try {
         const filters = {
             ...req.query,
             branch_id: req.effectiveBranchId || req.query.branch_id
         };
-        const orders = orderService.listOrders(filters, req.user);
+        const orders = await orderService.listOrders(filters, req.user);
         res.json(orders);
     } catch (err) {
         console.error('List orders error:', err);
@@ -33,9 +33,9 @@ router.get('/', authenticateToken, enforceBranchIsolation, (req, res) => {
 });
 
 // GET /api/orders/:id - Order details with items, timeline, delivery, and payments
-router.get('/:id', authenticateToken, (req, res) => {
+router.get('/:id', authenticateToken, async (req, res) => {
     try {
-        const order = orderService.getOrderById(req.params.id, req.user);
+        const order = await orderService.getOrderById(req.params.id, req.user);
         if (!order) {
             return res.status(404).json({ error: 'Order not found' });
         }
@@ -47,9 +47,9 @@ router.get('/:id', authenticateToken, (req, res) => {
 });
 
 // GET /api/orders/:id/invoice - Printable Commercial Tax Invoice data
-router.get('/:id/invoice', authenticateToken, (req, res) => {
+router.get('/:id/invoice', authenticateToken, async (req, res) => {
     try {
-        const invoice = orderService.generateInvoiceData(req.params.id, req.user);
+        const invoice = await orderService.generateInvoiceData(req.params.id, req.user);
         res.json(invoice);
     } catch (err) {
         console.error('Invoice error:', err);
@@ -58,9 +58,9 @@ router.get('/:id/invoice', authenticateToken, (req, res) => {
 });
 
 // POST /api/orders - Create a new order (DRAFT or CONFIRMED)
-router.post('/', authenticateToken, (req, res) => {
+router.post('/', authenticateToken, async (req, res) => {
     try {
-        const result = orderService.createOrder(req.body, req.user);
+        const result = await orderService.createOrder(req.body, req.user);
         res.status(201).json(result);
     } catch (err) {
         console.error('Create order error:', err);
@@ -72,9 +72,9 @@ router.post('/', authenticateToken, (req, res) => {
 });
 
 // PUT /api/orders/:id - Edit order before fulfillment (DRAFT or CONFIRMED only)
-router.put('/:id', authenticateToken, (req, res) => {
+router.put('/:id', authenticateToken, async (req, res) => {
     try {
-        const updated = orderService.editOrder(req.params.id, req.body, req.user);
+        const updated = await orderService.editOrder(req.params.id, req.body, req.user);
         res.json({
             message: 'Order updated successfully',
             order: updated
@@ -89,13 +89,13 @@ router.put('/:id', authenticateToken, (req, res) => {
 });
 
 // POST /api/orders/:id/transition - Transition order state through the formal state machine
-router.post('/:id/transition', authenticateToken, (req, res) => {
+router.post('/:id/transition', authenticateToken, async (req, res) => {
     try {
         const { status, notes, reason } = req.body;
         if (!status) {
             return res.status(400).json({ error: 'Target status is required for transition' });
         }
-        const updated = orderService.transitionOrderStatus(req.params.id, status, { notes, reason }, req.user);
+        const updated = await orderService.transitionOrderStatus(req.params.id, status, { notes, reason }, req.user);
         res.json({
             message: `Order successfully transitioned to ${status}`,
             order: updated
@@ -110,13 +110,13 @@ router.post('/:id/transition', authenticateToken, (req, res) => {
 });
 
 // PATCH /api/orders/:id/status - Backwards compatible status updater
-router.patch('/:id/status', authenticateToken, (req, res) => {
+router.patch('/:id/status', authenticateToken, async (req, res) => {
     try {
         const { status, notes, reason } = req.body;
         if (!status) {
             return res.status(400).json({ error: 'Status is required' });
         }
-        const updated = orderService.transitionOrderStatus(req.params.id, status, { notes, reason }, req.user);
+        const updated = await orderService.transitionOrderStatus(req.params.id, status, { notes, reason }, req.user);
         res.json({
             message: 'Order status updated successfully',
             status: updated.status,
@@ -132,10 +132,10 @@ router.patch('/:id/status', authenticateToken, (req, res) => {
 });
 
 // POST /api/orders/:id/cancel - Cancel order and release reservations
-router.post('/:id/cancel', authenticateToken, (req, res) => {
+router.post('/:id/cancel', authenticateToken, async (req, res) => {
     try {
         const { reason, notes } = req.body;
-        const updated = orderService.transitionOrderStatus(req.params.id, 'CANCELLED', { reason, notes }, req.user);
+        const updated = await orderService.transitionOrderStatus(req.params.id, 'CANCELLED', { reason, notes }, req.user);
         res.json({
             message: 'Order cancelled successfully and inventory reservations released',
             order: updated
@@ -150,10 +150,10 @@ router.post('/:id/cancel', authenticateToken, (req, res) => {
 });
 
 // POST /api/orders/:id/notes - Add internal staff note
-router.post('/:id/notes', authenticateToken, (req, res) => {
+router.post('/:id/notes', authenticateToken, async (req, res) => {
     try {
         const { note } = req.body;
-        const notes = orderService.addInternalNote(req.params.id, note, req.user);
+        const notes = await orderService.addInternalNote(req.params.id, note, req.user);
         res.status(201).json({
             message: 'Internal note added successfully',
             notes

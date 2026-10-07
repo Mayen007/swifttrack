@@ -1,6 +1,6 @@
 // server/services/catalogService.js
 // Catalog Business Operations: SKU Generation, Variant Warehouse Allocations & Lifecycle
-const { db } = require('../db/database.js');
+const dbAdapter = require('../db/dbAdapter.js');
 const { logAuditEvent } = require('../middleware/audit.js');
 
 /**
@@ -18,33 +18,46 @@ function generateVariantSku(parentSku, attributes = {}) {
 /**
  * Initializes variant inventory rows across all active warehouses
  */
-function initVariantInventory(productId, variantId) {
-    const warehouses = db.prepare('SELECT id, branch_id FROM warehouses WHERE is_active = 1').all();
+async function initVariantInventory(productId, variantId, client = null) {
+    const isPostgres = process.env.DB_CLIENT === 'postgres' || (!!process.env.DATABASE_URL && process.env.DB_CLIENT !== 'sqlite');
+    const activeCondition = isPostgres ? 'is_active = true' : 'is_active = 1';
+    const warehouses = await dbAdapter.all(`SELECT id, branch_id FROM warehouses WHERE ${activeCondition}`, [], client);
     for (const w of warehouses) {
-        db.prepare(`
-            INSERT OR IGNORE INTO variant_inventory (
-                branch_id, warehouse_id, product_id, variant_id,
-                quantity_on_hand, quantity_reserved, quantity_available
-            ) VALUES (?, ?, ?, ?, 0, 0, 0)
-        `).run(w.branch_id, w.id, Number(productId), Number(variantId));
+        if (isPostgres) {
+            await dbAdapter.run(`
+                INSERT INTO variant_inventory (
+                    branch_id, warehouse_id, product_id, variant_id,
+                    quantity_on_hand, quantity_reserved, quantity_available
+                ) VALUES (?, ?, ?, ?, 0, 0, 0)
+                ON CONFLICT (warehouse_id, variant_id) DO NOTHING
+            `, [w.branch_id, w.id, Number(productId), Number(variantId)], client);
+        } else {
+            await dbAdapter.run(`
+                INSERT OR IGNORE INTO variant_inventory (
+                    branch_id, warehouse_id, product_id, variant_id,
+                    quantity_on_hand, quantity_reserved, quantity_available
+                ) VALUES (?, ?, ?, ?, 0, 0, 0)
+            `, [w.branch_id, w.id, Number(productId), Number(variantId)], client);
+        }
     }
 }
 
 /**
  * Archives a product (soft-delete)
  */
-function archiveProduct(productId, user) {
+async function archiveProduct(productId, user, client = null) {
     const targetId = Number(productId);
-    const prev = db.prepare('SELECT * FROM products WHERE id = ?').get(targetId);
+    const prev = await dbAdapter.get('SELECT * FROM products WHERE id = ?', [targetId], client);
     if (!prev) throw new Error('Product not found');
 
-    db.prepare(`
-        UPDATE products
-        SET is_archived = 1, is_active = 0, archived_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
-        WHERE id = ?
-    `).run(targetId);
+    const isPostgres = process.env.DB_CLIENT === 'postgres' || (!!process.env.DATABASE_URL && process.env.DB_CLIENT !== 'sqlite');
+    const updateSql = isPostgres
+        ? `UPDATE products SET is_archived = true, is_active = false, archived_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = ?`
+        : `UPDATE products SET is_archived = 1, is_active = 0, archived_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = ?`;
 
-    logAuditEvent({
+    await dbAdapter.run(updateSql, [targetId], client);
+
+    await logAuditEvent({
         userId: user.id,
         role: user.roleName,
         action: 'ARCHIVE',
@@ -56,24 +69,25 @@ function archiveProduct(productId, user) {
         reason: 'Archived product from active catalog'
     });
 
-    return db.prepare('SELECT * FROM products WHERE id = ?').get(targetId);
+    return dbAdapter.get('SELECT * FROM products WHERE id = ?', [targetId], client);
 }
 
 /**
  * Restores an archived product
  */
-function restoreProduct(productId, user) {
+async function restoreProduct(productId, user, client = null) {
     const targetId = Number(productId);
-    const prev = db.prepare('SELECT * FROM products WHERE id = ?').get(targetId);
+    const prev = await dbAdapter.get('SELECT * FROM products WHERE id = ?', [targetId], client);
     if (!prev) throw new Error('Product not found');
 
-    db.prepare(`
-        UPDATE products
-        SET is_archived = 0, is_active = 1, archived_at = NULL, updated_at = CURRENT_TIMESTAMP
-        WHERE id = ?
-    `).run(targetId);
+    const isPostgres = process.env.DB_CLIENT === 'postgres' || (!!process.env.DATABASE_URL && process.env.DB_CLIENT !== 'sqlite');
+    const updateSql = isPostgres
+        ? `UPDATE products SET is_archived = false, is_active = true, archived_at = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = ?`
+        : `UPDATE products SET is_archived = 0, is_active = 1, archived_at = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = ?`;
 
-    logAuditEvent({
+    await dbAdapter.run(updateSql, [targetId], client);
+
+    await logAuditEvent({
         userId: user.id,
         role: user.roleName,
         action: 'RESTORE',
@@ -85,7 +99,7 @@ function restoreProduct(productId, user) {
         reason: 'Restored archived product to active catalog'
     });
 
-    return db.prepare('SELECT * FROM products WHERE id = ?').get(targetId);
+    return dbAdapter.get('SELECT * FROM products WHERE id = ?', [targetId], client);
 }
 
 module.exports = {

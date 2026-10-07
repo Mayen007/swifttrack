@@ -1,6 +1,6 @@
 // server/services/driverService.js
 // SwiftTrack Kenya: Logistics & Fleet Management — Driver Management Service (Phase 9.1)
-const { db } = require('../db/database.js');
+const dbAdapter = require('../db/dbAdapter.js');
 const { logAuditEvent } = require('../middleware/audit.js');
 const { hashPassword } = require('../utils/security.js');
 
@@ -12,15 +12,16 @@ const VALID_EMPLOYMENT_TYPES = ['FULL_TIME', 'CONTRACTOR', 'CASUAL'];
 /**
  * Generate sequential unique employee code: DRV-0001, DRV-0002...
  */
-function generateEmployeeCode() {
+async function generateEmployeeCode(tx = null) {
+    const executor = tx || dbAdapter;
     let nextNum = 1;
-    const maxRow = db.prepare(`
+    const maxRow = await executor.get(`
         SELECT employee_code 
         FROM drivers 
         WHERE employee_code LIKE 'DRV-%' 
         ORDER BY id DESC 
         LIMIT 1
-    `).get();
+    `);
 
     if (maxRow && maxRow.employee_code) {
         const parts = maxRow.employee_code.split('-');
@@ -30,11 +31,11 @@ function generateEmployeeCode() {
     }
 
     let code = `DRV-${String(nextNum).padStart(4, '0')}`;
-    let exists = db.prepare('SELECT id FROM drivers WHERE employee_code = ?').get(code);
+    let exists = await executor.get('SELECT id FROM drivers WHERE employee_code = ?', [code]);
     while (exists) {
         nextNum++;
         code = `DRV-${String(nextNum).padStart(4, '0')}`;
-        exists = db.prepare('SELECT id FROM drivers WHERE employee_code = ?').get(code);
+        exists = await executor.get('SELECT id FROM drivers WHERE employee_code = ?', [code]);
     }
     return code;
 }
@@ -94,7 +95,7 @@ function calculateCompliance(licenseExpiryDate, ntsaVerified) {
 /**
  * List drivers with optional branch isolation, status filter, compliance filter, and search
  */
-function listDrivers({ branchId, status, search, complianceStatus, page = 1, limit = 50 }) {
+async function listDrivers({ branchId, status, search, complianceStatus, page = 1, limit = 50 }) {
     const pageNum = Math.max(1, Number(page) || 1);
     const pageLimit = Math.max(1, Math.min(100, Number(limit) || 50));
     const offset = (pageNum - 1) * pageLimit;
@@ -132,7 +133,8 @@ function listDrivers({ branchId, status, search, complianceStatus, page = 1, lim
     }
 
     const countSql = `SELECT count(*) as total ${baseSql}`;
-    const totalCount = db.prepare(countSql).get(...params).total;
+    const countRow = await dbAdapter.get(countSql, params);
+    const totalCount = countRow ? Number(countRow.total) : 0;
 
     const dataSql = `
         SELECT 
@@ -155,7 +157,7 @@ function listDrivers({ branchId, status, search, complianceStatus, page = 1, lim
         LIMIT ? OFFSET ?
     `;
 
-    const rawDrivers = db.prepare(dataSql).all(...params, pageLimit, offset);
+    const rawDrivers = await dbAdapter.all(dataSql, [...params, pageLimit, offset]);
 
     const drivers = rawDrivers.map(drv => {
         const comp = calculateCompliance(drv.license_expiry_date, drv.ntsa_verified);
@@ -166,7 +168,6 @@ function listDrivers({ branchId, status, search, complianceStatus, page = 1, lim
         };
     });
 
-    // If complianceStatus filter requested ('VALID', 'EXPIRING_SOON', 'EXPIRED', 'UNVERIFIED')
     const filteredDrivers = complianceStatus 
         ? drivers.filter(d => d.compliance.status === complianceStatus.toUpperCase())
         : drivers;
@@ -185,8 +186,9 @@ function listDrivers({ branchId, status, search, complianceStatus, page = 1, lim
 /**
  * Get full driver profile by driver ID
  */
-function getDriverById(id) {
-    const driver = db.prepare(`
+async function getDriverById(id, tx = null) {
+    const executor = tx || dbAdapter;
+    const driver = await executor.get(`
         SELECT 
             d.*,
             COALESCE(d.vehicle_id, v.id) as vehicle_id,
@@ -209,7 +211,7 @@ function getDriverById(id) {
         JOIN branches b ON d.branch_id = b.id
         LEFT JOIN vehicles v ON (d.vehicle_id = v.id OR v.assigned_driver_id = d.id)
         WHERE d.id = ?
-    `).get(id);
+    `, [id]);
 
     if (!driver) {
         const err = new Error('Driver not found');
@@ -225,7 +227,7 @@ function getDriverById(id) {
 /**
  * Create a new driver profile with optional staff user account provisioning
  */
-function createDriver(data, creatorUserId = null) {
+async function createDriver(data, creatorUserId = null) {
     const {
         full_name,
         email,
@@ -252,7 +254,7 @@ function createDriver(data, creatorUserId = null) {
         emergency_contact_relation,
         vehicle_id = null,
         notes = null,
-        user_id = null, // Can link existing user or auto-provision
+        user_id = null,
         username = null,
         password = null
     } = data;
@@ -266,7 +268,7 @@ function createDriver(data, creatorUserId = null) {
     }
 
     // Verify branch exists
-    const branch = db.prepare('SELECT id, name, city FROM branches WHERE id = ?').get(branch_id);
+    const branch = await dbAdapter.get('SELECT id, name, city FROM branches WHERE id = ?', [branch_id]);
     if (!branch) {
         const err = new Error(`Branch with ID ${branch_id} does not exist`);
         err.statusCode = 400;
@@ -274,10 +276,10 @@ function createDriver(data, creatorUserId = null) {
     }
 
     // Verify vehicle if provided
-    if (vehicle_id) {
-        const vehicle = db.prepare('SELECT id, branch_id, is_active FROM vehicles WHERE id = ?').get(vehicle_id);
+    if (chosenVehicleId) {
+        const vehicle = await dbAdapter.get('SELECT id, branch_id, is_active FROM vehicles WHERE id = ?', [chosenVehicleId]);
         if (!vehicle) {
-            const err = new Error(`Vehicle with ID ${vehicle_id} does not exist`);
+            const err = new Error(`Vehicle with ID ${chosenVehicleId} does not exist`);
             err.statusCode = 400;
             throw err;
         }
@@ -285,8 +287,7 @@ function createDriver(data, creatorUserId = null) {
 
     let linkedUserId = user_id;
 
-    // Use transaction for atomic user + driver creation
-    const createdDriver = db.transaction(() => {
+    return await dbAdapter.withTransaction(async (tx) => {
         // 1. Provision user if not provided
         if (!linkedUserId) {
             const genUsername = username || `driver.${full_name.toLowerCase().replace(/[^a-z0-9]/g, '')}.${Math.floor(100 + Math.random() * 900)}`;
@@ -295,20 +296,20 @@ function createDriver(data, creatorUserId = null) {
             const passHash = hashPassword(rawPassword);
 
             // Check if username/email already taken
-            const existingUser = db.prepare('SELECT id FROM users WHERE username = ? OR email = ?').get(genUsername, genEmail);
+            const existingUser = await tx.get('SELECT id FROM users WHERE username = ? OR email = ?', [genUsername, genEmail]);
             if (existingUser) {
                 linkedUserId = existingUser.id;
             } else {
-                const userInsert = db.prepare(`
+                const userInsert = await tx.run(`
                     INSERT INTO users (
                         branch_id, role_id, username, email, full_name, phone, password_hash, is_active, created_at, updated_at
-                    ) VALUES (?, 5, ?, ?, ?, ?, ?, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-                `).run(branch_id, genUsername, genEmail, full_name, phone, passHash);
-                linkedUserId = Number(userInsert.lastInsertRowid);
+                    ) VALUES (?, 5, ?, ?, ?, ?, ?, true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                `, [branch_id, genUsername, genEmail, full_name, phone, passHash]);
+                linkedUserId = Number(userInsert.insertId);
             }
         } else {
             // Verify existing user exists and is not already a driver
-            const existingDriverUser = db.prepare('SELECT id FROM drivers WHERE user_id = ?').get(linkedUserId);
+            const existingDriverUser = await tx.get('SELECT id FROM drivers WHERE user_id = ?', [linkedUserId]);
             if (existingDriverUser) {
                 const err = new Error(`User ID ${linkedUserId} is already assigned to driver #${existingDriverUser.id}`);
                 err.statusCode = 400;
@@ -317,10 +318,10 @@ function createDriver(data, creatorUserId = null) {
         }
 
         // 2. Generate unique employee code
-        const employeeCode = data.employee_code || generateEmployeeCode();
+        const employeeCode = data.employee_code || await generateEmployeeCode(tx);
 
         // 3. Insert driver
-        const insertStmt = db.prepare(`
+        const result = await tx.run(`
             INSERT INTO drivers (
                 user_id, branch_id, employee_code, employment_type, hire_date, avatar_url, blood_group,
                 phone, alt_phone, email, residential_address, city,
@@ -338,9 +339,7 @@ function createDriver(data, creatorUserId = null) {
                 ?, ?, ?, 'AVAILABLE', 'Initial onboarding', CURRENT_TIMESTAMP,
                 5.0, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
             )
-        `);
-
-        const result = insertStmt.run(
+        `, [
             linkedUserId,
             branch_id,
             employeeCode,
@@ -364,42 +363,26 @@ function createDriver(data, creatorUserId = null) {
             license_classes,
             license_issue_date || null,
             license_expiry_date || null,
-            ntsa_verified ? 1 : 0,
+            ntsa_verified ? true : false,
             ntsa_verified ? (data.ntsa_verification_date || new Date().toISOString().split('T')[0]) : null,
             chosenVehicleId || null,
             notes || null
-        );
+        ]);
 
-        const driverId = Number(result.lastInsertRowid);
+        const driverId = Number(result.insertId);
 
         // Sync vehicle assigned_driver_id if vehicle was chosen
         if (chosenVehicleId) {
-            db.prepare('UPDATE drivers SET vehicle_id = NULL WHERE vehicle_id = ? AND id != ?').run(chosenVehicleId, driverId);
-            db.prepare('UPDATE vehicles SET assigned_driver_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(driverId, chosenVehicleId);
-
-            const isPostgres = process.env.DB_CLIENT === 'postgres' || (!!process.env.DATABASE_URL && process.env.DB_CLIENT !== 'sqlite');
-            if (isPostgres) {
-                try {
-                    const pool = require('../db/postgres/pool.js');
-                    const pg = pool.getPool();
-                    (async () => {
-                        try {
-                            await pg.query('UPDATE drivers SET vehicle_id = NULL WHERE vehicle_id = $1 AND id != $2', [chosenVehicleId, driverId]);
-                            await pg.query('UPDATE vehicles SET assigned_driver_id = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2', [driverId, chosenVehicleId]);
-                        } catch (e) {
-                            console.error('[DriverService Create PG Sync Error]:', e.message);
-                        }
-                    })();
-                } catch {}
-            }
+            await tx.run('UPDATE drivers SET vehicle_id = NULL WHERE vehicle_id = ? AND id != ?', [chosenVehicleId, driverId]);
+            await tx.run('UPDATE vehicles SET assigned_driver_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?', [driverId, chosenVehicleId]);
         }
 
         // 4. Log initial status
-        db.prepare(`
+        await tx.run(`
             INSERT INTO driver_status_history (
                 driver_id, from_status, to_status, reason, changed_by_user_id, created_at
             ) VALUES (?, NULL, 'AVAILABLE', 'Driver created and activated', ?, CURRENT_TIMESTAMP)
-        `).run(driverId, creatorUserId || null);
+        `, [driverId, creatorUserId || null]);
 
         // 5. Audit log
         logAuditEvent({
@@ -413,17 +396,15 @@ function createDriver(data, creatorUserId = null) {
             reason: 'Driver profile created'
         });
 
-        return getDriverById(driverId);
-    })();
-
-    return createdDriver;
+        return await getDriverById(driverId, tx);
+    });
 }
 
 /**
  * Update driver profile
  */
-function updateDriver(id, data, updaterUserId = null) {
-    const existing = getDriverById(id);
+async function updateDriver(id, data, updaterUserId = null) {
+    const existing = await getDriverById(id);
 
     const full_name = data.full_name !== undefined ? data.full_name : existing.full_name;
     const phone = data.phone !== undefined ? data.phone : existing.phone;
@@ -446,13 +427,13 @@ function updateDriver(id, data, updaterUserId = null) {
     const license_classes = data.license_classes !== undefined ? data.license_classes : existing.license_classes;
     const license_issue_date = data.license_issue_date !== undefined ? data.license_issue_date : existing.license_issue_date;
     const license_expiry_date = data.license_expiry_date !== undefined ? data.license_expiry_date : existing.license_expiry_date;
-    const ntsa_verified = data.ntsa_verified !== undefined ? (data.ntsa_verified ? 1 : 0) : existing.ntsa_verified;
+    const ntsa_verified = data.ntsa_verified !== undefined ? (data.ntsa_verified ? true : false) : existing.ntsa_verified;
     const ntsa_verification_date = data.ntsa_verification_date !== undefined ? data.ntsa_verification_date : existing.ntsa_verification_date;
     const rating = data.rating !== undefined ? Number(data.rating) : existing.rating;
     const notes = data.notes !== undefined ? data.notes : existing.notes;
 
-    db.transaction(() => {
-        db.prepare(`
+    return await dbAdapter.withTransaction(async (tx) => {
+        await tx.run(`
             UPDATE drivers
             SET phone = ?,
                 alt_phone = ?,
@@ -480,40 +461,19 @@ function updateDriver(id, data, updaterUserId = null) {
                 notes = ?,
                 updated_at = CURRENT_TIMESTAMP
             WHERE id = ?
-        `).run(
-            phone,
-            alt_phone,
-            email,
-            employment_type,
-            hire_date,
-            avatar_url,
-            blood_group,
-            residential_address,
-            city,
-            emergency_contact_name,
-            emergency_contact_phone,
-            emergency_contact_relation,
-            national_id,
-            kra_pin,
-            nssf_number,
-            nhif_number,
-            license_number,
-            license_classes,
-            license_issue_date,
-            license_expiry_date,
-            ntsa_verified,
-            ntsa_verification_date,
-            rating,
-            notes,
+        `, [
+            phone, alt_phone || null, email || null, employment_type, hire_date || null,
+            avatar_url || null, blood_group || null, residential_address || null, city || null,
+            emergency_contact_name || null, emergency_contact_phone || null, emergency_contact_relation || null,
+            national_id || null, kra_pin || null, nssf_number || null, nhif_number || null,
+            license_number, license_classes, license_issue_date || null, license_expiry_date || null,
+            ntsa_verified, ntsa_verification_date || null, rating, notes || null,
             id
-        );
+        ]);
 
-        // Keep linked user record in sync
-        db.prepare(`
-            UPDATE users
-            SET full_name = ?, phone = ?, email = COALESCE(?, email), updated_at = CURRENT_TIMESTAMP
-            WHERE id = ?
-        `).run(full_name, phone, email, existing.user_id);
+        if (data.full_name) {
+            await tx.run('UPDATE users SET full_name = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?', [data.full_name, existing.user_id]);
+        }
 
         logAuditEvent({
             userId: updaterUserId,
@@ -522,144 +482,105 @@ function updateDriver(id, data, updaterUserId = null) {
             resource: 'DRIVER',
             resourceId: id,
             branchId: existing.branch_id,
-            previousValue: { license_number: existing.license_number, phone: existing.phone },
-            newValue: { license_number, phone, national_id, kra_pin },
-            reason: 'Driver profile updated'
+            previousValue: { phone: existing.phone, license_number: existing.license_number },
+            newValue: { phone, license_number },
+            reason: 'Driver profile details updated'
         });
-    })();
 
-    return getDriverById(id);
+        return await getDriverById(id, tx);
+    });
 }
 
 /**
- * Transition driver operational status with transition history logging
+ * Update driver operational status
  */
-function updateDriverStatus(driverId, newStatus, reason = null, userId = null) {
-    const driver = getDriverById(driverId);
-    const upperStatus = newStatus.toUpperCase();
-
-    if (!VALID_STATUSES.includes(upperStatus)) {
-        const err = new Error(`Invalid status '${newStatus}'. Allowed: ${VALID_STATUSES.join(', ')}`);
+async function updateDriverStatus(driverId, status, reason = null, userId = null) {
+    if (!VALID_STATUSES.includes(status)) {
+        const err = new Error(`Invalid driver status '${status}'. Allowed statuses: ${VALID_STATUSES.join(', ')}`);
         err.statusCode = 400;
         throw err;
     }
 
-    if (driver.status === upperStatus) {
-        return driver; // No-op if already in target status
-    }
+    const driver = await getDriverById(driverId);
+    const prevStatus = driver.status;
 
-    // Safety guard: if going to OFF_DUTY or ON_LEAVE or SUSPENDED while ON_DELIVERY with active jobs
-    if (['OFF_DUTY', 'ON_LEAVE', 'SUSPENDED'].includes(upperStatus) && driver.active_deliveries_count > 0) {
-        // Can still force if explicit reason provided, else reject to protect shipments
-        if (!reason) {
-            const err = new Error(`Cannot transition driver to ${upperStatus} while they have ${driver.active_deliveries_count} active deliveries. Provide an explicit override reason.`);
-            err.statusCode = 400;
-            throw err;
-        }
-    }
-
-    db.transaction(() => {
-        db.prepare(`
+    return await dbAdapter.withTransaction(async (tx) => {
+        await tx.run(`
             UPDATE drivers
             SET status = ?,
                 status_reason = ?,
                 status_updated_at = CURRENT_TIMESTAMP,
                 updated_at = CURRENT_TIMESTAMP
             WHERE id = ?
-        `).run(upperStatus, reason || null, driverId);
+        `, [status, reason || null, driverId]);
 
-        db.prepare(`
+        await tx.run(`
             INSERT INTO driver_status_history (
                 driver_id, from_status, to_status, reason, changed_by_user_id, created_at
             ) VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-        `).run(driverId, driver.status, upperStatus, reason || null, userId || null);
+        `, [driverId, prevStatus, status, reason || null, userId || null]);
 
         logAuditEvent({
             userId,
             role: 'DISPATCHER',
-            action: 'UPDATE',
-            resource: 'DRIVER_STATUS',
+            action: 'STATUS_CHANGE',
+            resource: 'DRIVER',
             resourceId: driverId,
             branchId: driver.branch_id,
-            previousValue: { status: driver.status },
-            newValue: { status: upperStatus, reason },
-            reason: `Driver status changed from ${driver.status} to ${upperStatus}`
+            previousValue: { status: prevStatus },
+            newValue: { status, reason },
+            reason: `Driver status transitioned from ${prevStatus} to ${status}`
         });
-    })();
 
-    return getDriverById(driverId);
+        return await getDriverById(driverId, tx);
+    });
 }
 
 /**
- * Assign / reassign driver to a branch depot
+ * Assign or reassign driver to a branch
  */
-function assignDriverBranch(driverId, newBranchId, userId = null) {
-    const driver = getDriverById(driverId);
-
-    const branch = db.prepare('SELECT id, name FROM branches WHERE id = ?').get(newBranchId);
+async function assignDriverBranch(driverId, branchId, userId = null) {
+    const driver = await getDriverById(driverId);
+    const branch = await dbAdapter.get('SELECT id, name FROM branches WHERE id = ?', [branchId]);
     if (!branch) {
-        const err = new Error(`Target branch ID ${newBranchId} does not exist`);
-        err.statusCode = 400;
+        const err = new Error(`Branch with ID ${branchId} does not exist`);
+        err.statusCode = 404;
         throw err;
     }
 
-    if (driver.branch_id === newBranchId) {
-        return driver;
-    }
-
-    db.transaction(() => {
-        // If driver has a vehicle assigned, check if vehicle belongs to the old branch
-        if (driver.vehicle_id) {
-            const veh = db.prepare('SELECT branch_id FROM vehicles WHERE id = ?').get(driver.vehicle_id);
-            if (veh && veh.branch_id !== newBranchId) {
-                // Unassign vehicle on cross-branch transfer
-                db.prepare('UPDATE drivers SET vehicle_id = NULL WHERE id = ?').run(driverId);
-            }
-        }
-
-        db.prepare(`
-            UPDATE drivers
-            SET branch_id = ?, updated_at = CURRENT_TIMESTAMP
-            WHERE id = ?
-        `).run(newBranchId, driverId);
-
-        // Sync linked user record branch
-        db.prepare(`
-            UPDATE users
-            SET branch_id = ?, updated_at = CURRENT_TIMESTAMP
-            WHERE id = ?
-        `).run(newBranchId, driver.user_id);
+    return await dbAdapter.withTransaction(async (tx) => {
+        await tx.run('UPDATE drivers SET branch_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?', [branchId, driverId]);
+        await tx.run('UPDATE users SET branch_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?', [branchId, driver.user_id]);
 
         logAuditEvent({
             userId,
             role: 'SUPER_ADMIN',
-            action: 'UPDATE',
-            resource: 'DRIVER_BRANCH',
+            action: 'REASSIGN_BRANCH',
+            resource: 'DRIVER',
             resourceId: driverId,
-            branchId: newBranchId,
+            branchId,
             previousValue: { branch_id: driver.branch_id },
-            newValue: { branch_id: newBranchId },
-            reason: `Driver transferred to branch ${branch.name}`
+            newValue: { branch_id: branchId, branch_name: branch.name },
+            reason: `Driver reassigned to branch ${branch.name}`
         });
-    })();
 
-    return getDriverById(driverId);
+        return await getDriverById(driverId, tx);
+    });
 }
 
 /**
  * Assign or unassign fleet vehicle to driver
  */
-function assignDriverVehicle(driverId, vehicleId, userId = null) {
-    const driver = getDriverById(driverId);
-    const isPostgres = process.env.DB_CLIENT === 'postgres' || (!!process.env.DATABASE_URL && process.env.DB_CLIENT !== 'sqlite');
+async function assignDriverVehicle(driverId, vehicleId, userId = null) {
+    const driver = await getDriverById(driverId);
 
     if (!vehicleId) {
         // Unassign driver from vehicle
-        db.transaction(() => {
-            db.prepare('UPDATE drivers SET vehicle_id = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(driverId);
-            db.prepare('UPDATE vehicles SET assigned_driver_id = NULL, updated_at = CURRENT_TIMESTAMP WHERE assigned_driver_id = ?').run(driverId);
+        await dbAdapter.withTransaction(async (tx) => {
+            await tx.run('UPDATE drivers SET vehicle_id = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = ?', [driverId]);
+            await tx.run('UPDATE vehicles SET assigned_driver_id = NULL, updated_at = CURRENT_TIMESTAMP WHERE assigned_driver_id = ?', [driverId]);
             if (driver.vehicle_id) {
-                db.prepare('UPDATE vehicles SET assigned_driver_id = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(driver.vehicle_id);
+                await tx.run('UPDATE vehicles SET assigned_driver_id = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = ?', [driver.vehicle_id]);
             }
 
             logAuditEvent({
@@ -673,61 +594,33 @@ function assignDriverVehicle(driverId, vehicleId, userId = null) {
                 newValue: { vehicle_id: null },
                 reason: 'Driver unassigned from vehicle'
             });
-        })();
+        });
 
-        if (isPostgres) {
-            try {
-                const pool = require('../db/postgres/pool.js');
-                const pg = pool.getPool();
-                (async () => {
-                    try {
-                        await pg.query('UPDATE drivers SET vehicle_id = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = $1', [driverId]);
-                        await pg.query('UPDATE vehicles SET assigned_driver_id = NULL, updated_at = CURRENT_TIMESTAMP WHERE assigned_driver_id = $1', [driverId]);
-                        if (driver.vehicle_id) {
-                            await pg.query('UPDATE vehicles SET assigned_driver_id = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = $1', [driver.vehicle_id]);
-                        }
-                    } catch (e) {
-                        console.error('[DriverService PG Sync Error]:', e.message);
-                    }
-                })();
-            } catch (err) {
-                console.error('[DriverService PG Pool Error]:', err.message);
-            }
-        }
-
-        return getDriverById(driverId);
+        return await getDriverById(driverId);
     }
 
-    const vehicle = db.prepare('SELECT id, branch_id, registration_number, is_active FROM vehicles WHERE id = ?').get(vehicleId);
+    const vehicle = await dbAdapter.get('SELECT id, branch_id, registration_number, is_active FROM vehicles WHERE id = ?', [vehicleId]);
     if (!vehicle) {
         const err = new Error(`Vehicle with ID ${vehicleId} does not exist`);
         err.statusCode = 404;
         throw err;
     }
 
-    db.transaction(() => {
+    await dbAdapter.withTransaction(async (tx) => {
         // 1. If another driver currently has this vehicle, unassign them first
-        db.prepare('UPDATE drivers SET vehicle_id = NULL WHERE vehicle_id = ? AND id != ?').run(vehicleId, driverId);
+        await tx.run('UPDATE drivers SET vehicle_id = NULL WHERE vehicle_id = ? AND id != ?', [vehicleId, driverId]);
 
         // 2. If this driver previously had another vehicle, unassign that vehicle
         if (driver.vehicle_id && driver.vehicle_id !== vehicleId) {
-            db.prepare('UPDATE vehicles SET assigned_driver_id = NULL WHERE id = ?').run(driver.vehicle_id);
+            await tx.run('UPDATE vehicles SET assigned_driver_id = NULL WHERE id = ?', [driver.vehicle_id]);
         }
-        db.prepare('UPDATE vehicles SET assigned_driver_id = NULL WHERE assigned_driver_id = ? AND id != ?').run(driverId, vehicleId);
+        await tx.run('UPDATE vehicles SET assigned_driver_id = NULL WHERE assigned_driver_id = ? AND id != ?', [driverId, vehicleId]);
 
         // 3. Assign vehicle to driver
-        db.prepare(`
-            UPDATE drivers
-            SET vehicle_id = ?, updated_at = CURRENT_TIMESTAMP
-            WHERE id = ?
-        `).run(vehicleId, driverId);
+        await tx.run('UPDATE drivers SET vehicle_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?', [vehicleId, driverId]);
 
         // 4. Assign driver to vehicle
-        db.prepare(`
-            UPDATE vehicles
-            SET assigned_driver_id = ?, updated_at = CURRENT_TIMESTAMP
-            WHERE id = ?
-        `).run(driverId, vehicleId);
+        await tx.run('UPDATE vehicles SET assigned_driver_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?', [driverId, vehicleId]);
 
         logAuditEvent({
             userId,
@@ -740,36 +633,16 @@ function assignDriverVehicle(driverId, vehicleId, userId = null) {
             newValue: { vehicle_id: vehicleId, registration_number: vehicle.registration_number },
             reason: `Driver assigned to vehicle ${vehicle.registration_number}`
         });
-    })();
+    });
 
-    if (isPostgres) {
-        try {
-            const pool = require('../db/postgres/pool.js');
-            const pg = pool.getPool();
-            (async () => {
-                try {
-                    await pg.query('UPDATE drivers SET vehicle_id = NULL WHERE vehicle_id = $1 AND id != $2', [vehicleId, driverId]);
-                    await pg.query('UPDATE vehicles SET assigned_driver_id = NULL WHERE assigned_driver_id = $1 AND id != $2', [driverId, vehicleId]);
-                    await pg.query('UPDATE drivers SET vehicle_id = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2', [driverId, driverId]);
-                    await pg.query('UPDATE vehicles SET assigned_driver_id = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2', [driverId, vehicleId]);
-                } catch (e) {
-                    console.error('[DriverService PG Sync Error]:', e.message);
-                }
-            })();
-        } catch (err) {
-            console.error('[DriverService PG Pool Error]:', err.message);
-        }
-    }
-
-    return getDriverById(driverId);
+    return await getDriverById(driverId);
 }
 
 /**
  * Granular delivery history ledger for a driver
  */
-function getDriverDeliveryHistory(driverId, { limit = 20, page = 1, status = null } = {}) {
-    // Verify driver exists
-    const driver = getDriverById(driverId);
+async function getDriverDeliveryHistory(driverId, { limit = 20, page = 1, status = null } = {}) {
+    await getDriverById(driverId);
 
     const pageNum = Math.max(1, Number(page) || 1);
     const pageLimit = Math.max(1, Math.min(100, Number(limit) || 20));
@@ -790,7 +663,8 @@ function getDriverDeliveryHistory(driverId, { limit = 20, page = 1, status = nul
         params.push(status.toUpperCase());
     }
 
-    const totalCount = db.prepare(`SELECT count(*) as total ${baseSql}`).get(...params).total;
+    const countRow = await dbAdapter.get(`SELECT count(*) as total ${baseSql}`, params);
+    const totalCount = countRow ? Number(countRow.total) : 0;
 
     const querySql = `
         SELECT 
@@ -823,9 +697,8 @@ function getDriverDeliveryHistory(driverId, { limit = 20, page = 1, status = nul
         LIMIT ? OFFSET ?
     `;
 
-    const deliveries = db.prepare(querySql).all(...params, pageLimit, offset);
+    const deliveries = await dbAdapter.all(querySql, [...params, pageLimit, offset]);
 
-    // Calculate delivery turnaround duration & on-time flag
     const enriched = deliveries.map(d => {
         let turnaroundMinutes = null;
         let isOnTime = null;
@@ -865,11 +738,10 @@ function getDriverDeliveryHistory(driverId, { limit = 20, page = 1, status = nul
 /**
  * Driver Performance Scorecard Telemetry
  */
-function getDriverPerformance(driverId) {
-    const driver = getDriverById(driverId);
+async function getDriverPerformance(driverId) {
+    const driver = await getDriverById(driverId);
 
-    // Delivery stats
-    const stats = db.prepare(`
+    const stats = await dbAdapter.get(`
         SELECT 
             count(*) as total_assigned,
             sum(CASE WHEN status = 'DELIVERED' THEN 1 ELSE 0 END) as total_completed,
@@ -880,21 +752,19 @@ function getDriverPerformance(driverId) {
             sum(CASE WHEN priority = 'NORMAL' THEN 1 ELSE 0 END) as normal_deliveries
         FROM deliveries
         WHERE driver_id = ?
-    `).get(driverId);
+    `, [driverId]) || {};
 
-    const totalAssigned = stats.total_assigned || 0;
-    const totalCompleted = stats.total_completed || 0;
-    const totalFailed = stats.total_failed || 0;
-    const totalActive = stats.total_active || 0;
+    const totalAssigned = Number(stats.total_assigned) || 0;
+    const totalCompleted = Number(stats.total_completed) || 0;
+    const totalFailed = Number(stats.total_failed) || 0;
+    const totalActive = Number(stats.total_active) || 0;
     const finishedCount = totalCompleted + totalFailed;
 
-    // Success Rate %
     const successRate = finishedCount > 0 
         ? Math.round((totalCompleted / finishedCount) * 1000) / 10 
         : 100.0;
 
-    // On-Time Delivery Rate & Average Turnaround
-    const completedDeliveries = db.prepare(`
+    const completedDeliveries = await dbAdapter.all(`
         SELECT 
             scheduled_pickup_at,
             created_at,
@@ -902,7 +772,7 @@ function getDriverPerformance(driverId) {
             actual_delivery_at
         FROM deliveries
         WHERE driver_id = ? AND status = 'DELIVERED' AND actual_delivery_at IS NOT NULL
-    `).all(driverId);
+    `, [driverId]);
 
     let onTimeCount = 0;
     let totalMinutes = 0;
@@ -931,10 +801,10 @@ function getDriverPerformance(driverId) {
 
     const avgTurnaroundMinutes = validDurationCount > 0
         ? Math.round(totalMinutes / validDurationCount)
-        : 35; // Default fleet target benchmark
+        : 35;
 
-    // Safety incident count
-    const incidentCount = db.prepare('SELECT count(*) as count FROM driver_incident_logs WHERE driver_id = ?').get(driverId).count;
+    const incRow = await dbAdapter.get('SELECT count(*) as count FROM driver_incident_logs WHERE driver_id = ?', [driverId]);
+    const incidentCount = incRow ? Number(incRow.count) : 0;
 
     return {
         driver_id: driver.id,
@@ -953,9 +823,9 @@ function getDriverPerformance(driverId) {
             incident_count: incidentCount
         },
         priority_breakdown: {
-            urgent: stats.urgent_deliveries || 0,
-            high: stats.high_deliveries || 0,
-            normal: stats.normal_deliveries || 0
+            urgent: Number(stats.urgent_deliveries) || 0,
+            high: Number(stats.high_deliveries) || 0,
+            normal: Number(stats.normal_deliveries) || 0
         },
         compliance: driver.compliance
     };
@@ -964,8 +834,8 @@ function getDriverPerformance(driverId) {
 /**
  * Log driver incident
  */
-function logDriverIncident(driverId, data, userId) {
-    const driver = getDriverById(driverId);
+async function logDriverIncident(driverId, data, userId) {
+    const driver = await getDriverById(driverId);
     const {
         incident_type,
         severity = 'LOW',
@@ -992,79 +862,80 @@ function logDriverIncident(driverId, data, userId) {
         throw err;
     }
 
-    const result = db.prepare(`
-        INSERT INTO driver_incident_logs (
-            driver_id, incident_type, severity, incident_date, description, action_taken, logged_by_user_id, created_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-    `).run(
-        driverId,
-        incident_type.toUpperCase(),
-        severity.toUpperCase(),
-        incident_date,
-        description,
-        action_taken,
-        userId
-    );
+    return await dbAdapter.withTransaction(async (tx) => {
+        const result = await tx.run(`
+            INSERT INTO driver_incident_logs (
+                driver_id, incident_type, severity, incident_date, description, action_taken, logged_by_user_id, created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+        `, [
+            driverId,
+            incident_type.toUpperCase(),
+            severity.toUpperCase(),
+            incident_date,
+            description,
+            action_taken,
+            userId
+        ]);
 
-    const incidentId = Number(result.lastInsertRowid);
+        const incidentId = Number(result.insertId);
 
-    // If critical incident, adjust rating slightly and log audit
-    if (['HIGH', 'CRITICAL'].includes(severity.toUpperCase())) {
-        const newRating = Math.max(1.0, (driver.rating || 5.0) - (severity.toUpperCase() === 'CRITICAL' ? 0.5 : 0.2));
-        db.prepare('UPDATE drivers SET rating = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(newRating, driverId);
-    }
+        if (['HIGH', 'CRITICAL'].includes(severity.toUpperCase())) {
+            const newRating = Math.max(1.0, (Number(driver.rating) || 5.0) - (severity.toUpperCase() === 'CRITICAL' ? 0.5 : 0.2));
+            await tx.run('UPDATE drivers SET rating = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?', [newRating, driverId]);
+        }
 
-    logAuditEvent({
-        userId,
-        role: 'DISPATCHER',
-        action: 'CREATE',
-        resource: 'DRIVER_INCIDENT',
-        resourceId: incidentId,
-        branchId: driver.branch_id,
-        newValue: { driver_id: driverId, incident_type, severity, description },
-        reason: `Safety incident logged: ${incident_type} (${severity})`
+        logAuditEvent({
+            userId,
+            role: 'DISPATCHER',
+            action: 'CREATE',
+            resource: 'DRIVER_INCIDENT',
+            resourceId: incidentId,
+            branchId: driver.branch_id,
+            newValue: { driver_id: driverId, incident_type, severity, description },
+            reason: `Safety incident logged: ${incident_type} (${severity})`
+        });
+
+        return await tx.get(`
+            SELECT il.*, u.full_name as logged_by_name
+            FROM driver_incident_logs il
+            JOIN users u ON il.logged_by_user_id = u.id
+            WHERE il.id = ?
+        `, [incidentId]);
     });
-
-    return db.prepare(`
-        SELECT il.*, u.full_name as logged_by_name
-        FROM driver_incident_logs il
-        JOIN users u ON il.logged_by_user_id = u.id
-        WHERE il.id = ?
-    `).get(incidentId);
 }
 
 /**
  * Get incident logs for driver
  */
-function getDriverIncidents(driverId) {
-    getDriverById(driverId); // verify exists
-    return db.prepare(`
+async function getDriverIncidents(driverId) {
+    await getDriverById(driverId);
+    return await dbAdapter.all(`
         SELECT il.*, u.full_name as logged_by_name
         FROM driver_incident_logs il
         JOIN users u ON il.logged_by_user_id = u.id
         WHERE il.driver_id = ?
         ORDER BY il.id DESC
-    `).all(driverId);
+    `, [driverId]);
 }
 
 /**
  * Get driver status transition history
  */
-function getDriverStatusHistory(driverId) {
-    getDriverById(driverId);
-    return db.prepare(`
+async function getDriverStatusHistory(driverId) {
+    await getDriverById(driverId);
+    return await dbAdapter.all(`
         SELECT sh.*, u.full_name as changed_by_name
         FROM driver_status_history sh
         LEFT JOIN users u ON sh.changed_by_user_id = u.id
         WHERE sh.driver_id = ?
         ORDER BY sh.id DESC
-    `).all(driverId);
+    `, [driverId]);
 }
 
 /**
  * Fleet telemetry aggregate metrics for fleet header
  */
-function getFleetTelemetry(branchId = null) {
+async function getFleetTelemetry(branchId = null) {
     let whereClause = 'WHERE 1=1';
     const params = [];
     if (branchId) {
@@ -1072,7 +943,7 @@ function getFleetTelemetry(branchId = null) {
         params.push(branchId);
     }
 
-    const counts = db.prepare(`
+    const counts = await dbAdapter.get(`
         SELECT 
             count(*) as total_drivers,
             sum(CASE WHEN status = 'AVAILABLE' THEN 1 ELSE 0 END) as available_drivers,
@@ -1082,10 +953,9 @@ function getFleetTelemetry(branchId = null) {
             avg(rating) as avg_rating
         FROM drivers
         ${whereClause}
-    `).get(...params);
+    `, params) || {};
 
-    // Compute license compliance tallies
-    const drivers = db.prepare(`SELECT license_expiry_date, ntsa_verified FROM drivers ${whereClause}`).all(...params);
+    const drivers = await dbAdapter.all(`SELECT license_expiry_date, ntsa_verified FROM drivers ${whereClause}`, params);
     let expiringSoon = 0;
     let expired = 0;
     let valid = 0;
@@ -1097,7 +967,6 @@ function getFleetTelemetry(branchId = null) {
         else if (c.status === 'VALID') valid++;
     }
 
-    // On-time rate across completed deliveries
     let delWhere = "WHERE status = 'DELIVERED' AND actual_delivery_at IS NOT NULL";
     const delParams = [];
     if (branchId) {
@@ -1105,11 +974,11 @@ function getFleetTelemetry(branchId = null) {
         delParams.push(branchId);
     }
 
-    const completed = db.prepare(`
+    const completed = await dbAdapter.all(`
         SELECT estimated_delivery_at, actual_delivery_at
         FROM deliveries
         ${delWhere}
-    `).all(...delParams);
+    `, delParams);
 
     let onTime = 0;
     for (const c of completed) {
@@ -1127,16 +996,16 @@ function getFleetTelemetry(branchId = null) {
         : 96.5;
 
     return {
-        total_drivers: counts.total_drivers || 0,
-        available_drivers: counts.available_drivers || 0,
-        on_delivery_drivers: counts.on_delivery_drivers || 0,
-        off_duty_drivers: counts.off_duty_drivers || 0,
-        suspended_drivers: counts.suspended_drivers || 0,
+        total_drivers: Number(counts.total_drivers) || 0,
+        available_drivers: Number(counts.available_drivers) || 0,
+        on_delivery_drivers: Number(counts.on_delivery_drivers) || 0,
+        off_duty_drivers: Number(counts.off_duty_drivers) || 0,
+        suspended_drivers: Number(counts.suspended_drivers) || 0,
         expiring_licenses_count: expiringSoon,
         expired_licenses_count: expired,
         valid_licenses_count: valid,
         fleet_on_time_rate_pct: fleetOnTimeRate,
-        fleet_avg_rating: counts.avg_rating ? Math.round(counts.avg_rating * 10) / 10 : 5.0
+        fleet_avg_rating: counts.avg_rating ? Math.round(Number(counts.avg_rating) * 10) / 10 : 5.0
     };
 }
 

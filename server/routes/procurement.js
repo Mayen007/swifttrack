@@ -2,17 +2,17 @@
 // SwiftTrack Kenya: Complete Procurement Lifecycle REST API (Phase 8)
 const express = require('express');
 const router = express.Router();
-const { db } = require('../db/database.js');
+const dbAdapter = require('../db/dbAdapter.js');
 const { authenticateToken, requireRole, authorize } = require('../middleware/auth.js');
 const procurementService = require('../services/procurementService.js');
 
 // ============================================================================
 // 1. TELEMETRY & KPIS
 // ============================================================================
-router.get('/telemetry', authenticateToken, (req, res) => {
+router.get('/telemetry', authenticateToken, async (req, res) => {
   try {
     const branchId = req.user.roleName !== 'SUPER_ADMIN' ? req.user.branchId : (req.query.branch_id ? Number(req.query.branch_id) : null);
-    const telemetry = procurementService.getProcurementTelemetry({ branchId });
+    const telemetry = await procurementService.getProcurementTelemetry({ branchId });
     res.json(telemetry);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -24,7 +24,7 @@ router.get('/telemetry', authenticateToken, (req, res) => {
 // ============================================================================
 
 // GET /requisitions - List PRs
-router.get('/requisitions', authenticateToken, (req, res) => {
+router.get('/requisitions', authenticateToken, async (req, res) => {
   try {
     let query = `
       SELECT pr.*, b.name as branch_name, b.code as branch_code,
@@ -54,7 +54,7 @@ router.get('/requisitions', authenticateToken, (req, res) => {
     }
 
     query += ' ORDER BY pr.id DESC LIMIT 100';
-    const list = db.prepare(query).all(...params);
+    const list = await dbAdapter.all(query, params);
     res.json(list);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -62,9 +62,9 @@ router.get('/requisitions', authenticateToken, (req, res) => {
 });
 
 // GET /requisitions/:id - Get PR details
-router.get('/requisitions/:id', authenticateToken, (req, res) => {
+router.get('/requisitions/:id', authenticateToken, async (req, res) => {
   try {
-    const pr = procurementService.getRequisitionById(Number(req.params.id));
+    const pr = await procurementService.getRequisitionById(Number(req.params.id));
     if (!pr) return res.status(404).json({ error: 'Requisition not found' });
 
     if (req.user.roleName !== 'SUPER_ADMIN' && pr.branch_id !== req.user.branchId) {
@@ -78,12 +78,12 @@ router.get('/requisitions/:id', authenticateToken, (req, res) => {
 });
 
 // POST /requisitions - Create PR
-router.post('/requisitions', authenticateToken, (req, res) => {
+router.post('/requisitions', authenticateToken, async (req, res) => {
   try {
     const branchId = req.user.roleName !== 'SUPER_ADMIN'
       ? (req.user.branchId || 1)
       : (req.body.branch_id ? Number(req.body.branch_id) : (req.user.branchId || 1));
-    const pr = procurementService.createRequisition({
+    const pr = await procurementService.createRequisition({
       branchId,
       userId: req.user.id,
       urgency: req.body.urgency,
@@ -98,9 +98,9 @@ router.post('/requisitions', authenticateToken, (req, res) => {
 });
 
 // POST /requisitions/:id/submit - Submit PR
-router.post('/requisitions/:id/submit', authenticateToken, (req, res) => {
+router.post('/requisitions/:id/submit', authenticateToken, async (req, res) => {
   try {
-    const updated = procurementService.submitRequisition(Number(req.params.id), req.user.id);
+    const updated = await procurementService.submitRequisition(Number(req.params.id), req.user.id);
     res.json(updated);
   } catch (err) {
     res.status(400).json({ error: err.message });
@@ -108,9 +108,9 @@ router.post('/requisitions/:id/submit', authenticateToken, (req, res) => {
 });
 
 // POST /requisitions/:id/approve - Approve PR
-router.post('/requisitions/:id/approve', authenticateToken, requireRole('SUPER_ADMIN', 'BRANCH_MANAGER'), (req, res) => {
+router.post('/requisitions/:id/approve', authenticateToken, requireRole('SUPER_ADMIN', 'BRANCH_MANAGER'), async (req, res) => {
   try {
-    const updated = procurementService.approveRequisition(Number(req.params.id), req.user.id);
+    const updated = await procurementService.approveRequisition(Number(req.params.id), req.user.id);
     res.json(updated);
   } catch (err) {
     res.status(400).json({ error: err.message });
@@ -118,9 +118,9 @@ router.post('/requisitions/:id/approve', authenticateToken, requireRole('SUPER_A
 });
 
 // POST /requisitions/:id/reject - Reject PR
-router.post('/requisitions/:id/reject', authenticateToken, requireRole('SUPER_ADMIN', 'BRANCH_MANAGER'), (req, res) => {
+router.post('/requisitions/:id/reject', authenticateToken, requireRole('SUPER_ADMIN', 'BRANCH_MANAGER'), async (req, res) => {
   try {
-    const updated = procurementService.rejectRequisition(Number(req.params.id), req.user.id, req.body.reason || '');
+    const updated = await procurementService.rejectRequisition(Number(req.params.id), req.user.id, req.body.reason || '');
     res.json(updated);
   } catch (err) {
     res.status(400).json({ error: err.message });
@@ -128,9 +128,9 @@ router.post('/requisitions/:id/reject', authenticateToken, requireRole('SUPER_AD
 });
 
 // POST /requisitions/:id/convert-to-po - Convert approved PR to Purchase Order
-router.post('/requisitions/:id/convert-to-po', authenticateToken, requireRole('SUPER_ADMIN', 'BRANCH_MANAGER'), (req, res) => {
+router.post('/requisitions/:id/convert-to-po', authenticateToken, requireRole('SUPER_ADMIN', 'BRANCH_MANAGER'), async (req, res) => {
   try {
-    const pr = procurementService.getRequisitionById(Number(req.params.id));
+    const pr = await procurementService.getRequisitionById(Number(req.params.id));
     if (!pr) return res.status(404).json({ error: 'Requisition not found' });
     if (pr.status !== 'APPROVED') {
       return res.status(400).json({ error: `Only APPROVED requisitions can be converted to Purchase Orders (current: ${pr.status})` });
@@ -148,7 +148,7 @@ router.post('/requisitions/:id/convert-to-po', authenticateToken, requireRole('S
       tax_rate: 16.0
     }));
 
-    const po = procurementService.createPurchaseOrder({
+    const po = await procurementService.createPurchaseOrder({
       purchaseRequisitionId: pr.id,
       supplierId: Number(supplier_id),
       branchId: pr.branch_id,
@@ -172,7 +172,7 @@ router.post('/requisitions/:id/convert-to-po', authenticateToken, requireRole('S
 // ============================================================================
 
 // GET /orders - List Purchase Orders
-router.get('/orders', authenticateToken, (req, res) => {
+router.get('/orders', authenticateToken, async (req, res) => {
   try {
     let query = `
       SELECT po.*, s.name as supplier_name, s.code as supplier_code,
@@ -207,7 +207,7 @@ router.get('/orders', authenticateToken, (req, res) => {
     }
 
     query += ' ORDER BY po.id DESC LIMIT 100';
-    const list = db.prepare(query).all(...params);
+    const list = await dbAdapter.all(query, params);
     res.json(list);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -215,9 +215,9 @@ router.get('/orders', authenticateToken, (req, res) => {
 });
 
 // GET /orders/:id - Get PO details
-router.get('/orders/:id', authenticateToken, (req, res) => {
+router.get('/orders/:id', authenticateToken, async (req, res) => {
   try {
-    const po = procurementService.getPurchaseOrderById(Number(req.params.id));
+    const po = await procurementService.getPurchaseOrderById(Number(req.params.id));
     if (!po) return res.status(404).json({ error: 'Purchase Order not found' });
 
     if (req.user.roleName !== 'SUPER_ADMIN' && po.branch_id !== req.user.branchId) {
@@ -231,12 +231,12 @@ router.get('/orders/:id', authenticateToken, (req, res) => {
 });
 
 // POST /orders - Create PO directly
-router.post('/orders', authenticateToken, requireRole('SUPER_ADMIN', 'BRANCH_MANAGER'), (req, res) => {
+router.post('/orders', authenticateToken, requireRole('SUPER_ADMIN', 'BRANCH_MANAGER'), async (req, res) => {
   try {
     const branchId = req.user.roleName !== 'SUPER_ADMIN'
       ? (req.user.branchId || 1)
       : (req.body.branch_id ? Number(req.body.branch_id) : (req.user.branchId || 1));
-    const po = procurementService.createPurchaseOrder({
+    const po = await procurementService.createPurchaseOrder({
       purchaseRequisitionId: req.body.purchase_requisition_id,
       supplierId: Number(req.body.supplier_id),
       branchId,
@@ -256,9 +256,9 @@ router.post('/orders', authenticateToken, requireRole('SUPER_ADMIN', 'BRANCH_MAN
 });
 
 // POST /orders/:id/approve - Approve PO
-router.post('/orders/:id/approve', authenticateToken, requireRole('SUPER_ADMIN', 'BRANCH_MANAGER'), (req, res) => {
+router.post('/orders/:id/approve', authenticateToken, requireRole('SUPER_ADMIN', 'BRANCH_MANAGER'), async (req, res) => {
   try {
-    const updated = procurementService.approvePurchaseOrder(Number(req.params.id), req.user.id);
+    const updated = await procurementService.approvePurchaseOrder(Number(req.params.id), req.user.id);
     res.json(updated);
   } catch (err) {
     res.status(400).json({ error: err.message });
@@ -266,9 +266,9 @@ router.post('/orders/:id/approve', authenticateToken, requireRole('SUPER_ADMIN',
 });
 
 // POST /orders/:id/send - Mark PO as sent to supplier
-router.post('/orders/:id/send', authenticateToken, requireRole('SUPER_ADMIN', 'BRANCH_MANAGER'), (req, res) => {
+router.post('/orders/:id/send', authenticateToken, requireRole('SUPER_ADMIN', 'BRANCH_MANAGER'), async (req, res) => {
   try {
-    const updated = procurementService.sendPurchaseOrder(Number(req.params.id), req.user.id);
+    const updated = await procurementService.sendPurchaseOrder(Number(req.params.id), req.user.id);
     res.json(updated);
   } catch (err) {
     res.status(400).json({ error: err.message });
@@ -276,9 +276,9 @@ router.post('/orders/:id/send', authenticateToken, requireRole('SUPER_ADMIN', 'B
 });
 
 // POST /orders/:id/cancel - Cancel PO
-router.post('/orders/:id/cancel', authenticateToken, requireRole('SUPER_ADMIN', 'BRANCH_MANAGER'), (req, res) => {
+router.post('/orders/:id/cancel', authenticateToken, requireRole('SUPER_ADMIN', 'BRANCH_MANAGER'), async (req, res) => {
   try {
-    const updated = procurementService.cancelPurchaseOrder(Number(req.params.id), req.user.id, req.body.reason || '');
+    const updated = await procurementService.cancelPurchaseOrder(Number(req.params.id), req.user.id, req.body.reason || '');
     res.json(updated);
   } catch (err) {
     res.status(400).json({ error: err.message });
@@ -286,9 +286,9 @@ router.post('/orders/:id/cancel', authenticateToken, requireRole('SUPER_ADMIN', 
 });
 
 // POST /orders/:id/receive - Receive goods against PO (GRN)
-router.post('/orders/:id/receive', authenticateToken, authorize('inventory', 'receive_stock'), (req, res) => {
+router.post('/orders/:id/receive', authenticateToken, authorize('inventory', 'receive_stock'), async (req, res) => {
   try {
-    const result = procurementService.receivePurchaseOrderItems({
+    const result = await procurementService.receivePurchaseOrderItems({
       poId: Number(req.params.id),
       warehouseId: req.body.warehouse_id,
       supplierInvoiceNo: req.body.supplier_invoice_no,
@@ -308,7 +308,7 @@ router.post('/orders/:id/receive', authenticateToken, authorize('inventory', 're
 // ============================================================================
 
 // GET /grns - List GRNs
-router.get('/grns', authenticateToken, (req, res) => {
+router.get('/grns', authenticateToken, async (req, res) => {
   try {
     let query = `
       SELECT sr.*, s.name as supplier_name, s.code as supplier_code,
@@ -336,18 +336,16 @@ router.get('/grns', authenticateToken, (req, res) => {
     }
 
     query += ' ORDER BY sr.id DESC LIMIT 100';
-    const receipts = db.prepare(query).all(...params);
+    const receipts = await dbAdapter.all(query, params);
 
-    const itemsStmt = db.prepare(`
-      SELECT sri.*, p.name as product_name, p.sku, p.unit
-      FROM stock_receipt_items sri
-      JOIN products p ON sri.product_id = p.id
-      WHERE sri.stock_receipt_id = ?
-    `);
-
-    const result = receipts.map(r => ({
-      ...r,
-      items: itemsStmt.all(r.id)
+    const result = await Promise.all(receipts.map(async (r) => {
+      const items = await dbAdapter.all(`
+        SELECT sri.*, p.name as product_name, p.sku, p.unit
+        FROM stock_receipt_items sri
+        JOIN products p ON sri.product_id = p.id
+        WHERE sri.stock_receipt_id = ?
+      `, [r.id]);
+      return { ...r, items };
     }));
 
     res.json(result);
@@ -357,9 +355,9 @@ router.get('/grns', authenticateToken, (req, res) => {
 });
 
 // GET /grns/:id - GRN details
-router.get('/grns/:id', authenticateToken, (req, res) => {
+router.get('/grns/:id', authenticateToken, async (req, res) => {
   try {
-    const grn = db.prepare(`
+    const grn = await dbAdapter.get(`
       SELECT sr.*, s.name as supplier_name, s.code as supplier_code,
              b.name as branch_name, w.name as warehouse_name,
              u.full_name as received_by_name, po.po_number
@@ -370,16 +368,16 @@ router.get('/grns/:id', authenticateToken, (req, res) => {
       JOIN users u ON sr.received_by_user_id = u.id
       LEFT JOIN purchase_orders po ON sr.purchase_order_id = po.id
       WHERE sr.id = ?
-    `).get(Number(req.params.id));
+    `, [Number(req.params.id)]);
 
     if (!grn) return res.status(404).json({ error: 'GRN not found' });
 
-    const items = db.prepare(`
+    const items = await dbAdapter.all(`
       SELECT sri.*, p.name as product_name, p.sku, p.unit
       FROM stock_receipt_items sri
       JOIN products p ON sri.product_id = p.id
       WHERE sri.stock_receipt_id = ?
-    `).all(grn.id);
+    `, [grn.id]);
 
     res.json({ ...grn, items });
   } catch (err) {
@@ -392,7 +390,7 @@ router.get('/grns/:id', authenticateToken, (req, res) => {
 // ============================================================================
 
 // GET /invoices - List supplier invoices
-router.get('/invoices', authenticateToken, (req, res) => {
+router.get('/invoices', authenticateToken, async (req, res) => {
   try {
     let query = `
       SELECT si.*, s.name as supplier_name, s.code as supplier_code,
@@ -423,7 +421,7 @@ router.get('/invoices', authenticateToken, (req, res) => {
     }
 
     query += ' ORDER BY si.id DESC LIMIT 100';
-    const list = db.prepare(query).all(...params);
+    const list = await dbAdapter.all(query, params);
     res.json(list);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -431,18 +429,18 @@ router.get('/invoices', authenticateToken, (req, res) => {
 });
 
 // GET /invoices/:id - Invoice details
-router.get('/invoices/:id', authenticateToken, (req, res) => {
+router.get('/invoices/:id', authenticateToken, async (req, res) => {
   try {
-    const inv = procurementService.getSupplierInvoiceById(Number(req.params.id));
+    const inv = await procurementService.getSupplierInvoiceById(Number(req.params.id));
     if (!inv) return res.status(404).json({ error: 'Invoice not found' });
 
-    const payments = db.prepare(`
+    const payments = await dbAdapter.all(`
       SELECT sp.*, u.full_name as processed_by_name
       FROM supplier_payments sp
       JOIN users u ON sp.processed_by_user_id = u.id
       WHERE sp.supplier_invoice_id = ?
       ORDER BY sp.id DESC
-    `).all(inv.id);
+    `, [inv.id]);
 
     res.json({ ...inv, payments });
   } catch (err) {
@@ -451,10 +449,10 @@ router.get('/invoices/:id', authenticateToken, (req, res) => {
 });
 
 // POST /invoices - Log supplier invoice
-router.post('/invoices', authenticateToken, requireRole('SUPER_ADMIN', 'BRANCH_MANAGER'), (req, res) => {
+router.post('/invoices', authenticateToken, requireRole('SUPER_ADMIN', 'BRANCH_MANAGER'), async (req, res) => {
   try {
     const branchId = req.user.roleName !== 'SUPER_ADMIN' ? req.user.branchId : (req.body.branch_id ? Number(req.body.branch_id) : req.user.branchId);
-    const inv = procurementService.createSupplierInvoice({
+    const inv = await procurementService.createSupplierInvoice({
       supplierId: Number(req.body.supplier_id),
       purchaseOrderId: req.body.purchase_order_id,
       stockReceiptId: req.body.stock_receipt_id,
@@ -475,9 +473,9 @@ router.post('/invoices', authenticateToken, requireRole('SUPER_ADMIN', 'BRANCH_M
 });
 
 // POST /invoices/:id/pay - Disburse payment for invoice
-router.post('/invoices/:id/pay', authenticateToken, requireRole('SUPER_ADMIN', 'BRANCH_MANAGER'), (req, res) => {
+router.post('/invoices/:id/pay', authenticateToken, requireRole('SUPER_ADMIN', 'BRANCH_MANAGER'), async (req, res) => {
   try {
-    const result = procurementService.recordSupplierPayment({
+    const result = await procurementService.recordSupplierPayment({
       supplierInvoiceId: Number(req.params.id),
       amount: req.body.amount,
       paymentMethod: req.body.payment_method,
@@ -497,7 +495,7 @@ router.post('/invoices/:id/pay', authenticateToken, requireRole('SUPER_ADMIN', '
 // ============================================================================
 
 // GET /returns - List returns
-router.get('/returns', authenticateToken, (req, res) => {
+router.get('/returns', authenticateToken, async (req, res) => {
   try {
     let query = `
       SELECT sr.*, s.name as supplier_name, s.code as supplier_code,
@@ -524,7 +522,7 @@ router.get('/returns', authenticateToken, (req, res) => {
     }
 
     query += ' ORDER BY sr.id DESC LIMIT 100';
-    const list = db.prepare(query).all(...params);
+    const list = await dbAdapter.all(query, params);
     res.json(list);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -532,9 +530,9 @@ router.get('/returns', authenticateToken, (req, res) => {
 });
 
 // GET /returns/:id - Return details
-router.get('/returns/:id', authenticateToken, (req, res) => {
+router.get('/returns/:id', authenticateToken, async (req, res) => {
   try {
-    const ret = procurementService.getSupplierReturnById(Number(req.params.id));
+    const ret = await procurementService.getSupplierReturnById(Number(req.params.id));
     if (!ret) return res.status(404).json({ error: 'Return not found' });
     res.json(ret);
   } catch (err) {
@@ -543,10 +541,10 @@ router.get('/returns/:id', authenticateToken, (req, res) => {
 });
 
 // POST /returns - Create return
-router.post('/returns', authenticateToken, requireRole('SUPER_ADMIN', 'BRANCH_MANAGER'), (req, res) => {
+router.post('/returns', authenticateToken, requireRole('SUPER_ADMIN', 'BRANCH_MANAGER'), async (req, res) => {
   try {
     const branchId = req.user.roleName !== 'SUPER_ADMIN' ? req.user.branchId : (req.body.branch_id ? Number(req.body.branch_id) : req.user.branchId);
-    const ret = procurementService.createSupplierReturn({
+    const ret = await procurementService.createSupplierReturn({
       supplierId: Number(req.body.supplier_id),
       purchaseOrderId: req.body.purchase_order_id,
       stockReceiptId: req.body.stock_receipt_id,
@@ -564,9 +562,9 @@ router.post('/returns', authenticateToken, requireRole('SUPER_ADMIN', 'BRANCH_MA
 });
 
 // POST /returns/:id/approve - Approve return and decrement stock
-router.post('/returns/:id/approve', authenticateToken, requireRole('SUPER_ADMIN', 'BRANCH_MANAGER'), (req, res) => {
+router.post('/returns/:id/approve', authenticateToken, requireRole('SUPER_ADMIN', 'BRANCH_MANAGER'), async (req, res) => {
   try {
-    const updated = procurementService.approveSupplierReturn(Number(req.params.id), req.user.id);
+    const updated = await procurementService.approveSupplierReturn(Number(req.params.id), req.user.id);
     res.json(updated);
   } catch (err) {
     res.status(400).json({ error: err.message });
@@ -576,14 +574,14 @@ router.post('/returns/:id/approve', authenticateToken, requireRole('SUPER_ADMIN'
 // ============================================================================
 // 7. PROCUREMENT HISTORY & AUDIT LOG
 // ============================================================================
-router.get('/history', authenticateToken, (req, res) => {
+router.get('/history', authenticateToken, async (req, res) => {
   try {
-    const list = db.prepare(`
+    const list = await dbAdapter.all(`
       SELECT pat.*, u.full_name as user_full_name, u.username
       FROM procurement_audit_trail pat
       LEFT JOIN users u ON pat.user_id = u.id
       ORDER BY pat.id DESC LIMIT 100
-    `).all();
+    `);
     res.json(list);
   } catch (err) {
     res.status(500).json({ error: err.message });

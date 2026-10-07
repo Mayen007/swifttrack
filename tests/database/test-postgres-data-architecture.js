@@ -45,20 +45,40 @@ async function runAsyncTest(name, fn) {
     }
 
     // -------------------------------------------------------------------------
-    // 1. PostgreSQL Schema Migrations Completeness (001 - 023)
+    // 1. PostgreSQL Schema Migrations Completeness & Dynamic Validation
     // -------------------------------------------------------------------------
-    runTest('1.1: All 23 sequential PostgreSQL migrations exist with valid checksums', () => {
-        const { getAvailableMigrations, calculateChecksum } = require('../../server/db/postgres/migrator.js');
+    runTest('1.1: Dynamic validation of all PostgreSQL migrations (sequential ordering, checksums, no duplicates)', () => {
+        const { getAvailableMigrations, calculateChecksum, verifyMigrationOrderingAndVersions } = require('../../server/db/postgres/migrator.js');
         const migrations = getAvailableMigrations();
 
-        assert.strictEqual(migrations.length, 23, `Expected exactly 23 migrations, found ${migrations.length}`);
+        assert(migrations.length > 0, `Expected at least one migration, found ${migrations.length}`);
 
-        for (let i = 0; i < 23; i++) {
+        const seenVersions = new Set();
+        let prevNum = 0;
+
+        for (let i = 0; i < migrations.length; i++) {
+            const m = migrations[i];
+            const currentNum = parseInt(m.version, 10);
+
+            // Dynamic sequential progression check
             const expectedVersion = String(i + 1).padStart(3, '0');
-            assert.strictEqual(migrations[i].version, expectedVersion, `Migration index ${i} must have version ${expectedVersion}`);
-            assert.strictEqual(migrations[i].checksum.length, 64, 'Checksum must be 64 characters SHA-256');
-            assert.strictEqual(calculateChecksum(migrations[i].content), migrations[i].checksum, 'Checksum must match content');
+            assert.strictEqual(m.version, expectedVersion, `Migration index ${i} must have sequential version ${expectedVersion}`);
+            assert.strictEqual(currentNum, prevNum + 1, `Migration version must be sequential: expected ${prevNum + 1}, got ${currentNum}`);
+            prevNum = currentNum;
+
+            // Duplicate version check
+            assert(!seenVersions.has(m.version), `Duplicate migration version detected: ${m.version}`);
+            seenVersions.add(m.version);
+
+            // SHA-256 checksum check
+            assert.strictEqual(m.checksum.length, 64, 'Checksum must be 64 characters SHA-256');
+            assert.strictEqual(calculateChecksum(m.content), m.checksum, `Checksum must match content for ${m.filename}`);
         }
+
+        // Verify the ordering and version integrity helper accepts this valid migration set
+        assert.doesNotThrow(() => {
+            verifyMigrationOrderingAndVersions(migrations);
+        });
     });
 
     runTest('1.2: Logistics migrations (015-023) define all required production tables & triggers', () => {
@@ -95,6 +115,84 @@ async function runAsyncTest(name, fn) {
         // Check 021_cod_settlements.sql
         const sql021 = fs.readFileSync(path.join(migrationsDir, '021_cod_settlements_and_reconciliation.sql'), 'utf8');
         assert(sql021.includes('CREATE TABLE IF NOT EXISTS cod_settlements'), 'cod_settlements table must exist');
+    });
+
+    runTest('1.3: Migration checksum drift is fatal, not a warning', () => {
+        const { verifyAppliedIntegrity } = require('../../server/db/postgres/migrator.js');
+
+        const mockAvailable = [
+            { version: '001', filename: '001_initial_schema.sql', checksum: 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855' },
+            { version: '002', filename: '002_soft_delete.sql', checksum: 'f2ca1bb6c7e907d06dafe4687e579fce76b37e4e93b7605022da52e6ccc26fd2' }
+        ];
+
+        const mockAppliedMatching = [
+            { version: '001', name: '001_initial_schema', checksum: 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855' },
+            { version: '002', name: '002_soft_delete', checksum: 'f2ca1bb6c7e907d06dafe4687e579fce76b37e4e93b7605022da52e6ccc26fd2' }
+        ];
+
+        // 1. Exact match does not throw
+        assert.doesNotThrow(() => {
+            verifyAppliedIntegrity(mockAppliedMatching, mockAvailable);
+        });
+
+        // 2. Drifted checksum throws fatal error
+        const mockAppliedDrifted = [
+            { version: '001', name: '001_initial_schema', checksum: 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855' },
+            { version: '002', name: '002_soft_delete', checksum: 'TAMPERED_CHECKSUM_000000000000000000000000000000000000000000000000000' }
+        ];
+
+        assert.throws(() => {
+            verifyAppliedIntegrity(mockAppliedDrifted, mockAvailable);
+        }, (err) => {
+            return err instanceof Error &&
+                err.message.includes('[FATAL]') &&
+                err.message.includes('Migration checksum drift detected in applied migration 002_soft_delete.sql');
+        });
+    });
+
+    runTest('1.4: Migration sequence validation rejects duplicates, gaps, and out-of-order versions', () => {
+        const { verifyMigrationOrderingAndVersions } = require('../../server/db/postgres/migrator.js');
+
+        // Valid contiguous sequence passes
+        assert.doesNotThrow(() => {
+            verifyMigrationOrderingAndVersions([
+                { version: '001', filename: '001_first.sql' },
+                { version: '002', filename: '002_second.sql' },
+                { version: '003', filename: '003_third.sql' }
+            ]);
+        });
+
+        // Duplicate string version prefix
+        assert.throws(() => {
+            verifyMigrationOrderingAndVersions([
+                { version: '001', filename: '001_first.sql' },
+                { version: '001', filename: '001_duplicate.sql' }
+            ]);
+        }, /Duplicate migration version '001'/);
+
+        // Duplicate numeric version (e.g. 01 vs 001)
+        assert.throws(() => {
+            verifyMigrationOrderingAndVersions([
+                { version: '1', filename: '1_first.sql' },
+                { version: '001', filename: '001_first.sql' }
+            ]);
+        }, /Duplicate numeric migration version '1'/);
+
+        // Out-of-order sequence (002 before 001)
+        assert.throws(() => {
+            verifyMigrationOrderingAndVersions([
+                { version: '002', filename: '002_second.sql' },
+                { version: '001', filename: '001_first.sql' }
+            ]);
+        }, /expected migration version 1|Out-of-order/);
+
+        // Gap in sequence (001 then 003, missing 002)
+        assert.throws(() => {
+            verifyMigrationOrderingAndVersions([
+                { version: '001', filename: '001_first.sql' },
+                { version: '003', filename: '003_third.sql' }
+            ]);
+        }, /gap at index 1: expected migration version 2/);
     });
 
     // -------------------------------------------------------------------------

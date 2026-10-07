@@ -21,12 +21,12 @@ const {
  * GET /api/v1/inventory/batches
  * Retrieve batch/lot records with filtering
  */
-router.get('/batches', authenticateToken, authorize('inventory', 'view'), (req, res) => {
+router.get('/batches', authenticateToken, authorize('inventory', 'view'), async (req, res) => {
   try {
     const { product_id, warehouse_id, branch_id, status, expiring_days } = req.query;
     const effectiveBranchId = req.effectiveBranchId || (branch_id ? Number(branch_id) : null);
 
-    const batches = getBatches({
+    const batches = await getBatches({
       productId: product_id ? Number(product_id) : null,
       warehouseId: warehouse_id ? Number(warehouse_id) : null,
       branchId: effectiveBranchId,
@@ -45,12 +45,12 @@ router.get('/batches', authenticateToken, authorize('inventory', 'view'), (req, 
  * GET /api/v1/inventory/batches/expiring
  * Get categorized expiring batches (critical expired, warning soon, healthy)
  */
-router.get('/batches/expiring', authenticateToken, authorize('inventory', 'view'), (req, res) => {
+router.get('/batches/expiring', authenticateToken, authorize('inventory', 'view'), async (req, res) => {
   try {
     const { days_threshold = 30, warehouse_id, branch_id } = req.query;
     const effectiveBranchId = req.effectiveBranchId || (branch_id ? Number(branch_id) : null);
 
-    const data = getExpiringBatches({
+    const data = await getExpiringBatches({
       daysThreshold: Number(days_threshold) || 30,
       warehouseId: warehouse_id ? Number(warehouse_id) : null,
       branchId: effectiveBranchId
@@ -67,12 +67,12 @@ router.get('/batches/expiring', authenticateToken, authorize('inventory', 'view'
  * POST /api/v1/inventory/batches/evaluate-expiries
  * Automated segregation of expired batches from AVAILABLE to EXPIRED
  */
-router.post('/batches/evaluate-expiries', authenticateToken, authorize('inventory', 'adjust'), (req, res) => {
+router.post('/batches/evaluate-expiries', authenticateToken, authorize('inventory', 'adjust'), async (req, res) => {
   try {
     const { warehouse_id, branch_id, current_date } = req.body;
     const effectiveBranchId = req.effectiveBranchId || (branch_id ? Number(branch_id) : null);
 
-    const result = evaluateBatchExpiries({
+    const result = await evaluateBatchExpiries({
       warehouseId: warehouse_id ? Number(warehouse_id) : null,
       branchId: effectiveBranchId,
       currentDate: current_date || null,
@@ -80,7 +80,7 @@ router.post('/batches/evaluate-expiries', authenticateToken, authorize('inventor
     });
 
     if (result.expiredBatchesCount > 0) {
-      logAuditEvent({
+      await logAuditEvent({
         userId: req.user.id,
         role: req.user.roleName,
         action: 'EVALUATE_BATCH_EXPIRIES',
@@ -106,7 +106,7 @@ router.post('/batches/evaluate-expiries', authenticateToken, authorize('inventor
  * POST /api/v1/inventory/batches
  * Manually register a batch lot
  */
-router.post('/batches', authenticateToken, authorize('inventory', 'create'), (req, res) => {
+router.post('/batches', authenticateToken, authorize('inventory', 'create'), async (req, res) => {
   try {
     const {
       branch_id, warehouse_id, product_id, variant_id,
@@ -120,7 +120,7 @@ router.post('/batches', authenticateToken, authorize('inventory', 'create'), (re
 
     const effectiveBranchId = req.effectiveBranchId || (branch_id ? Number(branch_id) : 1);
 
-    const batch = createBatch({
+    const batch = await createBatch({
       branchId: effectiveBranchId,
       warehouseId: Number(warehouse_id),
       productId: Number(product_id),
@@ -133,7 +133,7 @@ router.post('/batches', authenticateToken, authorize('inventory', 'create'), (re
       notes: notes || ''
     });
 
-    logAuditEvent({
+    await logAuditEvent({
       userId: req.user.id,
       role: req.user.roleName,
       action: 'CREATE_BATCH',
@@ -155,12 +155,12 @@ router.post('/batches', authenticateToken, authorize('inventory', 'create'), (re
  * GET /api/v1/inventory/serials
  * Retrieve serial numbers with status & location filters
  */
-router.get('/serials', authenticateToken, authorize('inventory', 'view'), (req, res) => {
+router.get('/serials', authenticateToken, authorize('inventory', 'view'), async (req, res) => {
   try {
     const { product_id, warehouse_id, branch_id, status, serial_number } = req.query;
     const effectiveBranchId = req.effectiveBranchId || (branch_id ? Number(branch_id) : null);
 
-    const serials = getSerials({
+    const serials = await getSerials({
       productId: product_id ? Number(product_id) : null,
       warehouseId: warehouse_id ? Number(warehouse_id) : null,
       branchId: effectiveBranchId,
@@ -179,7 +179,7 @@ router.get('/serials', authenticateToken, authorize('inventory', 'view'), (req, 
  * POST /api/v1/inventory/serials
  * Bulk register serial numbers
  */
-router.post('/serials', authenticateToken, authorize('inventory', 'create'), (req, res) => {
+router.post('/serials', authenticateToken, authorize('inventory', 'create'), async (req, res) => {
   try {
     const {
       product_id, variant_id, warehouse_id, branch_id,
@@ -192,7 +192,7 @@ router.post('/serials', authenticateToken, authorize('inventory', 'create'), (re
 
     const effectiveBranchId = req.effectiveBranchId || (branch_id ? Number(branch_id) : 1);
 
-    const result = registerSerials({
+    const result = await registerSerials({
       productId: Number(product_id),
       variantId: variant_id ? Number(variant_id) : null,
       warehouseId: Number(warehouse_id),
@@ -203,7 +203,7 @@ router.post('/serials', authenticateToken, authorize('inventory', 'create'), (re
       notes: notes || ''
     });
 
-    logAuditEvent({
+    await logAuditEvent({
       userId: req.user.id,
       role: req.user.roleName,
       action: 'REGISTER_SERIALS',
@@ -224,12 +224,12 @@ router.post('/serials', authenticateToken, authorize('inventory', 'create'), (re
  * GET /api/v1/inventory/valuation
  * Financial inventory valuation across all state buckets
  */
-router.get('/valuation', authenticateToken, authorize('inventory', 'view'), (req, res) => {
+router.get('/valuation', authenticateToken, authorize('inventory', 'view'), async (req, res) => {
   try {
     const { warehouse_id, branch_id } = req.query;
     const effectiveBranchId = req.effectiveBranchId || (branch_id ? Number(branch_id) : null);
 
-    const valuation = getInventoryValuation({
+    const valuation = await getInventoryValuation({
       warehouseId: warehouse_id ? Number(warehouse_id) : null,
       branchId: effectiveBranchId
     });
@@ -245,12 +245,12 @@ router.get('/valuation', authenticateToken, authorize('inventory', 'view'), (req
  * GET /api/v1/inventory/reorder-alerts
  * Replenishment and low-stock alerts
  */
-router.get('/reorder-alerts', authenticateToken, authorize('inventory', 'view'), (req, res) => {
+router.get('/reorder-alerts', authenticateToken, authorize('inventory', 'view'), async (req, res) => {
   try {
     const { warehouse_id, branch_id } = req.query;
     const effectiveBranchId = req.effectiveBranchId || (branch_id ? Number(branch_id) : null);
 
-    const alerts = getReorderAlerts({
+    const alerts = await getReorderAlerts({
       warehouseId: warehouse_id ? Number(warehouse_id) : null,
       branchId: effectiveBranchId
     });

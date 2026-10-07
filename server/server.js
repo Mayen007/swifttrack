@@ -118,22 +118,8 @@ async function initializeDatabaseRuntime() {
             process.exit(1);
         }
         console.log('[Startup] Initializing SQLite local development engine...');
-        const sqlite = require('./db/database.js');
-        const { runSeed, initProductionBootstrap, ensureRichChartTelemetry } = require('./db/seed.js');
-        sqlite.initSchema();
-        const company = sqlite.db.prepare('SELECT count(*) as count FROM company_settings').get();
-        const isDemoMode = process.env.DEMO_MODE === 'true';
-        if (company.count === 0) {
-            if (isDemoMode) {
-                console.log('Seeding initial system data with demo simulation...');
-                runSeed();
-            } else {
-                console.log('Initializing clean enterprise production database bootstrap...');
-                initProductionBootstrap();
-            }
-        } else if (isDemoMode) {
-            ensureRichChartTelemetry();
-        }
+        const { initSqliteDevRuntime } = require('./db/sqliteDevRuntime.js');
+        initSqliteDevRuntime();
     }
 }
 
@@ -170,16 +156,9 @@ async function startServer() {
                 serverInstance.close(async () => {
                     console.log('HTTP connection pool drained.');
                     try {
-                        const isPostgres = process.env.DB_CLIENT === 'postgres' || (!!process.env.DATABASE_URL && process.env.DB_CLIENT !== 'sqlite');
-                        if (isPostgres) {
-                            const pool = require('./db/postgres/pool.js');
-                            await pool.closePool();
-                            console.log('PostgreSQL connection pool closed.');
-                        } else {
-                            const sqlite = require('./db/database.js');
-                            sqlite.db.close();
-                            console.log('SQLite database handle closed.');
-                        }
+                        const dbAdapter = require('./db/dbAdapter.js');
+                        await dbAdapter.close();
+                        console.log('Database connections closed.');
                     } catch {}
                     process.exit(0);
                 });

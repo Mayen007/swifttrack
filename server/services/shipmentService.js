@@ -119,7 +119,7 @@ async function createShipment(data, user = {}) {
     }
 
     // Calculate rating & pricing
-    const pricing = shipmentPricingService.calculateShipmentQuote({
+    const pricing = await shipmentPricingService.calculateShipmentQuote({
         originHubId: data.origin_hub_id,
         destinationHubId: data.destination_hub_id,
         serviceType: data.service_type || 'STANDARD',

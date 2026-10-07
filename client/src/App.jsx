@@ -95,7 +95,7 @@ function MainApp() {
       try {
         const view = new URLSearchParams(window.location.search).get('view');
         if (view) return view;
-      } catch {}
+      } catch { }
     }
     return 'dashboard';
   });
@@ -200,7 +200,7 @@ function MainApp() {
       const next = !prev;
       try {
         localStorage.setItem('swifttrack_sidebar_collapsed', String(next));
-      } catch {}
+      } catch { }
       return next;
     });
   };
@@ -246,7 +246,7 @@ function MainApp() {
           }
           setCurrentViewState(view);
         }
-      } catch {}
+      } catch { }
     };
 
     window.addEventListener('popstate', handlePopState);
@@ -278,7 +278,7 @@ function MainApp() {
           return;
         }
       }
-    } catch {}
+    } catch { }
 
     const home = getDefaultHomeView(user.role);
     setCurrentView(home, {}, { replace: true });

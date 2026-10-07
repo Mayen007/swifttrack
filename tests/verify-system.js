@@ -36,8 +36,8 @@ async function runTests() {
 
     server = app.listen(PORT);
 
-    // Ensure SQLite database has baseline bootstrap data (required in fresh checkout / CI)
-    const invCheck = db.prepare("SELECT count(*) as count FROM inventory").get();
+    // Ensure database has baseline bootstrap data (required in fresh checkout / CI)
+    const invCheck = await dbAdapter.get("SELECT count(*) as count FROM inventory");
     if (!invCheck || Number(invCheck.count) === 0) {
         initProductionBootstrap();
     }
@@ -180,7 +180,8 @@ async function runTests() {
         console.log('> TEST 4: POS Checkout, Stock Deduction & Ledger Creation...');
 
         // Check stock of Product 1 (Heavy Duty Box) before checkout
-        const stockBefore = db.prepare('SELECT quantity_on_hand FROM inventory WHERE warehouse_id = 1 AND product_id = 1').get()?.quantity_on_hand || 0;
+        const stockRowBefore = await dbAdapter.get('SELECT quantity_on_hand FROM inventory WHERE warehouse_id = 1 AND product_id = 1');
+        const stockBefore = stockRowBefore ? Number(stockRowBefore.quantity_on_hand) : 0;
 
         // Ensure cashier has an active shift for POS transactions
         const currentShift = await request('/api/pos/shift/current', {
@@ -212,12 +213,13 @@ async function runTests() {
         console.log(`  [PASS] POS sale completed successfully: ${saleNumber}`);
 
         // Verify stock deducted
-        const stockAfter = db.prepare('SELECT quantity_on_hand FROM inventory WHERE warehouse_id = 1 AND product_id = 1').get()?.quantity_on_hand || 0;
+        const stockRowAfter = await dbAdapter.get('SELECT quantity_on_hand FROM inventory WHERE warehouse_id = 1 AND product_id = 1');
+        const stockAfter = stockRowAfter ? Number(stockRowAfter.quantity_on_hand) : 0;
         assert.strictEqual(stockAfter, stockBefore - 3, 'Stock was not decremented correctly');
         console.log(`  [PASS] Stock accurately decremented from ${stockBefore} to ${stockAfter}`);
 
         // Verify immutable inventory_movements record exists
-        const movement = db.prepare('SELECT * FROM inventory_movements WHERE reference_id = ?').get(saleNumber);
+        const movement = await dbAdapter.get('SELECT * FROM inventory_movements WHERE reference_id = ?', [saleNumber]);
         assert.ok(movement, 'No inventory_movements record was created for the sale');
         assert.strictEqual(movement.movement_type, 'SALE_DEDUCTION');
         assert.strictEqual(Number(movement.quantity_change), -3);
@@ -234,7 +236,7 @@ async function runTests() {
             headers: { Authorization: `Bearer ${cashierToken}` },
             body: JSON.stringify({
                 sale_number: saleNumber,
-                amount: 540.0,
+                amount: posSale.data.sale.total_amount || 540.0,
                 reason: 'Customer returned 3 items in mint condition'
             })
         });
@@ -243,7 +245,7 @@ async function runTests() {
         console.log(`  [PASS] Cashier submitted refund request: ${reqNumber} (Status: PENDING_APPROVAL)`);
 
         // Find request ID
-        const reqDb = db.prepare('SELECT id FROM refund_requests WHERE refund_request_number = ?').get(reqNumber);
+        const reqDb = await dbAdapter.get('SELECT id FROM refund_requests WHERE refund_request_number = ?', [reqNumber]);
 
         // Branch Manager Nairobi approves the refund
         const approveRefund = await request(`/api/refunds/${reqDb.id}/approve`, {
@@ -254,12 +256,13 @@ async function runTests() {
         console.log(`  [PASS] Branch Manager approved refund ${reqNumber}`);
 
         // Verify stock restored
-        const stockRestored = db.prepare('SELECT quantity_on_hand FROM inventory WHERE warehouse_id = 1 AND product_id = 1').get()?.quantity_on_hand || 0;
+        const stockRowRestored = await dbAdapter.get('SELECT quantity_on_hand FROM inventory WHERE warehouse_id = 1 AND product_id = 1');
+        const stockRestored = stockRowRestored ? Number(stockRowRestored.quantity_on_hand) : 0;
         assert.strictEqual(stockRestored, stockAfter + 3, 'Stock was not restored upon refund approval');
         console.log(`  [PASS] Inventory automatically restocked back to ${stockRestored}`);
 
         // Verify movement ledger has SALE_RETURN
-        const returnMovement = db.prepare("SELECT * FROM inventory_movements WHERE movement_type = 'SALE_RETURN' AND reason LIKE ?").get(`%${reqNumber}%`);
+        const returnMovement = await dbAdapter.get("SELECT * FROM inventory_movements WHERE movement_type = 'SALE_RETURN' AND reason LIKE ?", [`%${reqNumber}%`]);
         assert.ok(returnMovement, 'SALE_RETURN movement record was not recorded');
         console.log('  [PASS] Stock movement ledger verified for SALE_RETURN\n');
 
@@ -288,7 +291,7 @@ async function runTests() {
         console.log(`  [PASS] Created Delivery Order #${orderRes.data.order_number} (Delivery: ${deliveryNo})`);
 
         // Find delivery ID
-        const delivDb = db.prepare('SELECT id FROM deliveries WHERE delivery_number = ?').get(deliveryNo);
+        const delivDb = await dbAdapter.get('SELECT id FROM deliveries WHERE delivery_number = ?', [deliveryNo]);
 
         // Dispatcher assigns Driver 1 (Joseph Kiprop)
         const assignRes = await request('/api/dispatch/assign', {
@@ -340,9 +343,9 @@ async function runTests() {
         console.log('  [PASS] Driver submitted Proof of Delivery (Signature, OTP, GPS tagged)');
 
         // Verify delivery and order completed
-        const finalDeliv = db.prepare('SELECT status FROM deliveries WHERE id = ?').get(delivDb.id);
+        const finalDeliv = await dbAdapter.get('SELECT status FROM deliveries WHERE id = ?', [delivDb.id]);
         assert.strictEqual(finalDeliv.status, 'DELIVERED');
-        const finalOrder = db.prepare('SELECT status FROM orders WHERE id = ?').get(orderId);
+        const finalOrder = await dbAdapter.get('SELECT status FROM orders WHERE id = ?', [orderId]);
         assert.strictEqual(finalOrder.status, 'DELIVERED');
         console.log('  [PASS] Delivery and Order statuses accurately updated to DELIVERED\n');
 
@@ -519,8 +522,10 @@ async function runTests() {
         // -------------------------------------------------------------
         console.log('> TEST 12: Inter-Branch Stock Transfer Lifecycle (Nairobi -> Mombasa)...');
 
-        const nrbStockBefore = db.prepare('SELECT quantity_on_hand FROM inventory WHERE warehouse_id = 1 AND product_id = 1').get()?.quantity_on_hand || 0;
-        const msaStockBefore = db.prepare('SELECT quantity_on_hand FROM inventory WHERE warehouse_id = 3 AND product_id = 1').get()?.quantity_on_hand || 0;
+        const nrbStockRowBefore = await dbAdapter.get('SELECT quantity_on_hand FROM inventory WHERE warehouse_id = 1 AND product_id = 1');
+        const nrbStockBefore = nrbStockRowBefore ? Number(nrbStockRowBefore.quantity_on_hand) : 0;
+        const msaStockRowBefore = await dbAdapter.get('SELECT quantity_on_hand FROM inventory WHERE warehouse_id = 3 AND product_id = 1');
+        const msaStockBefore = msaStockRowBefore ? Number(msaStockRowBefore.quantity_on_hand) : 0;
 
         // 1. Nairobi Manager requests transfer of 5 units to Mombasa
         const trfReq = await request('/api/inventory/transfers', {
@@ -557,7 +562,8 @@ async function runTests() {
             body: JSON.stringify({ action: 'DISPATCH' })
         });
         assert.strictEqual(trfDispatch.status, 200, 'Transfer dispatch failed');
-        const nrbStockAfterDispatch = db.prepare('SELECT quantity_on_hand FROM inventory WHERE warehouse_id = 1 AND product_id = 1').get()?.quantity_on_hand || 0;
+        const nrbStockRowAfterDispatch = await dbAdapter.get('SELECT quantity_on_hand FROM inventory WHERE warehouse_id = 1 AND product_id = 1');
+        const nrbStockAfterDispatch = nrbStockRowAfterDispatch ? Number(nrbStockRowAfterDispatch.quantity_on_hand) : 0;
         assert.strictEqual(nrbStockAfterDispatch, nrbStockBefore - 5, 'Source stock was not decremented on dispatch');
         console.log(`  [PASS] Transfer dispatched: Source inventory decremented from ${nrbStockBefore} to ${nrbStockAfterDispatch} (TRANSFER_OUT)`);
 
@@ -568,14 +574,15 @@ async function runTests() {
             body: JSON.stringify({ action: 'RECEIVE' })
         });
         assert.strictEqual(trfReceive.status, 200, 'Transfer receive failed');
-        const msaStockAfterReceive = db.prepare('SELECT quantity_on_hand FROM inventory WHERE warehouse_id = 3 AND product_id = 1').get()?.quantity_on_hand || 0;
+        const msaStockRowAfterReceive = await dbAdapter.get('SELECT quantity_on_hand FROM inventory WHERE warehouse_id = 3 AND product_id = 1');
+        const msaStockAfterReceive = msaStockRowAfterReceive ? Number(msaStockRowAfterReceive.quantity_on_hand) : 0;
         assert.strictEqual(msaStockAfterReceive, msaStockBefore + 5, 'Target stock was not incremented on receive');
         console.log(`  [PASS] Transfer received: Target inventory incremented from ${msaStockBefore} to ${msaStockAfterReceive} (TRANSFER_IN)`);
 
         // 5. Verify movements ledger records
-        const trfOutMovement = db.prepare("SELECT * FROM inventory_movements WHERE reference_id = ? AND movement_type = 'TRANSFER_OUT'").get(transferNo);
+        const trfOutMovement = await dbAdapter.get("SELECT * FROM inventory_movements WHERE reference_id = ? AND movement_type = 'TRANSFER_OUT'", [transferNo]);
         assert.ok(trfOutMovement, 'TRANSFER_OUT movement ledger entry missing');
-        const trfInMovement = db.prepare("SELECT * FROM inventory_movements WHERE reference_id = ? AND movement_type = 'TRANSFER_IN'").get(transferNo);
+        const trfInMovement = await dbAdapter.get("SELECT * FROM inventory_movements WHERE reference_id = ? AND movement_type = 'TRANSFER_IN'", [transferNo]);
         assert.ok(trfInMovement, 'TRANSFER_IN movement ledger entry missing');
         console.log('  [PASS] Verified dual-hub ledger entries (TRANSFER_OUT & TRANSFER_IN)\n');
 

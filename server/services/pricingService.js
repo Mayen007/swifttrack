@@ -1,6 +1,6 @@
 // server/services/pricingService.js
 // Enterprise Multi-Tier Pricing Engine & KRA Fiscal VAT Calculation Service
-const { db } = require('../db/database.js');
+const dbAdapter = require('../db/dbAdapter.js');
 
 const KRA_STANDARD_VAT_RATE = 16.0;
 
@@ -24,9 +24,10 @@ const KRA_STANDARD_VAT_RATE = 16.0;
  * @param {number} [params.quantity=1] - Quantity being purchased
  * @param {string} [params.promoCode] - Promo code (optional)
  * @param {boolean} [params.isWholesale=false] - If wholesale pricing is requested
- * @returns {object} Calculated pricing structure
+ * @param {object} [client=null] - Optional transaction client
+ * @returns {Promise<object>} Calculated pricing structure
  */
-function resolvePrice(params = {}) {
+async function resolvePrice(params = {}, client = null) {
     const {
         productId,
         variantId,
@@ -39,15 +40,17 @@ function resolvePrice(params = {}) {
     } = params;
 
     const qty = Math.max(1, Number(quantity) || 1);
+    const isPostgres = process.env.DB_CLIENT === 'postgres' || (!!process.env.DATABASE_URL && process.env.DB_CLIENT !== 'sqlite');
 
     // 1. Fetch parent product
-    const product = db.prepare(`
+    const activeCondition = isPostgres ? 'p.is_active = true AND p.is_archived = false' : 'p.is_active = 1 AND p.is_archived = 0';
+    const product = await dbAdapter.get(`
         SELECT p.*, c.name as category_name, b.name as brand_name
         FROM products p
         LEFT JOIN categories c ON p.category_id = c.id
         LEFT JOIN brands b ON p.brand_id = b.id
-        WHERE p.id = ? AND p.is_active = 1 AND p.is_archived = 0
-    `).get(Number(productId));
+        WHERE p.id = ? AND ${activeCondition}
+    `, [Number(productId)], client);
 
     if (!product) {
         throw new Error(`Product ${productId} not found or inactive`);
@@ -56,10 +59,11 @@ function resolvePrice(params = {}) {
     // 2. Fetch variant if specified
     let variant = null;
     if (variantId) {
-        variant = db.prepare(`
+        const variantActive = isPostgres ? 'is_active = true' : 'is_active = 1';
+        variant = await dbAdapter.get(`
             SELECT * FROM product_variants
-            WHERE id = ? AND product_id = ? AND is_active = 1
-        `).get(Number(variantId), Number(productId));
+            WHERE id = ? AND product_id = ? AND ${variantActive}
+        `, [Number(variantId), Number(productId)], client);
     }
 
     // Determine baseline prices
@@ -72,10 +76,10 @@ function resolvePrice(params = {}) {
 
     // 3. Branch-specific price override
     if (branchId) {
-        const branchPrice = db.prepare(`
+        const branchPrice = await dbAdapter.get(`
             SELECT * FROM branch_product_prices
             WHERE branch_id = ? AND product_id = ? AND (variant_id = ? OR (variant_id IS NULL AND ? IS NULL))
-        `).get(Number(branchId), Number(productId), variantId ? Number(variantId) : null, variantId ? Number(variantId) : null);
+        `, [Number(branchId), Number(productId), variantId ? Number(variantId) : null, variantId ? Number(variantId) : null], client);
 
         if (branchPrice) {
             const targetBranchPrice = isWholesale && branchPrice.wholesale_price
@@ -97,31 +101,31 @@ function resolvePrice(params = {}) {
     if (customerId || customerTier) {
         let custPrice = null;
         if (customerId) {
-            custPrice = db.prepare(`
+            custPrice = await dbAdapter.get(`
                 SELECT * FROM customer_product_prices
                 WHERE customer_id = ? AND product_id = ? AND (variant_id = ? OR variant_id IS NULL)
                   AND min_quantity <= ?
                   AND (start_date IS NULL OR start_date <= CURRENT_TIMESTAMP)
                   AND (end_date IS NULL OR end_date >= CURRENT_TIMESTAMP)
                 ORDER BY min_quantity DESC LIMIT 1
-            `).get(Number(customerId), Number(productId), variantId ? Number(variantId) : null, qty);
+            `, [Number(customerId), Number(productId), variantId ? Number(variantId) : null, qty], client);
         }
 
         if (!custPrice && customerTier) {
-            custPrice = db.prepare(`
+            custPrice = await dbAdapter.get(`
                 SELECT * FROM customer_product_prices
                 WHERE customer_tier = ? AND product_id = ? AND (variant_id = ? OR variant_id IS NULL)
                   AND min_quantity <= ?
                   AND (start_date IS NULL OR start_date <= CURRENT_TIMESTAMP)
                   AND (end_date IS NULL OR end_date >= CURRENT_TIMESTAMP)
                 ORDER BY min_quantity DESC LIMIT 1
-            `).get(String(customerTier).toUpperCase(), Number(productId), variantId ? Number(variantId) : null, qty);
+            `, [String(customerTier).toUpperCase(), Number(productId), variantId ? Number(variantId) : null, qty], client);
         }
 
         if (custPrice) {
-            if (custPrice.special_price > 0) {
+            if (Number(custPrice.special_price) > 0) {
                 effectivePrice = Number(custPrice.special_price);
-            } else if (custPrice.discount_percent > 0) {
+            } else if (Number(custPrice.discount_percent) > 0) {
                 effectivePrice = effectivePrice * (1 - (Number(custPrice.discount_percent) / 100));
             }
             appliedRules.push({
@@ -133,23 +137,23 @@ function resolvePrice(params = {}) {
     }
 
     // 5. Bulk Quantity Break Pricing
-    const bulkTier = db.prepare(`
+    const bulkTier = await dbAdapter.get(`
         SELECT * FROM product_bulk_pricing
         WHERE product_id = ? AND (variant_id = ? OR variant_id IS NULL)
           AND min_quantity <= ?
           AND (max_quantity IS NULL OR max_quantity >= ?)
         ORDER BY min_quantity DESC LIMIT 1
-    `).get(Number(productId), variantId ? Number(variantId) : null, qty, qty);
+    `, [Number(productId), variantId ? Number(variantId) : null, qty, qty], client);
 
     if (bulkTier) {
-        if (bulkTier.unit_price > 0 && bulkTier.unit_price < effectivePrice) {
+        if (Number(bulkTier.unit_price) > 0 && Number(bulkTier.unit_price) < effectivePrice) {
             effectivePrice = Number(bulkTier.unit_price);
             appliedRules.push({
                 type: 'BULK_TIER',
                 description: `Bulk tier (${bulkTier.min_quantity}+ units) unit price applied`,
                 price: effectivePrice
             });
-        } else if (bulkTier.discount_percent > 0) {
+        } else if (Number(bulkTier.discount_percent) > 0) {
             effectivePrice = effectivePrice * (1 - (Number(bulkTier.discount_percent) / 100));
             appliedRules.push({
                 type: 'BULK_TIER_PERCENT',
@@ -161,9 +165,10 @@ function resolvePrice(params = {}) {
 
     // 6. Active Scheduled Promotions & Promo Codes
     const nowIso = new Date().toISOString();
+    const promoActive = isPostgres ? 'is_active = true' : 'is_active = 1';
     let promoQuery = `
         SELECT * FROM promotions
-        WHERE is_active = 1
+        WHERE ${promoActive}
           AND (start_date <= ? AND end_date >= ?)
           AND (branch_id IS NULL OR branch_id = ?)
           AND (min_quantity <= ?)
@@ -177,7 +182,7 @@ function resolvePrice(params = {}) {
         promoQuery += ' AND promo_code IS NULL';
     }
 
-    const eligiblePromos = db.prepare(promoQuery).all(...promoParams);
+    const eligiblePromos = await dbAdapter.all(promoQuery, promoParams, client);
     for (const promo of eligiblePromos) {
         if (promo.min_spend && (effectivePrice * qty) < Number(promo.min_spend)) {
             continue;
@@ -185,9 +190,9 @@ function resolvePrice(params = {}) {
 
         const matchesScope =
             promo.scope === 'ALL' ||
-            (promo.scope === 'PRODUCT' && promo.target_id === Number(productId)) ||
-            (promo.scope === 'CATEGORY' && promo.target_id === Number(product.category_id)) ||
-            (promo.scope === 'VARIANT' && promo.target_id === Number(variantId));
+            (promo.scope === 'PRODUCT' && Number(promo.target_id) === Number(productId)) ||
+            (promo.scope === 'CATEGORY' && Number(promo.target_id) === Number(product.category_id)) ||
+            (promo.scope === 'VARIANT' && Number(promo.target_id) === Number(variantId));
 
         if (matchesScope) {
             let promoDiscount = 0;

@@ -1,6 +1,6 @@
 // server/services/posShiftService.js
 // SwiftTrack Kenya: POS Cashier Shifts & Cash Drawer Control Service
-const { db } = require('../db/database.js');
+const dbAdapter = require('../db/dbAdapter.js');
 const { logAuditEvent } = require('../middleware/audit.js');
 
 function generateShiftNumber(branchId = 1) {
@@ -12,30 +12,30 @@ function generateShiftNumber(branchId = 1) {
 /**
  * Get current active open shift for a cashier
  */
-function getCurrentShift(cashierId, branchId) {
-    const shift = db.prepare(`
+async function getCurrentShift(cashierId, branchId, client = null) {
+    const shift = await dbAdapter.get(`
         SELECT s.*, u.full_name as cashier_name, b.name as branch_name, b.code as branch_code
         FROM pos_shifts s
         JOIN users u ON s.cashier_user_id = u.id
         JOIN branches b ON s.branch_id = b.id
         WHERE s.cashier_user_id = ? AND s.branch_id = ? AND s.status = 'OPEN'
         ORDER BY s.id DESC LIMIT 1
-    `).get(Number(cashierId), Number(branchId));
+    `, [Number(cashierId), Number(branchId)], client);
 
     if (!shift) return null;
 
     // Fetch drawer movements
-    const movements = db.prepare(`
+    const movements = await dbAdapter.all(`
         SELECT * FROM cash_drawer_movements
         WHERE shift_id = ?
         ORDER BY id DESC LIMIT 20
-    `).all(shift.id);
+    `, [shift.id], client);
 
     // Compute live in-drawer cash balance
     const inDrawerCash = Number((
-        shift.opening_cash
-        + (shift.total_cash_amount || 0)
-        - (shift.total_refunds_amount || 0)
+        Number(shift.opening_cash || 0)
+        + Number(shift.total_cash_amount || 0)
+        - Number(shift.total_refunds_amount || 0)
     ).toFixed(2));
 
     return {
@@ -48,15 +48,15 @@ function getCurrentShift(cashierId, branchId) {
 /**
  * Open a new shift with starting cash float
  */
-function openShift({ opening_cash = 0, notes, branch_id }, user) {
+async function openShift({ opening_cash = 0, notes, branch_id }, user) {
     const branchId = branch_id || user.branchId || 1;
     const cashierId = user.id;
 
     // Check if cashier already has an active open shift
-    const existing = db.prepare(`
+    const existing = await dbAdapter.get(`
         SELECT id, shift_number, branch_id FROM pos_shifts
         WHERE cashier_user_id = ? AND status = 'OPEN'
-    `).get(cashierId);
+    `, [cashierId]);
 
     if (existing) {
         // If shift already open at the requested branch, return it gracefully
@@ -76,23 +76,23 @@ function openShift({ opening_cash = 0, notes, branch_id }, user) {
     const shiftNumber = generateShiftNumber(branchId);
     let shiftId;
 
-    db.transaction(() => {
-        const res = db.prepare(`
+    await dbAdapter.withTransaction(async (tx) => {
+        const res = await tx.run(`
             INSERT INTO pos_shifts (
                 branch_id, cashier_user_id, shift_number, status,
                 opening_cash, expected_cash, notes
             ) VALUES (?, ?, ?, 'OPEN', ?, ?, ?)
-        `).run(branchId, cashierId, shiftNumber, floatAmount, floatAmount, notes || '');
+        `, [branchId, cashierId, shiftNumber, floatAmount, floatAmount, notes || '']);
 
-        shiftId = res.lastInsertRowid;
+        shiftId = res.insertId || res.lastInsertRowid;
 
         // Log initial drawer float movement
-        db.prepare(`
+        await tx.run(`
             INSERT INTO cash_drawer_movements (
                 shift_id, branch_id, cashier_user_id, movement_type, amount, reason
             ) VALUES (?, ?, ?, 'FLOAT_IN', ?, 'Starting opening cash drawer float')
-        `).run(shiftId, branchId, cashierId, floatAmount);
-    })();
+        `, [shiftId, branchId, cashierId, floatAmount]);
+    });
 
     logAuditEvent({
         userId: user.id,
@@ -111,7 +111,7 @@ function openShift({ opening_cash = 0, notes, branch_id }, user) {
 /**
  * Record a completed sale against an open shift
  */
-function recordSaleInShift(shiftId, saleTotal, paymentBreakdown, user) {
+async function recordSaleInShift(shiftId, saleTotal, paymentBreakdown, user, client = null) {
     if (!shiftId) return;
 
     let cashAmount = 0;
@@ -128,8 +128,8 @@ function recordSaleInShift(shiftId, saleTotal, paymentBreakdown, user) {
         else if (method === 'BANK_TRANSFER' || method === 'BANK') bankAmount += amt;
     }
 
-    db.transaction(() => {
-        db.prepare(`
+    const doRecord = async (tx) => {
+        await tx.run(`
             UPDATE pos_shifts
             SET total_sales_count = total_sales_count + 1,
                 total_sales_amount = total_sales_amount + ?,
@@ -140,7 +140,7 @@ function recordSaleInShift(shiftId, saleTotal, paymentBreakdown, user) {
                 expected_cash = expected_cash + ?,
                 updated_at = CURRENT_TIMESTAMP
             WHERE id = ?
-        `).run(
+        `, [
             Number(saleTotal),
             cashAmount,
             mpesaAmount,
@@ -148,22 +148,28 @@ function recordSaleInShift(shiftId, saleTotal, paymentBreakdown, user) {
             bankAmount,
             cashAmount,
             shiftId
-        );
+        ]);
 
         if (cashAmount > 0) {
-            db.prepare(`
+            await tx.run(`
                 INSERT INTO cash_drawer_movements (
                     shift_id, branch_id, cashier_user_id, movement_type, amount, reason
                 ) VALUES (?, ?, ?, 'SALE_CASH', ?, 'Cash tender collected from sale')
-            `).run(shiftId, user.branchId || 1, user.id, cashAmount);
+            `, [shiftId, user.branchId || 1, user.id, cashAmount]);
         }
-    })();
+    };
+
+    if (client) {
+        await doRecord(client);
+    } else {
+        await dbAdapter.withTransaction(doRecord);
+    }
 }
 
 /**
  * Record a cash payout or cash drop from the drawer
  */
-function recordDrawerMovement(shiftId, { movement_type, amount, reason, reference_id }, user) {
+async function recordDrawerMovement(shiftId, { movement_type, amount, reason, reference_id }, user) {
     const validTypes = ['PAYOUT', 'DROP_OUT'];
     const type = String(movement_type).toUpperCase();
     if (!validTypes.includes(type)) {
@@ -179,27 +185,27 @@ function recordDrawerMovement(shiftId, { movement_type, amount, reason, referenc
         throw err;
     }
 
-    const shift = db.prepare('SELECT * FROM pos_shifts WHERE id = ?').get(Number(shiftId));
+    const shift = await dbAdapter.get('SELECT * FROM pos_shifts WHERE id = ?', [Number(shiftId)]);
     if (!shift || shift.status !== 'OPEN') {
         const err = new Error('Shift not found or not currently OPEN');
         err.statusCode = 400;
         throw err;
     }
 
-    db.transaction(() => {
-        db.prepare(`
+    await dbAdapter.withTransaction(async (tx) => {
+        await tx.run(`
             UPDATE pos_shifts
             SET expected_cash = expected_cash - ?,
                 updated_at = CURRENT_TIMESTAMP
             WHERE id = ?
-        `).run(moveAmount, shift.id);
+        `, [moveAmount, shift.id]);
 
-        db.prepare(`
+        await tx.run(`
             INSERT INTO cash_drawer_movements (
                 shift_id, branch_id, cashier_user_id, movement_type, amount, reference_id, reason
             ) VALUES (?, ?, ?, ?, ?, ?, ?)
-        `).run(shift.id, shift.branch_id, user.id, type, moveAmount, reference_id || null, reason || '');
-    })();
+        `, [shift.id, shift.branch_id, user.id, type, moveAmount, reference_id || null, reason || '']);
+    });
 
     return getCurrentShift(shift.cashier_user_id, shift.branch_id);
 }
@@ -207,9 +213,9 @@ function recordDrawerMovement(shiftId, { movement_type, amount, reason, referenc
 /**
  * Close shift and submit physical cash drawer count
  */
-function closeShift(shiftId, { closing_cash, notes }, user) {
+async function closeShift(shiftId, { closing_cash, notes }, user) {
     const targetShiftId = Number(shiftId);
-    const shift = db.prepare('SELECT * FROM pos_shifts WHERE id = ?').get(targetShiftId);
+    const shift = await dbAdapter.get('SELECT * FROM pos_shifts WHERE id = ?', [targetShiftId]);
 
     if (!shift) {
         const err = new Error('Shift record not found');
@@ -233,7 +239,7 @@ function closeShift(shiftId, { closing_cash, notes }, user) {
     const countedCash = Math.max(0, Number(closing_cash) || 0);
     const variance = Number((countedCash - shift.expected_cash).toFixed(2));
 
-    db.prepare(`
+    await dbAdapter.run(`
         UPDATE pos_shifts
         SET status = 'CLOSED',
             closing_cash = ?,
@@ -242,7 +248,7 @@ function closeShift(shiftId, { closing_cash, notes }, user) {
             notes = COALESCE(?, notes),
             updated_at = CURRENT_TIMESTAMP
         WHERE id = ?
-    `).run(countedCash, variance, notes ? notes.trim() : null, targetShiftId);
+    `, [countedCash, variance, notes ? notes.trim() : null, targetShiftId]);
 
     logAuditEvent({
         userId: user.id,
@@ -256,21 +262,21 @@ function closeShift(shiftId, { closing_cash, notes }, user) {
         reason: `Closed shift #${shift.shift_number} with variance KES ${variance}`
     });
 
-    return db.prepare(`
+    return dbAdapter.get(`
         SELECT s.*, u.full_name as cashier_name, b.name as branch_name
         FROM pos_shifts s
         JOIN users u ON s.cashier_user_id = u.id
         JOIN branches b ON s.branch_id = b.id
         WHERE s.id = ?
-    `).get(targetShiftId);
+    `, [targetShiftId]);
 }
 
 /**
  * Reconcile shift (Branch Manager or Super Admin sign-off)
  */
-function reconcileShift(shiftId, { reconciliation_notes }, user) {
+async function reconcileShift(shiftId, { reconciliation_notes }, user) {
     const targetShiftId = Number(shiftId);
-    const shift = db.prepare('SELECT * FROM pos_shifts WHERE id = ?').get(targetShiftId);
+    const shift = await dbAdapter.get('SELECT * FROM pos_shifts WHERE id = ?', [targetShiftId]);
 
     if (!shift) {
         const err = new Error('Shift record not found');
@@ -290,7 +296,7 @@ function reconcileShift(shiftId, { reconciliation_notes }, user) {
         throw err;
     }
 
-    db.prepare(`
+    await dbAdapter.run(`
         UPDATE pos_shifts
         SET status = 'RECONCILED',
             reconciled_at = CURRENT_TIMESTAMP,
@@ -298,7 +304,7 @@ function reconcileShift(shiftId, { reconciliation_notes }, user) {
             reconciliation_notes = ?,
             updated_at = CURRENT_TIMESTAMP
         WHERE id = ?
-    `).run(user.id, reconciliation_notes || 'Reconciled and verified against physical count', targetShiftId);
+    `, [user.id, reconciliation_notes || 'Reconciled and verified against physical count', targetShiftId]);
 
     logAuditEvent({
         userId: user.id,
@@ -312,20 +318,20 @@ function reconcileShift(shiftId, { reconciliation_notes }, user) {
         reason: 'Manager certified end-of-day shift reconciliation'
     });
 
-    return db.prepare(`
+    return dbAdapter.get(`
         SELECT s.*, u.full_name as cashier_name, b.name as branch_name, m.full_name as reconciled_by_name
         FROM pos_shifts s
         JOIN users u ON s.cashier_user_id = u.id
         JOIN branches b ON s.branch_id = b.id
         LEFT JOIN users m ON s.reconciled_by = m.id
         WHERE s.id = ?
-    `).get(targetShiftId);
+    `, [targetShiftId]);
 }
 
 /**
  * List shifts with pagination, branch isolation, and filters
  */
-function listShifts({ branchId, cashierId, status, date, page = 1, limit = 50 }) {
+async function listShifts({ branchId, cashierId, status, date, page = 1, limit = 50 }) {
     const pageNum = Math.max(1, Number(page) || 1);
     const pageLimit = Math.max(1, Math.min(100, Number(limit) || 50));
     const offset = (pageNum - 1) * pageLimit;
@@ -353,14 +359,14 @@ function listShifts({ branchId, cashierId, status, date, page = 1, limit = 50 })
         params.push(status.toUpperCase());
     }
     if (date) {
-        query += ' AND date(s.opened_at) = date(?)';
+        query += ' AND DATE(s.opened_at) = DATE(?)';
         params.push(date);
     }
 
     query += ' ORDER BY s.id DESC LIMIT ? OFFSET ?';
     params.push(pageLimit, offset);
 
-    return db.prepare(query).all(...params);
+    return dbAdapter.all(query, params);
 }
 
 module.exports = {

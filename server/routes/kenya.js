@@ -1,7 +1,7 @@
 // server/routes/kenya.js
 const express = require('express');
 const router = express.Router();
-const { db } = require('../db/database.js');
+const dbAdapter = require('../db/dbAdapter.js');
 const { authenticateToken } = require('../middleware/auth.js');
 
 // Format and validate Kenyan phone numbers (+254 7XX / +254 1XX)
@@ -52,31 +52,40 @@ router.post('/mpesa/stk-push', authenticateToken, (req, res) => {
 });
 
 // GET /api/kenya/etims/invoice/:saleNumber - Generates KRA eTIMS invoice verification details
-router.get('/etims/invoice/:saleNumber', authenticateToken, (req, res) => {
-    const { saleNumber } = req.params;
-    const sale = db.prepare('SELECT s.*, b.name as branch_name, b.code as branch_code FROM sales s JOIN branches b ON s.branch_id = b.id WHERE s.sale_number = ?').get(saleNumber);
+router.get('/etims/invoice/:saleNumber', authenticateToken, async (req, res) => {
+    try {
+        const { saleNumber } = req.params;
+        const sale = await dbAdapter.get('SELECT s.*, b.name as branch_name, b.code as branch_code FROM sales s JOIN branches b ON s.branch_id = b.id WHERE s.sale_number = ?', [saleNumber]);
 
-    if (!sale) return res.status(404).json({ error: 'Sale not found' });
+        if (!sale) return res.status(404).json({ error: 'Sale not found' });
 
-    const company = db.prepare('SELECT * FROM company_settings WHERE id = 1').get();
+        const company = await dbAdapter.get('SELECT * FROM company_settings WHERE id = 1') || {
+            company_name: 'SwiftTrack Kenya Logistics Ltd',
+            kra_pin: 'P051234567Z',
+            etims_branch_code: '01',
+            vat_rate: 16
+        };
 
-    // Generate standard KRA eTIMS QR data string format
-    const qrData = `https://etims.kra.go.ke/verify?pin=${company.kra_pin}&cu=${company.etims_branch_code}&inv=${sale.sale_number}&amt=${sale.total_amount}&dt=${sale.created_at}`;
+        // Generate standard KRA eTIMS QR data string format
+        const qrData = `https://etims.kra.go.ke/verify?pin=${company.kra_pin}&cu=${company.etims_branch_code}&inv=${sale.sale_number}&amt=${sale.total_amount}&dt=${sale.created_at}`;
 
-    res.json({
-        company_name: company.company_name,
-        kra_pin: company.kra_pin,
-        branch_name: sale.branch_name,
-        branch_code: sale.branch_code,
-        sale_number: sale.sale_number,
-        invoice_number: `KRA-CU-${company.etims_branch_code}-${sale.id.toString().padStart(8, '0')}`,
-        vat_amount: sale.tax_amount,
-        vat_rate: `${company.vat_rate}%`,
-        subtotal: sale.subtotal,
-        total_amount: sale.total_amount,
-        date: sale.created_at,
-        qr_verification_url: qrData
-    });
+        res.json({
+            company_name: company.company_name,
+            kra_pin: company.kra_pin,
+            branch_name: sale.branch_name,
+            branch_code: sale.branch_code,
+            sale_number: sale.sale_number,
+            invoice_number: `KRA-CU-${company.etims_branch_code}-${sale.id.toString().padStart(8, '0')}`,
+            vat_amount: sale.tax_amount,
+            vat_rate: `${company.vat_rate}%`,
+            subtotal: sale.subtotal,
+            total_amount: sale.total_amount,
+            date: sale.created_at,
+            qr_verification_url: qrData
+        });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
 });
 
 module.exports = router;

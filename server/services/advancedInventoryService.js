@@ -1,7 +1,7 @@
 // server/services/advancedInventoryService.js
 // SwiftTrack Kenya: Phase 3.3 Advanced Inventory Engine
 // Batch/Lot Tracking, Expiry Management, Serial Numbers, FIFO / Weighted-Average Valuation, COGS & Reorder Alerts
-const { db } = require('../db/database.js');
+const dbAdapter = require('../db/dbAdapter.js');
 const {
   getOrInitInventory,
   markExpired
@@ -11,59 +11,68 @@ const {
  * 1. BATCH / LOT MANAGEMENT
  */
 
-function createBatch({
+async function createBatch({
   branchId, warehouseId, productId, variantId = null,
   batchNumber, initialQuantity, unitCost = 0,
   expiryDate = null, manufacturingDate = null,
   supplierId = null, receiptItemId = null, notes = null
-}) {
+}, client = null) {
   const qty = Math.abs(Number(initialQuantity));
   if (!batchNumber || !productId || !warehouseId || qty <= 0) {
     throw new Error('Valid batchNumber, productId, warehouseId, and positive initialQuantity are required');
   }
 
-  const effectiveBranchId = branchId || (() => {
-    const wh = db.prepare('SELECT branch_id FROM warehouses WHERE id = ?').get(warehouseId);
-    return wh ? wh.branch_id : 1;
-  })();
+  let effectiveBranchId = branchId;
+  if (!effectiveBranchId) {
+    const wh = await dbAdapter.get('SELECT branch_id FROM warehouses WHERE id = ?', [warehouseId], client);
+    effectiveBranchId = wh ? wh.branch_id : 1;
+  }
 
-  const existing = db.prepare(`
+  const existing = await dbAdapter.get(`
     SELECT * FROM inventory_batches
     WHERE warehouse_id = ? AND product_id = ? AND batch_number = ?
-  `).get(warehouseId, productId, batchNumber);
+  `, [warehouseId, productId, batchNumber], client);
 
   if (existing) {
-    const newInitQty = existing.initial_quantity + qty;
-    const newAvailQty = existing.quantity_available + qty;
-    const newUnitCost = Number(unitCost) > 0 ? Number(unitCost) : existing.unit_cost;
-    db.prepare(`
+    const newInitQty = Number(existing.initial_quantity) + qty;
+    const newAvailQty = Number(existing.quantity_available) + qty;
+    const newUnitCost = Number(unitCost) > 0 ? Number(unitCost) : Number(existing.unit_cost);
+    await dbAdapter.run(`
       UPDATE inventory_batches
       SET initial_quantity = ?, quantity_available = ?, unit_cost = ?,
           status = 'ACTIVE', updated_at = CURRENT_TIMESTAMP
       WHERE id = ?
-    `).run(newInitQty, newAvailQty, newUnitCost, existing.id);
+    `, [newInitQty, newAvailQty, newUnitCost, existing.id], client);
 
-    return db.prepare('SELECT * FROM inventory_batches WHERE id = ?').get(existing.id);
+    return dbAdapter.get('SELECT * FROM inventory_batches WHERE id = ?', [existing.id], client);
   }
 
-  const res = db.prepare(`
+  const res = await dbAdapter.run(`
     INSERT INTO inventory_batches (
       batch_number, product_id, variant_id, warehouse_id, branch_id,
       supplier_id, receipt_item_id, initial_quantity, quantity_available,
       quantity_reserved, unit_cost, manufacturing_date, expiry_date,
       status, notes
     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, 'ACTIVE', ?)
-  `).run(
+  `, [
     batchNumber, productId, variantId, warehouseId, effectiveBranchId,
     supplierId, receiptItemId, qty, qty,
     Number(unitCost) || 0, manufacturingDate || null, expiryDate || null,
     notes || ''
-  );
+  ], client);
 
-  return db.prepare('SELECT * FROM inventory_batches WHERE id = ?').get(res.lastInsertRowid);
+  const batchId = res.insertId || res.id;
+  if (batchId) {
+    return dbAdapter.get('SELECT * FROM inventory_batches WHERE id = ?', [batchId], client);
+  }
+  return dbAdapter.get(`
+    SELECT * FROM inventory_batches
+    WHERE warehouse_id = ? AND product_id = ? AND batch_number = ?
+    ORDER BY id DESC LIMIT 1
+  `, [warehouseId, productId, batchNumber], client);
 }
 
-function getBatches({ productId, warehouseId, branchId, status, expiringDays = null }) {
+async function getBatches({ productId, warehouseId, branchId, status, expiringDays = null }, client = null) {
   let query = `
     SELECT b.*, p.name AS product_name, p.sku AS product_sku,
            w.name AS warehouse_name, br.name AS branch_name
@@ -92,16 +101,17 @@ function getBatches({ productId, warehouseId, branchId, status, expiringDays = n
     params.push(status);
   }
   if (expiringDays !== null) {
-    query += ` AND b.expiry_date IS NOT NULL AND b.expiry_date <= date('now', '+' || ? || ' days')`;
-    params.push(expiringDays);
+    const targetDate = new Date(Date.now() + Number(expiringDays) * 86400000).toISOString().slice(0, 10);
+    query += ` AND b.expiry_date IS NOT NULL AND b.expiry_date <= ?`;
+    params.push(targetDate);
   }
 
   query += ` ORDER BY CASE WHEN b.expiry_date IS NOT NULL THEN b.expiry_date ELSE '9999-12-31' END ASC, b.id ASC`;
-  return db.prepare(query).all(...params);
+  return dbAdapter.all(query, params, client);
 }
 
-function getBatchById(id) {
-  return db.prepare(`
+async function getBatchById(id, client = null) {
+  return dbAdapter.get(`
     SELECT b.*, p.name AS product_name, p.sku AS product_sku,
            w.name AS warehouse_name, br.name AS branch_name
     FROM inventory_batches b
@@ -109,22 +119,22 @@ function getBatchById(id) {
     JOIN warehouses w ON b.warehouse_id = w.id
     JOIN branches br ON b.branch_id = br.id
     WHERE b.id = ?
-  `).get(id);
+  `, [id], client);
 }
 
 /**
  * Deplete batches using strict FIFO (Oldest expiry first, then oldest creation date)
  */
-function depleteBatchFIFO({ warehouseId, productId, quantity }) {
+async function depleteBatchFIFO({ warehouseId, productId, quantity }, client = null) {
   let remainingNeeded = Math.abs(Number(quantity));
   if (remainingNeeded <= 0) return { allocations: [], totalCogs: 0, totalDepleted: 0 };
 
-  const batches = db.prepare(`
+  const batches = await dbAdapter.all(`
     SELECT * FROM inventory_batches
     WHERE warehouse_id = ? AND product_id = ? AND status = 'ACTIVE' AND quantity_available > 0
     ORDER BY CASE WHEN expiry_date IS NOT NULL THEN expiry_date ELSE '9999-12-31' END ASC,
              created_at ASC, id ASC
-  `).all(warehouseId, productId);
+  `, [warehouseId, productId], client);
 
   const allocations = [];
   let totalCogs = 0;
@@ -133,22 +143,24 @@ function depleteBatchFIFO({ warehouseId, productId, quantity }) {
   for (const b of batches) {
     if (remainingNeeded <= 0) break;
 
-    const take = Math.min(b.quantity_available, remainingNeeded);
-    const newAvail = b.quantity_available - take;
+    const available = Number(b.quantity_available);
+    const unitCost = Number(b.unit_cost);
+    const take = Math.min(available, remainingNeeded);
+    const newAvail = available - take;
     const newStatus = newAvail === 0 ? 'DEPLETED' : 'ACTIVE';
 
-    db.prepare(`
+    await dbAdapter.run(`
       UPDATE inventory_batches
       SET quantity_available = ?, status = ?, updated_at = CURRENT_TIMESTAMP
       WHERE id = ?
-    `).run(newAvail, newStatus, b.id);
+    `, [newAvail, newStatus, b.id], client);
 
-    const cost = take * b.unit_cost;
+    const cost = take * unitCost;
     allocations.push({
       batchId: b.id,
       batchNumber: b.batch_number,
       quantity: take,
-      unitCost: b.unit_cost,
+      unitCost: unitCost,
       totalCost: cost,
       expiryDate: b.expiry_date
     });
@@ -170,7 +182,7 @@ function depleteBatchFIFO({ warehouseId, productId, quantity }) {
  * 2. EXPIRY DATES INTELLIGENCE & AUTOMATED SEGREGATION
  */
 
-function evaluateBatchExpiries({ warehouseId = null, branchId = null, currentDate = null, userId = 1 }) {
+async function evaluateBatchExpiries({ warehouseId = null, branchId = null, currentDate = null, userId = 1 }, client = null) {
   const targetDate = currentDate || new Date().toISOString().slice(0, 10);
 
   let query = `
@@ -191,16 +203,16 @@ function evaluateBatchExpiries({ warehouseId = null, branchId = null, currentDat
     params.push(branchId);
   }
 
-  const expiredBatches = db.prepare(query).all(...params);
+  const expiredBatches = await dbAdapter.all(query, params, client);
   const segregated = [];
   let totalUnitsExpired = 0;
 
   for (const b of expiredBatches) {
-    const qty = b.quantity_available;
+    const qty = Number(b.quantity_available);
     if (qty <= 0) continue;
 
     // Segregate stock in multi-state inventory from AVAILABLE to EXPIRED
-    markExpired({
+    await markExpired({
       branchId: b.branch_id,
       warehouseId: b.warehouse_id,
       productId: b.product_id,
@@ -208,23 +220,24 @@ function evaluateBatchExpiries({ warehouseId = null, branchId = null, currentDat
       referenceId: b.batch_number,
       userId,
       reason: `Auto-segregation: Batch ${b.batch_number} expired on ${b.expiry_date}`
-    });
+    }, client);
 
     // Mark batch as EXPIRED and zero available
-    db.prepare(`
+    await dbAdapter.run(`
       UPDATE inventory_batches
       SET quantity_available = 0, status = 'EXPIRED', updated_at = CURRENT_TIMESTAMP
       WHERE id = ?
-    `).run(b.id);
+    `, [b.id], client);
 
+    const unitCost = Number(b.unit_cost);
     segregated.push({
       batchId: b.id,
       batchNumber: b.batch_number,
       productId: b.product_id,
       warehouseId: b.warehouse_id,
       quantity: qty,
-      unitCost: b.unit_cost,
-      lossValue: Number((qty * b.unit_cost).toFixed(2)),
+      unitCost: unitCost,
+      lossValue: Number((qty * unitCost).toFixed(2)),
       expiryDate: b.expiry_date
     });
 
@@ -239,9 +252,8 @@ function evaluateBatchExpiries({ warehouseId = null, branchId = null, currentDat
   };
 }
 
-function getExpiringBatches({ daysThreshold = 30, branchId = null, warehouseId = null }) {
+async function getExpiringBatches({ daysThreshold = 30, branchId = null, warehouseId = null }, client = null) {
   const today = new Date().toISOString().slice(0, 10);
-  const thresholdDate = new Date(Date.now() + daysThreshold * 86400000).toISOString().slice(0, 10);
 
   let query = `
     SELECT b.*, p.name AS product_name, p.sku AS product_sku,
@@ -264,7 +276,7 @@ function getExpiringBatches({ daysThreshold = 30, branchId = null, warehouseId =
   }
 
   query += ` ORDER BY b.expiry_date ASC`;
-  const rows = db.prepare(query).all(...params);
+  const rows = await dbAdapter.all(query, params, client);
 
   const criticalExpired = [];
   const warningExpiringSoon = [];
@@ -300,85 +312,88 @@ function getExpiringBatches({ daysThreshold = 30, branchId = null, warehouseId =
  * 3. SERIAL NUMBERS MANAGEMENT
  */
 
-function registerSerials({
+async function registerSerials({
   productId, variantId = null, warehouseId, branchId = null,
   batchId = null, serialNumbers = [], unitCost = 0, notes = null
-}) {
+}, client = null) {
   if (!productId || !warehouseId || !Array.isArray(serialNumbers) || serialNumbers.length === 0) {
     throw new Error('Valid productId, warehouseId, and serialNumbers array are required');
   }
 
-  const effectiveBranchId = branchId || (() => {
-    const wh = db.prepare('SELECT branch_id FROM warehouses WHERE id = ?').get(warehouseId);
-    return wh ? wh.branch_id : 1;
-  })();
+  let effectiveBranchId = branchId;
+  if (!effectiveBranchId) {
+    const wh = await dbAdapter.get('SELECT branch_id FROM warehouses WHERE id = ?', [warehouseId], client);
+    effectiveBranchId = wh ? wh.branch_id : 1;
+  }
 
   const cleanSerials = [...new Set(serialNumbers.map(s => String(s).trim()).filter(Boolean))];
   if (cleanSerials.length === 0) throw new Error('No valid serial numbers provided');
 
-  return db.transaction(() => {
-    // Check for duplicates in DB
-    const checkStmt = db.prepare('SELECT serial_number FROM inventory_serials WHERE serial_number = ?');
+  const runner = async (txnClient) => {
     for (const sn of cleanSerials) {
-      const dup = checkStmt.get(sn);
+      const dup = await dbAdapter.get('SELECT serial_number FROM inventory_serials WHERE serial_number = ?', [sn], txnClient);
       if (dup) {
         throw new Error(`Serial number '${sn}' is already registered in the system.`);
       }
     }
 
-    const insertStmt = db.prepare(`
-      INSERT INTO inventory_serials (
-        serial_number, product_id, variant_id, warehouse_id, branch_id,
-        batch_id, status, unit_cost, notes
-      ) VALUES (?, ?, ?, ?, ?, ?, 'AVAILABLE', ?, ?)
-    `);
-
     const insertedIds = [];
     for (const sn of cleanSerials) {
-      const r = insertStmt.run(sn, productId, variantId, warehouseId, effectiveBranchId, batchId, Number(unitCost) || 0, notes || '');
-      insertedIds.push(r.lastInsertRowid);
+      const r = await dbAdapter.run(`
+        INSERT INTO inventory_serials (
+          serial_number, product_id, variant_id, warehouse_id, branch_id,
+          batch_id, status, unit_cost, notes
+        ) VALUES (?, ?, ?, ?, ?, ?, 'AVAILABLE', ?, ?)
+      `, [sn, productId, variantId, warehouseId, effectiveBranchId, batchId, Number(unitCost) || 0, notes || ''], txnClient);
+      insertedIds.push(r.insertId || r.id);
     }
 
-    // Mark product as serialized if not already set
-    db.prepare('UPDATE products SET is_serialized = 1 WHERE id = ?').run(productId);
+    const isPostgres = process.env.DB_CLIENT === 'postgres' || (!!process.env.DATABASE_URL && process.env.DB_CLIENT !== 'sqlite');
+    await dbAdapter.run(
+      isPostgres ? 'UPDATE products SET is_serialized = true WHERE id = ?' : 'UPDATE products SET is_serialized = 1 WHERE id = ?',
+      [productId],
+      txnClient
+    );
 
     return {
       registeredCount: insertedIds.length,
       serialNumbers: cleanSerials
     };
-  })();
+  };
+
+  return client ? runner(client) : dbAdapter.withTransaction(runner);
 }
 
-function allocateSerial({ serialNumber, orderId = null, saleId = null }) {
-  const serial = db.prepare('SELECT * FROM inventory_serials WHERE serial_number = ?').get(serialNumber);
+async function allocateSerial({ serialNumber, orderId = null, saleId = null }, client = null) {
+  const serial = await dbAdapter.get('SELECT * FROM inventory_serials WHERE serial_number = ?', [serialNumber], client);
   if (!serial) throw new Error(`Serial number '${serialNumber}' not found`);
   if (serial.status !== 'AVAILABLE') {
     throw new Error(`Serial number '${serialNumber}' is not available (Status: ${serial.status})`);
   }
 
-  db.prepare(`
+  await dbAdapter.run(`
     UPDATE inventory_serials
     SET status = 'RESERVED', allocated_order_id = ?, allocated_sale_id = ?, updated_at = CURRENT_TIMESTAMP
     WHERE id = ?
-  `).run(orderId, saleId, serial.id);
+  `, [orderId, saleId, serial.id], client);
 
-  return db.prepare('SELECT * FROM inventory_serials WHERE id = ?').get(serial.id);
+  return dbAdapter.get('SELECT * FROM inventory_serials WHERE id = ?', [serial.id], client);
 }
 
-function markSerialSold({ serialNumber, saleId }) {
-  const serial = db.prepare('SELECT * FROM inventory_serials WHERE serial_number = ?').get(serialNumber);
+async function markSerialSold({ serialNumber, saleId }, client = null) {
+  const serial = await dbAdapter.get('SELECT * FROM inventory_serials WHERE serial_number = ?', [serialNumber], client);
   if (!serial) throw new Error(`Serial number '${serialNumber}' not found`);
 
-  db.prepare(`
+  await dbAdapter.run(`
     UPDATE inventory_serials
     SET status = 'SOLD', allocated_sale_id = ?, updated_at = CURRENT_TIMESTAMP
     WHERE id = ?
-  `).run(saleId, serial.id);
+  `, [saleId, serial.id], client);
 
-  return db.prepare('SELECT * FROM inventory_serials WHERE id = ?').get(serial.id);
+  return dbAdapter.get('SELECT * FROM inventory_serials WHERE id = ?', [serial.id], client);
 }
 
-function getSerials({ productId, warehouseId, branchId, status, serialNumber }) {
+async function getSerials({ productId, warehouseId, branchId, status, serialNumber }, client = null) {
   let query = `
     SELECT s.*, p.name AS product_name, p.sku AS product_sku,
            w.name AS warehouse_name, br.name AS branch_name,
@@ -414,23 +429,25 @@ function getSerials({ productId, warehouseId, branchId, status, serialNumber }) 
   }
 
   query += ' ORDER BY s.id DESC';
-  return db.prepare(query).all(...params);
+  return dbAdapter.all(query, params, client);
 }
 
 /**
  * 4. VALUATION & COGS STRATEGY (FIFO vs WEIGHTED_AVERAGE)
  */
 
-function updateMovingAverageCost({ warehouseId, productId, receivedQty, unitCost }) {
+async function updateMovingAverageCost({ warehouseId, productId, receivedQty, unitCost }, client = null) {
   const qty = Number(receivedQty) || 0;
   const newCost = Number(unitCost) || 0;
   if (qty <= 0) return 0;
 
-  const inv = db.prepare('SELECT * FROM inventory WHERE warehouse_id = ? AND product_id = ?').get(warehouseId, productId);
-  const product = db.prepare('SELECT cost_price FROM products WHERE id = ?').get(productId);
+  const inv = await dbAdapter.get('SELECT * FROM inventory WHERE warehouse_id = ? AND product_id = ?', [warehouseId, productId], client);
+  const product = await dbAdapter.get('SELECT cost_price FROM products WHERE id = ?', [productId], client);
 
-  const curAvailable = inv ? Math.max(0, inv.quantity_available) : 0;
-  const curAvgCost = (inv && inv.average_cost > 0) ? inv.average_cost : (product ? product.cost_price : 0);
+  const curAvailable = inv ? Math.max(0, Number(inv.quantity_available)) : 0;
+  const invAvgCost = inv ? Number(inv.average_cost) : 0;
+  const prodCost = product ? Number(product.cost_price) : 0;
+  const curAvgCost = invAvgCost > 0 ? invAvgCost : prodCost;
 
   const totalCurrentValue = curAvailable * curAvgCost;
   const totalReceivedValue = qty * newCost;
@@ -441,26 +458,28 @@ function updateMovingAverageCost({ warehouseId, productId, receivedQty, unitCost
     : newCost;
 
   if (inv) {
-    db.prepare(`
+    await dbAdapter.run(`
       UPDATE inventory
       SET average_cost = ?, updated_at = CURRENT_TIMESTAMP
       WHERE id = ?
-    `).run(updatedAverageCost, inv.id);
+    `, [updatedAverageCost, inv.id], client);
   }
 
   return updatedAverageCost;
 }
 
-function calculateCOGS({ warehouseId, productId, quantity, costingMethod = null }) {
-  const product = db.prepare('SELECT cost_price, costing_method FROM products WHERE id = ?').get(productId);
+async function calculateCOGS({ warehouseId, productId, quantity, costingMethod = null }, client = null) {
+  const product = await dbAdapter.get('SELECT cost_price, costing_method FROM products WHERE id = ?', [productId], client);
   if (!product) throw new Error(`Product ${productId} not found`);
 
   const effectiveMethod = costingMethod || product.costing_method || 'FIFO';
   const qty = Math.max(1, Number(quantity) || 1);
+  const prodCost = Number(product.cost_price) || 0;
 
   if (effectiveMethod === 'WEIGHTED_AVERAGE') {
-    const inv = db.prepare('SELECT average_cost FROM inventory WHERE warehouse_id = ? AND product_id = ?').get(warehouseId, productId);
-    const unitCost = (inv && inv.average_cost > 0) ? inv.average_cost : product.cost_price;
+    const inv = await dbAdapter.get('SELECT average_cost FROM inventory WHERE warehouse_id = ? AND product_id = ?', [warehouseId, productId], client);
+    const invAvgCost = inv ? Number(inv.average_cost) : 0;
+    const unitCost = invAvgCost > 0 ? invAvgCost : prodCost;
     const totalCogs = Number((qty * unitCost).toFixed(2));
 
     return {
@@ -472,18 +491,17 @@ function calculateCOGS({ warehouseId, productId, quantity, costingMethod = null 
   }
 
   // FIFO Strategy: Deplete from oldest batch
-  const fifoResult = depleteBatchFIFO({ warehouseId, productId, quantity: qty });
+  const fifoResult = await depleteBatchFIFO({ warehouseId, productId, quantity: qty }, client);
   let totalCogs = fifoResult.totalCogs;
 
-  // Fallback: If not enough batch-tracked inventory exists, fill remainder with product.cost_price
   if (fifoResult.unallocatedQuantity > 0) {
-    const fallbackCost = Number((fifoResult.unallocatedQuantity * product.cost_price).toFixed(2));
+    const fallbackCost = Number((fifoResult.unallocatedQuantity * prodCost).toFixed(2));
     totalCogs = Number((totalCogs + fallbackCost).toFixed(2));
     fifoResult.allocations.push({
       batchId: null,
       batchNumber: 'STANDARD_STOCK',
       quantity: fifoResult.unallocatedQuantity,
-      unitCost: product.cost_price,
+      unitCost: prodCost,
       totalCost: fallbackCost
     });
   }
@@ -497,7 +515,7 @@ function calculateCOGS({ warehouseId, productId, quantity, costingMethod = null 
   };
 }
 
-function getInventoryValuation({ branchId = null, warehouseId = null }) {
+async function getInventoryValuation({ branchId = null, warehouseId = null }, client = null) {
   let query = `
     SELECT 
       i.warehouse_id, i.product_id,
@@ -527,7 +545,7 @@ function getInventoryValuation({ branchId = null, warehouseId = null }) {
     params.push(branchId);
   }
 
-  const rows = db.prepare(query).all(...params);
+  const rows = await dbAdapter.all(query, params, client);
 
   let totalOnHandValue = 0;
   let totalAvailableValue = 0;
@@ -538,14 +556,24 @@ function getInventoryValuation({ branchId = null, warehouseId = null }) {
   let totalRetailValue = 0;
 
   const itemDetails = rows.map(r => {
-    const unitCost = r.average_cost > 0 ? r.average_cost : r.cost_price;
-    const onHandVal = Number((r.quantity_on_hand * unitCost).toFixed(2));
-    const availVal = Number((r.quantity_available * unitCost).toFixed(2));
-    const resVal = Number((r.quantity_reserved * unitCost).toFixed(2));
-    const transVal = Number((r.quantity_in_transit * unitCost).toFixed(2));
-    const damVal = Number((r.quantity_damaged * unitCost).toFixed(2));
-    const expVal = Number((r.quantity_expired * unitCost).toFixed(2));
-    const retVal = Number((r.quantity_available * r.selling_price).toFixed(2));
+    const avgCost = Number(r.average_cost) || 0;
+    const costPrice = Number(r.cost_price) || 0;
+    const unitCost = avgCost > 0 ? avgCost : costPrice;
+    const onHand = Number(r.quantity_on_hand) || 0;
+    const available = Number(r.quantity_available) || 0;
+    const reserved = Number(r.quantity_reserved) || 0;
+    const inTransit = Number(r.quantity_in_transit) || 0;
+    const damaged = Number(r.quantity_damaged) || 0;
+    const expired = Number(r.quantity_expired) || 0;
+    const sellingPrice = Number(r.selling_price) || 0;
+
+    const onHandVal = Number((onHand * unitCost).toFixed(2));
+    const availVal = Number((available * unitCost).toFixed(2));
+    const resVal = Number((reserved * unitCost).toFixed(2));
+    const transVal = Number((inTransit * unitCost).toFixed(2));
+    const damVal = Number((damaged * unitCost).toFixed(2));
+    const expVal = Number((expired * unitCost).toFixed(2));
+    const retVal = Number((available * sellingPrice).toFixed(2));
 
     totalOnHandValue += onHandVal;
     totalAvailableValue += availVal;
@@ -564,14 +592,14 @@ function getInventoryValuation({ branchId = null, warehouseId = null }) {
       branchName: r.branch_name,
       costingMethod: r.costing_method,
       unitCost,
-      sellingPrice: r.selling_price,
+      sellingPrice,
       quantities: {
-        onHand: r.quantity_on_hand,
-        available: r.quantity_available,
-        reserved: r.quantity_reserved,
-        inTransit: r.quantity_in_transit,
-        damaged: r.quantity_damaged,
-        expired: r.quantity_expired
+        onHand,
+        available,
+        reserved,
+        inTransit,
+        damaged,
+        expired
       },
       valuations: {
         onHand: onHandVal,
@@ -606,7 +634,11 @@ function getInventoryValuation({ branchId = null, warehouseId = null }) {
  * 5. REORDER ALERTS ENGINE
  */
 
-function getReorderAlerts({ branchId = null, warehouseId = null }) {
+async function getReorderAlerts({ branchId = null, warehouseId = null }, client = null) {
+  const isPostgres = process.env.DB_CLIENT === 'postgres' || (!!process.env.DATABASE_URL && process.env.DB_CLIENT !== 'sqlite');
+  const activeCondition = isPostgres ? 'p.is_active = true' : 'p.is_active = 1';
+  const archivedCondition = isPostgres ? 'p.is_archived = false' : 'p.is_archived = 0';
+
   let query = `
     SELECT 
       i.warehouse_id, i.product_id, i.quantity_available, i.quantity_on_hand,
@@ -621,8 +653,8 @@ function getReorderAlerts({ branchId = null, warehouseId = null }) {
     JOIN branches br ON i.branch_id = br.id
     LEFT JOIN categories c ON p.category_id = c.id
     WHERE i.quantity_available <= p.reorder_threshold
-      AND p.is_active = 1
-      AND p.is_archived = 0
+      AND ${activeCondition}
+      AND ${archivedCondition}
   `;
   const params = [];
 
@@ -636,13 +668,18 @@ function getReorderAlerts({ branchId = null, warehouseId = null }) {
   }
 
   query += ' ORDER BY (p.reorder_threshold - i.quantity_available) DESC';
-  const rows = db.prepare(query).all(...params);
+  const rows = await dbAdapter.all(query, params, client);
 
   const alerts = rows.map(r => {
-    const deficit = Math.max(0, r.reorder_threshold - r.quantity_available);
-    const suggestedReorderQty = Math.max(r.reorder_quantity, deficit + r.reorder_quantity);
-    const estimatedCost = Number((suggestedReorderQty * r.cost_price).toFixed(2));
-    const urgency = r.quantity_available === 0 ? 'CRITICAL_OUT_OF_STOCK' : 'LOW_STOCK';
+    const available = Number(r.quantity_available) || 0;
+    const threshold = Number(r.reorder_threshold) || 0;
+    const reorderQty = Number(r.reorder_quantity) || 0;
+    const costPrice = Number(r.cost_price) || 0;
+
+    const deficit = Math.max(0, threshold - available);
+    const suggestedReorderQty = Math.max(reorderQty, deficit + reorderQty);
+    const estimatedCost = Number((suggestedReorderQty * costPrice).toFixed(2));
+    const urgency = available === 0 ? 'CRITICAL_OUT_OF_STOCK' : 'LOW_STOCK';
 
     return {
       productId: r.product_id,
@@ -651,10 +688,10 @@ function getReorderAlerts({ branchId = null, warehouseId = null }) {
       categoryName: r.category_name,
       warehouseName: r.warehouse_name,
       branchName: r.branch_name,
-      quantityAvailable: r.quantity_available,
-      quantityOnHand: r.quantity_on_hand,
-      reorderThreshold: r.reorder_threshold,
-      reorderQuantity: r.reorder_quantity,
+      quantityAvailable: available,
+      quantityOnHand: Number(r.quantity_on_hand) || 0,
+      reorderThreshold: threshold,
+      reorderQuantity: reorderQty,
       deficit,
       suggestedReorderQty,
       estimatedCost,

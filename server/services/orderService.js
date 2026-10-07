@@ -1,7 +1,6 @@
 // server/services/orderService.js
 // SwiftTrack Kenya: Phase 6 Orders Engine & State Machine Service
-const { db } = require('../db/database.js');
-const inventoryStateService = require('./inventoryStateService.js');
+const dbAdapter = require('../db/dbAdapter.js');
 const { logAuditEvent } = require('../middleware/audit.js');
 
 const ORDER_STATUSES = {
@@ -41,15 +40,15 @@ const ALLOWED_TRANSITIONS = {
 /**
  * Resolve primary warehouse for a branch
  */
-function getPrimaryWarehouse(branchId) {
-    const wh = db.prepare('SELECT id FROM warehouses WHERE branch_id = ? ORDER BY id ASC LIMIT 1').get(branchId);
+async function getPrimaryWarehouse(branchId) {
+    const wh = await dbAdapter.get('SELECT id FROM warehouses WHERE branch_id = ? ORDER BY id ASC LIMIT 1', [branchId]);
     return wh ? wh.id : 1;
 }
 
 /**
  * List orders with search, multi-axis filtering, pagination, and sorting
  */
-function listOrders(filters = {}, user = {}) {
+async function listOrders(filters = {}, user = {}) {
     let query = `
         SELECT o.*,
                c.full_name as customer_name, c.phone as customer_phone, c.email as customer_email,
@@ -121,14 +120,14 @@ function listOrders(filters = {}, user = {}) {
     const offset = Math.max(0, Number(filters.offset) || 0);
     query += ` LIMIT ${limit} OFFSET ${offset}`;
 
-    return db.prepare(query).all(...params);
+    return dbAdapter.all(query, params);
 }
 
 /**
  * Get single order with complete details, items, status history, notes, and payments
  */
-function getOrderById(orderId, user = {}) {
-    const order = db.prepare(`
+async function getOrderById(orderId, user = {}) {
+    const order = await dbAdapter.get(`
         SELECT o.*,
                c.full_name as customer_name, c.phone as customer_phone, c.email as customer_email,
                c.customer_number, c.kra_pin as customer_kra_pin,
@@ -138,7 +137,7 @@ function getOrderById(orderId, user = {}) {
         JOIN users u ON o.cashier_user_id = u.id
         JOIN branches b ON o.branch_id = b.id
         WHERE o.id = ?
-    `).get(Number(orderId));
+    `, [Number(orderId)]);
 
     if (!order) return null;
 
@@ -150,35 +149,35 @@ function getOrderById(orderId, user = {}) {
     }
 
     // Items
-    const items = db.prepare(`
+    const items = await dbAdapter.all(`
         SELECT oi.*, p.name as product_name, p.sku, p.unit, p.barcode
         FROM order_items oi
         JOIN products p ON oi.product_id = p.id
         WHERE oi.order_id = ?
-    `).all(order.id);
+    `, [order.id]);
 
     // Status Timeline
-    const timeline = db.prepare(`
+    const timeline = await dbAdapter.all(`
         SELECT osh.*, u.full_name as user_name, r.name as user_role
         FROM order_status_history osh
         LEFT JOIN users u ON osh.user_id = u.id
         LEFT JOIN roles r ON u.role_id = r.id
         WHERE osh.order_id = ?
         ORDER BY osh.created_at ASC, osh.id ASC
-    `).all(order.id);
+    `, [order.id]);
 
     // Internal notes
-    const internalNotes = db.prepare(`
+    const internalNotes = await dbAdapter.all(`
         SELECT oin.*, u.full_name as author_name, r.name as author_role
         FROM order_internal_notes oin
         LEFT JOIN users u ON oin.user_id = u.id
         LEFT JOIN roles r ON u.role_id = r.id
         WHERE oin.order_id = ?
         ORDER BY oin.created_at DESC
-    `).all(order.id);
+    `, [order.id]);
 
     // Delivery details
-    const delivery = db.prepare(`
+    const delivery = await dbAdapter.get(`
         SELECT d.*, drv_u.full_name as driver_name, drv.phone as driver_phone,
                v.registration_number, v.model as vehicle_model,
                pod.recipient_name as pod_recipient, pod.signature_data as pod_signature,
@@ -189,10 +188,10 @@ function getOrderById(orderId, user = {}) {
         LEFT JOIN vehicles v ON d.vehicle_id = v.id
         LEFT JOIN proof_of_delivery pod ON d.id = pod.delivery_id
         WHERE d.order_id = ?
-    `).get(order.id);
+    `, [order.id]);
 
     // Payments
-    const payments = db.prepare('SELECT * FROM payments WHERE order_id = ?').all(order.id);
+    const payments = await dbAdapter.all('SELECT * FROM payments WHERE order_id = ?', [order.id]);
 
     return {
         ...order,
@@ -207,7 +206,7 @@ function getOrderById(orderId, user = {}) {
 /**
  * Create a new order (DRAFT or CONFIRMED)
  */
-function createOrder(orderData, user) {
+async function createOrder(orderData, user) {
     const branchId = Number(orderData.branch_id) || user.branchId || user.branch_id || 1;
 
     if (user.roleName !== 'SUPER_ADMIN' && branchId !== (user.branchId || user.branch_id)) {
@@ -236,7 +235,7 @@ function createOrder(orderData, user) {
         throw err;
     }
 
-    const customer = db.prepare('SELECT * FROM customers WHERE id = ?').get(Number(customer_id));
+    const customer = await dbAdapter.get('SELECT * FROM customers WHERE id = ?', [Number(customer_id)]);
     if (!customer) {
         const err = new Error(`Customer ID ${customer_id} not found.`);
         err.statusCode = 404;
@@ -257,7 +256,7 @@ function createOrder(orderData, user) {
     let finalRecipientPhone = recipient_phone || customer.phone;
 
     if (!finalDeliveryAddress) {
-        const defaultAddr = db.prepare('SELECT * FROM customer_addresses WHERE customer_id = ? ORDER BY is_default DESC, id ASC LIMIT 1').get(customer.id);
+        const defaultAddr = await dbAdapter.get('SELECT * FROM customer_addresses WHERE customer_id = ? ORDER BY is_default DESC, id ASC LIMIT 1', [customer.id]);
         if (defaultAddr) {
             finalDeliveryAddress = defaultAddr.address_line;
             finalDeliveryCity = finalDeliveryCity || defaultAddr.city;
@@ -269,14 +268,14 @@ function createOrder(orderData, user) {
         }
     }
 
-    const company = db.prepare('SELECT vat_rate FROM company_settings WHERE id = 1').get();
+    const company = await dbAdapter.get('SELECT vat_rate FROM company_settings WHERE id = 1');
     const vatRate = company ? Number(company.vat_rate) : 16.0;
 
     let subtotal = 0;
     const preparedItems = [];
 
     for (const item of items) {
-        const product = db.prepare('SELECT * FROM products WHERE id = ?').get(Number(item.product_id));
+        const product = await dbAdapter.get('SELECT * FROM products WHERE id = ?', [Number(item.product_id)]);
         if (!product) {
             const err = new Error(`Product ID ${item.product_id} not found.`);
             err.statusCode = 404;
@@ -307,21 +306,22 @@ function createOrder(orderData, user) {
 
     const orderNumber = `ORD-${branchId}-${Date.now().toString().slice(-6)}`;
     const deliveryNumber = `DEL-${branchId}-${Date.now().toString().slice(-6)}`;
-    const warehouseId = getPrimaryWarehouse(branchId);
+    const warehouseId = await getPrimaryWarehouse(branchId);
+    const estimatedDeliveryAt = new Date(Date.now() + 3 * 60 * 60 * 1000).toISOString();
 
     let createdOrderId = null;
     let createdDeliveryId = null;
 
-    db.transaction(() => {
-        const ordRes = db.prepare(`
+    await dbAdapter.withTransaction(async (tx) => {
+        const ordRes = await tx.run(`
             INSERT INTO orders (
                 branch_id, order_number, customer_id, cashier_user_id, order_type,
                 status, subtotal, discount_amount, tax_amount, total_amount, payment_status,
                 delivery_required, delivery_fee, delivery_address, delivery_city,
                 recipient_name, recipient_phone, special_instructions,
                 inventory_allocated, created_at, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, ?, 'UNPAID', 1, ?, ?, ?, ?, ?, ?, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-        `).run(
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, ?, 'UNPAID', true, ?, ?, ?, ?, ?, ?, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        `, [
             branchId,
             orderNumber,
             customer.id,
@@ -337,63 +337,66 @@ function createOrder(orderData, user) {
             finalRecipientName,
             finalRecipientPhone,
             special_instructions || ''
-        );
-        createdOrderId = ordRes.lastInsertRowid;
+        ]);
+        createdOrderId = ordRes.insertId || ordRes.lastInsertRowid;
 
         // Insert line items
-        const insertItem = db.prepare(`
-            INSERT INTO order_items (
-                order_id, product_id, quantity, unit_price, discount_amount, tax_rate, tax_amount, total_price
-            ) VALUES (?, ?, ?, ?, 0, ?, ?, ?)
-        `);
-
         for (const it of preparedItems) {
             const lineTax = Number((it.total_price * (vatRate / (100 + vatRate))).toFixed(2));
-            insertItem.run(createdOrderId, it.product.id, it.quantity, it.unit_price, vatRate, lineTax, it.total_price);
+            await tx.run(`
+                INSERT INTO order_items (
+                    order_id, product_id, quantity, unit_price, discount_amount, tax_rate, tax_amount, total_price
+                ) VALUES (?, ?, ?, ?, 0, ?, ?, ?)
+            `, [createdOrderId, it.product.id, it.quantity, it.unit_price, vatRate, lineTax, it.total_price]);
         }
 
         // Record initial status history
-        db.prepare(`
+        await tx.run(`
             INSERT INTO order_status_history (order_id, from_status, to_status, user_id, notes)
             VALUES (?, NULL, ?, ?, ?)
-        `).run(createdOrderId, targetStatus, user.id, `Order created in ${targetStatus} status`);
+        `, [createdOrderId, targetStatus, user.id, `Order created in ${targetStatus} status`]);
 
         // If targetStatus is CONFIRMED or READY_FOR_DISPATCH, allocate inventory reservations
         if (targetStatus === 'CONFIRMED' || targetStatus === 'READY_FOR_DISPATCH') {
             for (const it of preparedItems) {
-                inventoryStateService.reserveStock({
-                    branchId,
-                    warehouseId,
-                    productId: it.product.id,
-                    quantity: it.quantity,
-                    referenceType: 'ORDER',
-                    referenceId: orderNumber,
-                    userId: user.id,
-                    reason: `Reserved for order ${orderNumber}`
-                });
+                await tx.run(`
+                    UPDATE inventory
+                    SET quantity_available = quantity_available - ?,
+                        quantity_reserved = quantity_reserved + ?,
+                        updated_at = CURRENT_TIMESTAMP
+                    WHERE warehouse_id = ? AND product_id = ? AND quantity_available >= ?
+                `, [it.quantity, it.quantity, warehouseId, it.product.id, it.quantity]);
             }
 
-            db.prepare(`
+            await tx.run(`
                 UPDATE orders
                 SET inventory_allocated = 1, allocated_at = CURRENT_TIMESTAMP
                 WHERE id = ?
-            `).run(createdOrderId);
+            `, [createdOrderId]);
         }
 
         // Create linked delivery record for courier orders
-        const delRes = db.prepare(`
+        const delRes = await tx.run(`
             INSERT INTO deliveries (
                 branch_id, delivery_number, order_id, dispatcher_user_id,
                 status, priority, scheduled_pickup_at, estimated_delivery_at
-            ) VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, datetime('now', '+3 hours'))
-        `).run(branchId, deliveryNumber, createdOrderId, user.id, targetStatus === 'READY_FOR_DISPATCH' ? 'READY_FOR_DISPATCH' : 'PENDING', priority || 'NORMAL');
-        createdDeliveryId = delRes.lastInsertRowid;
+            ) VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, ?)
+        `, [
+            branchId,
+            deliveryNumber,
+            createdOrderId,
+            user.id,
+            targetStatus === 'READY_FOR_DISPATCH' ? 'READY_FOR_DISPATCH' : 'PENDING',
+            priority || 'NORMAL',
+            estimatedDeliveryAt
+        ]);
+        createdDeliveryId = delRes.insertId || delRes.lastInsertRowid;
 
         // Populate delivery items
-        db.prepare(`
+        await tx.run(`
             INSERT INTO delivery_items (delivery_id, order_item_id, product_id, quantity)
             SELECT ?, id, product_id, quantity FROM order_items WHERE order_id = ?
-        `).run(createdDeliveryId, createdOrderId);
+        `, [createdDeliveryId, createdOrderId]);
 
         logAuditEvent({
             userId: user.id,
@@ -405,7 +408,7 @@ function createOrder(orderData, user) {
             newValue: { order_number: orderNumber, status: targetStatus, total_amount: totalAmount },
             reason: `Created order in ${targetStatus}`
         });
-    })();
+    });
 
     return {
         id: createdOrderId,
@@ -421,8 +424,8 @@ function createOrder(orderData, user) {
 /**
  * Edit order before fulfillment (Allowed only in DRAFT or CONFIRMED)
  */
-function editOrder(orderId, updateData, user) {
-    const order = db.prepare('SELECT * FROM orders WHERE id = ?').get(Number(orderId));
+async function editOrder(orderId, updateData, user) {
+    const order = await dbAdapter.get('SELECT * FROM orders WHERE id = ?', [Number(orderId)]);
     if (!order) {
         const err = new Error('Order not found');
         err.statusCode = 404;
@@ -443,48 +446,39 @@ function editOrder(orderId, updateData, user) {
         throw err;
     }
 
-    const warehouseId = getPrimaryWarehouse(order.branch_id);
-    const company = db.prepare('SELECT vat_rate FROM company_settings WHERE id = 1').get();
+    const warehouseId = await getPrimaryWarehouse(order.branch_id);
+    const company = await dbAdapter.get('SELECT vat_rate FROM company_settings WHERE id = 1');
     const vatRate = company ? Number(company.vat_rate) : 16.0;
 
-    return db.transaction(() => {
+    await dbAdapter.withTransaction(async (tx) => {
         // If items are being updated
         if (updateData.items && Array.isArray(updateData.items) && updateData.items.length > 0) {
             // If inventory was reserved, release existing reservations first
             if (order.inventory_allocated === 1) {
-                const existingItems = db.prepare('SELECT * FROM order_items WHERE order_id = ?').all(order.id);
+                const existingItems = await tx.all('SELECT * FROM order_items WHERE order_id = ?', [order.id]);
                 for (const it of existingItems) {
-                    inventoryStateService.releaseReservation({
-                        branchId: order.branch_id,
-                        warehouseId,
-                        productId: it.product_id,
-                        quantity: it.quantity,
-                        referenceType: 'ORDER',
-                        referenceId: order.order_number,
-                        userId: user.id,
-                        reason: `Release previous items for order ${order.order_number} edit`
-                    });
+                    await tx.run(`
+                        UPDATE inventory
+                        SET quantity_available = quantity_available + ?,
+                            quantity_reserved = quantity_reserved - ?,
+                            updated_at = CURRENT_TIMESTAMP
+                        WHERE warehouse_id = ? AND product_id = ?
+                    `, [it.quantity, it.quantity, warehouseId, it.product_id]);
                 }
             }
 
             // If delivery items reference these order items, remove delivery_items first
-            db.prepare(`
+            await tx.run(`
                 DELETE FROM delivery_items
                 WHERE order_item_id IN (SELECT id FROM order_items WHERE order_id = ?)
-            `).run(order.id);
+            `, [order.id]);
 
             // Remove previous items
-            db.prepare('DELETE FROM order_items WHERE order_id = ?').run(order.id);
+            await tx.run('DELETE FROM order_items WHERE order_id = ?', [order.id]);
 
             let subtotal = 0;
-            const insertItem = db.prepare(`
-                INSERT INTO order_items (
-                    order_id, product_id, quantity, unit_price, discount_amount, tax_rate, tax_amount, total_price
-                ) VALUES (?, ?, ?, ?, 0, ?, ?, ?)
-            `);
-
             for (const it of updateData.items) {
-                const product = db.prepare('SELECT * FROM products WHERE id = ?').get(Number(it.product_id));
+                const product = await tx.get('SELECT * FROM products WHERE id = ?', [Number(it.product_id)]);
                 if (!product) throw new Error(`Product ${it.product_id} not found.`);
 
                 const qty = Math.max(1, Number(it.quantity) || 1);
@@ -493,30 +487,31 @@ function editOrder(orderId, updateData, user) {
                 const lineTax = Number((lineTotal * (vatRate / (100 + vatRate))).toFixed(2));
                 subtotal += lineTotal;
 
-                insertItem.run(order.id, product.id, qty, unitPrice, vatRate, lineTax, lineTotal);
+                await tx.run(`
+                    INSERT INTO order_items (
+                        order_id, product_id, quantity, unit_price, discount_amount, tax_rate, tax_amount, total_price
+                    ) VALUES (?, ?, ?, ?, 0, ?, ?, ?)
+                `, [order.id, product.id, qty, unitPrice, vatRate, lineTax, lineTotal]);
 
                 // Re-reserve if in CONFIRMED state
                 if (order.status === 'CONFIRMED') {
-                    inventoryStateService.reserveStock({
-                        branchId: order.branch_id,
-                        warehouseId,
-                        productId: product.id,
-                        quantity: qty,
-                        referenceType: 'ORDER',
-                        referenceId: order.order_number,
-                        userId: user.id,
-                        reason: `Reserved for edited order ${order.order_number}`
-                    });
+                    await tx.run(`
+                        UPDATE inventory
+                        SET quantity_available = quantity_available - ?,
+                            quantity_reserved = quantity_reserved + ?,
+                            updated_at = CURRENT_TIMESTAMP
+                        WHERE warehouse_id = ? AND product_id = ? AND quantity_available >= ?
+                    `, [qty, qty, warehouseId, product.id, qty]);
                 }
             }
 
             // Re-populate delivery items if delivery exists
-            const delivery = db.prepare('SELECT id FROM deliveries WHERE order_id = ?').get(order.id);
+            const delivery = await tx.get('SELECT id FROM deliveries WHERE order_id = ?', [order.id]);
             if (delivery) {
-                db.prepare(`
+                await tx.run(`
                     INSERT INTO delivery_items (delivery_id, order_item_id, product_id, quantity)
                     SELECT ?, id, product_id, quantity FROM order_items WHERE order_id = ?
-                `).run(delivery.id, order.id);
+                `, [delivery.id, order.id]);
             }
 
             const delFee = updateData.delivery_fee !== undefined
@@ -525,23 +520,22 @@ function editOrder(orderId, updateData, user) {
             const taxAmount = Number((subtotal * (vatRate / (100 + vatRate))).toFixed(2));
             const totalAmount = Number((subtotal + delFee).toFixed(2));
 
-            db.prepare(`
+            await tx.run(`
                 UPDATE orders
                 SET subtotal = ?, tax_amount = ?, total_amount = ?, delivery_fee = ?,
                     inventory_allocated = ?,
                     updated_at = CURRENT_TIMESTAMP
                 WHERE id = ?
-            `).run(subtotal, taxAmount, totalAmount, delFee, order.status === 'CONFIRMED' ? 1 : 0, order.id);
+            `, [subtotal, taxAmount, totalAmount, delFee, order.status === 'CONFIRMED' ? 1 : 0, order.id]);
         } else if (updateData.delivery_fee !== undefined) {
             const delFee = Number(updateData.delivery_fee);
-            const totalAmount = Number((order.subtotal + delFee).toFixed(2));
-            db.prepare('UPDATE orders SET delivery_fee = ?, total_amount = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
-                .run(delFee, totalAmount, order.id);
+            const totalAmount = Number((Number(order.subtotal) + delFee).toFixed(2));
+            await tx.run('UPDATE orders SET delivery_fee = ?, total_amount = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?', [delFee, totalAmount, order.id]);
         }
 
         // Update address/recipient info if provided
         if (updateData.delivery_address || updateData.delivery_city || updateData.recipient_name || updateData.recipient_phone || updateData.special_instructions) {
-            db.prepare(`
+            await tx.run(`
                 UPDATE orders
                 SET delivery_address = COALESCE(?, delivery_address),
                     delivery_city = COALESCE(?, delivery_city),
@@ -550,31 +544,31 @@ function editOrder(orderId, updateData, user) {
                     special_instructions = COALESCE(?, special_instructions),
                     updated_at = CURRENT_TIMESTAMP
                 WHERE id = ?
-            `).run(
+            `, [
                 updateData.delivery_address || null,
                 updateData.delivery_city || null,
                 updateData.recipient_name || null,
                 updateData.recipient_phone || null,
                 updateData.special_instructions || null,
                 order.id
-            );
+            ]);
         }
 
         // Record history entry for edit
-        db.prepare(`
+        await tx.run(`
             INSERT INTO order_status_history (order_id, from_status, to_status, user_id, notes)
             VALUES (?, ?, ?, ?, ?)
-        `).run(order.id, order.status, order.status, user.id, 'Order details modified before fulfillment');
+        `, [order.id, order.status, order.status, user.id, 'Order details modified before fulfillment']);
+    });
 
-        return getOrderById(order.id, user);
-    })();
+    return getOrderById(order.id, user);
 }
 
 /**
  * Transition order state through the formal state machine
  */
-function transitionOrderStatus(orderId, toStatus, { notes = '', reason = '' } = {}, user) {
-    const order = db.prepare('SELECT * FROM orders WHERE id = ?').get(Number(orderId));
+async function transitionOrderStatus(orderId, toStatus, { notes = '', reason = '' } = {}, user) {
+    const order = await dbAdapter.get('SELECT * FROM orders WHERE id = ?', [Number(orderId)]);
     if (!order) {
         const err = new Error('Order not found');
         err.statusCode = 404;
@@ -605,21 +599,17 @@ function transitionOrderStatus(orderId, toStatus, { notes = '', reason = '' } = 
         throw err;
     }
 
-    const warehouseId = getPrimaryWarehouse(order.branch_id);
-    const orderItems = db.prepare('SELECT * FROM order_items WHERE order_id = ?').all(order.id);
+    const warehouseId = await getPrimaryWarehouse(order.branch_id);
+    const orderItems = await dbAdapter.all('SELECT * FROM order_items WHERE order_id = ?', [order.id]);
 
-    return db.transaction(() => {
-        // -------------------------------------------------------------
-        // CRITICAL INVARIANT: READY_FOR_DISPATCH requires allocated inventory
-        // -------------------------------------------------------------
+    await dbAdapter.withTransaction(async (tx) => {
+        // READY_FOR_DISPATCH requires allocated inventory
         if (targetStatus === 'READY_FOR_DISPATCH') {
-            // Check if inventory has already been allocated
             if (order.inventory_allocated !== 1) {
-                // Attempt to reserve stock now if not already reserved
                 for (const it of orderItems) {
-                    const inv = db.prepare('SELECT * FROM inventory WHERE warehouse_id = ? AND product_id = ?').get(warehouseId, it.product_id);
-                    if (!inv || inv.quantity_available < it.quantity) {
-                        const avail = inv ? inv.quantity_available : 0;
+                    const inv = await tx.get('SELECT * FROM inventory WHERE warehouse_id = ? AND product_id = ?', [warehouseId, it.product_id]);
+                    const avail = inv ? Number(inv.quantity_available) : 0;
+                    if (avail < it.quantity) {
                         const err = new Error(
                             `CRITICAL INVARIANT VIOLATION: Cannot transition order ${order.order_number} to READY_FOR_DISPATCH. Product ID ${it.product_id} has insufficient available inventory to allocate (Required: ${it.quantity}, Available: ${avail}).`
                         );
@@ -628,30 +618,27 @@ function transitionOrderStatus(orderId, toStatus, { notes = '', reason = '' } = 
                         throw err;
                     }
 
-                    inventoryStateService.reserveStock({
-                        branchId: order.branch_id,
-                        warehouseId,
-                        productId: it.product_id,
-                        quantity: it.quantity,
-                        referenceType: 'ORDER',
-                        referenceId: order.order_number,
-                        userId: user.id,
-                        reason: `Auto-allocated reservation for READY_FOR_DISPATCH`
-                    });
+                    await tx.run(`
+                        UPDATE inventory
+                        SET quantity_available = quantity_available - ?,
+                            quantity_reserved = quantity_reserved + ?,
+                            updated_at = CURRENT_TIMESTAMP
+                        WHERE warehouse_id = ? AND product_id = ?
+                    `, [it.quantity, it.quantity, warehouseId, it.product_id]);
                 }
 
-                db.prepare(`
+                await tx.run(`
                     UPDATE orders
                     SET inventory_allocated = 1, allocated_at = CURRENT_TIMESTAMP
                     WHERE id = ?
-                `).run(order.id);
+                `, [order.id]);
             } else {
-                // Verify existing allocated reservation integrity
                 for (const it of orderItems) {
-                    const inv = db.prepare('SELECT * FROM inventory WHERE warehouse_id = ? AND product_id = ?').get(warehouseId, it.product_id);
-                    if (!inv || inv.quantity_reserved < it.quantity) {
+                    const inv = await tx.get('SELECT * FROM inventory WHERE warehouse_id = ? AND product_id = ?', [warehouseId, it.product_id]);
+                    const resQty = inv ? Number(inv.quantity_reserved) : 0;
+                    if (resQty < it.quantity) {
                         const err = new Error(
-                            `CRITICAL INVARIANT VIOLATION: Reserved inventory missing for Product ID ${it.product_id}. Required: ${it.quantity}, Reserved: ${inv ? inv.quantity_reserved : 0}.`
+                            `CRITICAL INVARIANT VIOLATION: Reserved inventory missing for Product ID ${it.product_id}. Required: ${it.quantity}, Reserved: ${resQty}.`
                         );
                         err.statusCode = 409;
                         err.code = 'INVENTORY_NOT_ALLOCATED';
@@ -660,129 +647,111 @@ function transitionOrderStatus(orderId, toStatus, { notes = '', reason = '' } = 
                 }
             }
 
-            // Update delivery record if linked
-            db.prepare(`
+            await tx.run(`
                 UPDATE deliveries
                 SET status = 'READY_FOR_DISPATCH', updated_at = CURRENT_TIMESTAMP
                 WHERE order_id = ?
-            `).run(order.id);
+            `, [order.id]);
         }
 
-        // -------------------------------------------------------------
         // CONFIRMATION: Allocate inventory reservation
-        // -------------------------------------------------------------
         if (targetStatus === 'CONFIRMED' && order.inventory_allocated === 0) {
             for (const it of orderItems) {
-                inventoryStateService.reserveStock({
-                    branchId: order.branch_id,
-                    warehouseId,
-                    productId: it.product_id,
-                    quantity: it.quantity,
-                    referenceType: 'ORDER',
-                    referenceId: order.order_number,
-                    userId: user.id,
-                    reason: `Reserved for confirmed order ${order.order_number}`
-                });
+                await tx.run(`
+                    UPDATE inventory
+                    SET quantity_available = quantity_available - ?,
+                        quantity_reserved = quantity_reserved + ?,
+                        updated_at = CURRENT_TIMESTAMP
+                    WHERE warehouse_id = ? AND product_id = ? AND quantity_available >= ?
+                `, [it.quantity, it.quantity, warehouseId, it.product_id, it.quantity]);
             }
 
-            db.prepare(`
+            await tx.run(`
                 UPDATE orders
                 SET inventory_allocated = 1, allocated_at = CURRENT_TIMESTAMP
                 WHERE id = ?
-            `).run(order.id);
+            `, [order.id]);
         }
 
-        // -------------------------------------------------------------
         // DISPATCHED: Decrement physical ON_HAND, move to IN_TRANSIT
-        // -------------------------------------------------------------
         if (targetStatus === 'DISPATCHED') {
             for (const it of orderItems) {
-                inventoryStateService.dispatchStock({
-                    branchId: order.branch_id,
-                    warehouseId,
-                    productId: it.product_id,
-                    quantity: it.quantity,
-                    referenceType: 'ORDER',
-                    referenceId: order.order_number,
-                    userId: user.id,
-                    reason: `Dispatched order ${order.order_number}`
-                });
+                await tx.run(`
+                    UPDATE inventory
+                    SET quantity_on_hand = quantity_on_hand - ?,
+                        quantity_reserved = quantity_reserved - ?,
+                        quantity_in_transit = quantity_in_transit + ?,
+                        updated_at = CURRENT_TIMESTAMP
+                    WHERE warehouse_id = ? AND product_id = ?
+                `, [it.quantity, it.quantity, it.quantity, warehouseId, it.product_id]);
             }
 
-            db.prepare(`
+            await tx.run(`
                 UPDATE orders
                 SET dispatched_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
                 WHERE id = ?
-            `).run(order.id);
+            `, [order.id]);
 
-            db.prepare(`
+            await tx.run(`
                 UPDATE deliveries
                 SET status = 'IN_TRANSIT', updated_at = CURRENT_TIMESTAMP
                 WHERE order_id = ?
-            `).run(order.id);
+            `, [order.id]);
         }
 
-        // -------------------------------------------------------------
         // DELIVERED: Mark delivery completed
-        // -------------------------------------------------------------
         if (targetStatus === 'DELIVERED') {
-            db.prepare(`
+            await tx.run(`
                 UPDATE orders
                 SET delivered_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
                 WHERE id = ?
-            `).run(order.id);
+            `, [order.id]);
 
-            db.prepare(`
+            await tx.run(`
                 UPDATE deliveries
                 SET status = 'DELIVERED', updated_at = CURRENT_TIMESTAMP
                 WHERE order_id = ?
-            `).run(order.id);
+            `, [order.id]);
         }
 
-        // -------------------------------------------------------------
         // CANCELLATION: Release reserved inventory back to AVAILABLE
-        // -------------------------------------------------------------
         if (targetStatus === 'CANCELLED') {
             if (order.inventory_allocated === 1 && currentStatus !== 'DISPATCHED' && currentStatus !== 'IN_TRANSIT' && currentStatus !== 'DELIVERED') {
                 for (const it of orderItems) {
-                    inventoryStateService.releaseReservation({
-                        branchId: order.branch_id,
-                        warehouseId,
-                        productId: it.product_id,
-                        quantity: it.quantity,
-                        referenceType: 'ORDER',
-                        referenceId: order.order_number,
-                        userId: user.id,
-                        reason: `Order cancelled: ${reason || notes || 'Released reservation'}`
-                    });
+                    await tx.run(`
+                        UPDATE inventory
+                        SET quantity_available = quantity_available + ?,
+                            quantity_reserved = quantity_reserved - ?,
+                            updated_at = CURRENT_TIMESTAMP
+                        WHERE warehouse_id = ? AND product_id = ?
+                    `, [it.quantity, it.quantity, warehouseId, it.product_id]);
                 }
             }
 
-            db.prepare(`
+            await tx.run(`
                 UPDATE orders
                 SET inventory_allocated = 0,
                     cancelled_at = CURRENT_TIMESTAMP,
                     cancellation_reason = ?,
                     updated_at = CURRENT_TIMESTAMP
                 WHERE id = ?
-            `).run(reason || notes || 'Cancelled by staff', order.id);
+            `, [reason || notes || 'Cancelled by staff', order.id]);
 
-            db.prepare(`
+            await tx.run(`
                 UPDATE deliveries
                 SET status = 'CANCELLED', updated_at = CURRENT_TIMESTAMP
                 WHERE order_id = ?
-            `).run(order.id);
+            `, [order.id]);
         }
 
         // Update order status
-        db.prepare('UPDATE orders SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
-            .run(targetStatus, order.id);
+        await tx.run('UPDATE orders SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?', [targetStatus, order.id]);
 
         // Record history entry
-        db.prepare(`
+        await tx.run(`
             INSERT INTO order_status_history (order_id, from_status, to_status, user_id, notes)
             VALUES (?, ?, ?, ?, ?)
-        `).run(order.id, currentStatus, targetStatus, user.id, notes || reason || `Status changed to ${targetStatus}`);
+        `, [order.id, currentStatus, targetStatus, user.id, notes || reason || `Status changed to ${targetStatus}`]);
 
         logAuditEvent({
             userId: user.id,
@@ -795,16 +764,16 @@ function transitionOrderStatus(orderId, toStatus, { notes = '', reason = '' } = 
             newValue: { status: targetStatus },
             reason: notes || reason || `Transition from ${currentStatus} to ${targetStatus}`
         });
+    });
 
-        return getOrderById(order.id, user);
-    })();
+    return getOrderById(order.id, user);
 }
 
 /**
  * Add internal staff note to order
  */
-function addInternalNote(orderId, note, user) {
-    const order = db.prepare('SELECT * FROM orders WHERE id = ?').get(Number(orderId));
+async function addInternalNote(orderId, note, user) {
+    const order = await dbAdapter.get('SELECT * FROM orders WHERE id = ?', [Number(orderId)]);
     if (!order) {
         const err = new Error('Order not found');
         err.statusCode = 404;
@@ -817,33 +786,33 @@ function addInternalNote(orderId, note, user) {
         throw err;
     }
 
-    db.prepare(`
+    await dbAdapter.run(`
         INSERT INTO order_internal_notes (order_id, user_id, note)
         VALUES (?, ?, ?)
-    `).run(order.id, user.id, note.trim());
+    `, [order.id, user.id, note.trim()]);
 
-    return db.prepare(`
+    return dbAdapter.all(`
         SELECT oin.*, u.full_name as author_name, r.name as author_role
         FROM order_internal_notes oin
         LEFT JOIN users u ON oin.user_id = u.id
         LEFT JOIN roles r ON u.role_id = r.id
         WHERE oin.order_id = ?
         ORDER BY oin.created_at DESC
-    `).all(order.id);
+    `, [order.id]);
 }
 
 /**
  * Generate printable Commercial Tax Invoice data
  */
-function generateInvoiceData(orderId, user) {
-    const order = getOrderById(orderId, user);
+async function generateInvoiceData(orderId, user) {
+    const order = await getOrderById(orderId, user);
     if (!order) {
         const err = new Error('Order not found');
         err.statusCode = 404;
         throw err;
     }
 
-    const company = db.prepare('SELECT * FROM company_settings WHERE id = 1').get() || {
+    const company = (await dbAdapter.get('SELECT * FROM company_settings WHERE id = 1')) || {
         company_name: 'SwiftTrack Logistics',
         kra_pin: '',
         address: '',
@@ -891,8 +860,8 @@ function generateInvoiceData(orderId, user) {
 /**
  * Export filtered orders to CSV string
  */
-function exportOrdersToCsv(filters = {}, user = {}) {
-    const orders = listOrders({ ...filters, limit: 1000 }, user);
+async function exportOrdersToCsv(filters = {}, user = {}) {
+    const orders = await listOrders({ ...filters, limit: 1000 }, user);
 
     const headers = [
         'Order Number',
@@ -932,6 +901,7 @@ function exportOrdersToCsv(filters = {}, user = {}) {
 module.exports = {
     ORDER_STATUSES,
     ALLOWED_TRANSITIONS,
+    getPrimaryWarehouse,
     listOrders,
     getOrderById,
     createOrder,

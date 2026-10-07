@@ -2,7 +2,7 @@
 // Master Product Router aggregating Catalog, Variants, Multi-Tier Pricing & Barcode Lookups
 const express = require('express');
 const router = express.Router();
-const { db } = require('../../db/database.js');
+const dbAdapter = require('../../db/dbAdapter.js');
 const { authenticateToken } = require('../../middleware/auth.js');
 const { resolvePrice } = require('../../services/pricingService.js');
 
@@ -11,86 +11,112 @@ const variantsRouter = require('./variants.js');
 const pricingRouter = require('./pricing.js');
 
 // 1. Categories listing
-router.get('/categories', authenticateToken, (req, res) => {
-    const categories = db.prepare(`
-        SELECT c.*,
-               (SELECT count(*) FROM products WHERE category_id = c.id AND is_active = 1 AND is_archived = 0) as product_count
-        FROM categories c
-        WHERE c.is_active = 1
-        ORDER BY c.name ASC
-    `).all();
-    res.json(categories);
+router.get('/categories', authenticateToken, async (req, res) => {
+    try {
+        const isPg = dbAdapter.isPostgres;
+        const activeCond = isPg ? 'is_active = true' : 'is_active = 1';
+        const unarchivedCond = isPg ? 'is_archived = false' : 'is_archived = 0';
+        const categories = await dbAdapter.all(`
+            SELECT c.*,
+                   (SELECT count(*) FROM products WHERE category_id = c.id AND ${activeCond} AND ${unarchivedCond}) as product_count
+            FROM categories c
+            WHERE c.${activeCond}
+            ORDER BY c.name ASC
+        `);
+        res.json(categories);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
 });
 
 // 2. Barcode scanner lookup (Product)
-router.get('/barcode/:barcode', authenticateToken, (req, res) => {
-    const barcode = req.params.barcode.trim();
-    const product = db.prepare(`
-        SELECT p.*,
-               p.selling_price as price,
-               c.name as category,
-               c.name as category_name,
-               b.name as brand_name
-        FROM products p
-        LEFT JOIN categories c ON p.category_id = c.id
-        LEFT JOIN brands b ON p.brand_id = b.id
-        WHERE p.barcode = ? AND p.is_active = 1 AND p.is_archived = 0
-    `).get(barcode);
+router.get('/barcode/:barcode', authenticateToken, async (req, res) => {
+    try {
+        const barcode = req.params.barcode.trim();
+        const isPg = dbAdapter.isPostgres;
+        const activeCond = isPg ? 'p.is_active = true' : 'p.is_active = 1';
+        const unarchivedCond = isPg ? 'p.is_archived = false' : 'p.is_archived = 0';
+        const product = await dbAdapter.get(`
+            SELECT p.*,
+                   p.selling_price as price,
+                   c.name as category,
+                   c.name as category_name,
+                   b.name as brand_name
+            FROM products p
+            LEFT JOIN categories c ON p.category_id = c.id
+            LEFT JOIN brands b ON p.brand_id = b.id
+            WHERE p.barcode = ? AND ${activeCond} AND ${unarchivedCond}
+        `, [barcode]);
 
-    if (!product) {
-        return res.status(404).json({ error: 'Product with this barcode was not found' });
+        if (!product) {
+            return res.status(404).json({ error: 'Product with this barcode was not found' });
+        }
+
+        const branchStock = await dbAdapter.get(`
+            SELECT COALESCE(SUM(quantity_available), 0) as available_qty
+            FROM inventory
+            WHERE product_id = ? AND branch_id = ?
+        `, [product.id, req.user.branchId || 1]);
+
+        const variantActiveCond = isPg ? 'is_active = true' : 'is_active = 1';
+        const variants = await dbAdapter.all(
+            `SELECT * FROM product_variants WHERE product_id = ? AND ${variantActiveCond}`,
+            [product.id]
+        );
+
+        res.json({
+            ...product,
+            available_qty: branchStock ? Number(branchStock.available_qty) : 0,
+            variants
+        });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
     }
-
-    const branchStock = db.prepare(`
-        SELECT COALESCE(SUM(quantity_available), 0) as available_qty
-        FROM inventory
-        WHERE product_id = ? AND branch_id = ?
-    `).get(product.id, req.user.branchId || 1);
-
-    const variants = db.prepare('SELECT * FROM product_variants WHERE product_id = ? AND is_active = 1').all(product.id);
-
-    res.json({
-        ...product,
-        available_qty: branchStock ? branchStock.available_qty : 0,
-        variants
-    });
 });
 
 // 3. Barcode scanner lookup (Variant)
-router.get('/variant-barcode/:barcode', authenticateToken, (req, res) => {
-    const barcode = req.params.barcode.trim();
-    const variant = db.prepare(`
-        SELECT v.*,
-               p.name as parent_name,
-               p.category_id,
-               p.unit,
-               p.selling_price as parent_selling_price,
-               p.cost_price as parent_cost_price,
-               p.wholesale_price as parent_wholesale_price,
-               p.tax_category
-        FROM product_variants v
-        JOIN products p ON v.product_id = p.id
-        WHERE v.variant_barcode = ? AND v.is_active = 1 AND p.is_active = 1 AND p.is_archived = 0
-    `).get(barcode);
+router.get('/variant-barcode/:barcode', authenticateToken, async (req, res) => {
+    try {
+        const barcode = req.params.barcode.trim();
+        const isPg = dbAdapter.isPostgres;
+        const vActiveCond = isPg ? 'v.is_active = true' : 'v.is_active = 1';
+        const pActiveCond = isPg ? 'p.is_active = true' : 'p.is_active = 1';
+        const pUnarchivedCond = isPg ? 'p.is_archived = false' : 'p.is_archived = 0';
+        const variant = await dbAdapter.get(`
+            SELECT v.*,
+                   p.name as parent_name,
+                   p.category_id,
+                   p.unit,
+                   p.selling_price as parent_selling_price,
+                   p.cost_price as parent_cost_price,
+                   p.wholesale_price as parent_wholesale_price,
+                   p.tax_category
+            FROM product_variants v
+            JOIN products p ON v.product_id = p.id
+            WHERE v.variant_barcode = ? AND ${vActiveCond} AND ${pActiveCond} AND ${pUnarchivedCond}
+        `, [barcode]);
 
-    if (!variant) {
-        return res.status(404).json({ error: 'Product variant with this barcode was not found' });
+        if (!variant) {
+            return res.status(404).json({ error: 'Product variant with this barcode was not found' });
+        }
+
+        const branchStock = await dbAdapter.get(`
+            SELECT COALESCE(SUM(quantity_available), 0) as available_qty
+            FROM variant_inventory
+            WHERE variant_id = ? AND branch_id = ?
+        `, [variant.id, req.user.branchId || 1]);
+
+        res.json({
+            ...variant,
+            available_qty: branchStock ? Number(branchStock.available_qty) : 0
+        });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
     }
-
-    const branchStock = db.prepare(`
-        SELECT COALESCE(SUM(quantity_available), 0) as available_qty
-        FROM variant_inventory
-        WHERE variant_id = ? AND branch_id = ?
-    `).get(variant.id, req.user.branchId || 1);
-
-    res.json({
-        ...variant,
-        available_qty: branchStock ? branchStock.available_qty : 0
-    });
 });
 
 // 4. Dynamic Price Resolver Endpoint (Used by POS, Orders & Cart)
-router.post('/resolve-price', authenticateToken, (req, res) => {
+router.post('/resolve-price', authenticateToken, async (req, res) => {
     try {
         const {
             productId, variantId, branchId, customerId,
@@ -101,7 +127,7 @@ router.post('/resolve-price', authenticateToken, (req, res) => {
             return res.status(400).json({ error: 'productId is required for price resolution' });
         }
 
-        const pricing = resolvePrice({
+        const pricing = await resolvePrice({
             productId,
             variantId,
             branchId: branchId || req.user.branchId,

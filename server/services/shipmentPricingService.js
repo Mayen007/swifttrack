@@ -1,6 +1,6 @@
 // server/services/shipmentPricingService.js
 // SwiftTrack Logistics: Stage 2 Volumetric Rating & Logistics Pricing Engine
-const { db } = require('../db/database.js');
+const dbAdapter = require('../db/dbAdapter.js');
 
 const VOLUMETRIC_DIVISOR = 5000.0; // Standard IATA volumetric divisor (cm^3/kg)
 const DEFAULT_VAT_RATE = 16.0; // Kenya standard VAT rate
@@ -21,41 +21,43 @@ function calculateParcelVolumetricWeight(lengthCm = 0, widthCm = 0, heightCm = 0
 /**
  * Resolves the applicable tariff for an origin -> destination route and service level
  */
-function resolveTariff(originHubId, destinationHubId, serviceType = 'STANDARD') {
+async function resolveTariff(originHubId, destinationHubId, serviceType = 'STANDARD', client = null) {
     const sType = String(serviceType).toUpperCase();
+    const isPostgres = process.env.DB_CLIENT === 'postgres' || (!!process.env.DATABASE_URL && process.env.DB_CLIENT !== 'sqlite');
+    const activeCondition = isPostgres ? 'is_active = true' : 'is_active = 1';
 
     // 1. Direct Route-Specific Tariff
-    let tariff = db.prepare(`
+    let tariff = await dbAdapter.get(`
         SELECT * FROM logistics_pricing_tariffs
-        WHERE origin_hub_id = ? AND destination_hub_id = ? AND service_type = ? AND is_active = 1
+        WHERE origin_hub_id = ? AND destination_hub_id = ? AND service_type = ? AND ${activeCondition}
         LIMIT 1
-    `).get(originHubId, destinationHubId, sType);
+    `, [originHubId, destinationHubId, sType], client);
 
     // 2. Origin-Wide Tariff fallback
     if (!tariff && originHubId) {
-        tariff = db.prepare(`
+        tariff = await dbAdapter.get(`
             SELECT * FROM logistics_pricing_tariffs
-            WHERE origin_hub_id = ? AND destination_hub_id IS NULL AND service_type = ? AND is_active = 1
+            WHERE origin_hub_id = ? AND destination_hub_id IS NULL AND service_type = ? AND ${activeCondition}
             LIMIT 1
-        `).get(originHubId, sType);
+        `, [originHubId, sType], client);
     }
 
     // 3. Universal Network Tariff fallback
     if (!tariff) {
-        tariff = db.prepare(`
+        tariff = await dbAdapter.get(`
             SELECT * FROM logistics_pricing_tariffs
-            WHERE origin_hub_id IS NULL AND destination_hub_id IS NULL AND service_type = ? AND is_active = 1
+            WHERE origin_hub_id IS NULL AND destination_hub_id IS NULL AND service_type = ? AND ${activeCondition}
             LIMIT 1
-        `).get(sType);
+        `, [sType], client);
     }
 
     // 4. Default Standard Tariff fallback if specified service level not configured
     if (!tariff) {
-        tariff = db.prepare(`
+        tariff = await dbAdapter.get(`
             SELECT * FROM logistics_pricing_tariffs
-            WHERE origin_hub_id IS NULL AND destination_hub_id IS NULL AND service_type = 'STANDARD' AND is_active = 1
+            WHERE origin_hub_id IS NULL AND destination_hub_id IS NULL AND service_type = 'STANDARD' AND ${activeCondition}
             LIMIT 1
-        `).get();
+        `, [], client);
     }
 
     // Hard fallback if database table is completely unseeded
@@ -77,18 +79,8 @@ function resolveTariff(originHubId, destinationHubId, serviceType = 'STANDARD') 
 
 /**
  * Calculates full price quotation for shipment items and parameters
- *
- * @param {object} params
- * @param {number} params.originHubId
- * @param {number} params.destinationHubId
- * @param {string} params.serviceType - STANDARD, EXPRESS, SAME_DAY
- * @param {Array<{ weight_kg: number, length_cm?: number, width_cm?: number, height_cm?: number }>} params.parcels
- * @param {number} [params.codAmount=0]
- * @param {number} [params.declaredValue=0]
- * @param {number} [params.discountAmount=0]
- * @param {boolean} [params.applyTax=true]
  */
-function calculateShipmentQuote({
+async function calculateShipmentQuote({
     originHubId,
     destinationHubId,
     serviceType = 'STANDARD',
@@ -97,7 +89,7 @@ function calculateShipmentQuote({
     declaredValue = 0,
     discountAmount = 0,
     applyTax = true
-}) {
+}, client = null) {
     if (!Array.isArray(parcels) || parcels.length === 0) {
         throw new Error('At least one parcel is required to calculate pricing quote');
     }
@@ -128,7 +120,7 @@ function calculateShipmentQuote({
     const totalChargeableWeight = Math.round(Math.max(totalActualWeight, totalVolumetricWeight) * 100) / 100;
 
     // Resolve Tariff
-    const tariff = resolveTariff(originHubId, destinationHubId, serviceType);
+    const tariff = await resolveTariff(originHubId, destinationHubId, serviceType, client);
 
     const baseRate = Number(tariff.base_price);
     const baseWeight = Number(tariff.base_weight_kg);

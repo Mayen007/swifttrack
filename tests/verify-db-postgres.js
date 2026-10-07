@@ -148,20 +148,29 @@ runTest('3.1: buildPoolConfig correctly reads environment overrides', () => {
     const { buildPoolConfig } = require('../server/db/postgres/pool.js');
 
     // Test defaults
-    const config = buildPoolConfig();
-    assert.strictEqual(config.max, 20);
-    assert.strictEqual(config.min, 2);
-    assert.strictEqual(config.idleTimeoutMillis, 30000);
-    assert.strictEqual(config.connectionTimeoutMillis, 5000);
+    const origPoolMax = process.env.PGPOOL_MAX;
+    const origPoolMin = process.env.PGPOOL_MIN;
+    delete process.env.PGPOOL_MAX;
+    delete process.env.PGPOOL_MIN;
+    try {
+        const config = buildPoolConfig();
+        assert.strictEqual(config.max, 20);
+        assert.strictEqual(config.min, 2);
+        assert.strictEqual(config.idleTimeoutMillis, 30000);
+        assert.strictEqual(config.connectionTimeoutMillis, 5000);
 
-    // Test DATABASE_URL with SSL
-    process.env.DATABASE_URL = 'postgres://user:pass@ep-cool-db.us-east-2.aws.neon.tech/swifttrack?sslmode=require';
-    const sslConfig = buildPoolConfig();
-    assert.strictEqual(sslConfig.connectionString, process.env.DATABASE_URL);
-    assert(sslConfig.ssl, 'SSL must be enabled for cloud PostgreSQL connection strings');
-    assert.strictEqual(sslConfig.ssl.rejectUnauthorized, false);
+        // Test DATABASE_URL with SSL
+        process.env.DATABASE_URL = 'postgres://user:pass@ep-cool-db.us-east-2.aws.neon.tech/swifttrack?sslmode=require';
+        const sslConfig = buildPoolConfig();
+        assert.strictEqual(sslConfig.connectionString, process.env.DATABASE_URL);
+        assert(sslConfig.ssl, 'SSL must be enabled for cloud PostgreSQL connection strings');
+        assert.strictEqual(sslConfig.ssl.rejectUnauthorized, false);
 
-    delete process.env.DATABASE_URL;
+        delete process.env.DATABASE_URL;
+    } finally {
+        if (origPoolMax !== undefined) process.env.PGPOOL_MAX = origPoolMax;
+        if (origPoolMin !== undefined) process.env.PGPOOL_MIN = origPoolMin;
+    }
 });
 
 // -----------------------------------------------------------------------------

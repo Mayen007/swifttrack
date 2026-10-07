@@ -1,6 +1,6 @@
 // server/services/inventoryStateService.js
 // SwiftTrack Kenya: Multi-State Inventory Engine & Mathematical Invariant Guard
-const { db } = require('../db/database.js');
+const dbAdapter = require('../db/dbAdapter.js');
 
 /**
  * Validates the core mathematical invariant:
@@ -30,22 +30,22 @@ function assertInventoryInvariant(inv, context = 'State Transition') {
 /**
  * Helper to retrieve or initialize an inventory record
  */
-function getOrInitInventory(warehouseId, productId, branchId) {
-  let inv = db.prepare('SELECT * FROM inventory WHERE warehouse_id = ? AND product_id = ?').get(warehouseId, productId);
+async function getOrInitInventory(warehouseId, productId, branchId, client = null) {
+  let inv = await dbAdapter.get('SELECT * FROM inventory WHERE warehouse_id = ? AND product_id = ?', [warehouseId, productId], client);
   if (!inv) {
     if (!branchId) {
-      const wh = db.prepare('SELECT branch_id FROM warehouses WHERE id = ?').get(warehouseId);
+      const wh = await dbAdapter.get('SELECT branch_id FROM warehouses WHERE id = ?', [warehouseId], client);
       branchId = wh ? wh.branch_id : 1;
     }
-    db.prepare(`
+    await dbAdapter.run(`
       INSERT INTO inventory (
         branch_id, warehouse_id, product_id,
         quantity_on_hand, quantity_available, quantity_reserved,
         quantity_in_transit, quantity_damaged, quantity_expired
       ) VALUES (?, ?, ?, 0, 0, 0, 0, 0, 0)
-    `).run(branchId, warehouseId, productId);
+    `, [branchId, warehouseId, productId], client);
 
-    inv = db.prepare('SELECT * FROM inventory WHERE warehouse_id = ? AND product_id = ?').get(warehouseId, productId);
+    inv = await dbAdapter.get('SELECT * FROM inventory WHERE warehouse_id = ? AND product_id = ?', [warehouseId, productId], client);
   }
   return inv;
 }
@@ -53,36 +53,36 @@ function getOrInitInventory(warehouseId, productId, branchId) {
 /**
  * Record immutable movement ledger entry with state transition details
  */
-function logMovement({
+async function logMovement({
   branchId, warehouseId, productId, movementType,
   quantityChange, prevQty, newQty, fromState, toState,
   referenceType, referenceId, reason, userId
-}) {
-  db.prepare(`
+}, client = null) {
+  await dbAdapter.run(`
     INSERT INTO inventory_movements (
       branch_id, warehouse_id, product_id, movement_type,
       quantity_change, previous_quantity, new_quantity,
       from_state, to_state, reference_type, reference_id,
       reason, user_id, created_at
     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-  `).run(
+  `, [
     branchId, warehouseId, productId, movementType,
     quantityChange, prevQty, newQty,
     fromState || 'AVAILABLE', toState || 'AVAILABLE',
     referenceType || 'MANUAL', referenceId || null,
     reason || 'Inventory State Update', userId || null
-  );
+  ], client);
 }
 
 /**
  * 1. RESERVE STOCK: AVAILABLE -> RESERVED
  */
-function reserveStock({ branchId, warehouseId, productId, quantity, referenceType, referenceId, userId, reason }) {
+async function reserveStock({ branchId, warehouseId, productId, quantity, referenceType, referenceId, userId, reason }, client = null) {
   const qty = Math.abs(Number(quantity));
   if (qty <= 0) throw new Error('Quantity must be greater than 0');
 
-  return db.transaction(() => {
-    const inv = getOrInitInventory(warehouseId, productId, branchId);
+  const execute = async (tx) => {
+    const inv = await getOrInitInventory(warehouseId, productId, branchId, tx);
     if (inv.quantity_available < qty) {
       throw new Error(`Insufficient available stock to reserve. Requested: ${qty}, Available: ${inv.quantity_available}`);
     }
@@ -90,34 +90,36 @@ function reserveStock({ branchId, warehouseId, productId, quantity, referenceTyp
     const newAvailable = inv.quantity_available - qty;
     const newReserved = inv.quantity_reserved + qty;
 
-    db.prepare(`
+    await dbAdapter.run(`
       UPDATE inventory
       SET quantity_available = ?, quantity_reserved = ?, updated_at = CURRENT_TIMESTAMP
       WHERE id = ?
-    `).run(newAvailable, newReserved, inv.id);
+    `, [newAvailable, newReserved, inv.id], tx);
 
     const updated = { ...inv, quantity_available: newAvailable, quantity_reserved: newReserved };
     assertInventoryInvariant(updated, 'reserveStock');
 
-    logMovement({
+    await logMovement({
       branchId: inv.branch_id, warehouseId, productId, movementType: 'STOCK_RESERVED',
       quantityChange: qty, prevQty: inv.quantity_available, newQty: newAvailable,
       fromState: 'AVAILABLE', toState: 'RESERVED', referenceType, referenceId, reason, userId
-    });
+    }, tx);
 
     return updated;
-  })();
+  };
+
+  return client ? await execute(client) : await dbAdapter.withTransaction(execute);
 }
 
 /**
  * 2. RELEASE RESERVATION: RESERVED -> AVAILABLE
  */
-function releaseReservation({ branchId, warehouseId, productId, quantity, referenceType, referenceId, userId, reason }) {
+async function releaseReservation({ branchId, warehouseId, productId, quantity, referenceType, referenceId, userId, reason }, client = null) {
   const qty = Math.abs(Number(quantity));
   if (qty <= 0) throw new Error('Quantity must be greater than 0');
 
-  return db.transaction(() => {
-    const inv = getOrInitInventory(warehouseId, productId, branchId);
+  const execute = async (tx) => {
+    const inv = await getOrInitInventory(warehouseId, productId, branchId, tx);
     if (inv.quantity_reserved < qty) {
       throw new Error(`Cannot release ${qty} units; only ${inv.quantity_reserved} currently reserved.`);
     }
@@ -125,34 +127,36 @@ function releaseReservation({ branchId, warehouseId, productId, quantity, refere
     const newReserved = inv.quantity_reserved - qty;
     const newAvailable = inv.quantity_available + qty;
 
-    db.prepare(`
+    await dbAdapter.run(`
       UPDATE inventory
       SET quantity_available = ?, quantity_reserved = ?, updated_at = CURRENT_TIMESTAMP
       WHERE id = ?
-    `).run(newAvailable, newReserved, inv.id);
+    `, [newAvailable, newReserved, inv.id], tx);
 
     const updated = { ...inv, quantity_available: newAvailable, quantity_reserved: newReserved };
     assertInventoryInvariant(updated, 'releaseReservation');
 
-    logMovement({
+    await logMovement({
       branchId: inv.branch_id, warehouseId, productId, movementType: 'RESERVATION_RELEASED',
       quantityChange: qty, prevQty: inv.quantity_reserved, newQty: newReserved,
       fromState: 'RESERVED', toState: 'AVAILABLE', referenceType, referenceId, reason, userId
-    });
+    }, tx);
 
     return updated;
-  })();
+  };
+
+  return client ? await execute(client) : await dbAdapter.withTransaction(execute);
 }
 
 /**
  * 3. DISPATCH OUTBOUND: RESERVED -> IN_TRANSIT (Decrements source ON_HAND)
  */
-function dispatchStock({ branchId, warehouseId, productId, quantity, referenceType, referenceId, userId, reason }) {
+async function dispatchStock({ branchId, warehouseId, productId, quantity, referenceType, referenceId, userId, reason }, client = null) {
   const qty = Math.abs(Number(quantity));
   if (qty <= 0) throw new Error('Quantity must be greater than 0');
 
-  return db.transaction(() => {
-    const inv = getOrInitInventory(warehouseId, productId, branchId);
+  const execute = async (tx) => {
+    const inv = await getOrInitInventory(warehouseId, productId, branchId, tx);
     if (inv.quantity_reserved < qty) {
       throw new Error(`Cannot dispatch ${qty} units; only ${inv.quantity_reserved} reserved.`);
     }
@@ -161,76 +165,79 @@ function dispatchStock({ branchId, warehouseId, productId, quantity, referenceTy
     const newOnHand = inv.quantity_on_hand - qty;
     const newInTransit = inv.quantity_in_transit + qty;
 
-    db.prepare(`
+    await dbAdapter.run(`
       UPDATE inventory
       SET quantity_on_hand = ?, quantity_reserved = ?, quantity_in_transit = ?, updated_at = CURRENT_TIMESTAMP
       WHERE id = ?
-    `).run(newOnHand, newReserved, newInTransit, inv.id);
+    `, [newOnHand, newReserved, newInTransit, inv.id], tx);
 
     const updated = { ...inv, quantity_on_hand: newOnHand, quantity_reserved: newReserved, quantity_in_transit: newInTransit };
     assertInventoryInvariant(updated, 'dispatchStock');
 
-    logMovement({
+    await logMovement({
       branchId: inv.branch_id, warehouseId, productId, movementType: 'TRANSFER_OUT',
       quantityChange: -qty, prevQty: inv.quantity_on_hand, newQty: newOnHand,
       fromState: 'RESERVED', toState: 'IN_TRANSIT', referenceType, referenceId, reason, userId
-    });
+    }, tx);
 
     return updated;
-  })();
+  };
+
+  return client ? await execute(client) : await dbAdapter.withTransaction(execute);
 }
 
 /**
  * 4. RECEIVE INBOUND: IN_TRANSIT -> AVAILABLE (Increments target ON_HAND and AVAILABLE)
  */
-function receiveInTransit({
+async function receiveInTransit({
   targetWarehouseId, sourceWarehouseId, targetBranchId, productId, quantity,
   referenceType, referenceId, userId, reason
-}) {
+}, client = null) {
   const qty = Math.abs(Number(quantity));
   if (qty <= 0) throw new Error('Quantity must be greater than 0');
 
-  return db.transaction(() => {
-    // Clear in-transit on source if provided
+  const execute = async (tx) => {
     if (sourceWarehouseId) {
-      const srcInv = db.prepare('SELECT * FROM inventory WHERE warehouse_id = ? AND product_id = ?').get(sourceWarehouseId, productId);
+      const srcInv = await dbAdapter.get('SELECT * FROM inventory WHERE warehouse_id = ? AND product_id = ?', [sourceWarehouseId, productId], tx);
       if (srcInv && srcInv.quantity_in_transit >= qty) {
-        db.prepare('UPDATE inventory SET quantity_in_transit = quantity_in_transit - ? WHERE id = ?').run(qty, srcInv.id);
+        await dbAdapter.run('UPDATE inventory SET quantity_in_transit = quantity_in_transit - ? WHERE id = ?', [qty, srcInv.id], tx);
       }
     }
 
-    const targetInv = getOrInitInventory(targetWarehouseId, productId, targetBranchId);
+    const targetInv = await getOrInitInventory(targetWarehouseId, productId, targetBranchId, tx);
     const newOnHand = targetInv.quantity_on_hand + qty;
     const newAvailable = targetInv.quantity_available + qty;
 
-    db.prepare(`
+    await dbAdapter.run(`
       UPDATE inventory
       SET quantity_on_hand = ?, quantity_available = ?, updated_at = CURRENT_TIMESTAMP
       WHERE id = ?
-    `).run(newOnHand, newAvailable, targetInv.id);
+    `, [newOnHand, newAvailable, targetInv.id], tx);
 
     const updated = { ...targetInv, quantity_on_hand: newOnHand, quantity_available: newAvailable };
     assertInventoryInvariant(updated, 'receiveInTransit');
 
-    logMovement({
+    await logMovement({
       branchId: targetInv.branch_id, warehouseId: targetWarehouseId, productId, movementType: 'TRANSFER_IN',
       quantityChange: qty, prevQty: targetInv.quantity_on_hand, newQty: newOnHand,
       fromState: 'IN_TRANSIT', toState: 'AVAILABLE', referenceType, referenceId, reason, userId
-    });
+    }, tx);
 
     return updated;
-  })();
+  };
+
+  return client ? await execute(client) : await dbAdapter.withTransaction(execute);
 }
 
 /**
  * 5. QUARANTINE DAMAGED: AVAILABLE -> DAMAGED (ON_HAND unchanged)
  */
-function quarantineDamaged({ branchId, warehouseId, productId, quantity, referenceId, userId, reason }) {
+async function quarantineDamaged({ branchId, warehouseId, productId, quantity, referenceId, userId, reason }, client = null) {
   const qty = Math.abs(Number(quantity));
   if (qty <= 0) throw new Error('Quantity must be greater than 0');
 
-  return db.transaction(() => {
-    const inv = getOrInitInventory(warehouseId, productId, branchId);
+  const execute = async (tx) => {
+    const inv = await getOrInitInventory(warehouseId, productId, branchId, tx);
     if (inv.quantity_available < qty) {
       throw new Error(`Insufficient available stock to quarantine. Available: ${inv.quantity_available}, Requested: ${qty}`);
     }
@@ -238,35 +245,37 @@ function quarantineDamaged({ branchId, warehouseId, productId, quantity, referen
     const newAvailable = inv.quantity_available - qty;
     const newDamaged = inv.quantity_damaged + qty;
 
-    db.prepare(`
+    await dbAdapter.run(`
       UPDATE inventory
       SET quantity_available = ?, quantity_damaged = ?, updated_at = CURRENT_TIMESTAMP
       WHERE id = ?
-    `).run(newAvailable, newDamaged, inv.id);
+    `, [newAvailable, newDamaged, inv.id], tx);
 
     const updated = { ...inv, quantity_available: newAvailable, quantity_damaged: newDamaged };
     assertInventoryInvariant(updated, 'quarantineDamaged');
 
-    logMovement({
+    await logMovement({
       branchId: inv.branch_id, warehouseId, productId, movementType: 'DAMAGED_WRITE_OFF',
       quantityChange: qty, prevQty: inv.quantity_available, newQty: newAvailable,
       fromState: 'AVAILABLE', toState: 'DAMAGED', referenceType: 'QUARANTINE',
       referenceId, reason: reason || 'Goods damaged / quarantined', userId
-    });
+    }, tx);
 
     return updated;
-  })();
+  };
+
+  return client ? await execute(client) : await dbAdapter.withTransaction(execute);
 }
 
 /**
  * 6. MARK EXPIRED: AVAILABLE -> EXPIRED (ON_HAND unchanged)
  */
-function markExpired({ branchId, warehouseId, productId, quantity, referenceId, userId, reason }) {
+async function markExpired({ branchId, warehouseId, productId, quantity, referenceId, userId, reason }, client = null) {
   const qty = Math.abs(Number(quantity));
   if (qty <= 0) throw new Error('Quantity must be greater than 0');
 
-  return db.transaction(() => {
-    const inv = getOrInitInventory(warehouseId, productId, branchId);
+  const execute = async (tx) => {
+    const inv = await getOrInitInventory(warehouseId, productId, branchId, tx);
     if (inv.quantity_available < qty) {
       throw new Error(`Insufficient available stock to mark expired. Available: ${inv.quantity_available}, Requested: ${qty}`);
     }
@@ -274,38 +283,40 @@ function markExpired({ branchId, warehouseId, productId, quantity, referenceId, 
     const newAvailable = inv.quantity_available - qty;
     const newExpired = inv.quantity_expired + qty;
 
-    db.prepare(`
+    await dbAdapter.run(`
       UPDATE inventory
       SET quantity_available = ?, quantity_expired = ?, updated_at = CURRENT_TIMESTAMP
       WHERE id = ?
-    `).run(newAvailable, newExpired, inv.id);
+    `, [newAvailable, newExpired, inv.id], tx);
 
     const updated = { ...inv, quantity_available: newAvailable, quantity_expired: newExpired };
     assertInventoryInvariant(updated, 'markExpired');
 
-    logMovement({
+    await logMovement({
       branchId: inv.branch_id, warehouseId, productId, movementType: 'EXPIRED_SEGREGATION',
       quantityChange: qty, prevQty: inv.quantity_available, newQty: newAvailable,
       fromState: 'AVAILABLE', toState: 'EXPIRED', referenceType: 'EXPIRY',
       referenceId, reason: reason || 'Product past expiration date', userId
-    });
+    }, tx);
 
     return updated;
-  })();
+  };
+
+  return client ? await execute(client) : await dbAdapter.withTransaction(execute);
 }
 
 /**
  * 7. WRITE OFF STOCK: DAMAGED or EXPIRED -> WRITTEN_OFF (Decrements ON_HAND)
  */
-function writeOffStock({ branchId, warehouseId, productId, quantity, fromState = 'DAMAGED', referenceId, userId, reason }) {
+async function writeOffStock({ branchId, warehouseId, productId, quantity, fromState = 'DAMAGED', referenceId, userId, reason }, client = null) {
   const qty = Math.abs(Number(quantity));
   if (qty <= 0) throw new Error('Quantity must be greater than 0');
   if (fromState !== 'DAMAGED' && fromState !== 'EXPIRED') {
     throw new Error('Write-off can only be executed from DAMAGED or EXPIRED state');
   }
 
-  return db.transaction(() => {
-    const inv = getOrInitInventory(warehouseId, productId, branchId);
+  const execute = async (tx) => {
+    const inv = await getOrInitInventory(warehouseId, productId, branchId, tx);
     const pool = fromState === 'DAMAGED' ? inv.quantity_damaged : inv.quantity_expired;
 
     if (pool < qty) {
@@ -316,35 +327,37 @@ function writeOffStock({ branchId, warehouseId, productId, quantity, fromState =
     const newExpired = fromState === 'EXPIRED' ? inv.quantity_expired - qty : inv.quantity_expired;
     const newOnHand = inv.quantity_on_hand - qty;
 
-    db.prepare(`
+    await dbAdapter.run(`
       UPDATE inventory
       SET quantity_on_hand = ?, quantity_damaged = ?, quantity_expired = ?, updated_at = CURRENT_TIMESTAMP
       WHERE id = ?
-    `).run(newOnHand, newDamaged, newExpired, inv.id);
+    `, [newOnHand, newDamaged, newExpired, inv.id], tx);
 
     const updated = { ...inv, quantity_on_hand: newOnHand, quantity_damaged: newDamaged, quantity_expired: newExpired };
     assertInventoryInvariant(updated, 'writeOffStock');
 
-    logMovement({
+    await logMovement({
       branchId: inv.branch_id, warehouseId, productId, movementType: 'DAMAGED_WRITE_OFF',
       quantityChange: -qty, prevQty: inv.quantity_on_hand, newQty: newOnHand,
       fromState, toState: 'EXTERNAL', referenceType: 'WRITE_OFF',
       referenceId, reason: reason || `Certified write-off from ${fromState}`, userId
-    });
+    }, tx);
 
     return updated;
-  })();
+  };
+
+  return client ? await execute(client) : await dbAdapter.withTransaction(execute);
 }
 
 /**
  * 8. RESTORE TO AVAILABLE: DAMAGED or EXPIRED -> AVAILABLE (ON_HAND unchanged)
  */
-function restoreToAvailable({ branchId, warehouseId, productId, quantity, fromState = 'DAMAGED', referenceId, userId, reason }) {
+async function restoreToAvailable({ branchId, warehouseId, productId, quantity, fromState = 'DAMAGED', referenceId, userId, reason }, client = null) {
   const qty = Math.abs(Number(quantity));
   if (qty <= 0) throw new Error('Quantity must be greater than 0');
 
-  return db.transaction(() => {
-    const inv = getOrInitInventory(warehouseId, productId, branchId);
+  const execute = async (tx) => {
+    const inv = await getOrInitInventory(warehouseId, productId, branchId, tx);
     const pool = fromState === 'DAMAGED' ? inv.quantity_damaged : inv.quantity_expired;
     if (pool < qty) {
       throw new Error(`Cannot restore ${qty} units; only ${pool} currently in ${fromState}.`);
@@ -354,30 +367,32 @@ function restoreToAvailable({ branchId, warehouseId, productId, quantity, fromSt
     const newExpired = fromState === 'EXPIRED' ? inv.quantity_expired - qty : inv.quantity_expired;
     const newAvailable = inv.quantity_available + qty;
 
-    db.prepare(`
+    await dbAdapter.run(`
       UPDATE inventory
       SET quantity_available = ?, quantity_damaged = ?, quantity_expired = ?, updated_at = CURRENT_TIMESTAMP
       WHERE id = ?
-    `).run(newAvailable, newDamaged, newExpired, inv.id);
+    `, [newAvailable, newDamaged, newExpired, inv.id], tx);
 
     const updated = { ...inv, quantity_available: newAvailable, quantity_damaged: newDamaged, quantity_expired: newExpired };
     assertInventoryInvariant(updated, 'restoreToAvailable');
 
-    logMovement({
+    await logMovement({
       branchId: inv.branch_id, warehouseId, productId, movementType: 'RESTORE_AVAILABLE',
       quantityChange: qty, prevQty: pool, newQty: pool - qty,
       fromState, toState: 'AVAILABLE', referenceType: 'ADJUSTMENT',
       referenceId, reason: reason || `Re-inspected and restored from ${fromState}`, userId
-    });
+    }, tx);
 
     return updated;
-  })();
+  };
+
+  return client ? await execute(client) : await dbAdapter.withTransaction(execute);
 }
 
 /**
  * 9. GET INVENTORY STATE SUMMARY FOR BRANCH / WAREHOUSE
  */
-function getInventoryStateSummary({ branchId, warehouseId, productId } = {}) {
+async function getInventoryStateSummary({ branchId, warehouseId, productId } = {}) {
   let query = `
     SELECT i.*, p.sku, p.name as product_name, p.barcode, c.name as category, p.unit, p.unit as unit_of_measure,
            p.reorder_threshold, b.name as branch_name, b.code as branch_code,
@@ -405,7 +420,7 @@ function getInventoryStateSummary({ branchId, warehouseId, productId } = {}) {
   }
 
   query += ' ORDER BY b.name ASC, w.name ASC, p.name ASC';
-  return db.prepare(query).all(...params);
+  return await dbAdapter.all(query, params);
 }
 
 module.exports = {

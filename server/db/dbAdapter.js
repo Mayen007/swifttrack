@@ -175,6 +175,16 @@ async function withTransaction(callback) {
     }
 }
 
+async function close() {
+    if (isPostgres) {
+        if (pgPool && typeof pgPool.closePool === 'function') {
+            await pgPool.closePool();
+        }
+    } else if (sqliteDb && typeof sqliteDb.close === 'function') {
+        sqliteDb.close();
+    }
+}
+
 module.exports = {
     engine: isPostgres ? 'postgres' : 'sqlite',
     isPostgres,
@@ -184,6 +194,7 @@ module.exports = {
     all,
     run,
     withTransaction,
+    close,
     translatePlaceholdersToPg,
     translatePlaceholdersToSqlite,
     // Direct engine handles when needed

@@ -273,23 +273,7 @@ function authorize(resource, action, options = {}) {
                 return res.status(500).json({ error: `Security exception: Invalid entityTable '${options.entityTable}' in authorize middleware.` });
             }
             try {
-                let entity = null;
-                const sqliteTables = new Set(['deliveries', 'refund_requests', 'expenses', 'stock_transfers']);
-                if (sqliteTables.has(options.entityTable)) {
-                    try {
-                        const { db: sqliteDb } = require('../db/database.js');
-                        entity = sqliteDb.prepare(`SELECT * FROM ${options.entityTable} WHERE id = ?`).get(entityId);
-                    } catch {}
-                }
-                if (!entity) {
-                    entity = await dbAdapter.get(`SELECT * FROM ${options.entityTable} WHERE id = ?`, [entityId]);
-                }
-                if (!entity) {
-                    try {
-                        const { db: sqliteDb } = require('../db/database.js');
-                        entity = sqliteDb.prepare(`SELECT * FROM ${options.entityTable} WHERE id = ?`).get(entityId);
-                    } catch {}
-                }
+                const entity = await dbAdapter.get(`SELECT * FROM ${options.entityTable} WHERE id = ?`, [entityId]);
                 if (!entity) {
                     return res.status(404).json({ error: `${options.entityTable} record not found.` });
                 }
@@ -331,14 +315,7 @@ function authorize(resource, action, options = {}) {
 
         // Driver context
         if (req.user.roleName === 'DRIVER') {
-            let driverRec = null;
-            try {
-                const { db: sqliteDb } = require('../db/database.js');
-                driverRec = sqliteDb.prepare('SELECT id FROM drivers WHERE user_id = ?').get(req.user.id);
-            } catch {}
-            if (!driverRec) {
-                driverRec = await dbAdapter.get('SELECT id FROM drivers WHERE user_id = ?', [req.user.id]);
-            }
+            const driverRec = await dbAdapter.get('SELECT id FROM drivers WHERE user_id = ?', [req.user.id]);
             context.userDriverId = driverRec ? driverRec.id : null;
             if (entityDriverId) {
                 context.driverId = entityDriverId;

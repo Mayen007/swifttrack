@@ -6,13 +6,13 @@ const { authenticateToken, requireRole } = require('../middleware/auth.js');
 const vehicleService = require('../services/vehicleService.js');
 
 // GET /telemetry/summary - Fleet-wide vehicle aggregate telemetry
-router.get('/telemetry/summary', authenticateToken, (req, res) => {
+router.get('/telemetry/summary', authenticateToken, async (req, res) => {
     try {
         const branchId = req.user.roleName === 'SUPER_ADMIN' 
             ? (req.query.branchId ? Number(req.query.branchId) : null)
             : req.user.branchId;
 
-        const telemetry = vehicleService.getFleetVehiclesTelemetry(branchId);
+        const telemetry = await vehicleService.getFleetVehiclesTelemetry(branchId);
         res.json(telemetry);
     } catch (err) {
         res.status(err.statusCode || 500).json({ error: err.message });
@@ -20,7 +20,7 @@ router.get('/telemetry/summary', authenticateToken, (req, res) => {
 });
 
 // GET / - List all vehicles with filters (branch, status, type, search) & pagination
-router.get('/', authenticateToken, (req, res) => {
+router.get('/', authenticateToken, async (req, res) => {
     try {
         const branchId = req.user.roleName === 'SUPER_ADMIN'
             ? (req.query.branchId ? Number(req.query.branchId) : null)
@@ -28,7 +28,7 @@ router.get('/', authenticateToken, (req, res) => {
 
         const { status, vehicleType, search, page, limit } = req.query;
 
-        const result = vehicleService.listVehicles({
+        const result = await vehicleService.listVehicles({
             branchId,
             status,
             vehicleType,
@@ -44,10 +44,10 @@ router.get('/', authenticateToken, (req, res) => {
 });
 
 // GET /:id - Single vehicle detailed profile
-router.get('/:id', authenticateToken, (req, res) => {
+router.get('/:id', authenticateToken, async (req, res) => {
     try {
         const vehicleId = Number(req.params.id);
-        const vehicle = vehicleService.getVehicleById(vehicleId);
+        const vehicle = await vehicleService.getVehicleById(vehicleId);
 
         // Branch isolation guard
         if (req.user.roleName !== 'SUPER_ADMIN' && vehicle.branch_id !== req.user.branchId) {
@@ -61,7 +61,7 @@ router.get('/:id', authenticateToken, (req, res) => {
 });
 
 // POST / - Register new fleet vehicle
-router.post('/', authenticateToken, requireRole('SUPER_ADMIN', 'BRANCH_MANAGER', 'DISPATCHER'), (req, res) => {
+router.post('/', authenticateToken, requireRole('SUPER_ADMIN', 'BRANCH_MANAGER', 'DISPATCHER'), async (req, res) => {
     try {
         const branchId = req.user.roleName === 'SUPER_ADMIN'
             ? (req.body.branch_id ? Number(req.body.branch_id) : req.user.branchId)
@@ -72,7 +72,7 @@ router.post('/', authenticateToken, requireRole('SUPER_ADMIN', 'BRANCH_MANAGER',
             branch_id: branchId
         };
 
-        const newVehicle = vehicleService.createVehicle(payload, req.user.id);
+        const newVehicle = await vehicleService.createVehicle(payload, req.user.id);
         res.status(201).json(newVehicle);
     } catch (err) {
         res.status(err.statusCode || 400).json({ error: err.message });
@@ -80,16 +80,16 @@ router.post('/', authenticateToken, requireRole('SUPER_ADMIN', 'BRANCH_MANAGER',
 });
 
 // PUT /:id - Update vehicle profile specifications
-router.put('/:id', authenticateToken, requireRole('SUPER_ADMIN', 'BRANCH_MANAGER', 'DISPATCHER'), (req, res) => {
+router.put('/:id', authenticateToken, requireRole('SUPER_ADMIN', 'BRANCH_MANAGER', 'DISPATCHER'), async (req, res) => {
     try {
         const vehicleId = Number(req.params.id);
-        const existing = vehicleService.getVehicleById(vehicleId);
+        const existing = await vehicleService.getVehicleById(vehicleId);
 
         if (req.user.roleName !== 'SUPER_ADMIN' && existing.branch_id !== req.user.branchId) {
             return res.status(403).json({ error: 'Forbidden: Vehicle belongs to another branch depot' });
         }
 
-        const updated = vehicleService.updateVehicle(vehicleId, req.body, req.user.id);
+        const updated = await vehicleService.updateVehicle(vehicleId, req.body, req.user.id);
         res.json(updated);
     } catch (err) {
         res.status(err.statusCode || 400).json({ error: err.message });
@@ -97,17 +97,17 @@ router.put('/:id', authenticateToken, requireRole('SUPER_ADMIN', 'BRANCH_MANAGER
 });
 
 // POST /:id/assign-driver - Assign or unassign designated driver
-router.post('/:id/assign-driver', authenticateToken, requireRole('SUPER_ADMIN', 'BRANCH_MANAGER', 'DISPATCHER'), (req, res) => {
+router.post('/:id/assign-driver', authenticateToken, requireRole('SUPER_ADMIN', 'BRANCH_MANAGER', 'DISPATCHER'), async (req, res) => {
     try {
         const vehicleId = Number(req.params.id);
         const { driver_id } = req.body;
 
-        const existing = vehicleService.getVehicleById(vehicleId);
+        const existing = await vehicleService.getVehicleById(vehicleId);
         if (req.user.roleName !== 'SUPER_ADMIN' && existing.branch_id !== req.user.branchId) {
             return res.status(403).json({ error: 'Forbidden: Vehicle belongs to another branch depot' });
         }
 
-        const updated = vehicleService.assignVehicleDriver(
+        const updated = await vehicleService.assignVehicleDriver(
             vehicleId,
             driver_id ? Number(driver_id) : null,
             req.user.id
@@ -119,7 +119,7 @@ router.post('/:id/assign-driver', authenticateToken, requireRole('SUPER_ADMIN', 
 });
 
 // PATCH /:id/status - Update vehicle operational status
-router.patch('/:id/status', authenticateToken, requireRole('SUPER_ADMIN', 'BRANCH_MANAGER', 'DISPATCHER'), (req, res) => {
+router.patch('/:id/status', authenticateToken, requireRole('SUPER_ADMIN', 'BRANCH_MANAGER', 'DISPATCHER'), async (req, res) => {
     try {
         const vehicleId = Number(req.params.id);
         const { status, reason } = req.body;
@@ -128,12 +128,12 @@ router.patch('/:id/status', authenticateToken, requireRole('SUPER_ADMIN', 'BRANC
             return res.status(400).json({ error: 'Status is required' });
         }
 
-        const existing = vehicleService.getVehicleById(vehicleId);
+        const existing = await vehicleService.getVehicleById(vehicleId);
         if (req.user.roleName !== 'SUPER_ADMIN' && existing.branch_id !== req.user.branchId) {
             return res.status(403).json({ error: 'Forbidden: Vehicle belongs to another branch depot' });
         }
 
-        const updated = vehicleService.updateVehicleStatus(vehicleId, status, reason, req.user.id);
+        const updated = await vehicleService.updateVehicleStatus(vehicleId, status, reason, req.user.id);
         res.json(updated);
     } catch (err) {
         res.status(err.statusCode || 400).json({ error: err.message });
@@ -141,17 +141,17 @@ router.patch('/:id/status', authenticateToken, requireRole('SUPER_ADMIN', 'BRANC
 });
 
 // GET /:id/fuel - Fuel fill logs history
-router.get('/:id/fuel', authenticateToken, (req, res) => {
+router.get('/:id/fuel', authenticateToken, async (req, res) => {
     try {
         const vehicleId = Number(req.params.id);
-        const existing = vehicleService.getVehicleById(vehicleId);
+        const existing = await vehicleService.getVehicleById(vehicleId);
 
         if (req.user.roleName !== 'SUPER_ADMIN' && existing.branch_id !== req.user.branchId) {
             return res.status(403).json({ error: 'Forbidden: Vehicle belongs to another branch depot' });
         }
 
         const { limit, page } = req.query;
-        const fuelLogs = vehicleService.getVehicleFuelLogs(vehicleId, { limit, page });
+        const fuelLogs = await vehicleService.getVehicleFuelLogs(vehicleId, { limit, page });
         res.json(fuelLogs);
     } catch (err) {
         res.status(err.statusCode || 500).json({ error: err.message });
@@ -159,16 +159,16 @@ router.get('/:id/fuel', authenticateToken, (req, res) => {
 });
 
 // POST /:id/fuel - Record new refuel voucher/receipt
-router.post('/:id/fuel', authenticateToken, requireRole('SUPER_ADMIN', 'BRANCH_MANAGER', 'DISPATCHER'), (req, res) => {
+router.post('/:id/fuel', authenticateToken, requireRole('SUPER_ADMIN', 'BRANCH_MANAGER', 'DISPATCHER'), async (req, res) => {
     try {
         const vehicleId = Number(req.params.id);
-        const existing = vehicleService.getVehicleById(vehicleId);
+        const existing = await vehicleService.getVehicleById(vehicleId);
 
         if (req.user.roleName !== 'SUPER_ADMIN' && existing.branch_id !== req.user.branchId) {
             return res.status(403).json({ error: 'Forbidden: Vehicle belongs to another branch depot' });
         }
 
-        const log = vehicleService.recordFuelLog(vehicleId, req.body, req.user.id);
+        const log = await vehicleService.recordFuelLog(vehicleId, req.body, req.user.id);
         res.status(201).json(log);
     } catch (err) {
         res.status(err.statusCode || 400).json({ error: err.message });
@@ -176,17 +176,17 @@ router.post('/:id/fuel', authenticateToken, requireRole('SUPER_ADMIN', 'BRANCH_M
 });
 
 // GET /:id/maintenance - Service and repair history
-router.get('/:id/maintenance', authenticateToken, (req, res) => {
+router.get('/:id/maintenance', authenticateToken, async (req, res) => {
     try {
         const vehicleId = Number(req.params.id);
-        const existing = vehicleService.getVehicleById(vehicleId);
+        const existing = await vehicleService.getVehicleById(vehicleId);
 
         if (req.user.roleName !== 'SUPER_ADMIN' && existing.branch_id !== req.user.branchId) {
             return res.status(403).json({ error: 'Forbidden: Vehicle belongs to another branch depot' });
         }
 
         const { limit, page, status } = req.query;
-        const maintenance = vehicleService.getVehicleMaintenanceHistory(vehicleId, { limit, page, status });
+        const maintenance = await vehicleService.getVehicleMaintenanceHistory(vehicleId, { limit, page, status });
         res.json(maintenance);
     } catch (err) {
         res.status(err.statusCode || 500).json({ error: err.message });
@@ -194,16 +194,16 @@ router.get('/:id/maintenance', authenticateToken, (req, res) => {
 });
 
 // POST /:id/maintenance - Schedule or record maintenance/repairs
-router.post('/:id/maintenance', authenticateToken, requireRole('SUPER_ADMIN', 'BRANCH_MANAGER', 'DISPATCHER'), (req, res) => {
+router.post('/:id/maintenance', authenticateToken, requireRole('SUPER_ADMIN', 'BRANCH_MANAGER', 'DISPATCHER'), async (req, res) => {
     try {
         const vehicleId = Number(req.params.id);
-        const existing = vehicleService.getVehicleById(vehicleId);
+        const existing = await vehicleService.getVehicleById(vehicleId);
 
         if (req.user.roleName !== 'SUPER_ADMIN' && existing.branch_id !== req.user.branchId) {
             return res.status(403).json({ error: 'Forbidden: Vehicle belongs to another branch depot' });
         }
 
-        const record = vehicleService.recordMaintenance(vehicleId, req.body, req.user.id);
+        const record = await vehicleService.recordMaintenance(vehicleId, req.body, req.user.id);
         res.status(201).json(record);
     } catch (err) {
         res.status(err.statusCode || 400).json({ error: err.message });
@@ -211,7 +211,7 @@ router.post('/:id/maintenance', authenticateToken, requireRole('SUPER_ADMIN', 'B
 });
 
 // PATCH /maintenance/:recordId/status - Update maintenance job state (e.g. IN_PROGRESS -> COMPLETED)
-router.patch('/maintenance/:recordId/status', authenticateToken, requireRole('SUPER_ADMIN', 'BRANCH_MANAGER', 'DISPATCHER'), (req, res) => {
+router.patch('/maintenance/:recordId/status', authenticateToken, requireRole('SUPER_ADMIN', 'BRANCH_MANAGER', 'DISPATCHER'), async (req, res) => {
     try {
         const recordId = Number(req.params.recordId);
         const { status, total_cost, labor_cost, parts_cost, actual_completion_date, notes } = req.body;
@@ -220,7 +220,7 @@ router.patch('/maintenance/:recordId/status', authenticateToken, requireRole('SU
             return res.status(400).json({ error: 'Status is required' });
         }
 
-        const updated = vehicleService.updateMaintenanceStatus(recordId, status, {
+        const updated = await vehicleService.updateMaintenanceStatus(recordId, status, {
             total_cost,
             labor_cost,
             parts_cost,
@@ -235,17 +235,17 @@ router.patch('/maintenance/:recordId/status', authenticateToken, requireRole('SU
 });
 
 // GET /:id/mileage - Mileage and trip logs
-router.get('/:id/mileage', authenticateToken, (req, res) => {
+router.get('/:id/mileage', authenticateToken, async (req, res) => {
     try {
         const vehicleId = Number(req.params.id);
-        const existing = vehicleService.getVehicleById(vehicleId);
+        const existing = await vehicleService.getVehicleById(vehicleId);
 
         if (req.user.roleName !== 'SUPER_ADMIN' && existing.branch_id !== req.user.branchId) {
             return res.status(403).json({ error: 'Forbidden: Vehicle belongs to another branch depot' });
         }
 
         const { limit, page } = req.query;
-        const logs = vehicleService.getVehicleMileageLogs(vehicleId, { limit, page });
+        const logs = await vehicleService.getVehicleMileageLogs(vehicleId, { limit, page });
         res.json(logs);
     } catch (err) {
         res.status(err.statusCode || 500).json({ error: err.message });
@@ -253,16 +253,16 @@ router.get('/:id/mileage', authenticateToken, (req, res) => {
 });
 
 // POST /:id/mileage - Log trip mileage
-router.post('/:id/mileage', authenticateToken, requireRole('SUPER_ADMIN', 'BRANCH_MANAGER', 'DISPATCHER'), (req, res) => {
+router.post('/:id/mileage', authenticateToken, requireRole('SUPER_ADMIN', 'BRANCH_MANAGER', 'DISPATCHER'), async (req, res) => {
     try {
         const vehicleId = Number(req.params.id);
-        const existing = vehicleService.getVehicleById(vehicleId);
+        const existing = await vehicleService.getVehicleById(vehicleId);
 
         if (req.user.roleName !== 'SUPER_ADMIN' && existing.branch_id !== req.user.branchId) {
             return res.status(403).json({ error: 'Forbidden: Vehicle belongs to another branch depot' });
         }
 
-        const log = vehicleService.recordMileageLog(vehicleId, req.body, req.user.id);
+        const log = await vehicleService.recordMileageLog(vehicleId, req.body, req.user.id);
         res.status(201).json(log);
     } catch (err) {
         res.status(err.statusCode || 400).json({ error: err.message });
@@ -270,16 +270,16 @@ router.post('/:id/mileage', authenticateToken, requireRole('SUPER_ADMIN', 'BRANC
 });
 
 // GET /:id/telemetry - Telemetry and cost per km metrics
-router.get('/:id/telemetry', authenticateToken, (req, res) => {
+router.get('/:id/telemetry', authenticateToken, async (req, res) => {
     try {
         const vehicleId = Number(req.params.id);
-        const existing = vehicleService.getVehicleById(vehicleId);
+        const existing = await vehicleService.getVehicleById(vehicleId);
 
         if (req.user.roleName !== 'SUPER_ADMIN' && existing.branch_id !== req.user.branchId) {
             return res.status(403).json({ error: 'Forbidden: Vehicle belongs to another branch depot' });
         }
 
-        const telemetry = vehicleService.getVehicleTelemetry(vehicleId);
+        const telemetry = await vehicleService.getVehicleTelemetry(vehicleId);
         res.json(telemetry);
     } catch (err) {
         res.status(err.statusCode || 500).json({ error: err.message });

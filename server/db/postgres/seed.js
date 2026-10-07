@@ -352,16 +352,65 @@ async function seedProductionBaseline(pool = null) {
             `, [p.id, p.category_id, p.sku, p.barcode, p.name, p.cost_price, p.selling_price, p.min_stock, p.max_stock]);
         }
 
-        // 10. Walk-in Counter Customer
-        await client.query(`
-            INSERT INTO customers (
-                id, branch_id, customer_number, full_name, phone, email, city, notes
-            ) VALUES (
-                1, 1, 'CUST-WALKIN', 'Walk-in Counter Customer', '+254 700 000 000',
-                'counter@swifttrack.co.ke', 'Nairobi', 'Standard cash & carry retail counter sales'
-            )
-            ON CONFLICT (id) DO UPDATE SET full_name = EXCLUDED.full_name;
-        `);
+        // 9b. Warehouse Inventory Balances
+        const stockDistribution = [
+            { warehouse_id: 1, branch_id: 1, factor: 1.5 },
+            { warehouse_id: 2, branch_id: 1, factor: 0.8 },
+            { warehouse_id: 3, branch_id: 2, factor: 1.0 },
+            { warehouse_id: 4, branch_id: 3, factor: 0.6 },
+            { warehouse_id: 5, branch_id: 4, factor: 0.5 }
+        ];
+
+        for (const dist of stockDistribution) {
+            for (const p of products) {
+                const baseQty = Math.max(50, Math.round(p.min_stock * 3 * dist.factor));
+                await client.query(`
+                    INSERT INTO inventory (
+                        branch_id, warehouse_id, product_id,
+                        quantity_on_hand, quantity_reserved, quantity_available
+                    ) VALUES ($1, $2, $3, $4, 0, $4)
+                    ON CONFLICT (warehouse_id, product_id) DO UPDATE SET
+                        quantity_on_hand = EXCLUDED.quantity_on_hand,
+                        quantity_available = EXCLUDED.quantity_available;
+                `, [dist.branch_id, dist.warehouse_id, p.id, baseQty]);
+
+                const existMovement = await client.query(
+                    "SELECT id FROM inventory_movements WHERE warehouse_id = $1 AND product_id = $2 AND reference_type = 'INITIAL_SEED'",
+                    [dist.warehouse_id, p.id]
+                );
+                if (existMovement.rows.length === 0) {
+                    await client.query(`
+                        INSERT INTO inventory_movements (
+                            branch_id, warehouse_id, product_id, movement_type,
+                            quantity_change, previous_quantity, new_quantity,
+                            reference_type, reference_id, reason, user_id
+                        ) VALUES ($1, $2, $3, 'PURCHASE_RECEIPT', $4, 0, $4, 'INITIAL_SEED', 'INIT-2026', 'Opening Balance Stock In', 1)
+                    `, [dist.branch_id, dist.warehouse_id, p.id, baseQty]);
+                }
+            }
+        }
+
+        // 10. Baseline Customers
+        const baselineCustomers = [
+            { id: 1, branch_id: 1, customer_number: 'CUST-WALKIN', full_name: 'Walk-in Counter Customer', phone: '+254 700 000 000', email: 'counter@swifttrack.co.ke', address: 'Counter Pickup', city: 'Nairobi', notes: 'Standard cash & carry retail counter sales' },
+            { id: 2, branch_id: 1, customer_number: 'CUST-0002', full_name: 'Alpha Apex Corporate Client Ltd', phone: '+254 722 991 122', email: 'cargo@alphaapex.co.ke', address: 'Riverside Drive, Delta Chambers Block C', city: 'Nairobi', notes: 'Corporate Logistics Account' },
+            { id: 3, branch_id: 1, customer_number: 'CUST-0003', full_name: 'Twiga Foods Central Hub', phone: '+254 711 330 088', email: 'logistics@twigafoods.com', address: 'Tatu City Industrial Logistics Park', city: 'Nairobi', notes: 'FMCG Distribution' },
+            { id: 4, branch_id: 1, customer_number: 'CUST-0004', full_name: 'Mama Sarah Hardware & Building Supplies', phone: '+254 723 445 566', email: 'mamasarah.hardware@gmail.com', address: 'Jogoo Road, Next to Posta', city: 'Nairobi', notes: 'Retail merchant' },
+            { id: 5, branch_id: 2, customer_number: 'CUST-0005', full_name: 'Mombasa Shipping & Marine Agency', phone: '+254 733 998 877', email: 'cargo@mombasashipping.co.ke', address: 'Kilindini Port Gate 5', city: 'Mombasa', notes: 'Maritime clearance' }
+        ];
+
+        for (const c of baselineCustomers) {
+            await client.query(`
+                INSERT INTO customers (
+                    id, branch_id, customer_number, full_name, phone, email, address, city, notes
+                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+                ON CONFLICT (id) DO UPDATE SET
+                    full_name = EXCLUDED.full_name,
+                    phone = EXCLUDED.phone,
+                    address = EXCLUDED.address,
+                    city = EXCLUDED.city;
+            `, [c.id, c.branch_id, c.customer_number, c.full_name, c.phone, c.email, c.address, c.city, c.notes]);
+        }
 
         // 11. Vehicles & Drivers
         await client.query(`
@@ -403,9 +452,10 @@ async function seedProductionBaseline(pool = null) {
         // 13. Reset all sequence values
         const serialTables = [
             'branches', 'warehouses', 'roles', 'permissions', 'users',
-            'categories', 'products', 'inventory', 'customers',
-            'orders', 'order_items', 'sales', 'sale_items', 'held_sales',
+            'categories', 'products', 'inventory', 'inventory_movements',
+            'customers', 'orders', 'order_items', 'sales', 'sale_items', 'held_sales',
             'payments', 'refund_requests', 'refunds', 'expenses',
+            'stock_transfers', 'stock_transfer_items',
             'vehicles', 'drivers', 'deliveries', 'delivery_items',
             'proof_of_delivery', 'revoked_tokens', 'password_reset_tokens',
             'logistics_pricing_tariffs', 'offline_sync_logs'

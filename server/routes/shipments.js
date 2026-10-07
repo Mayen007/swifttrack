@@ -7,9 +7,9 @@ const shipmentService = require('../services/shipmentService.js');
 const shipmentPricingService = require('../services/shipmentPricingService.js');
 
 // POST /api/v1/shipments/quote - Calculate rated pricing breakdown before booking
-router.post('/quote', (req, res) => {
+router.post('/quote', async (req, res) => {
     try {
-        const quote = shipmentPricingService.calculateShipmentQuote(req.body);
+        const quote = await shipmentPricingService.calculateShipmentQuote(req.body);
         if (typeof res.apiSuccess === 'function') {
             return res.apiSuccess(quote);
         }

@@ -6,13 +6,13 @@ const { authenticateToken, requireRole } = require('../middleware/auth.js');
 const driverService = require('../services/driverService.js');
 
 // GET /telemetry/summary - Fleet-wide driver aggregate telemetry
-router.get('/telemetry/summary', authenticateToken, (req, res) => {
+router.get('/telemetry/summary', authenticateToken, async (req, res) => {
     try {
         const branchId = req.user.roleName === 'SUPER_ADMIN' 
             ? (req.query.branchId ? Number(req.query.branchId) : null)
             : req.user.branchId;
 
-        const telemetry = driverService.getFleetTelemetry(branchId);
+        const telemetry = await driverService.getFleetTelemetry(branchId);
         res.json(telemetry);
     } catch (err) {
         res.status(err.statusCode || 500).json({ error: err.message });
@@ -20,7 +20,7 @@ router.get('/telemetry/summary', authenticateToken, (req, res) => {
 });
 
 // GET / - List all drivers with filters
-router.get('/', authenticateToken, (req, res) => {
+router.get('/', authenticateToken, async (req, res) => {
     try {
         const branchId = req.user.roleName === 'SUPER_ADMIN'
             ? (req.query.branchId ? Number(req.query.branchId) : null)
@@ -28,7 +28,7 @@ router.get('/', authenticateToken, (req, res) => {
 
         const { status, search, complianceStatus, page, limit } = req.query;
 
-        const result = driverService.listDrivers({
+        const result = await driverService.listDrivers({
             branchId,
             status,
             search,
@@ -44,10 +44,10 @@ router.get('/', authenticateToken, (req, res) => {
 });
 
 // GET /:id - Single driver detailed profile
-router.get('/:id', authenticateToken, (req, res) => {
+router.get('/:id', authenticateToken, async (req, res) => {
     try {
         const driverId = Number(req.params.id);
-        const driver = driverService.getDriverById(driverId);
+        const driver = await driverService.getDriverById(driverId);
 
         // Branch isolation guard
         if (req.user.roleName !== 'SUPER_ADMIN' && driver.branch_id !== req.user.branchId) {
@@ -61,7 +61,7 @@ router.get('/:id', authenticateToken, (req, res) => {
 });
 
 // POST / - Create new driver profile
-router.post('/', authenticateToken, requireRole(['SUPER_ADMIN', 'BRANCH_MANAGER', 'DISPATCHER']), (req, res) => {
+router.post('/', authenticateToken, requireRole(['SUPER_ADMIN', 'BRANCH_MANAGER', 'DISPATCHER']), async (req, res) => {
     try {
         const branchId = req.user.roleName === 'SUPER_ADMIN'
             ? (req.body.branch_id ? Number(req.body.branch_id) : req.user.branchId)
@@ -72,7 +72,7 @@ router.post('/', authenticateToken, requireRole(['SUPER_ADMIN', 'BRANCH_MANAGER'
             branch_id: branchId
         };
 
-        const newDriver = driverService.createDriver(payload, req.user.id);
+        const newDriver = await driverService.createDriver(payload, req.user.id);
         res.status(201).json(newDriver);
     } catch (err) {
         res.status(err.statusCode || 400).json({ error: err.message });
@@ -80,16 +80,16 @@ router.post('/', authenticateToken, requireRole(['SUPER_ADMIN', 'BRANCH_MANAGER'
 });
 
 // PUT /:id - Update driver profile
-router.put('/:id', authenticateToken, requireRole(['SUPER_ADMIN', 'BRANCH_MANAGER', 'DISPATCHER']), (req, res) => {
+router.put('/:id', authenticateToken, requireRole(['SUPER_ADMIN', 'BRANCH_MANAGER', 'DISPATCHER']), async (req, res) => {
     try {
         const driverId = Number(req.params.id);
-        const existing = driverService.getDriverById(driverId);
+        const existing = await driverService.getDriverById(driverId);
 
         if (req.user.roleName !== 'SUPER_ADMIN' && existing.branch_id !== req.user.branchId) {
             return res.status(403).json({ error: 'Forbidden: Driver belongs to another branch' });
         }
 
-        const updated = driverService.updateDriver(driverId, req.body, req.user.id);
+        const updated = await driverService.updateDriver(driverId, req.body, req.user.id);
         res.json(updated);
     } catch (err) {
         res.status(err.statusCode || 400).json({ error: err.message });
@@ -97,7 +97,7 @@ router.put('/:id', authenticateToken, requireRole(['SUPER_ADMIN', 'BRANCH_MANAGE
 });
 
 // PATCH /:id/status - Update driver operational status
-router.patch('/:id/status', authenticateToken, requireRole(['SUPER_ADMIN', 'BRANCH_MANAGER', 'DISPATCHER']), (req, res) => {
+router.patch('/:id/status', authenticateToken, requireRole(['SUPER_ADMIN', 'BRANCH_MANAGER', 'DISPATCHER']), async (req, res) => {
     try {
         const driverId = Number(req.params.id);
         const { status, reason } = req.body;
@@ -106,12 +106,12 @@ router.patch('/:id/status', authenticateToken, requireRole(['SUPER_ADMIN', 'BRAN
             return res.status(400).json({ error: 'Status is required' });
         }
 
-        const existing = driverService.getDriverById(driverId);
+        const existing = await driverService.getDriverById(driverId);
         if (req.user.roleName !== 'SUPER_ADMIN' && existing.branch_id !== req.user.branchId) {
             return res.status(403).json({ error: 'Forbidden: Driver belongs to another branch' });
         }
 
-        const updated = driverService.updateDriverStatus(driverId, status, reason, req.user.id);
+        const updated = await driverService.updateDriverStatus(driverId, status, reason, req.user.id);
         res.json(updated);
     } catch (err) {
         res.status(err.statusCode || 400).json({ error: err.message });
@@ -119,7 +119,7 @@ router.patch('/:id/status', authenticateToken, requireRole(['SUPER_ADMIN', 'BRAN
 });
 
 // POST /:id/reassign-branch - Transfer driver to another branch depot
-router.post('/:id/reassign-branch', authenticateToken, requireRole(['SUPER_ADMIN']), (req, res) => {
+router.post('/:id/reassign-branch', authenticateToken, requireRole(['SUPER_ADMIN']), async (req, res) => {
     try {
         const driverId = Number(req.params.id);
         const { branch_id } = req.body;
@@ -128,7 +128,7 @@ router.post('/:id/reassign-branch', authenticateToken, requireRole(['SUPER_ADMIN
             return res.status(400).json({ error: 'Target branch_id is required' });
         }
 
-        const updated = driverService.assignDriverBranch(driverId, Number(branch_id), req.user.id);
+        const updated = await driverService.assignDriverBranch(driverId, Number(branch_id), req.user.id);
         res.json(updated);
     } catch (err) {
         res.status(err.statusCode || 400).json({ error: err.message });
@@ -136,17 +136,17 @@ router.post('/:id/reassign-branch', authenticateToken, requireRole(['SUPER_ADMIN
 });
 
 // POST /:id/assign-vehicle - Assign or unassign fleet vehicle
-router.post('/:id/assign-vehicle', authenticateToken, requireRole(['SUPER_ADMIN', 'BRANCH_MANAGER', 'DISPATCHER']), (req, res) => {
+router.post('/:id/assign-vehicle', authenticateToken, requireRole(['SUPER_ADMIN', 'BRANCH_MANAGER', 'DISPATCHER']), async (req, res) => {
     try {
         const driverId = Number(req.params.id);
         const { vehicle_id } = req.body;
 
-        const existing = driverService.getDriverById(driverId);
+        const existing = await driverService.getDriverById(driverId);
         if (req.user.roleName !== 'SUPER_ADMIN' && existing.branch_id !== req.user.branchId) {
             return res.status(403).json({ error: 'Forbidden: Driver belongs to another branch' });
         }
 
-        const updated = driverService.assignDriverVehicle(
+        const updated = await driverService.assignDriverVehicle(
             driverId,
             vehicle_id ? Number(vehicle_id) : null,
             req.user.id
@@ -158,17 +158,17 @@ router.post('/:id/assign-vehicle', authenticateToken, requireRole(['SUPER_ADMIN'
 });
 
 // GET /:id/deliveries - Granular delivery history ledger
-router.get('/:id/deliveries', authenticateToken, (req, res) => {
+router.get('/:id/deliveries', authenticateToken, async (req, res) => {
     try {
         const driverId = Number(req.params.id);
-        const existing = driverService.getDriverById(driverId);
+        const existing = await driverService.getDriverById(driverId);
 
         if (req.user.roleName !== 'SUPER_ADMIN' && existing.branch_id !== req.user.branchId) {
             return res.status(403).json({ error: 'Forbidden: Driver belongs to another branch' });
         }
 
         const { limit, page, status } = req.query;
-        const history = driverService.getDriverDeliveryHistory(driverId, { limit, page, status });
+        const history = await driverService.getDriverDeliveryHistory(driverId, { limit, page, status });
         res.json(history);
     } catch (err) {
         res.status(err.statusCode || 500).json({ error: err.message });
@@ -176,16 +176,16 @@ router.get('/:id/deliveries', authenticateToken, (req, res) => {
 });
 
 // GET /:id/performance - Detailed driver performance scorecard
-router.get('/:id/performance', authenticateToken, (req, res) => {
+router.get('/:id/performance', authenticateToken, async (req, res) => {
     try {
         const driverId = Number(req.params.id);
-        const existing = driverService.getDriverById(driverId);
+        const existing = await driverService.getDriverById(driverId);
 
         if (req.user.roleName !== 'SUPER_ADMIN' && existing.branch_id !== req.user.branchId) {
             return res.status(403).json({ error: 'Forbidden: Driver belongs to another branch' });
         }
 
-        const perf = driverService.getDriverPerformance(driverId);
+        const perf = await driverService.getDriverPerformance(driverId);
         res.json(perf);
     } catch (err) {
         res.status(err.statusCode || 500).json({ error: err.message });
@@ -193,16 +193,16 @@ router.get('/:id/performance', authenticateToken, (req, res) => {
 });
 
 // GET /:id/incidents - Safety & incident logs
-router.get('/:id/incidents', authenticateToken, (req, res) => {
+router.get('/:id/incidents', authenticateToken, async (req, res) => {
     try {
         const driverId = Number(req.params.id);
-        const existing = driverService.getDriverById(driverId);
+        const existing = await driverService.getDriverById(driverId);
 
         if (req.user.roleName !== 'SUPER_ADMIN' && existing.branch_id !== req.user.branchId) {
             return res.status(403).json({ error: 'Forbidden: Driver belongs to another branch' });
         }
 
-        const incidents = driverService.getDriverIncidents(driverId);
+        const incidents = await driverService.getDriverIncidents(driverId);
         res.json(incidents);
     } catch (err) {
         res.status(err.statusCode || 500).json({ error: err.message });
@@ -210,16 +210,16 @@ router.get('/:id/incidents', authenticateToken, (req, res) => {
 });
 
 // POST /:id/incidents - Log safety incident
-router.post('/:id/incidents', authenticateToken, requireRole(['SUPER_ADMIN', 'BRANCH_MANAGER', 'DISPATCHER']), (req, res) => {
+router.post('/:id/incidents', authenticateToken, requireRole(['SUPER_ADMIN', 'BRANCH_MANAGER', 'DISPATCHER']), async (req, res) => {
     try {
         const driverId = Number(req.params.id);
-        const existing = driverService.getDriverById(driverId);
+        const existing = await driverService.getDriverById(driverId);
 
         if (req.user.roleName !== 'SUPER_ADMIN' && existing.branch_id !== req.user.branchId) {
             return res.status(403).json({ error: 'Forbidden: Driver belongs to another branch' });
         }
 
-        const incident = driverService.logDriverIncident(driverId, req.body, req.user.id);
+        const incident = await driverService.logDriverIncident(driverId, req.body, req.user.id);
         res.status(201).json(incident);
     } catch (err) {
         res.status(err.statusCode || 400).json({ error: err.message });
@@ -227,16 +227,16 @@ router.post('/:id/incidents', authenticateToken, requireRole(['SUPER_ADMIN', 'BR
 });
 
 // GET /:id/status-history - Status transition history
-router.get('/:id/status-history', authenticateToken, (req, res) => {
+router.get('/:id/status-history', authenticateToken, async (req, res) => {
     try {
         const driverId = Number(req.params.id);
-        const existing = driverService.getDriverById(driverId);
+        const existing = await driverService.getDriverById(driverId);
 
         if (req.user.roleName !== 'SUPER_ADMIN' && existing.branch_id !== req.user.branchId) {
             return res.status(403).json({ error: 'Forbidden: Driver belongs to another branch' });
         }
 
-        const history = driverService.getDriverStatusHistory(driverId);
+        const history = await driverService.getDriverStatusHistory(driverId);
         res.json(history);
     } catch (err) {
         res.status(err.statusCode || 500).json({ error: err.message });
