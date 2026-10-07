@@ -17,8 +17,8 @@ async function runSuite() {
     const dispatcherUser = { id: 4, roleName: 'DISPATCHER', fullName: 'Nairobi Dispatcher', branchId: 1 };
     const driverUser = { id: 5, roleName: 'DRIVER', fullName: 'David Kamau', branchId: 1 };
 
-    let testDriver = await dbAdapter.get('SELECT * FROM drivers LIMIT 1');
-    let testVehicle = await dbAdapter.get('SELECT * FROM vehicles LIMIT 1');
+    let testDriver = await dbAdapter.get('SELECT * FROM drivers WHERE user_id = ?', [driverUser.id]) || await dbAdapter.get('SELECT * FROM drivers LIMIT 1');
+    let testVehicle = await dbAdapter.get('SELECT * FROM vehicles WHERE branch_id = 1 LIMIT 1') || await dbAdapter.get('SELECT * FROM vehicles LIMIT 1');
 
     // -------------------------------------------------------------
     // TEST 1: Delivery Task Creation Linked to Shipment

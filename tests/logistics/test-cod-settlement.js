@@ -22,8 +22,8 @@ const driverNairobi = { id: 5, roleName: 'DRIVER', username: 'driver.nairobi', f
 
 async function run() {
     try {
-        const testDriver = await dbAdapter.get('SELECT * FROM drivers LIMIT 1');
-        const testVehicle = await dbAdapter.get('SELECT * FROM vehicles LIMIT 1');
+        const testDriver = await dbAdapter.get('SELECT * FROM drivers WHERE user_id = ?', [driverNairobi.id]) || await dbAdapter.get('SELECT * FROM drivers LIMIT 1');
+        const testVehicle = await dbAdapter.get('SELECT * FROM vehicles WHERE branch_id = 1 LIMIT 1') || await dbAdapter.get('SELECT * FROM vehicles LIMIT 1');
 
         // -------------------------------------------------------------
         // TEST 1: Auto-Initialization of Expected COD Settlement on Booking
@@ -350,6 +350,7 @@ async function run() {
         console.log('\n============================================================');
         console.log(`[OK]  ALL ${passedTests}/${totalTests} TESTS PASSED SUCCESSFULLY!`);
         console.log('============================================================\n');
+        process.exit(0);
     } catch (error) {
         console.error('\n[FAIL]  TEST FAILED WITH EXCEPTION:', error);
         process.exit(1);

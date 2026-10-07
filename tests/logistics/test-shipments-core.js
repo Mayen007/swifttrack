@@ -41,7 +41,7 @@ async function executeSuite() {
         // Parcel 1: 40x30x20 cm = 24,000 / 5000 = 4.8 kg volumetric. Actual = 3.0 kg. Chargeable = 4.8 kg.
         // Parcel 2: 20x20x20 cm = 8,000 / 5000 = 1.6 kg volumetric. Actual = 5.0 kg. Chargeable = 5.0 kg.
         // Total Actual = 8.0 kg. Total Volumetric = 6.4 kg. Total Chargeable = 8.0 kg.
-        const quote = shipmentPricingService.calculateShipmentQuote({
+        const quote = await shipmentPricingService.calculateShipmentQuote({
             originHubId: branch1.id,
             destinationHubId: branch2.id,
             serviceType: 'STANDARD',
@@ -295,6 +295,12 @@ async function executeSuite() {
     console.log('\n============================================================');
     console.log(`[SUCCESS] ALL ${passedTests}/${totalTests} SHIPMENT CORE TESTS PASSED SUCCESSFULLY!`);
     console.log('============================================================\n');
+
+    if (passedTests === totalTests) {
+        process.exit(0);
+    } else {
+        process.exit(1);
+    }
 }
 
 executeSuite().catch(err => {

@@ -265,6 +265,7 @@ async function run() {
         console.log('\n============================================================');
         console.log(`[OK]  ALL ${passedTests}/${totalTests} CONTROL TOWER TESTS PASSED!`);
         console.log('============================================================\n');
+        process.exit(0);
     } catch (error) {
         console.error('\n[FAIL]  TEST FAILED WITH EXCEPTION:', error);
         process.exit(1);

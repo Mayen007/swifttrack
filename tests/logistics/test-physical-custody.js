@@ -335,6 +335,7 @@ async function run() {
         console.log('============================================================');
         console.log(`[SUCCESS] ALL ${passedTests}/${totalTests} PHYSICAL CUSTODY & HUB OPERATIONS TESTS PASSED!`);
         console.log('============================================================\n');
+        process.exit(0);
 
     } catch (error) {
         console.error(`\n[FAIL] TEST SUITE FAILED at Test #${passedTests + 1}:`);

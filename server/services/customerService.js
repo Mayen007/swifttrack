@@ -1,6 +1,6 @@
 // server/services/customerService.js
 // SwiftTrack Kenya: Customer Relationship Management Service (Phase 4.1)
-const { db } = require('../db/database.js');
+const dbAdapter = require('../db/dbAdapter.js');
 const { logAuditEvent } = require('../middleware/audit.js');
 
 const VALID_STATUSES = ['ACTIVE', 'INACTIVE', 'SUSPENDED', 'BLOCKED'];
@@ -10,7 +10,7 @@ const VALID_NOTE_TYPES = ['GENERAL', 'PREFERENCE', 'ISSUE', 'CALL_LOG', 'ACCOUNT
  * Generates a collision-resistant Kenyan standard customer number
  * Format: CUST-BR{branchId}-{6 random digits}
  */
-function generateCustomerNumber(branchId = 1) {
+async function generateCustomerNumber(branchId = 1, client = null) {
     let customerNumber;
     let exists = true;
     let attempts = 0;
@@ -19,7 +19,7 @@ function generateCustomerNumber(branchId = 1) {
         attempts++;
         const rand = Math.floor(100000 + Math.random() * 900000);
         customerNumber = `CUST-BR${branchId}-${rand}`;
-        const row = db.prepare('SELECT id FROM customers WHERE customer_number = ?').get(customerNumber);
+        const row = await dbAdapter.get('SELECT id FROM customers WHERE customer_number = ?', [customerNumber], client);
         if (!row) exists = false;
     }
     return customerNumber;
@@ -44,10 +44,11 @@ function assertCustomerBranchAccess(customer, user) {
 /**
  * List customers with search, status filtering, and branch isolation
  */
-function listCustomers({ branchId, search, status, page = 1, limit = 50 }) {
+async function listCustomers({ branchId, search, status, page = 1, limit = 50 }) {
     const pageNum = Math.max(1, Number(page) || 1);
     const pageLimit = Math.max(1, Math.min(100, Number(limit) || 50));
     const offset = (pageNum - 1) * pageLimit;
+    const defaultCond = dbAdapter.isPostgres ? 'is_default = true' : 'is_default = 1';
 
     let countQuery = 'SELECT count(*) as total FROM customers c WHERE 1=1';
     let dataQuery = `
@@ -55,8 +56,8 @@ function listCustomers({ branchId, search, status, page = 1, limit = 50 }) {
                (SELECT count(*) FROM customer_addresses WHERE customer_id = c.id) as address_count,
                (SELECT count(*) FROM orders WHERE customer_id = c.id) as order_count,
                COALESCE((SELECT sum(total_amount) FROM sales WHERE customer_id = c.id), 0.0) as total_spent,
-               (SELECT address_line FROM customer_addresses WHERE customer_id = c.id AND is_default = 1 LIMIT 1) as default_address,
-               (SELECT city FROM customer_addresses WHERE customer_id = c.id AND is_default = 1 LIMIT 1) as default_city
+               (SELECT address_line FROM customer_addresses WHERE customer_id = c.id AND ${defaultCond} LIMIT 1) as default_address,
+               (SELECT city FROM customer_addresses WHERE customer_id = c.id AND ${defaultCond} LIMIT 1) as default_city
         FROM customers c
         JOIN branches b ON c.branch_id = b.id
         WHERE 1=1
@@ -83,12 +84,12 @@ function listCustomers({ branchId, search, status, page = 1, limit = 50 }) {
         params.push(s, s, s, s);
     }
 
-    const totalRow = db.prepare(countQuery).get(...params);
-    const total = totalRow ? totalRow.total : 0;
+    const totalRow = await dbAdapter.get(countQuery, params);
+    const total = totalRow ? Number(totalRow.total) : 0;
 
     dataQuery += ' ORDER BY c.id DESC LIMIT ? OFFSET ?';
     const dataParams = [...params, pageLimit, offset];
-    const customers = db.prepare(dataQuery).all(...dataParams);
+    const customers = await dbAdapter.all(dataQuery, dataParams);
 
     return {
         customers,
@@ -102,26 +103,26 @@ function listCustomers({ branchId, search, status, page = 1, limit = 50 }) {
 /**
  * Get customer by ID with full addresses, recent notes, and lifetime financial summary
  */
-function getCustomerById(customerId, user) {
+async function getCustomerById(customerId, user, client = null) {
     const custId = Number(customerId);
-    const customer = db.prepare(`
+    const customer = await dbAdapter.get(`
         SELECT c.*, b.name as branch_name, b.code as branch_code
         FROM customers c
         JOIN branches b ON c.branch_id = b.id
         WHERE c.id = ?
-    `).get(custId);
+    `, [custId], client);
 
     assertCustomerBranchAccess(customer, user);
 
     // Fetch delivery addresses
-    const addresses = db.prepare(`
+    const addresses = await dbAdapter.all(`
         SELECT * FROM customer_addresses
         WHERE customer_id = ?
         ORDER BY is_default DESC, id ASC
-    `).all(custId);
+    `, [custId], client);
 
     // Fetch notes
-    const notes = db.prepare(`
+    const notes = await dbAdapter.all(`
         SELECT cn.*, u.full_name as author_name, r.name as author_role
         FROM customer_notes cn
         LEFT JOIN users u ON cn.user_id = u.id
@@ -129,10 +130,10 @@ function getCustomerById(customerId, user) {
         WHERE cn.customer_id = ?
         ORDER BY cn.created_at DESC, cn.id DESC
         LIMIT 50
-    `).all(custId);
+    `, [custId], client);
 
     // Lifetime analytics & statistics
-    const orderStats = db.prepare(`
+    const orderStats = await dbAdapter.get(`
         SELECT
             count(*) as total_orders,
             sum(CASE WHEN status = 'COMPLETED' THEN 1 ELSE 0 END) as completed_orders,
@@ -140,42 +141,45 @@ function getCustomerById(customerId, user) {
             max(created_at) as last_order_date
         FROM orders
         WHERE customer_id = ?
-    `).get(custId);
+    `, [custId], client);
 
-    const salesStats = db.prepare(`
+    const salesStats = await dbAdapter.get(`
         SELECT
             count(*) as total_sales,
             COALESCE(sum(total_amount), 0.0) as total_spent
         FROM sales
         WHERE customer_id = ?
-    `).get(custId);
+    `, [custId], client);
 
-    const paymentStats = db.prepare(`
+    const paymentStats = await dbAdapter.get(`
         SELECT COALESCE(sum(amount), 0.0) as total_payments
         FROM payments
         WHERE sale_id IN (SELECT id FROM sales WHERE customer_id = ?)
            OR order_id IN (SELECT id FROM orders WHERE customer_id = ?)
-    `).get(custId, custId);
+    `, [custId, custId], client);
 
-    const refundStats = db.prepare(`
+    const refundStats = await dbAdapter.get(`
         SELECT
             count(*) as refund_requests_count,
             COALESCE(sum(amount), 0.0) as total_refunded
         FROM refund_requests
         WHERE sale_id IN (SELECT id FROM sales WHERE customer_id = ?)
           AND status = 'APPROVED'
-    `).get(custId);
+    `, [custId], client);
+
+    const totalSpent = salesStats ? Number(Number(salesStats.total_spent).toFixed(2)) : 0.0;
+    const totalRefunded = refundStats ? Number(Number(refundStats.total_refunded).toFixed(2)) : 0.0;
 
     const summary = {
-        total_orders: orderStats ? orderStats.total_orders : 0,
-        completed_orders: orderStats ? orderStats.completed_orders : 0,
-        pending_orders: orderStats ? orderStats.pending_orders : 0,
+        total_orders: orderStats ? Number(orderStats.total_orders) : 0,
+        completed_orders: orderStats ? Number(orderStats.completed_orders || 0) : 0,
+        pending_orders: orderStats ? Number(orderStats.pending_orders || 0) : 0,
         last_order_date: orderStats ? orderStats.last_order_date : null,
-        total_sales: salesStats ? salesStats.total_sales : 0,
-        total_spent: salesStats ? Number(salesStats.total_spent.toFixed(2)) : 0.0,
-        total_payments: paymentStats ? Number(paymentStats.total_payments.toFixed(2)) : 0.0,
-        total_refunded: refundStats ? Number(refundStats.total_refunded.toFixed(2)) : 0.0,
-        net_spent: Number(((salesStats?.total_spent || 0) - (refundStats?.total_refunded || 0)).toFixed(2))
+        total_sales: salesStats ? Number(salesStats.total_sales) : 0,
+        total_spent: totalSpent,
+        total_payments: paymentStats ? Number(Number(paymentStats.total_payments).toFixed(2)) : 0.0,
+        total_refunded: totalRefunded,
+        net_spent: Number((totalSpent - totalRefunded).toFixed(2))
     };
 
     return {
@@ -189,7 +193,7 @@ function getCustomerById(customerId, user) {
 /**
  * Create a new customer profile
  */
-function createCustomer(data, user) {
+async function createCustomer(data, user) {
     if (!data.full_name || !data.full_name.trim()) {
         const err = new Error('Full name is required');
         err.statusCode = 400;
@@ -207,10 +211,10 @@ function createCustomer(data, user) {
 
     const customerNumber = data.customer_number && data.customer_number.trim()
         ? data.customer_number.trim().toUpperCase()
-        : generateCustomerNumber(branchId);
+        : await generateCustomerNumber(branchId);
 
     // Check duplicate customer_number
-    const dupNumber = db.prepare('SELECT id FROM customers WHERE customer_number = ?').get(customerNumber);
+    const dupNumber = await dbAdapter.get('SELECT id FROM customers WHERE customer_number = ?', [customerNumber]);
     if (dupNumber) {
         const err = new Error(`Customer number '${customerNumber}' already exists.`);
         err.statusCode = 409;
@@ -223,13 +227,13 @@ function createCustomer(data, user) {
 
     let customerId;
 
-    db.transaction(() => {
-        const res = db.prepare(`
+    await dbAdapter.withTransaction(async (tx) => {
+        const res = await tx.run(`
             INSERT INTO customers (
                 branch_id, customer_number, full_name, phone, email,
                 address, city, kra_pin, status, notes
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        `).run(
+        `, [
             branchId,
             customerNumber,
             data.full_name.trim(),
@@ -240,37 +244,39 @@ function createCustomer(data, user) {
             data.kra_pin ? data.kra_pin.trim().toUpperCase() : null,
             status,
             data.notes ? data.notes.trim() : null
-        );
+        ]);
 
-        customerId = res.lastInsertRowid;
+        customerId = res.insertId;
 
         // Auto-create default delivery address if address is provided
         const primaryAddress = data.delivery_address || data.address;
         if (primaryAddress && primaryAddress.trim()) {
-            db.prepare(`
+            const defVal = dbAdapter.isPostgres ? true : 1;
+            await tx.run(`
                 INSERT INTO customer_addresses (
                     customer_id, address_label, address_line, city,
                     contact_name, contact_phone, is_default, delivery_notes
-                ) VALUES (?, ?, ?, ?, ?, ?, 1, ?)
-            `).run(
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            `, [
                 customerId,
                 data.address_label ? data.address_label.trim() : 'Primary Location',
                 primaryAddress.trim(),
                 data.city ? data.city.trim() : null,
                 data.contact_name ? data.contact_name.trim() : data.full_name.trim(),
                 data.contact_phone ? data.contact_phone.trim() : data.phone.trim(),
+                defVal,
                 data.delivery_notes ? data.delivery_notes.trim() : null
-            );
+            ]);
         }
 
         // Add initial note if provided
         if (data.initial_note && data.initial_note.trim()) {
-            db.prepare(`
+            await tx.run(`
                 INSERT INTO customer_notes (customer_id, user_id, note_text, note_type)
                 VALUES (?, ?, ?, 'GENERAL')
-            `).run(customerId, user.id, data.initial_note.trim());
+            `, [customerId, user.id, data.initial_note.trim()]);
         }
-    })();
+    });
 
     logAuditEvent({
         userId: user.id,
@@ -289,9 +295,9 @@ function createCustomer(data, user) {
 /**
  * Update an existing customer profile
  */
-function updateCustomer(customerId, data, user) {
+async function updateCustomer(customerId, data, user) {
     const custId = Number(customerId);
-    const existing = db.prepare('SELECT * FROM customers WHERE id = ?').get(custId);
+    const existing = await dbAdapter.get('SELECT * FROM customers WHERE id = ?', [custId]);
     assertCustomerBranchAccess(existing, user);
 
     if (data.full_name !== undefined && !data.full_name.trim()) {
@@ -309,7 +315,7 @@ function updateCustomer(customerId, data, user) {
         ? Number(data.branch_id)
         : existing.branch_id;
 
-    db.prepare(`
+    await dbAdapter.run(`
         UPDATE customers
         SET branch_id = ?,
             full_name = COALESCE(?, full_name),
@@ -321,7 +327,7 @@ function updateCustomer(customerId, data, user) {
             notes = COALESCE(?, notes),
             updated_at = CURRENT_TIMESTAMP
         WHERE id = ?
-    `).run(
+    `, [
         branchId,
         data.full_name ? data.full_name.trim() : null,
         data.phone ? data.phone.trim() : null,
@@ -331,7 +337,7 @@ function updateCustomer(customerId, data, user) {
         data.kra_pin !== undefined ? (data.kra_pin ? data.kra_pin.trim().toUpperCase() : null) : null,
         data.notes !== undefined ? (data.notes ? data.notes.trim() : null) : null,
         custId
-    );
+    ]);
 
     logAuditEvent({
         userId: user.id,
@@ -351,7 +357,7 @@ function updateCustomer(customerId, data, user) {
 /**
  * Update customer status (ACTIVE, INACTIVE, SUSPENDED, BLOCKED)
  */
-function updateCustomerStatus(customerId, newStatus, reason, user) {
+async function updateCustomerStatus(customerId, newStatus, reason, user) {
     const custId = Number(customerId);
     const upperStatus = String(newStatus).toUpperCase().trim();
 
@@ -368,7 +374,7 @@ function updateCustomerStatus(customerId, newStatus, reason, user) {
         throw err;
     }
 
-    const existing = db.prepare('SELECT * FROM customers WHERE id = ?').get(custId);
+    const existing = await dbAdapter.get('SELECT * FROM customers WHERE id = ?', [custId]);
     assertCustomerBranchAccess(existing, user);
 
     const oldStatus = existing.status;
@@ -376,17 +382,16 @@ function updateCustomerStatus(customerId, newStatus, reason, user) {
         return getCustomerById(custId, user);
     }
 
-    db.transaction(() => {
-        db.prepare('UPDATE customers SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
-            .run(upperStatus, custId);
+    await dbAdapter.withTransaction(async (tx) => {
+        await tx.run('UPDATE customers SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?', [upperStatus, custId]);
 
         // Record automated status transition note
         const noteText = `Status transitioned from ${oldStatus} to ${upperStatus}.${reason ? ` Reason: ${reason}` : ''}`;
-        db.prepare(`
+        await tx.run(`
             INSERT INTO customer_notes (customer_id, user_id, note_text, note_type)
             VALUES (?, ?, ?, 'ACCOUNT')
-        `).run(custId, user.id, noteText);
-    })();
+        `, [custId, user.id, noteText]);
+    });
 
     logAuditEvent({
         userId: user.id,
@@ -406,9 +411,9 @@ function updateCustomerStatus(customerId, newStatus, reason, user) {
 /**
  * Add delivery address to customer
  */
-function addDeliveryAddress(customerId, addressData, user) {
+async function addDeliveryAddress(customerId, addressData, user) {
     const custId = Number(customerId);
-    const customer = db.prepare('SELECT * FROM customers WHERE id = ?').get(custId);
+    const customer = await dbAdapter.get('SELECT * FROM customers WHERE id = ?', [custId]);
     assertCustomerBranchAccess(customer, user);
 
     if (!addressData.address_line || !addressData.address_line.trim()) {
@@ -417,63 +422,68 @@ function addDeliveryAddress(customerId, addressData, user) {
         throw err;
     }
 
-    const countExisting = db.prepare('SELECT count(*) as count FROM customer_addresses WHERE customer_id = ?').get(custId);
-    const isFirst = countExisting.count === 0;
+    const countExisting = await dbAdapter.get('SELECT count(*) as count FROM customer_addresses WHERE customer_id = ?', [custId]);
+    const isFirst = Number(countExisting.count) === 0;
     const shouldBeDefault = Boolean(addressData.is_default) || isFirst;
+    const falseVal = dbAdapter.isPostgres ? false : 0;
+    const trueVal = dbAdapter.isPostgres ? true : 1;
 
     let addressId;
 
-    db.transaction(() => {
+    await dbAdapter.withTransaction(async (tx) => {
         if (shouldBeDefault) {
-            db.prepare('UPDATE customer_addresses SET is_default = 0 WHERE customer_id = ?').run(custId);
+            await tx.run('UPDATE customer_addresses SET is_default = ? WHERE customer_id = ?', [falseVal, custId]);
         }
 
-        const res = db.prepare(`
+        const res = await tx.run(`
             INSERT INTO customer_addresses (
                 customer_id, address_label, address_line, city,
                 contact_name, contact_phone, is_default, delivery_notes
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        `).run(
+        `, [
             custId,
             addressData.address_label ? addressData.address_label.trim() : 'Branch / Site',
             addressData.address_line.trim(),
             addressData.city ? addressData.city.trim() : (customer.city || null),
             addressData.contact_name ? addressData.contact_name.trim() : customer.full_name,
             addressData.contact_phone ? addressData.contact_phone.trim() : customer.phone,
-            shouldBeDefault ? 1 : 0,
+            shouldBeDefault ? trueVal : falseVal,
             addressData.delivery_notes ? addressData.delivery_notes.trim() : null
-        );
+        ]);
 
-        addressId = res.lastInsertRowid;
-    })();
+        addressId = res.insertId;
+    });
 
-    return db.prepare('SELECT * FROM customer_addresses WHERE id = ?').get(addressId);
+    return dbAdapter.get('SELECT * FROM customer_addresses WHERE id = ?', [addressId]);
 }
 
 /**
  * Update an existing delivery address
  */
-function updateDeliveryAddress(customerId, addressId, addressData, user) {
+async function updateDeliveryAddress(customerId, addressId, addressData, user) {
     const custId = Number(customerId);
     const addrId = Number(addressId);
-    const customer = db.prepare('SELECT * FROM customers WHERE id = ?').get(custId);
+    const customer = await dbAdapter.get('SELECT * FROM customers WHERE id = ?', [custId]);
     assertCustomerBranchAccess(customer, user);
 
-    const existingAddr = db.prepare('SELECT * FROM customer_addresses WHERE id = ? AND customer_id = ?').get(addrId, custId);
+    const existingAddr = await dbAdapter.get('SELECT * FROM customer_addresses WHERE id = ? AND customer_id = ?', [addrId, custId]);
     if (!existingAddr) {
         const err = new Error('Delivery address not found for this customer');
         err.statusCode = 404;
         throw err;
     }
 
-    const shouldBeDefault = addressData.is_default !== undefined ? Boolean(addressData.is_default) : existingAddr.is_default === 1;
+    const isExistingDefault = dbAdapter.isPostgres ? Boolean(existingAddr.is_default) : existingAddr.is_default === 1;
+    const shouldBeDefault = addressData.is_default !== undefined ? Boolean(addressData.is_default) : isExistingDefault;
+    const falseVal = dbAdapter.isPostgres ? false : 0;
+    const trueVal = dbAdapter.isPostgres ? true : 1;
 
-    db.transaction(() => {
-        if (shouldBeDefault && existingAddr.is_default !== 1) {
-            db.prepare('UPDATE customer_addresses SET is_default = 0 WHERE customer_id = ?').run(custId);
+    await dbAdapter.withTransaction(async (tx) => {
+        if (shouldBeDefault && !isExistingDefault) {
+            await tx.run('UPDATE customer_addresses SET is_default = ? WHERE customer_id = ?', [falseVal, custId]);
         }
 
-        db.prepare(`
+        await tx.run(`
             UPDATE customer_addresses
             SET address_label = COALESCE(?, address_label),
                 address_line = COALESCE(?, address_line),
@@ -484,48 +494,51 @@ function updateDeliveryAddress(customerId, addressId, addressData, user) {
                 delivery_notes = COALESCE(?, delivery_notes),
                 updated_at = CURRENT_TIMESTAMP
             WHERE id = ?
-        `).run(
+        `, [
             addressData.address_label ? addressData.address_label.trim() : null,
             addressData.address_line ? addressData.address_line.trim() : null,
             addressData.city ? addressData.city.trim() : null,
             addressData.contact_name ? addressData.contact_name.trim() : null,
             addressData.contact_phone ? addressData.contact_phone.trim() : null,
-            shouldBeDefault ? 1 : 0,
+            shouldBeDefault ? trueVal : falseVal,
             addressData.delivery_notes !== undefined ? (addressData.delivery_notes ? addressData.delivery_notes.trim() : null) : null,
             addrId
-        );
-    })();
+        ]);
+    });
 
-    return db.prepare('SELECT * FROM customer_addresses WHERE id = ?').get(addrId);
+    return dbAdapter.get('SELECT * FROM customer_addresses WHERE id = ?', [addrId]);
 }
 
 /**
  * Delete a delivery address
  */
-function deleteDeliveryAddress(customerId, addressId, user) {
+async function deleteDeliveryAddress(customerId, addressId, user) {
     const custId = Number(customerId);
     const addrId = Number(addressId);
-    const customer = db.prepare('SELECT * FROM customers WHERE id = ?').get(custId);
+    const customer = await dbAdapter.get('SELECT * FROM customers WHERE id = ?', [custId]);
     assertCustomerBranchAccess(customer, user);
 
-    const addr = db.prepare('SELECT * FROM customer_addresses WHERE id = ? AND customer_id = ?').get(addrId, custId);
+    const addr = await dbAdapter.get('SELECT * FROM customer_addresses WHERE id = ? AND customer_id = ?', [addrId, custId]);
     if (!addr) {
         const err = new Error('Delivery address not found');
         err.statusCode = 404;
         throw err;
     }
 
-    db.transaction(() => {
-        db.prepare('DELETE FROM customer_addresses WHERE id = ?').run(addrId);
+    const isDefault = dbAdapter.isPostgres ? Boolean(addr.is_default) : addr.is_default === 1;
+    const trueVal = dbAdapter.isPostgres ? true : 1;
+
+    await dbAdapter.withTransaction(async (tx) => {
+        await tx.run('DELETE FROM customer_addresses WHERE id = ?', [addrId]);
 
         // If the deleted address was default, promote another address to default if available
-        if (addr.is_default === 1) {
-            const nextAddr = db.prepare('SELECT id FROM customer_addresses WHERE customer_id = ? ORDER BY id ASC LIMIT 1').get(custId);
+        if (isDefault) {
+            const nextAddr = await tx.get('SELECT id FROM customer_addresses WHERE customer_id = ? ORDER BY id ASC LIMIT 1', [custId]);
             if (nextAddr) {
-                db.prepare('UPDATE customer_addresses SET is_default = 1 WHERE id = ?').run(nextAddr.id);
+                await tx.run('UPDATE customer_addresses SET is_default = ? WHERE id = ?', [trueVal, nextAddr.id]);
             }
         }
-    })();
+    });
 
     return { success: true, deletedId: addrId };
 }
@@ -533,33 +546,36 @@ function deleteDeliveryAddress(customerId, addressId, user) {
 /**
  * Set an address as default delivery address
  */
-function setDefaultAddress(customerId, addressId, user) {
+async function setDefaultAddress(customerId, addressId, user) {
     const custId = Number(customerId);
     const addrId = Number(addressId);
-    const customer = db.prepare('SELECT * FROM customers WHERE id = ?').get(custId);
+    const customer = await dbAdapter.get('SELECT * FROM customers WHERE id = ?', [custId]);
     assertCustomerBranchAccess(customer, user);
 
-    const addr = db.prepare('SELECT * FROM customer_addresses WHERE id = ? AND customer_id = ?').get(addrId, custId);
+    const addr = await dbAdapter.get('SELECT * FROM customer_addresses WHERE id = ? AND customer_id = ?', [addrId, custId]);
     if (!addr) {
         const err = new Error('Delivery address not found');
         err.statusCode = 404;
         throw err;
     }
 
-    db.transaction(() => {
-        db.prepare('UPDATE customer_addresses SET is_default = 0 WHERE customer_id = ?').run(custId);
-        db.prepare('UPDATE customer_addresses SET is_default = 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(addrId);
-    })();
+    const falseVal = dbAdapter.isPostgres ? false : 0;
+    const trueVal = dbAdapter.isPostgres ? true : 1;
 
-    return db.prepare('SELECT * FROM customer_addresses WHERE id = ?').get(addrId);
+    await dbAdapter.withTransaction(async (tx) => {
+        await tx.run('UPDATE customer_addresses SET is_default = ? WHERE customer_id = ?', [falseVal, custId]);
+        await tx.run('UPDATE customer_addresses SET is_default = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?', [trueVal, addrId]);
+    });
+
+    return dbAdapter.get('SELECT * FROM customer_addresses WHERE id = ?', [addrId]);
 }
 
 /**
  * Add a customer note
  */
-function addCustomerNote(customerId, { note_text, note_type }, user) {
+async function addCustomerNote(customerId, { note_text, note_type }, user) {
     const custId = Number(customerId);
-    const customer = db.prepare('SELECT * FROM customers WHERE id = ?').get(custId);
+    const customer = await dbAdapter.get('SELECT * FROM customers WHERE id = ?', [custId]);
     assertCustomerBranchAccess(customer, user);
 
     if (!note_text || !note_text.trim()) {
@@ -572,30 +588,30 @@ function addCustomerNote(customerId, { note_text, note_type }, user) {
         ? note_type.toUpperCase()
         : 'GENERAL';
 
-    const res = db.prepare(`
+    const res = await dbAdapter.run(`
         INSERT INTO customer_notes (customer_id, user_id, note_text, note_type)
         VALUES (?, ?, ?, ?)
-    `).run(custId, user.id, note_text.trim(), type);
+    `, [custId, user.id, note_text.trim(), type]);
 
-    return db.prepare(`
+    return dbAdapter.get(`
         SELECT cn.*, u.full_name as author_name, r.name as author_role
         FROM customer_notes cn
         LEFT JOIN users u ON cn.user_id = u.id
         LEFT JOIN roles r ON u.role_id = r.id
         WHERE cn.id = ?
-    `).get(res.lastInsertRowid);
+    `, [res.insertId]);
 }
 
 /**
  * Delete a customer note
  */
-function deleteCustomerNote(customerId, noteId, user) {
+async function deleteCustomerNote(customerId, noteId, user) {
     const custId = Number(customerId);
     const nId = Number(noteId);
-    const customer = db.prepare('SELECT * FROM customers WHERE id = ?').get(custId);
+    const customer = await dbAdapter.get('SELECT * FROM customers WHERE id = ?', [custId]);
     assertCustomerBranchAccess(customer, user);
 
-    const note = db.prepare('SELECT * FROM customer_notes WHERE id = ? AND customer_id = ?').get(nId, custId);
+    const note = await dbAdapter.get('SELECT * FROM customer_notes WHERE id = ? AND customer_id = ?', [nId, custId]);
     if (!note) {
         const err = new Error('Note not found');
         err.statusCode = 404;
@@ -609,26 +625,26 @@ function deleteCustomerNote(customerId, noteId, user) {
         throw err;
     }
 
-    db.prepare('DELETE FROM customer_notes WHERE id = ?').run(nId);
+    await dbAdapter.run('DELETE FROM customer_notes WHERE id = ?', [nId]);
     return { success: true, deletedId: nId };
 }
 
 /**
  * Get customer order history
  */
-function getCustomerOrderHistory(customerId, user, { page = 1, limit = 50 }) {
+async function getCustomerOrderHistory(customerId, user, { page = 1, limit = 50 }) {
     const custId = Number(customerId);
-    const customer = db.prepare('SELECT * FROM customers WHERE id = ?').get(custId);
+    const customer = await dbAdapter.get('SELECT * FROM customers WHERE id = ?', [custId]);
     assertCustomerBranchAccess(customer, user);
 
     const pageNum = Math.max(1, Number(page) || 1);
     const pageLimit = Math.max(1, Math.min(100, Number(limit) || 50));
     const offset = (pageNum - 1) * pageLimit;
 
-    const totalRow = db.prepare('SELECT count(*) as total FROM orders WHERE customer_id = ?').get(custId);
-    const total = totalRow ? totalRow.total : 0;
+    const totalRow = await dbAdapter.get('SELECT count(*) as total FROM orders WHERE customer_id = ?', [custId]);
+    const total = totalRow ? Number(totalRow.total) : 0;
 
-    const orders = db.prepare(`
+    const orders = await dbAdapter.all(`
         SELECT o.*, b.name as branch_name, u.full_name as cashier_name,
                (SELECT count(*) FROM order_items WHERE order_id = o.id) as items_count,
                d.delivery_number, d.status as delivery_status
@@ -639,7 +655,7 @@ function getCustomerOrderHistory(customerId, user, { page = 1, limit = 50 }) {
         WHERE o.customer_id = ?
         ORDER BY o.id DESC
         LIMIT ? OFFSET ?
-    `).all(custId, pageLimit, offset);
+    `, [custId, pageLimit, offset]);
 
     return {
         orders,
@@ -653,24 +669,24 @@ function getCustomerOrderHistory(customerId, user, { page = 1, limit = 50 }) {
 /**
  * Get customer payment history
  */
-function getCustomerPaymentHistory(customerId, user, { page = 1, limit = 50 }) {
+async function getCustomerPaymentHistory(customerId, user, { page = 1, limit = 50 }) {
     const custId = Number(customerId);
-    const customer = db.prepare('SELECT * FROM customers WHERE id = ?').get(custId);
+    const customer = await dbAdapter.get('SELECT * FROM customers WHERE id = ?', [custId]);
     assertCustomerBranchAccess(customer, user);
 
     const pageNum = Math.max(1, Number(page) || 1);
     const pageLimit = Math.max(1, Math.min(100, Number(limit) || 50));
     const offset = (pageNum - 1) * pageLimit;
 
-    const totalRow = db.prepare(`
+    const totalRow = await dbAdapter.get(`
         SELECT count(*) as total
         FROM payments p
         WHERE p.sale_id IN (SELECT id FROM sales WHERE customer_id = ?)
            OR p.order_id IN (SELECT id FROM orders WHERE customer_id = ?)
-    `).get(custId, custId);
-    const total = totalRow ? totalRow.total : 0;
+    `, [custId, custId]);
+    const total = totalRow ? Number(totalRow.total) : 0;
 
-    const payments = db.prepare(`
+    const payments = await dbAdapter.all(`
         SELECT p.*, b.name as branch_name, u.full_name as cashier_name,
                s.sale_number, o.order_number
         FROM payments p
@@ -682,7 +698,7 @@ function getCustomerPaymentHistory(customerId, user, { page = 1, limit = 50 }) {
            OR p.order_id IN (SELECT id FROM orders WHERE customer_id = ?)
         ORDER BY p.id DESC
         LIMIT ? OFFSET ?
-    `).all(custId, custId, pageLimit, offset);
+    `, [custId, custId, pageLimit, offset]);
 
     return {
         payments,
@@ -696,23 +712,23 @@ function getCustomerPaymentHistory(customerId, user, { page = 1, limit = 50 }) {
 /**
  * Get customer refund history
  */
-function getCustomerRefundHistory(customerId, user, { page = 1, limit = 50 }) {
+async function getCustomerRefundHistory(customerId, user, { page = 1, limit = 50 }) {
     const custId = Number(customerId);
-    const customer = db.prepare('SELECT * FROM customers WHERE id = ?').get(custId);
+    const customer = await dbAdapter.get('SELECT * FROM customers WHERE id = ?', [custId]);
     assertCustomerBranchAccess(customer, user);
 
     const pageNum = Math.max(1, Number(page) || 1);
     const pageLimit = Math.max(1, Math.min(100, Number(limit) || 50));
     const offset = (pageNum - 1) * pageLimit;
 
-    const totalRow = db.prepare(`
+    const totalRow = await dbAdapter.get(`
         SELECT count(*) as total
         FROM refund_requests rr
         WHERE rr.sale_id IN (SELECT id FROM sales WHERE customer_id = ?)
-    `).get(custId);
-    const total = totalRow ? totalRow.total : 0;
+    `, [custId]);
+    const total = totalRow ? Number(totalRow.total) : 0;
 
-    const refunds = db.prepare(`
+    const refunds = await dbAdapter.all(`
         SELECT rr.*, b.name as branch_name, cashier.full_name as cashier_name,
                approver.full_name as approved_by_name,
                s.sale_number, s.total_amount as original_sale_amount,
@@ -726,7 +742,7 @@ function getCustomerRefundHistory(customerId, user, { page = 1, limit = 50 }) {
         WHERE rr.sale_id IN (SELECT id FROM sales WHERE customer_id = ?)
         ORDER BY rr.id DESC
         LIMIT ? OFFSET ?
-    `).all(custId, pageLimit, offset);
+    `, [custId, pageLimit, offset]);
 
     return {
         refunds,

@@ -1,7 +1,7 @@
 // server/services/counterBookingService.js
 // SwiftTrack Logistics: Stage 6 POS Counter Booking, Volumetric Rating, Payments & Waybill Generation
 const crypto = require('node:crypto');
-const { db } = require('../db/database.js');
+const dbAdapter = require('../db/dbAdapter.js');
 const shipmentPricingService = require('./shipmentPricingService.js');
 const posShiftService = require('./posShiftService.js');
 const { logAuditEvent } = require('../middleware/audit.js');
@@ -9,7 +9,7 @@ const { logAuditEvent } = require('../middleware/audit.js');
 /**
  * Calculates live counter quote with volumetric calculations
  */
-function calculateCounterQuote(data) {
+async function calculateCounterQuote(data) {
     if (!data.origin_hub_id) {
         throw new Error('origin_hub_id is required for quote calculation');
     }
@@ -20,13 +20,13 @@ function calculateCounterQuote(data) {
         throw new Error('At least one parcel is required for quote calculation');
     }
 
-    const originHub = db.prepare('SELECT id, name, code, city FROM branches WHERE id = ?').get(data.origin_hub_id);
+    const originHub = await dbAdapter.get('SELECT id, name, code, city FROM branches WHERE id = ?', [data.origin_hub_id]);
     if (!originHub) throw new Error(`Origin hub ID ${data.origin_hub_id} not found`);
 
-    const destHub = db.prepare('SELECT id, name, code, city FROM branches WHERE id = ?').get(data.destination_hub_id);
+    const destHub = await dbAdapter.get('SELECT id, name, code, city FROM branches WHERE id = ?', [data.destination_hub_id]);
     if (!destHub) throw new Error(`Destination hub ID ${data.destination_hub_id} not found`);
 
-    const quote = shipmentPricingService.calculateShipmentQuote({
+    const quote = await shipmentPricingService.calculateShipmentQuote({
         originHubId: data.origin_hub_id,
         destinationHubId: data.destination_hub_id,
         serviceType: data.service_type || 'STANDARD',
@@ -47,7 +47,7 @@ function calculateCounterQuote(data) {
 /**
  * Generates unique tracking number format: STK-YYYYMMDD-XXXX
  */
-function generateTrackingNumber() {
+async function generateTrackingNumber(client = null) {
     const now = new Date();
     const y = now.getFullYear();
     const m = String(now.getMonth() + 1).padStart(2, '0');
@@ -57,7 +57,7 @@ function generateTrackingNumber() {
     for (let attempts = 0; attempts < 10; attempts++) {
         const rand = crypto.randomBytes(2).toString('hex').toUpperCase();
         const candidate = `STK-${datePrefix}-${rand}`;
-        const existing = db.prepare('SELECT id FROM shipments WHERE tracking_number = ?').get(candidate);
+        const existing = await dbAdapter.get('SELECT id FROM shipments WHERE tracking_number = ?', [candidate], client);
         if (!existing) return candidate;
     }
     return `STK-${datePrefix}-${Date.now().toString().slice(-4)}`;
@@ -66,7 +66,7 @@ function generateTrackingNumber() {
 /**
  * Executes atomic counter booking, payment processing, shift drawer update, and intake acceptance
  */
-function bookCounterShipment(data, user = {}) {
+async function bookCounterShipment(data, user = {}) {
     const originHubId = Number(data.origin_hub_id || user.branchId || 1);
     const destinationHubId = Number(data.destination_hub_id);
 
@@ -83,10 +83,10 @@ function bookCounterShipment(data, user = {}) {
         throw new Error('At least one parcel is required for counter booking');
     }
 
-    const originHub = db.prepare('SELECT id, name, code, city, address, phone FROM branches WHERE id = ?').get(originHubId);
+    const originHub = await dbAdapter.get('SELECT id, name, code, city, address, phone FROM branches WHERE id = ?', [originHubId]);
     if (!originHub) throw new Error(`Origin hub ID ${originHubId} not found`);
 
-    const destHub = db.prepare('SELECT id, name, code, city, address, phone FROM branches WHERE id = ?').get(destinationHubId);
+    const destHub = await dbAdapter.get('SELECT id, name, code, city, address, phone FROM branches WHERE id = ?', [destinationHubId]);
     if (!destHub) throw new Error(`Destination hub ID ${destinationHubId} not found`);
 
     // 1. Shift Verification Guard: Cashier must have an active open shift
@@ -94,16 +94,16 @@ function bookCounterShipment(data, user = {}) {
         ? Number(data.origin_hub_id)
         : (user.branchId || originHubId);
     
-    let activeShift = posShiftService.getCurrentShift(user.id, branchForShift);
+    let activeShift = await posShiftService.getCurrentShift(user.id, branchForShift);
     if (!activeShift && user.branchId) {
-        activeShift = posShiftService.getCurrentShift(user.id, user.branchId);
+        activeShift = await posShiftService.getCurrentShift(user.id, user.branchId);
     }
     if (!activeShift && user.roleName === 'SUPER_ADMIN') {
-        const anyShift = db.prepare("SELECT branch_id FROM pos_shifts WHERE cashier_user_id = ? AND status = 'OPEN' ORDER BY id DESC LIMIT 1").get(user.id);
+        const anyShift = await dbAdapter.get("SELECT branch_id FROM pos_shifts WHERE cashier_user_id = ? AND status = 'OPEN' ORDER BY id DESC LIMIT 1", [user.id]);
         if (anyShift) {
-            activeShift = posShiftService.getCurrentShift(user.id, anyShift.branch_id);
+            activeShift = await posShiftService.getCurrentShift(user.id, anyShift.branch_id);
         } else {
-            activeShift = posShiftService.openShift({ opening_cash: 5000, notes: 'Super Admin Auto-Open Shift', branch_id: branchForShift }, user);
+            activeShift = await posShiftService.openShift({ opening_cash: 5000, notes: 'Super Admin Auto-Open Shift', branch_id: branchForShift }, user);
         }
     }
     if (!activeShift) {
@@ -114,7 +114,7 @@ function bookCounterShipment(data, user = {}) {
     }
 
     // 2. Calculate Rated Pricing Breakdown
-    const pricing = shipmentPricingService.calculateShipmentQuote({
+    const pricing = await shipmentPricingService.calculateShipmentQuote({
         originHubId,
         destinationHubId,
         serviceType: data.service_type || 'STANDARD',
@@ -173,13 +173,18 @@ function bookCounterShipment(data, user = {}) {
         });
     }
 
-    const trackingNumber = generateTrackingNumber();
+    const trackingNumber = await generateTrackingNumber();
     const waybillNumber = `WB-${trackingNumber.replace('STK-', '')}-${originHub.code}-${destHub.code}`;
 
     // Execute atomic booking transaction
-    const executeBookingTx = db.transaction(() => {
+    const result = await dbAdapter.withTransaction(async (tx) => {
         // A. Insert Shipment Record (Accepted at Origin Hub)
-        const shipmentStmt = db.prepare(`
+        const isAccountPayment = paymentsList.some(p => p.method === 'ACCOUNT');
+        const paymentTerms = isAccountPayment ? 'ACCOUNT' : 'PREPAID';
+        const paymentStatus = isAccountPayment ? 'PENDING' : 'PAID';
+        const initialStatus = 'ACCEPTED'; // Direct intake at counter
+
+        const shipmentRes = await tx.run(`
             INSERT INTO shipments (
                 tracking_number, waybill_number,
                 origin_hub_id, destination_hub_id, current_hub_id, current_location_desc,
@@ -201,14 +206,7 @@ function bookCounterShipment(data, user = {}) {
                 ?, ?, ?, ?,
                 ?, ?
             )
-        `);
-
-        const isAccountPayment = paymentsList.some(p => p.method === 'ACCOUNT');
-        const paymentTerms = isAccountPayment ? 'ACCOUNT' : 'PREPAID';
-        const paymentStatus = isAccountPayment ? 'PENDING' : 'PAID';
-        const initialStatus = 'ACCEPTED'; // Direct intake at counter
-
-        const shipmentRes = shipmentStmt.run(
+        `, [
             trackingNumber,
             waybillNumber,
             originHubId,
@@ -248,23 +246,22 @@ function bookCounterShipment(data, user = {}) {
             pricing.cod_fee,
             data.special_instructions || null,
             user.id || 1
-        );
+        ]);
 
-        const shipmentId = shipmentRes.lastInsertRowid;
+        const shipmentId = shipmentRes.insertId;
 
         // B. Insert Parcels
-        const parcelStmt = db.prepare(`
-            INSERT INTO parcels (
-                shipment_id, parcel_number, parcel_index,
-                weight_kg, length_cm, width_cm, height_cm, volumetric_weight_kg,
-                package_type, description, condition_at_intake, intake_notes
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        `);
-
         const insertedParcels = [];
-        pricing.parcels.forEach((p, idx) => {
+        for (let idx = 0; idx < pricing.parcels.length; idx++) {
+            const p = pricing.parcels[idx];
             const pNum = `${trackingNumber}-P${String(idx + 1).padStart(2, '0')}`;
-            const pRes = parcelStmt.run(
+            const pRes = await tx.run(`
+                INSERT INTO parcels (
+                    shipment_id, parcel_number, parcel_index,
+                    weight_kg, length_cm, width_cm, height_cm, volumetric_weight_kg,
+                    package_type, description, condition_at_intake, intake_notes
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            `, [
                 shipmentId,
                 pNum,
                 idx + 1,
@@ -277,9 +274,9 @@ function bookCounterShipment(data, user = {}) {
                 p.description || null,
                 p.condition_at_intake || 'INTACT',
                 p.intake_notes || null
-            );
+            ]);
             insertedParcels.push({
-                id: pRes.lastInsertRowid,
+                id: pRes.insertId,
                 parcel_number: pNum,
                 parcel_index: idx + 1,
                 weight_kg: p.weight_kg,
@@ -288,48 +285,48 @@ function bookCounterShipment(data, user = {}) {
                 package_type: p.package_type || 'BOX',
                 description: p.description || null
             });
-        });
+        }
 
         // C. Insert Initial Shipment Leg
-        const legRes = db.prepare(`
+        const legRes = await tx.run(`
             INSERT INTO shipment_legs (
                 shipment_id, leg_sequence, origin_hub_id, destination_hub_id, status
             ) VALUES (?, 1, ?, ?, 'PENDING')
-        `).run(shipmentId, originHubId, destinationHubId);
+        `, [shipmentId, originHubId, destinationHubId]);
+
+        const legId = legRes.insertId;
 
         // Auto-initialize COD settlement record if positive COD obligation
         if (pricing.cod_amount && pricing.cod_amount > 0) {
             const today = new Date().toISOString().slice(0, 10).replace(/-/g, '');
             const rand = Math.floor(1000 + Math.random() * 9000);
             const settlementNum = `COD-${today}-${rand}`;
-            db.prepare(`
+            await tx.run(`
                 INSERT INTO cod_settlements (
                     settlement_number, shipment_id, hub_id,
                     expected_amount, collected_amount, remitted_amount, variance_amount,
                     currency, status, created_at, updated_at
                 ) VALUES (?, ?, ?, ?, 0.0, 0.0, 0.0, ?, 'PENDING_COLLECTION', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-            `).run(
+            `, [
                 settlementNum,
                 shipmentId,
                 destinationHubId,
                 pricing.cod_amount,
                 pricing.currency || 'KES'
-            );
+            ]);
         }
 
         // D. Insert BOOKED and ACCEPTED Tracking Events
-        const eventStmt = db.prepare(`
+        const bookedMeta = JSON.stringify({ tracking_number: trackingNumber, chargeable_weight_kg: pricing.chargeable_weight_kg });
+        await tx.run(`
             INSERT INTO tracking_events (
                 shipment_id, leg_id, event_code, event_name,
                 hub_id, location_desc, actor_id, actor_type, actor_name,
                 description, is_customer_visible, metadata
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        `);
-
-        // Milestone 1: BOOKED
-        eventStmt.run(
+        `, [
             shipmentId,
-            legRes.lastInsertRowid,
+            legId,
             'BOOKED',
             'Shipment Booked at Counter',
             originHubId,
@@ -338,14 +335,20 @@ function bookCounterShipment(data, user = {}) {
             user.roleName || 'CASHIER',
             user.fullName || user.username || 'Counter Cashier',
             `Consignment booked at ${originHub.name} counter for routing to ${destHub.name}`,
-            1,
-            JSON.stringify({ tracking_number: trackingNumber, chargeable_weight_kg: pricing.chargeable_weight_kg })
-        );
+            dbAdapter.isPostgres ? true : 1,
+            bookedMeta
+        ]);
 
-        // Milestone 2: ACCEPTED
-        eventStmt.run(
+        const acceptedMeta = JSON.stringify({ payment_status: paymentStatus, payment_terms: paymentTerms, total_amount: pricing.total_amount });
+        await tx.run(`
+            INSERT INTO tracking_events (
+                shipment_id, leg_id, event_code, event_name,
+                hub_id, location_desc, actor_id, actor_type, actor_name,
+                description, is_customer_visible, metadata
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `, [
             shipmentId,
-            legRes.lastInsertRowid,
+            legId,
             'ACCEPTED',
             'Accepted at Origin Hub',
             originHubId,
@@ -354,19 +357,19 @@ function bookCounterShipment(data, user = {}) {
             user.roleName || 'CASHIER',
             user.fullName || user.username || 'Counter Cashier',
             `Physical custody accepted at ${originHub.name} counter intake. Payment verified.`,
-            1,
-            JSON.stringify({ payment_status: paymentStatus, payment_terms: paymentTerms, total_amount: pricing.total_amount })
-        );
+            dbAdapter.isPostgres ? true : 1,
+            acceptedMeta
+        ]);
 
         // E. Record Physical Intake Scan in scan_events (Stage 4 chain of custody)
         const intakeScanUuid = crypto.randomUUID();
-        db.prepare(`
+        await tx.run(`
             INSERT INTO scan_events (
                 scan_uuid, barcode, shipment_id, scan_type,
                 hub_id, location_desc, device_id, scanned_by_user_id,
                 metadata
             ) VALUES (?, ?, ?, 'INTAKE', ?, ?, ?, ?, ?)
-        `).run(
+        `, [
             intakeScanUuid,
             trackingNumber,
             shipmentId,
@@ -375,7 +378,7 @@ function bookCounterShipment(data, user = {}) {
             data.device_id || 'POS-TERMINAL-01',
             user.id || 1,
             JSON.stringify({ notes: 'Accepted and scanned into hub custody at counter booking', role: user.roleName || 'CASHIER' })
-        );
+        ]);
 
         // F. Insert Payment Ledger Record(s) linked to shipment_id
         const createdPayments = [];
@@ -389,13 +392,13 @@ function bookCounterShipment(data, user = {}) {
                     : `CSH-${Date.now().toString().slice(-6)}`));
             const payStatus = p.method === 'ACCOUNT' ? 'PENDING' : 'COMPLETED';
 
-            db.prepare(`
+            await tx.run(`
                 INSERT INTO payments (
                     branch_id, shipment_id, payment_number, payment_method,
                     amount, currency, reference_code, mpesa_receipt_number, mpesa_phone_number,
                     status, cashier_user_id, notes
                 ) VALUES (?, ?, ?, ?, ?, 'KES', ?, ?, ?, ?, ?, ?)
-            `).run(
+            `, [
                 originHubId,
                 shipmentId,
                 paymentNumber,
@@ -407,7 +410,7 @@ function bookCounterShipment(data, user = {}) {
                 payStatus,
                 user.id || 1,
                 data.notes || (p.method === 'ACCOUNT' ? `Corporate Account Billed: PO Ref ${p.account_po_ref || 'None'}` : 'POS Counter Parcel Booking Tender')
-            );
+            ]);
 
             createdPayments.push({
                 payment_number: paymentNumber,
@@ -419,7 +422,7 @@ function bookCounterShipment(data, user = {}) {
         }
 
         // G. Update Cashier Shift Totals & Cash Drawer Ledger
-        posShiftService.recordSaleInShift(activeShift.id, pricing.total_amount, paymentsList, user);
+        await posShiftService.recordSaleInShift(activeShift.id, pricing.total_amount, paymentsList, user, tx);
 
         // H. Audit Log
         logAuditEvent({
@@ -470,92 +473,6 @@ function bookCounterShipment(data, user = {}) {
             waybill
         };
     });
-
-    const result = executeBookingTx();
-
-    // Mirror shipment into PostgreSQL if running in PostgreSQL mode
-    const isPostgres = process.env.DB_CLIENT === 'postgres' || (!!process.env.DATABASE_URL && process.env.DB_CLIENT !== 'sqlite');
-    if (isPostgres) {
-        try {
-            const pool = require('../db/postgres/pool.js');
-            const pg = pool.getPool();
-            (async () => {
-                try {
-                    const pgRes = await pg.query(`
-                        INSERT INTO shipments (
-                            tracking_number, waybill_number,
-                            origin_hub_id, destination_hub_id, current_hub_id, current_location_desc,
-                            sender_customer_id, sender_name, sender_phone, sender_email, sender_address, sender_city,
-                            recipient_customer_id, recipient_name, recipient_phone, recipient_email, recipient_address, recipient_city,
-                            service_type, delivery_type, status,
-                            total_parcels, actual_weight_kg, volumetric_weight_kg, chargeable_weight_kg, declared_value,
-                            currency, base_rate, weight_charge, surcharges, discount_amount, tax_amount, total_amount,
-                            payment_terms, payment_status, cod_amount, cod_fee,
-                            special_instructions, created_by_user_id
-                        ) VALUES (
-                            $1, $2,
-                            $3, $4, $5, $6,
-                            $7, $8, $9, $10, $11, $12,
-                            $13, $14, $15, $16, $17, $18,
-                            $19, $20, $21,
-                            $22, $23, $24, $25, $26,
-                            $27, $28, $29, $30, $31, $32, $33,
-                            $34, $35, $36, $37,
-                            $38, $39
-                        ) RETURNING id
-                    `, [
-                        result.tracking_number, result.waybill_number,
-                        originHubId, destinationHubId, originHubId, `${originHub.name} Counter`,
-                        data.sender?.customer_id || null, data.sender.name, data.sender.phone, data.sender.email || null, data.sender.address, data.sender.city || originHub.city,
-                        data.recipient?.customer_id || null, data.recipient.name, data.recipient.phone, data.recipient.email || null, data.recipient.address, data.recipient.city || destHub.city,
-                        data.service_type || 'STANDARD', data.delivery_type || 'LAST_MILE', result.status,
-                        pricing.total_parcels, pricing.actual_weight_kg, pricing.volumetric_weight_kg, pricing.chargeable_weight_kg, pricing.declared_value,
-                        pricing.currency, pricing.base_rate, pricing.weight_charge, pricing.surcharges, pricing.discount_amount, pricing.tax_amount, pricing.total_amount,
-                        result.waybill?.payment_terms || 'PREPAID', result.payment_status || 'PAID', pricing.cod_amount || 0, pricing.cod_fee || 0,
-                        data.special_instructions || null, user.id || 1
-                    ]);
-
-                    const pgShipmentId = pgRes.rows[0].id;
-
-                    for (const p of result.parcels) {
-                        await pg.query(`
-                            INSERT INTO parcels (
-                                shipment_id, parcel_number, parcel_index,
-                                weight_kg, length_cm, width_cm, height_cm, volumetric_weight_kg,
-                                package_type, description, condition_at_intake
-                            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
-                        `, [
-                            pgShipmentId, p.parcel_number, p.parcel_index,
-                            p.weight_kg, p.length_cm || 0, p.width_cm || 0, p.height_cm || 0, p.volumetric_weight_kg || 0,
-                            p.package_type || 'BOX', p.description || null, 'INTACT'
-                        ]);
-                    }
-
-                    await pg.query(`
-                        INSERT INTO shipment_legs (
-                            shipment_id, leg_sequence, origin_hub_id, destination_hub_id, status
-                        ) VALUES ($1, 1, $2, $3, 'PENDING')
-                    `, [pgShipmentId, originHubId, destinationHubId]);
-
-                    await pg.query(`
-                        INSERT INTO tracking_events (
-                            shipment_id, event_code, event_name,
-                            hub_id, location_desc, actor_id, actor_type, actor_name,
-                            description, is_customer_visible
-                        ) VALUES ($1, 'BOOKED', 'Shipment Booked at Counter', $2, $3, $4, 'CASHIER', $5, $6, true)
-                    `, [
-                        pgShipmentId, originHubId, `${originHub.name} Counter Desk`,
-                        user.id || 1, user.fullName || user.username || 'Counter Cashier',
-                        `Consignment booked at ${originHub.name} counter for routing to ${destHub.name}`
-                    ]);
-                } catch (pgErr) {
-                    console.error('[PostgreSQL Mirror Error for Counter Booking]:', pgErr.message);
-                }
-            })();
-        } catch (e) {
-            console.error('Failed to initialize PG mirror:', e);
-        }
-    }
 
     return result;
 }
@@ -658,9 +575,9 @@ function buildWaybillDocument({
         payment_receipt: {
             status: paymentStatus,
             payments: payments.map(p => ({
-                method: p.payment_method,
+                method: p.method || p.payment_method,
                 amount: Number(p.amount).toFixed(2),
-                reference: p.reference_code,
+                reference: p.reference_code || p.reference,
                 change: p.change ? Number(p.change).toFixed(2) : '0.00'
             })),
             cashier_name: user.full_name || user.fullName || user.username || 'Intake Cashier',
@@ -673,17 +590,17 @@ function buildWaybillDocument({
 /**
  * Retrieves full printable waybill document by ID or tracking/waybill number
  */
-function getWaybillByIdentifier(identifier, user = {}) {
+async function getWaybillByIdentifier(identifier, user = {}) {
     if (!identifier) throw new Error('Shipment identifier is required');
 
     const cleanId = String(identifier).trim();
     let shipment = null;
 
     if (/^\d+$/.test(cleanId)) {
-        shipment = db.prepare('SELECT * FROM shipments WHERE id = ?').get(Number(cleanId));
+        shipment = await dbAdapter.get('SELECT * FROM shipments WHERE id = ?', [Number(cleanId)]);
     }
     if (!shipment) {
-        shipment = db.prepare('SELECT * FROM shipments WHERE UPPER(tracking_number) = ? OR UPPER(waybill_number) = ?').get(cleanId.toUpperCase(), cleanId.toUpperCase());
+        shipment = await dbAdapter.get('SELECT * FROM shipments WHERE UPPER(tracking_number) = ? OR UPPER(waybill_number) = ?', [cleanId.toUpperCase(), cleanId.toUpperCase()]);
     }
 
     if (!shipment) return null;
@@ -702,11 +619,11 @@ function getWaybillByIdentifier(identifier, user = {}) {
         }
     }
 
-    const originHub = db.prepare('SELECT id, name, code, city, address, phone FROM branches WHERE id = ?').get(shipment.origin_hub_id);
-    const destHub = db.prepare('SELECT id, name, code, city, address, phone FROM branches WHERE id = ?').get(shipment.destination_hub_id);
-    const parcels = db.prepare('SELECT * FROM parcels WHERE shipment_id = ? ORDER BY parcel_index ASC').all(shipment.id);
-    const payments = db.prepare('SELECT * FROM payments WHERE shipment_id = ?').all(shipment.id);
-    const cashierUser = db.prepare('SELECT id, full_name, username FROM users WHERE id = ?').get(shipment.created_by_user_id) || {};
+    const originHub = await dbAdapter.get('SELECT id, name, code, city, address, phone FROM branches WHERE id = ?', [shipment.origin_hub_id]);
+    const destHub = await dbAdapter.get('SELECT id, name, code, city, address, phone FROM branches WHERE id = ?', [shipment.destination_hub_id]);
+    const parcels = await dbAdapter.all('SELECT * FROM parcels WHERE shipment_id = ? ORDER BY parcel_index ASC', [shipment.id]);
+    const payments = await dbAdapter.all('SELECT * FROM payments WHERE shipment_id = ?', [shipment.id]);
+    const cashierUser = await dbAdapter.get('SELECT id, full_name, username FROM users WHERE id = ?', [shipment.created_by_user_id]) || {};
 
     const formattedParcels = parcels.map(p => ({
         id: p.id,

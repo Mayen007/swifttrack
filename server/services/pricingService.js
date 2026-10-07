@@ -76,10 +76,19 @@ async function resolvePrice(params = {}, client = null) {
 
     // 3. Branch-specific price override
     if (branchId) {
-        const branchPrice = await dbAdapter.get(`
+        let branchQuery = `
             SELECT * FROM branch_product_prices
-            WHERE branch_id = ? AND product_id = ? AND (variant_id = ? OR (variant_id IS NULL AND ? IS NULL))
-        `, [Number(branchId), Number(productId), variantId ? Number(variantId) : null, variantId ? Number(variantId) : null], client);
+            WHERE branch_id = ? AND product_id = ?
+        `;
+        const branchParams = [Number(branchId), Number(productId)];
+        if (variantId) {
+            branchQuery += ' AND (variant_id = ? OR variant_id IS NULL)';
+            branchParams.push(Number(variantId));
+        } else {
+            branchQuery += ' AND variant_id IS NULL';
+        }
+
+        const branchPrice = await dbAdapter.get(branchQuery, branchParams, client);
 
         if (branchPrice) {
             const targetBranchPrice = isWholesale && branchPrice.wholesale_price
@@ -101,25 +110,33 @@ async function resolvePrice(params = {}, client = null) {
     if (customerId || customerTier) {
         let custPrice = null;
         if (customerId) {
-            custPrice = await dbAdapter.get(`
+            let custQuery = `
                 SELECT * FROM customer_product_prices
-                WHERE customer_id = ? AND product_id = ? AND (variant_id = ? OR variant_id IS NULL)
+                WHERE customer_id = ? AND product_id = ? ${variantId ? 'AND (variant_id = ? OR variant_id IS NULL)' : 'AND variant_id IS NULL'}
                   AND min_quantity <= ?
                   AND (start_date IS NULL OR start_date <= CURRENT_TIMESTAMP)
                   AND (end_date IS NULL OR end_date >= CURRENT_TIMESTAMP)
                 ORDER BY min_quantity DESC LIMIT 1
-            `, [Number(customerId), Number(productId), variantId ? Number(variantId) : null, qty], client);
+            `;
+            const custParams = [Number(customerId), Number(productId)];
+            if (variantId) custParams.push(Number(variantId));
+            custParams.push(qty);
+            custPrice = await dbAdapter.get(custQuery, custParams, client);
         }
 
         if (!custPrice && customerTier) {
-            custPrice = await dbAdapter.get(`
+            let tierQuery = `
                 SELECT * FROM customer_product_prices
-                WHERE customer_tier = ? AND product_id = ? AND (variant_id = ? OR variant_id IS NULL)
+                WHERE customer_tier = ? AND product_id = ? ${variantId ? 'AND (variant_id = ? OR variant_id IS NULL)' : 'AND variant_id IS NULL'}
                   AND min_quantity <= ?
                   AND (start_date IS NULL OR start_date <= CURRENT_TIMESTAMP)
                   AND (end_date IS NULL OR end_date >= CURRENT_TIMESTAMP)
                 ORDER BY min_quantity DESC LIMIT 1
-            `, [String(customerTier).toUpperCase(), Number(productId), variantId ? Number(variantId) : null, qty], client);
+            `;
+            const tierParams = [String(customerTier).toUpperCase(), Number(productId)];
+            if (variantId) tierParams.push(Number(variantId));
+            tierParams.push(qty);
+            custPrice = await dbAdapter.get(tierQuery, tierParams, client);
         }
 
         if (custPrice) {
@@ -137,13 +154,17 @@ async function resolvePrice(params = {}, client = null) {
     }
 
     // 5. Bulk Quantity Break Pricing
-    const bulkTier = await dbAdapter.get(`
+    let bulkQuery = `
         SELECT * FROM product_bulk_pricing
-        WHERE product_id = ? AND (variant_id = ? OR variant_id IS NULL)
+        WHERE product_id = ? ${variantId ? 'AND (variant_id = ? OR variant_id IS NULL)' : 'AND variant_id IS NULL'}
           AND min_quantity <= ?
           AND (max_quantity IS NULL OR max_quantity >= ?)
         ORDER BY min_quantity DESC LIMIT 1
-    `, [Number(productId), variantId ? Number(variantId) : null, qty, qty], client);
+    `;
+    const bulkParams = [Number(productId)];
+    if (variantId) bulkParams.push(Number(variantId));
+    bulkParams.push(qty, qty);
+    const bulkTier = await dbAdapter.get(bulkQuery, bulkParams, client);
 
     if (bulkTier) {
         if (Number(bulkTier.unit_price) > 0 && Number(bulkTier.unit_price) < effectivePrice) {
@@ -170,10 +191,12 @@ async function resolvePrice(params = {}, client = null) {
         SELECT * FROM promotions
         WHERE ${promoActive}
           AND (start_date <= ? AND end_date >= ?)
-          AND (branch_id IS NULL OR branch_id = ?)
+          ${branchId ? 'AND (branch_id IS NULL OR branch_id = ?)' : 'AND branch_id IS NULL'}
           AND (min_quantity <= ?)
     `;
-    const promoParams = [nowIso, nowIso, branchId ? Number(branchId) : null, qty];
+    const promoParams = [nowIso, nowIso];
+    if (branchId) promoParams.push(Number(branchId));
+    promoParams.push(qty);
 
     if (promoCode) {
         promoQuery += ' AND (promo_code IS NULL OR UPPER(promo_code) = UPPER(?))';

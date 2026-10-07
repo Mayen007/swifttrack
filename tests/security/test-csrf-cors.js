@@ -302,5 +302,6 @@ async function runTest(name, fn) {
 
     } finally {
         server.close();
+        process.exit(0);
     }
 })();

@@ -88,9 +88,9 @@ async function runTest(name, fn) {
         // -------------------------------------------------------------
         // TEST 1: Baseline Retail & Wholesale Resolution
         // -------------------------------------------------------------
-        await runTest('1.1: Standard retail unit price calculation (Corrugated Box)', () => {
+        await runTest('1.1: Standard retail unit price calculation (Corrugated Box)', async () => {
             // Product 1: Heavy Duty Box (Retail: 180.0, Wholesale: 150.0)
-            const result = resolvePrice({ productId: 1, quantity: 1 });
+            const result = await resolvePrice({ productId: 1, quantity: 1 });
             assert.strictEqual(result.unitPrice, 180.0);
             assert.strictEqual(result.subtotal, 180.0);
             assert.strictEqual(result.taxCategory, 'STANDARD_16');
@@ -99,8 +99,8 @@ async function runTest(name, fn) {
             assert.strictEqual(result.netAmount, 155.17);
         });
 
-        await runTest('1.2: Base wholesale pricing request', () => {
-            const result = resolvePrice({ productId: 1, quantity: 5, isWholesale: true });
+        await runTest('1.2: Base wholesale pricing request', async () => {
+            const result = await resolvePrice({ productId: 1, quantity: 5, isWholesale: true });
             assert.strictEqual(result.unitPrice, 150.0);
             assert.strictEqual(result.subtotal, 750.0);
         });
@@ -108,12 +108,12 @@ async function runTest(name, fn) {
         // -------------------------------------------------------------
         // TEST 2: Branch Price Overrides
         // -------------------------------------------------------------
-        await runTest('2.1: Mombasa Branch price override applied (Product 6 Cement)', () => {
+        await runTest('2.1: Mombasa Branch price override applied (Product 6 Cement)', async () => {
             // Product 6: Bamburi Cement (Base: 850.0, Mombasa Branch 2 Override: 820.0)
-            const nairobiPrice = resolvePrice({ productId: 6, branchId: 1, quantity: 1 });
+            const nairobiPrice = await resolvePrice({ productId: 6, branchId: 1, quantity: 1 });
             assert.strictEqual(nairobiPrice.unitPrice, 850.0);
 
-            const mombasaPrice = resolvePrice({ productId: 6, branchId: 2, quantity: 1 });
+            const mombasaPrice = await resolvePrice({ productId: 6, branchId: 2, quantity: 1 });
             assert.strictEqual(mombasaPrice.unitPrice, 820.0);
             assert.ok(mombasaPrice.appliedRules.some(r => r.type === 'BRANCH_OVERRIDE'));
         });
@@ -121,41 +121,41 @@ async function runTest(name, fn) {
         // -------------------------------------------------------------
         // TEST 3: Bulk Quantity Break Tiers
         // -------------------------------------------------------------
-        await runTest('3.1: Bulk quantity breaks resolve accurately across quantity thresholds', () => {
+        await runTest('3.1: Bulk quantity breaks resolve accurately across quantity thresholds', async () => {
             // Product 1 Bulk Tiers:
             // 1-19: 180.0
             // 20-49: 165.0
             // 50-99: 150.0
             // 100+: 135.0
-            const single = resolvePrice({ productId: 1, quantity: 5 });
+            const single = await resolvePrice({ productId: 1, quantity: 5 });
             assert.strictEqual(single.unitPrice, 180.0);
 
-            const tier1 = resolvePrice({ productId: 1, quantity: 25 });
+            const tier1 = await resolvePrice({ productId: 1, quantity: 25 });
             assert.strictEqual(tier1.unitPrice, 165.0);
             assert.strictEqual(tier1.subtotal, 4125.0);
 
-            const tier2 = resolvePrice({ productId: 1, quantity: 60 });
+            const tier2 = await resolvePrice({ productId: 1, quantity: 60 });
             assert.strictEqual(tier2.unitPrice, 150.0);
 
-            const tier3 = resolvePrice({ productId: 1, quantity: 120 });
+            const tier3 = await resolvePrice({ productId: 1, quantity: 120 });
             assert.strictEqual(tier3.unitPrice, 135.0);
         });
 
         // -------------------------------------------------------------
         // TEST 4: Scheduled Promotions & Promo Codes
         // -------------------------------------------------------------
-        await runTest('4.1: Scheduled Category Promotion applied (LOGISTICS10 on packaging)', () => {
+        await runTest('4.1: Scheduled Category Promotion applied (LOGISTICS10 on packaging)', async () => {
             // Promo LOGISTICS10: 10% off packaging category (min spend 1000 KES)
             // Product 1: 10 boxes @ 180 = 1800 KES (above min spend 1000)
             // Unit price after 10% off 180 = 162.0 (or bulk tier discount, best rule)
-            const result = resolvePrice({ productId: 1, quantity: 10, promoCode: 'LOGISTICS10' });
+            const result = await resolvePrice({ productId: 1, quantity: 10, promoCode: 'LOGISTICS10' });
             assert.strictEqual(result.unitPrice, 162.0);
             assert.ok(result.appliedRules.some(r => r.type === 'PROMOTION' && r.promoCode === 'LOGISTICS10'));
         });
 
-        await runTest('4.2: Zero-Rated Kenyan foodstuff VAT calculation (Spring Water / Rice)', () => {
+        await runTest('4.2: Zero-Rated Kenyan foodstuff VAT calculation (Spring Water / Rice)', async () => {
             // Product 16: Kilima Spring Water (tax_category: ZERO_RATED_0)
-            const water = resolvePrice({ productId: 16, quantity: 2 });
+            const water = await resolvePrice({ productId: 16, quantity: 2 });
             assert.strictEqual(water.taxCategory, 'ZERO_RATED_0');
             assert.strictEqual(water.taxRate, 0.0);
             assert.strictEqual(water.taxAmount, 0.0);
@@ -200,6 +200,7 @@ async function runTest(name, fn) {
 
         if (passedTests === totalTests) {
             console.log('\n[SUCCESS] ALL DYNAMIC PRICING ENGINE TESTS PASSED!\n');
+            process.exit(0);
         } else {
             console.error('\n[FAIL] PRICING ENGINE TESTS FAILED!\n');
             process.exit(1);
@@ -207,5 +208,6 @@ async function runTest(name, fn) {
 
     } finally {
         server.close();
+        process.exit(passedTests === totalTests ? 0 : 1);
     }
 })();

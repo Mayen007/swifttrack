@@ -1,6 +1,6 @@
 // server/services/paymentService.js
 // SwiftTrack Kenya: Phase 7 Standalone Payments Engine & Reconciliation Service
-const { db } = require('../db/database.js');
+const dbAdapter = require('../db/dbAdapter.js');
 const darajaService = require('./darajaService.js');
 const { logAuditEvent } = require('../middleware/audit.js');
 
@@ -70,19 +70,19 @@ function generateRefundNumber() {
 /**
  * Record payment audit trail entry
  */
-function recordAuditTrail(intentId, fromStatus, toStatus, actorType, actorId, details) {
-    db.prepare(`
+async function recordAuditTrail(intentId, fromStatus, toStatus, actorType, actorId, details, client = null) {
+    await dbAdapter.run(`
         INSERT INTO payment_audit_trail (
             payment_intent_id, from_status, to_status, actor_type, actor_id, details
         ) VALUES (?, ?, ?, ?, ?, ?)
-    `).run(intentId, fromStatus, toStatus, actorType, String(actorId || 'SYSTEM'), details || '');
+    `, [intentId, fromStatus, toStatus, actorType, String(actorId || 'SYSTEM'), details || ''], client);
 }
 
 /**
  * 1. Create a Payment Intent (Decoupled from POS/Orders)
  * Enforces strict Idempotency: duplicate request with same idempotency_key returns existing intent.
  */
-function createPaymentIntent(data, user) {
+async function createPaymentIntent(data, user) {
     const {
         branch_id,
         order_id,
@@ -114,7 +114,7 @@ function createPaymentIntent(data, user) {
 
     // IDEMPOTENCY GUARD: Check if an intent was already created with this idempotency key
     if (idempotency_key) {
-        const existing = db.prepare('SELECT * FROM payment_intents WHERE idempotency_key = ?').get(idempotency_key);
+        const existing = await dbAdapter.get('SELECT * FROM payment_intents WHERE idempotency_key = ?', [idempotency_key]);
         if (existing) {
             return {
                 ...existing,
@@ -127,35 +127,36 @@ function createPaymentIntent(data, user) {
     const metaStr = typeof metadata === 'object' ? JSON.stringify(metadata) : metadata;
     const formattedPhone = method === 'MPESA' ? darajaService.formatPhone(phone_number) : phone_number;
 
-    return db.transaction(() => {
-        const res = db.prepare(`
+    let createdId;
+    await dbAdapter.withTransaction(async (tx) => {
+        const res = await tx.run(`
             INSERT INTO payment_intents (
                 intent_number, branch_id, order_id, sale_id, customer_id,
                 payment_method, amount, currency, status, idempotency_key,
                 phone_number, metadata, created_by_user_id
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', ?, ?, ?, ?)
-        `).run(
+        `, [
             intentNumber, branchId, order_id || null, sale_id || null, customer_id || null,
             method, amt, currency, idempotency_key || null,
             formattedPhone || null, metaStr || null, user.id
-        );
+        ]);
 
-        const createdId = res.lastInsertRowid;
-        recordAuditTrail(createdId, null, 'PENDING', 'USER', user.id, `Payment intent created for KES ${amt}`);
+        createdId = res.insertId;
+        await recordAuditTrail(createdId, null, 'PENDING', 'USER', user.id, `Payment intent created for KES ${amt}`, tx);
+    });
 
-        logAuditEvent({
-            userId: user.id,
-            role: user.roleName || user.role,
-            action: 'CREATE_PAYMENT_INTENT',
-            resource: 'PAYMENT_INTENT',
-            resourceId: intentNumber,
-            branchId,
-            newValue: { intent_number: intentNumber, amount: amt, method },
-            reason: 'Initiated payment intent'
-        });
+    logAuditEvent({
+        userId: user.id,
+        role: user.roleName || user.role,
+        action: 'CREATE_PAYMENT_INTENT',
+        resource: 'PAYMENT_INTENT',
+        resourceId: intentNumber,
+        branchId,
+        newValue: { intent_number: intentNumber, amount: amt, method },
+        reason: 'Initiated payment intent'
+    });
 
-        return db.prepare('SELECT * FROM payment_intents WHERE id = ?').get(createdId);
-    })();
+    return dbAdapter.get('SELECT * FROM payment_intents WHERE id = ?', [createdId]);
 }
 
 /**
@@ -163,7 +164,7 @@ function createPaymentIntent(data, user) {
  * Moves intent into PROCESSING (or SUCCESS for synchronous tenders like cash).
  */
 async function processIntent(intentId, options = {}, user) {
-    const intent = db.prepare('SELECT * FROM payment_intents WHERE id = ?').get(Number(intentId));
+    const intent = await dbAdapter.get('SELECT * FROM payment_intents WHERE id = ?', [Number(intentId)]);
     if (!intent) {
         const err = new Error('Payment intent not found');
         err.statusCode = 404;
@@ -202,39 +203,42 @@ async function processIntent(intentId, options = {}, user) {
         });
 
         if (!stkRes.success) {
-            db.transaction(() => {
-                db.prepare(`
+            await dbAdapter.withTransaction(async (tx) => {
+                await tx.run(`
                     UPDATE payment_intents
                     SET status = 'FAILED', failure_reason = ?, updated_at = CURRENT_TIMESTAMP
                     WHERE id = ?
-                `).run(stkRes.response_description, intent.id);
-                recordAuditTrail(intent.id, intent.status, 'FAILED', 'PROVIDER', 'DARAJA', stkRes.response_description);
-            })();
+                `, [stkRes.response_description, intent.id]);
+                await recordAuditTrail(intent.id, intent.status, 'FAILED', 'PROVIDER', 'DARAJA', stkRes.response_description, tx);
+            });
             const err = new Error(`Daraja STK push failed: ${stkRes.customer_message || stkRes.response_description}`);
             err.statusCode = 400;
             throw err;
         }
 
         // Set status to PROCESSING with timeout in 120 seconds
-        db.transaction(() => {
-            db.prepare(`
+        const timeoutExpr = dbAdapter.isPostgres ? "CURRENT_TIMESTAMP + INTERVAL '120 seconds'" : "datetime('now', '+120 seconds')";
+        await dbAdapter.withTransaction(async (tx) => {
+            await tx.run(`
                 UPDATE payment_intents
                 SET status = 'PROCESSING',
                     provider_reference = ?,
                     phone_number = ?,
-                    timeout_at = datetime('now', '+120 seconds'),
+                    timeout_at = ${timeoutExpr},
                     updated_at = CURRENT_TIMESTAMP
                 WHERE id = ?
-            `).run(stkRes.checkout_request_id, stkRes.phone, intent.id);
+            `, [stkRes.checkout_request_id, stkRes.phone, intent.id]);
 
-            recordAuditTrail(
+            await recordAuditTrail(
                 intent.id, intent.status, 'PROCESSING', 'USER', user.id,
-                `STK push dispatched to ${stkRes.phone}. CheckoutRequestID: ${stkRes.checkout_request_id}`
+                `STK push dispatched to ${stkRes.phone}. CheckoutRequestID: ${stkRes.checkout_request_id}`,
+                tx
             );
-        })();
+        });
 
+        const updatedIntent = await dbAdapter.get('SELECT * FROM payment_intents WHERE id = ?', [intent.id]);
         return {
-            ...db.prepare('SELECT * FROM payment_intents WHERE id = ?').get(intent.id),
+            ...updatedIntent,
             daraja_response: stkRes
         };
     }
@@ -242,8 +246,8 @@ async function processIntent(intentId, options = {}, user) {
     // --- CASE B: CARD (POS Terminal / Gateway) ---
     if (method === 'CARD') {
         const cardRef = options.card_reference || `CARD-AUTH-${Date.now().toString().slice(-6)}`;
-        return db.transaction(() => {
-            db.prepare(`
+        return dbAdapter.withTransaction(async (tx) => {
+            await tx.run(`
                 UPDATE payment_intents
                 SET status = 'SUCCESS',
                     provider_reference = ?,
@@ -251,20 +255,20 @@ async function processIntent(intentId, options = {}, user) {
                     completed_at = CURRENT_TIMESTAMP,
                     updated_at = CURRENT_TIMESTAMP
                 WHERE id = ?
-            `).run(cardRef, options.last4 ? `CARD-****-${options.last4}` : cardRef, intent.id);
+            `, [cardRef, options.last4 ? `CARD-****-${options.last4}` : cardRef, intent.id]);
 
-            recordAuditTrail(intent.id, intent.status, 'SUCCESS', 'USER', user.id, `Card payment confirmed. Auth: ${cardRef}`);
-            const updatedIntent = db.prepare('SELECT * FROM payment_intents WHERE id = ?').get(intent.id);
-            settleSuccessfulPayment(updatedIntent, user.id);
+            await recordAuditTrail(intent.id, intent.status, 'SUCCESS', 'USER', user.id, `Card payment confirmed. Auth: ${cardRef}`, tx);
+            const updatedIntent = await dbAdapter.get('SELECT * FROM payment_intents WHERE id = ?', [intent.id], tx);
+            await settleSuccessfulPayment(updatedIntent, user.id, tx);
             return updatedIntent;
-        })();
+        });
     }
 
     // --- CASE C: CASH (Cash Drawer Register) ---
     if (method === 'CASH') {
         const cashRef = `CSH-${Date.now().toString().slice(-6)}`;
-        return db.transaction(() => {
-            db.prepare(`
+        return dbAdapter.withTransaction(async (tx) => {
+            await tx.run(`
                 UPDATE payment_intents
                 SET status = 'SUCCESS',
                     provider_reference = ?,
@@ -272,20 +276,20 @@ async function processIntent(intentId, options = {}, user) {
                     completed_at = CURRENT_TIMESTAMP,
                     updated_at = CURRENT_TIMESTAMP
                 WHERE id = ?
-            `).run(cashRef, cashRef, intent.id);
+            `, [cashRef, cashRef, intent.id]);
 
-            recordAuditTrail(intent.id, intent.status, 'SUCCESS', 'USER', user.id, `Cash payment received in drawer: KES ${intent.amount}`);
-            const updatedIntent = db.prepare('SELECT * FROM payment_intents WHERE id = ?').get(intent.id);
-            settleSuccessfulPayment(updatedIntent, user.id);
+            await recordAuditTrail(intent.id, intent.status, 'SUCCESS', 'USER', user.id, `Cash payment received in drawer: KES ${intent.amount}`, tx);
+            const updatedIntent = await dbAdapter.get('SELECT * FROM payment_intents WHERE id = ?', [intent.id], tx);
+            await settleSuccessfulPayment(updatedIntent, user.id, tx);
             return updatedIntent;
-        })();
+        });
     }
 
     // --- CASE D: BANK TRANSFER / EFT ---
     if (method === 'BANK') {
         const bankRef = options.bank_reference || `BANK-VCH-${Date.now().toString().slice(-6)}`;
-        return db.transaction(() => {
-            db.prepare(`
+        return dbAdapter.withTransaction(async (tx) => {
+            await tx.run(`
                 UPDATE payment_intents
                 SET status = 'SUCCESS',
                     provider_reference = ?,
@@ -293,13 +297,13 @@ async function processIntent(intentId, options = {}, user) {
                     completed_at = CURRENT_TIMESTAMP,
                     updated_at = CURRENT_TIMESTAMP
                 WHERE id = ?
-            `).run(bankRef, options.bank_name ? `${options.bank_name}: ${bankRef}` : bankRef, intent.id);
+            `, [bankRef, options.bank_name ? `${options.bank_name}: ${bankRef}` : bankRef, intent.id]);
 
-            recordAuditTrail(intent.id, intent.status, 'SUCCESS', 'USER', user.id, `Bank transfer confirmed. Voucher: ${bankRef}`);
-            const updatedIntent = db.prepare('SELECT * FROM payment_intents WHERE id = ?').get(intent.id);
-            settleSuccessfulPayment(updatedIntent, user.id);
+            await recordAuditTrail(intent.id, intent.status, 'SUCCESS', 'USER', user.id, `Bank transfer confirmed. Voucher: ${bankRef}`, tx);
+            const updatedIntent = await dbAdapter.get('SELECT * FROM payment_intents WHERE id = ?', [intent.id], tx);
+            await settleSuccessfulPayment(updatedIntent, user.id, tx);
             return updatedIntent;
-        })();
+        });
     }
 
     throw new Error(`Unsupported payment method '${method}'`);
@@ -309,7 +313,7 @@ async function processIntent(intentId, options = {}, user) {
  * 3. Handle Inbound Safaricom Daraja Webhook Callback
  * Implements strict Duplicate Callback Protection and automatic Order/Sale settlement.
  */
-function handleMpesaCallback(rawBody) {
+async function handleMpesaCallback(rawBody) {
     const parsed = darajaService.parseCallback(rawBody);
     if (!parsed || !parsed.checkout_request_id) {
         return { success: false, error: 'Invalid Daraja callback structure: missing CheckoutRequestID' };
@@ -327,8 +331,7 @@ function handleMpesaCallback(rawBody) {
     } = parsed;
 
     // --- DUPLICATE CALLBACK PROTECTION ---
-    const existingCallback = db.prepare('SELECT id FROM payment_callbacks WHERE provider = ? AND provider_reference = ?')
-        .get('MPESA', checkout_request_id);
+    const existingCallback = await dbAdapter.get('SELECT id FROM payment_callbacks WHERE provider = ? AND provider_reference = ?', ['MPESA', checkout_request_id]);
 
     if (existingCallback) {
         return {
@@ -339,22 +342,22 @@ function handleMpesaCallback(rawBody) {
     }
 
     // Find linked payment intent by provider_reference
-    const intent = db.prepare('SELECT * FROM payment_intents WHERE provider_reference = ?').get(checkout_request_id);
+    const intent = await dbAdapter.get('SELECT * FROM payment_intents WHERE provider_reference = ?', [checkout_request_id]);
 
-    return db.transaction(() => {
+    return dbAdapter.withTransaction(async (tx) => {
         // Record callback payload
-        db.prepare(`
+        await tx.run(`
             INSERT INTO payment_callbacks (
                 payment_intent_id, provider, provider_reference, result_code,
                 result_description, raw_payload, is_processed
             ) VALUES (?, 'MPESA', ?, ?, ?, ?, 1)
-        `).run(
+        `, [
             intent ? intent.id : null,
             checkout_request_id,
             result_code,
             result_description,
             JSON.stringify(rawBody)
-        );
+        ]);
 
         if (!intent) {
             return {
@@ -373,23 +376,24 @@ function handleMpesaCallback(rawBody) {
 
         if (is_success) {
             // Update intent to SUCCESS
-            db.prepare(`
+            await tx.run(`
                 UPDATE payment_intents
                 SET status = 'SUCCESS',
                     external_reference = ?,
                     completed_at = CURRENT_TIMESTAMP,
                     updated_at = CURRENT_TIMESTAMP
                 WHERE id = ?
-            `).run(mpesa_receipt_number || 'MPESA_SUCCESS', intent.id);
+            `, [mpesa_receipt_number || 'MPESA_SUCCESS', intent.id]);
 
-            recordAuditTrail(
+            await recordAuditTrail(
                 intent.id, intent.status, 'SUCCESS', 'PROVIDER_CALLBACK', 'DARAJA',
-                `M-Pesa payment confirmed. Receipt: ${mpesa_receipt_number}, Amount: KES ${amount || intent.amount}`
+                `M-Pesa payment confirmed. Receipt: ${mpesa_receipt_number}, Amount: KES ${amount || intent.amount}`,
+                tx
             );
 
             // Settle completed payments and linked orders/sales
-            const updatedIntent = db.prepare('SELECT * FROM payment_intents WHERE id = ?').get(intent.id);
-            settleSuccessfulPayment(updatedIntent, updatedIntent.created_by_user_id);
+            const updatedIntent = await dbAdapter.get('SELECT * FROM payment_intents WHERE id = ?', [intent.id], tx);
+            await settleSuccessfulPayment(updatedIntent, updatedIntent.created_by_user_id, tx);
 
             return {
                 success: true,
@@ -400,17 +404,18 @@ function handleMpesaCallback(rawBody) {
         } else {
             // Callback indicated failure (e.g. ResultCode 1032 = Cancelled by user, 1037 = Timeout)
             const targetStatus = result_code === 1037 ? 'TIMEOUT' : 'FAILED';
-            db.prepare(`
+            await tx.run(`
                 UPDATE payment_intents
                 SET status = ?,
                     failure_reason = ?,
                     updated_at = CURRENT_TIMESTAMP
                 WHERE id = ?
-            `).run(targetStatus, result_description, intent.id);
+            `, [targetStatus, result_description, intent.id]);
 
-            recordAuditTrail(
+            await recordAuditTrail(
                 intent.id, intent.status, targetStatus, 'PROVIDER_CALLBACK', 'DARAJA',
-                `Payment failed: ${result_description} (Code: ${result_code})`
+                `Payment failed: ${result_description} (Code: ${result_code})`,
+                tx
             );
 
             return {
@@ -420,23 +425,23 @@ function handleMpesaCallback(rawBody) {
                 reason: result_description
             };
         }
-    })();
+    });
 }
 
 /**
  * Helper: Settle successful payment into payments ledger & sync linked Order / Sale
  */
-function settleSuccessfulPayment(intent, cashierUserId) {
+async function settleSuccessfulPayment(intent, cashierUserId, client = null) {
     const paymentNumber = generatePaymentNumber();
 
     // 1. Insert into payments table
-    db.prepare(`
+    await dbAdapter.run(`
         INSERT INTO payments (
             branch_id, payment_intent_id, sale_id, order_id, payment_number,
             payment_method, amount, currency, reference_code, provider_reference,
             mpesa_receipt_number, mpesa_phone_number, status, cashier_user_id, notes
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'COMPLETED', ?, ?)
-    `).run(
+    `, [
         intent.branch_id,
         intent.id,
         intent.sale_id,
@@ -451,57 +456,57 @@ function settleSuccessfulPayment(intent, cashierUserId) {
         intent.phone_number,
         cashierUserId || intent.created_by_user_id,
         `Settled via Payments Engine Intent ${intent.intent_number}`
-    );
+    ], client);
 
     // 2. Sync linked order if present
     if (intent.order_id) {
-        const order = db.prepare('SELECT * FROM orders WHERE id = ?').get(intent.order_id);
+        const order = await dbAdapter.get('SELECT * FROM orders WHERE id = ?', [intent.order_id], client);
         if (order) {
             // Compute total paid so far
-            const totalPaidRow = db.prepare(`
+            const totalPaidRow = await dbAdapter.get(`
                 SELECT COALESCE(SUM(amount), 0) as total_paid
                 FROM payments
                 WHERE order_id = ? AND status = 'COMPLETED'
-            `).get(order.id);
+            `, [order.id], client);
 
-            const totalPaid = totalPaidRow.total_paid;
-            if (totalPaid >= order.total_amount) {
-                db.prepare(`
+            const totalPaid = Number(totalPaidRow ? totalPaidRow.total_paid : 0);
+            if (totalPaid >= Number(order.total_amount)) {
+                await dbAdapter.run(`
                     UPDATE orders
                     SET payment_status = 'PAID', updated_at = CURRENT_TIMESTAMP
                     WHERE id = ?
-                `).run(order.id);
+                `, [order.id], client);
 
                 // If order was in CONFIRMED, advance to PAID
                 if (order.status === 'CONFIRMED') {
-                    db.prepare(`
+                    await dbAdapter.run(`
                         UPDATE orders
                         SET status = 'PAID', updated_at = CURRENT_TIMESTAMP
                         WHERE id = ?
-                    `).run(order.id);
+                    `, [order.id], client);
 
-                    db.prepare(`
+                    await dbAdapter.run(`
                         INSERT INTO order_status_history (order_id, from_status, to_status, user_id, notes)
                         VALUES (?, 'CONFIRMED', 'PAID', ?, 'Payment settled in full via Payments Engine')
-                    `).run(order.id, cashierUserId || intent.created_by_user_id);
+                    `, [order.id, cashierUserId || intent.created_by_user_id], client);
                 }
             } else if (totalPaid > 0) {
-                db.prepare(`
+                await dbAdapter.run(`
                     UPDATE orders
                     SET payment_status = 'PARTIAL', updated_at = CURRENT_TIMESTAMP
                     WHERE id = ?
-                `).run(order.id);
+                `, [order.id], client);
             }
         }
     }
 
     // 3. Sync linked sale if present
     if (intent.sale_id) {
-        db.prepare(`
+        await dbAdapter.run(`
             UPDATE sales
             SET payment_status = 'PAID', updated_at = CURRENT_TIMESTAMP
             WHERE id = ?
-        `).run(intent.sale_id);
+        `, [intent.sale_id], client);
     }
 }
 
@@ -509,7 +514,7 @@ function settleSuccessfulPayment(intent, cashierUserId) {
  * 4. Query live status from provider (Timeout Recovery)
  */
 async function queryPaymentStatus(intentId, user) {
-    const intent = db.prepare('SELECT * FROM payment_intents WHERE id = ?').get(Number(intentId));
+    const intent = await dbAdapter.get('SELECT * FROM payment_intents WHERE id = ?', [Number(intentId)]);
     if (!intent) {
         const err = new Error('Payment intent not found');
         err.statusCode = 404;
@@ -519,22 +524,22 @@ async function queryPaymentStatus(intentId, user) {
     if (intent.payment_method === 'MPESA' && intent.provider_reference) {
         const res = await darajaService.queryStkStatus(intent.provider_reference);
         if (res.result_code === 0 && intent.status !== 'SUCCESS') {
-            db.transaction(() => {
-                db.prepare(`
+            await dbAdapter.withTransaction(async (tx) => {
+                await tx.run(`
                     UPDATE payment_intents
                     SET status = 'SUCCESS',
                         external_reference = COALESCE(external_reference, ?),
                         completed_at = CURRENT_TIMESTAMP,
                         updated_at = CURRENT_TIMESTAMP
                     WHERE id = ?
-                `).run(darajaService.generateReceiptCode(), intent.id);
+                `, [darajaService.generateReceiptCode(), intent.id]);
 
-                recordAuditTrail(intent.id, intent.status, 'SUCCESS', 'USER', user.id, 'Payment verified via Daraja status query');
-                const updated = db.prepare('SELECT * FROM payment_intents WHERE id = ?').get(intent.id);
-                settleSuccessfulPayment(updated, user.id);
-            })();
+                await recordAuditTrail(intent.id, intent.status, 'SUCCESS', 'USER', user.id, 'Payment verified via Daraja status query', tx);
+                const updated = await dbAdapter.get('SELECT * FROM payment_intents WHERE id = ?', [intent.id], tx);
+                await settleSuccessfulPayment(updated, user.id, tx);
+            });
         }
-        return db.prepare('SELECT * FROM payment_intents WHERE id = ?').get(intent.id);
+        return dbAdapter.get('SELECT * FROM payment_intents WHERE id = ?', [intent.id]);
     }
 
     return intent;
@@ -543,24 +548,24 @@ async function queryPaymentStatus(intentId, user) {
 /**
  * 5. Check & transition timed-out intents
  */
-function checkTimeouts() {
-    const expiredIntents = db.prepare(`
+async function checkTimeouts() {
+    const expiredIntents = await dbAdapter.all(`
         SELECT * FROM payment_intents
         WHERE status = 'PROCESSING'
           AND timeout_at IS NOT NULL
           AND timeout_at <= CURRENT_TIMESTAMP
-    `).all();
+    `);
 
     for (const intent of expiredIntents) {
-        db.transaction(() => {
-            db.prepare(`
+        await dbAdapter.withTransaction(async (tx) => {
+            await tx.run(`
                 UPDATE payment_intents
                 SET status = 'TIMEOUT', failure_reason = 'Payment confirmation timed out after 120s', updated_at = CURRENT_TIMESTAMP
                 WHERE id = ?
-            `).run(intent.id);
+            `, [intent.id]);
 
-            recordAuditTrail(intent.id, 'PROCESSING', 'TIMEOUT', 'SYSTEM', 'TIMEOUT_WORKER', 'Auto-timed out after 120s without callback');
-        })();
+            await recordAuditTrail(intent.id, 'PROCESSING', 'TIMEOUT', 'SYSTEM', 'TIMEOUT_WORKER', 'Auto-timed out after 120s without callback', tx);
+        });
     }
 
     return expiredIntents.length;
@@ -569,8 +574,8 @@ function checkTimeouts() {
 /**
  * 6. Cancel a pending or processing payment intent
  */
-function cancelPaymentIntent(intentId, reason = 'Cancelled by staff', user) {
-    const intent = db.prepare('SELECT * FROM payment_intents WHERE id = ?').get(Number(intentId));
+async function cancelPaymentIntent(intentId, reason = 'Cancelled by staff', user) {
+    const intent = await dbAdapter.get('SELECT * FROM payment_intents WHERE id = ?', [Number(intentId)]);
     if (!intent) {
         const err = new Error('Payment intent not found');
         err.statusCode = 404;
@@ -583,14 +588,14 @@ function cancelPaymentIntent(intentId, reason = 'Cancelled by staff', user) {
         throw err;
     }
 
-    return db.transaction(() => {
-        db.prepare(`
+    await dbAdapter.withTransaction(async (tx) => {
+        await tx.run(`
             UPDATE payment_intents
             SET status = 'CANCELLED', failure_reason = ?, updated_at = CURRENT_TIMESTAMP
             WHERE id = ?
-        `).run(reason, intent.id);
+        `, [reason, intent.id]);
 
-        recordAuditTrail(intent.id, intent.status, 'CANCELLED', 'USER', user.id, `Intent cancelled: ${reason}`);
+        await recordAuditTrail(intent.id, intent.status, 'CANCELLED', 'USER', user.id, `Intent cancelled: ${reason}`, tx);
 
         logAuditEvent({
             userId: user.id,
@@ -602,16 +607,16 @@ function cancelPaymentIntent(intentId, reason = 'Cancelled by staff', user) {
             newValue: { status: 'CANCELLED', reason },
             reason
         });
+    });
 
-        return db.prepare('SELECT * FROM payment_intents WHERE id = ?').get(intent.id);
-    })();
+    return dbAdapter.get('SELECT * FROM payment_intents WHERE id = ?', [intent.id]);
 }
 
 /**
  * 7. Process full or partial refund against a completed payment
  */
-function refundPayment(paymentId, { amount, reason = 'Customer refund' } = {}, user) {
-    const payment = db.prepare('SELECT * FROM payments WHERE id = ?').get(Number(paymentId));
+async function refundPayment(paymentId, { amount, reason = 'Customer refund' } = {}, user) {
+    const payment = await dbAdapter.get('SELECT * FROM payments WHERE id = ?', [Number(paymentId)]);
     if (!payment) {
         const err = new Error('Payment not found');
         err.statusCode = 404;
@@ -625,44 +630,47 @@ function refundPayment(paymentId, { amount, reason = 'Customer refund' } = {}, u
     }
 
     const refundAmount = Number(amount || payment.amount);
-    if (refundAmount <= 0 || refundAmount > payment.amount) {
+    if (refundAmount <= 0 || refundAmount > Number(payment.amount)) {
         const err = new Error(`Refund amount must be between 0.01 and ${payment.amount} KES.`);
         err.statusCode = 400;
         throw err;
     }
 
     const refundNumber = generateRefundNumber();
+    let refundId;
 
-    return db.transaction(() => {
+    await dbAdapter.withTransaction(async (tx) => {
         // Insert refund record
-        const refRes = db.prepare(`
+        const refRes = await tx.run(`
             INSERT INTO payment_refunds (
                 refund_number, payment_id, payment_intent_id, amount,
                 reason, status, processed_by_user_id
             ) VALUES (?, ?, ?, ?, ?, 'COMPLETED', ?)
-        `).run(
+        `, [
             refundNumber, payment.id, payment.payment_intent_id || null,
             refundAmount, reason, user.id
-        );
+        ]);
+        refundId = refRes.insertId;
 
         // Update payment status
-        db.prepare(`
+        await tx.run(`
             UPDATE payments
             SET status = 'REFUNDED', notes = COALESCE(notes, '') || ' [Refunded: ' || ? || ']'
             WHERE id = ?
-        `).run(refundNumber, payment.id);
+        `, [refundNumber, payment.id]);
 
         // If payment intent exists, transition to REFUNDED
         if (payment.payment_intent_id) {
-            db.prepare(`
+            await tx.run(`
                 UPDATE payment_intents
                 SET status = 'REFUNDED', updated_at = CURRENT_TIMESTAMP
                 WHERE id = ?
-            `).run(payment.payment_intent_id);
+            `, [payment.payment_intent_id]);
 
-            recordAuditTrail(
+            await recordAuditTrail(
                 payment.payment_intent_id, 'SUCCESS', 'REFUNDED', 'USER', user.id,
-                `Refund processed: KES ${refundAmount}. Reason: ${reason} (Ref: ${refundNumber})`
+                `Refund processed: KES ${refundAmount}. Reason: ${reason} (Ref: ${refundNumber})`,
+                tx
             );
         }
 
@@ -676,16 +684,16 @@ function refundPayment(paymentId, { amount, reason = 'Customer refund' } = {}, u
             newValue: { refund_number: refundNumber, amount: refundAmount, reason },
             reason
         });
+    });
 
-        return db.prepare('SELECT * FROM payment_refunds WHERE id = ?').get(refRes.lastInsertRowid);
-    })();
+    return dbAdapter.get('SELECT * FROM payment_refunds WHERE id = ?', [refundId]);
 }
 
 /**
  * 8. Payment Reconciliation Engine
  * Automatically compares payments ledger against recorded intents and provider references.
  */
-function reconcilePayments({ branch_id, from_date, to_date } = {}, user) {
+async function reconcilePayments({ branch_id, from_date, to_date } = {}, user) {
     let query = `
         SELECT p.*,
                pi.intent_number, pi.status as intent_status, pi.provider_reference as intent_provider_ref,
@@ -716,13 +724,13 @@ function reconcilePayments({ branch_id, from_date, to_date } = {}, user) {
     }
 
     query += ' ORDER BY p.id DESC';
-    const paymentsList = db.prepare(query).all(...params);
+    const paymentsList = await dbAdapter.all(query, params);
 
     const matched = [];
     const discrepancies = [];
     let totalReconciledVolume = 0;
 
-    return db.transaction(() => {
+    await dbAdapter.withTransaction(async (tx) => {
         for (const p of paymentsList) {
             let hasDiscrepancy = false;
             let discReason = '';
@@ -744,28 +752,28 @@ function reconcilePayments({ branch_id, from_date, to_date } = {}, user) {
                 totalReconciledVolume += Number(p.amount);
 
                 // Mark reconciled
-                db.prepare(`
+                await tx.run(`
                     UPDATE payments
                     SET reconciled_at = CURRENT_TIMESTAMP, reconciled_by_user_id = ?
                     WHERE id = ? AND reconciled_at IS NULL
-                `).run(user.id, p.id);
+                `, [user.id, p.id]);
             }
         }
+    });
 
-        return {
-            total_evaluated: paymentsList.length,
-            matched_count: matched.length,
-            discrepancies_count: discrepancies.length,
-            reconciled_volume: totalReconciledVolume,
-            discrepancies
-        };
-    })();
+    return {
+        total_evaluated: paymentsList.length,
+        matched_count: matched.length,
+        discrepancies_count: discrepancies.length,
+        reconciled_volume: totalReconciledVolume,
+        discrepancies
+    };
 }
 
 /**
  * 9. Multi-Axis Filtering & Listing of Payment Intents
  */
-function listPaymentIntents(filters = {}, user = {}) {
+async function listPaymentIntents(filters = {}, user = {}) {
     let query = `
         SELECT pi.*,
                b.name as branch_name, b.code as branch_code,
@@ -822,14 +830,14 @@ function listPaymentIntents(filters = {}, user = {}) {
     query += ' LIMIT ? OFFSET ?';
     params.push(limit, offset);
 
-    return db.prepare(query).all(...params);
+    return dbAdapter.all(query, params);
 }
 
 /**
  * 10. Get full Payment Intent Details with Audit Trail & Callbacks
  */
-function getPaymentIntentById(id, user = {}) {
-    const intent = db.prepare(`
+async function getPaymentIntentById(id, user = {}) {
+    const intent = await dbAdapter.get(`
         SELECT pi.*,
                b.name as branch_name, b.code as branch_code,
                c.full_name as customer_name, c.phone as customer_phone,
@@ -842,7 +850,7 @@ function getPaymentIntentById(id, user = {}) {
         LEFT JOIN sales s ON pi.sale_id = s.id
         JOIN users u ON pi.created_by_user_id = u.id
         WHERE pi.id = ?
-    `).get(Number(id));
+    `, [Number(id)]);
 
     if (!intent) return null;
 
@@ -852,24 +860,24 @@ function getPaymentIntentById(id, user = {}) {
         throw err;
     }
 
-    const auditTrail = db.prepare(`
+    const auditTrail = await dbAdapter.all(`
         SELECT * FROM payment_audit_trail
         WHERE payment_intent_id = ?
         ORDER BY id ASC
-    `).all(intent.id);
+    `, [intent.id]);
 
-    const callbacks = db.prepare(`
+    const callbacks = await dbAdapter.all(`
         SELECT * FROM payment_callbacks
         WHERE payment_intent_id = ?
         ORDER BY id ASC
-    `).all(intent.id);
+    `, [intent.id]);
 
-    const linkedPayments = db.prepare(`
+    const linkedPayments = await dbAdapter.all(`
         SELECT p.*, u.full_name as cashier_name
         FROM payments p
         LEFT JOIN users u ON p.cashier_user_id = u.id
         WHERE p.payment_intent_id = ?
-    `).all(intent.id);
+    `, [intent.id]);
 
     return {
         ...intent,
@@ -882,8 +890,8 @@ function getPaymentIntentById(id, user = {}) {
 /**
  * 11. Export Payment Intents to CSV
  */
-function exportPaymentsToCsv(filters = {}, user = {}) {
-    const intents = listPaymentIntents({ ...filters, limit: 1000, offset: 0 }, user);
+async function exportPaymentsToCsv(filters = {}, user = {}) {
+    const intents = await listPaymentIntents({ ...filters, limit: 1000, offset: 0 }, user);
     const headers = [
         'Intent Number', 'Date', 'Branch', 'Method', 'Amount (KES)',
         'Status', 'Customer', 'Phone', 'Provider Reference', 'M-Pesa Receipt', 'Order Number'

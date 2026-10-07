@@ -2,14 +2,14 @@
 // SwiftTrack Kenya: Phase 7 Payments Engine REST API Routes
 const express = require('express');
 const router = express.Router();
-const { authenticateToken, enforceBranchIsolation, authorizeRole } = require('../middleware/auth.js');
+const { authenticateToken, enforceBranchIsolation } = require('../middleware/auth.js');
 const paymentService = require('../services/paymentService.js');
 
 // 1. POST /api/payments/callbacks/mpesa - Public Webhook Endpoint for Safaricom Daraja
 // Must be publicly accessible without JWT token; validates payload structure and handles deduplication
-router.post('/callbacks/mpesa', (req, res) => {
+router.post('/callbacks/mpesa', async (req, res) => {
     try {
-        const result = paymentService.handleMpesaCallback(req.body);
+        const result = await paymentService.handleMpesaCallback(req.body);
 
         // Standard Safaricom Daraja callback acknowledgment response
         return res.status(200).json({
@@ -27,9 +27,9 @@ router.post('/callbacks/mpesa', (req, res) => {
 });
 
 // 2. GET /api/payments/export - Export payment intents & ledger to CSV
-router.get('/export', authenticateToken, (req, res) => {
+router.get('/export', authenticateToken, async (req, res) => {
     try {
-        const csv = paymentService.exportPaymentsToCsv(req.query, req.user);
+        const csv = await paymentService.exportPaymentsToCsv(req.query, req.user);
         res.setHeader('Content-Type', 'text/csv');
         res.setHeader('Content-Disposition', `attachment; filename="payments-export-${Date.now()}.csv"`);
         res.status(200).send(csv);
@@ -40,7 +40,7 @@ router.get('/export', authenticateToken, (req, res) => {
 });
 
 // 3. POST /api/payments/intents - Create a Payment Intent (supports Idempotency-Key header)
-router.post('/intents', authenticateToken, enforceBranchIsolation, (req, res) => {
+router.post('/intents', authenticateToken, enforceBranchIsolation, async (req, res) => {
     try {
         const idempotencyKey = req.headers['idempotency-key'] || req.body.idempotency_key;
         const payload = {
@@ -49,7 +49,7 @@ router.post('/intents', authenticateToken, enforceBranchIsolation, (req, res) =>
             idempotency_key: idempotencyKey
         };
 
-        const intent = paymentService.createPaymentIntent(payload, req.user);
+        const intent = await paymentService.createPaymentIntent(payload, req.user);
         const statusCode = intent.is_idempotent_replay ? 200 : 201;
 
         res.status(statusCode).json({
@@ -63,13 +63,13 @@ router.post('/intents', authenticateToken, enforceBranchIsolation, (req, res) =>
 });
 
 // 4. GET /api/payments/intents - List payment intents with multi-axis filters
-router.get('/intents', authenticateToken, enforceBranchIsolation, (req, res) => {
+router.get('/intents', authenticateToken, enforceBranchIsolation, async (req, res) => {
     try {
         const filters = {
             ...req.query,
             branch_id: req.effectiveBranchId || req.query.branch_id
         };
-        const intents = paymentService.listPaymentIntents(filters, req.user);
+        const intents = await paymentService.listPaymentIntents(filters, req.user);
         res.json({
             success: true,
             data: intents,
@@ -82,9 +82,9 @@ router.get('/intents', authenticateToken, enforceBranchIsolation, (req, res) => 
 });
 
 // 5. GET /api/payments/intents/:id - Get full intent details with callbacks & audit trail
-router.get('/intents/:id', authenticateToken, (req, res) => {
+router.get('/intents/:id', authenticateToken, async (req, res) => {
     try {
-        const intent = paymentService.getPaymentIntentById(req.params.id, req.user);
+        const intent = await paymentService.getPaymentIntentById(req.params.id, req.user);
         if (!intent) {
             return res.status(404).json({ error: 'Payment intent not found' });
         }
@@ -113,9 +113,9 @@ router.post('/intents/:id/process', authenticateToken, async (req, res) => {
 });
 
 // 7. POST /api/payments/intents/:id/cancel - Cancel pending intent
-router.post('/intents/:id/cancel', authenticateToken, (req, res) => {
+router.post('/intents/:id/cancel', authenticateToken, async (req, res) => {
     try {
-        const cancelled = paymentService.cancelPaymentIntent(req.params.id, req.body.reason, req.user);
+        const cancelled = await paymentService.cancelPaymentIntent(req.params.id, req.body.reason, req.user);
         res.json({
             success: true,
             intent: cancelled
@@ -141,9 +141,9 @@ router.post('/intents/:id/query-status', authenticateToken, async (req, res) => 
 });
 
 // 9. POST /api/payments/reconcile - Automated payment reconciliation
-router.post('/reconcile', authenticateToken, (req, res) => {
+router.post('/reconcile', authenticateToken, async (req, res) => {
     try {
-        const result = paymentService.reconcilePayments(req.body, req.user);
+        const result = await paymentService.reconcilePayments(req.body, req.user);
         res.json({
             success: true,
             reconciliation: result
@@ -155,13 +155,13 @@ router.post('/reconcile', authenticateToken, (req, res) => {
 });
 
 // 10. POST /api/payments/refund - Process full or partial refund
-router.post('/refund', authenticateToken, (req, res) => {
+router.post('/refund', authenticateToken, async (req, res) => {
     try {
         const { payment_id, amount, reason } = req.body;
         if (!payment_id) {
             return res.status(400).json({ error: 'payment_id is required for refund' });
         }
-        const refund = paymentService.refundPayment(payment_id, { amount, reason }, req.user);
+        const refund = await paymentService.refundPayment(payment_id, { amount, reason }, req.user);
         res.json({
             success: true,
             refund

@@ -3,7 +3,7 @@
 const assert = require('node:assert');
 const http = require('node:http');
 const app = require('../../server/server.js');
-const { db } = require('../../server/db/database.js');
+const dbAdapter = require('../../server/db/dbAdapter.js');
 
 console.log('\n============================================================');
 console.log('  SWIFTTRACK COMMERCE: PRODUCT CATALOG & VARIANTS SUITE');
@@ -225,8 +225,8 @@ async function runTest(name, fn) {
             const res = await makeRequest(`/api/v1/products/${createdProductId}/archive`, { method: 'POST' });
             assert.strictEqual(res.status, 200);
             const p = res.body.data || res.body;
-            assert.strictEqual(p.is_archived, 1);
-            assert.strictEqual(p.is_active, 0);
+            assert.strictEqual(Boolean(p.is_archived), true);
+            assert.strictEqual(Boolean(p.is_active), false);
 
             // Verify not listed in active catalog by default
             const listRes = await makeRequest(`/api/v1/products?search=${testSku}`);
@@ -238,8 +238,8 @@ async function runTest(name, fn) {
             const res = await makeRequest(`/api/v1/products/${createdProductId}/restore`, { method: 'POST' });
             assert.strictEqual(res.status, 200);
             const p = res.body.data || res.body;
-            assert.strictEqual(p.is_archived, 0);
-            assert.strictEqual(p.is_active, 1);
+            assert.strictEqual(Boolean(p.is_archived), false);
+            assert.strictEqual(Boolean(p.is_active), true);
 
             // Verify restored in active catalog
             const listRes = await makeRequest(`/api/v1/products?search=${testSku}`);
@@ -262,12 +262,13 @@ async function runTest(name, fn) {
 
     } finally {
         if (createdProductId) {
-            const { db } = require('../../server/db/database.js');
-            db.prepare('DELETE FROM variant_inventory WHERE product_id = ?').run(createdProductId);
-            db.prepare('DELETE FROM product_variants WHERE product_id = ?').run(createdProductId);
-            db.prepare('DELETE FROM inventory WHERE product_id = ?').run(createdProductId);
-            db.prepare('DELETE FROM products WHERE id = ?').run(createdProductId);
+            const dbAdapter = require('../../server/db/dbAdapter.js');
+            await dbAdapter.run('DELETE FROM variant_inventory WHERE product_id = ?', [createdProductId]);
+            await dbAdapter.run('DELETE FROM product_variants WHERE product_id = ?', [createdProductId]);
+            await dbAdapter.run('DELETE FROM inventory WHERE product_id = ?', [createdProductId]);
+            await dbAdapter.run('DELETE FROM products WHERE id = ?', [createdProductId]);
         }
         server.close();
+        process.exit(passedTests === totalTests ? 0 : 1);
     }
 })();

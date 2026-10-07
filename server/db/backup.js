@@ -45,7 +45,7 @@ function createBackup(options = {}) {
     console.log(`         SHA-256:  ${hash}`);
 
     // Manage retention
-    pruneOldBackups(backupDir, MAX_BACKUP_RETENTION);
+    pruneOldBackups(backupDir, MAX_BACKUP_RETENTION, backupFilename);
 
     return {
         filename: backupFilename,
@@ -56,19 +56,19 @@ function createBackup(options = {}) {
     };
 }
 
-function pruneOldBackups(backupDir, maxRetention) {
+function pruneOldBackups(backupDir, maxRetention, currentFilename = null) {
     try {
         const files = fs.readdirSync(backupDir)
-            .filter(f => f.startsWith('swifttrack_backup_') && f.endsWith('.db'))
+            .filter(f => f.startsWith('swifttrack_backup_') && f.endsWith('.db') && f !== currentFilename)
             .map(f => ({
                 name: f,
                 fullPath: path.join(backupDir, f),
                 time: fs.statSync(path.join(backupDir, f)).mtime.getTime()
             }))
-            .sort((a, b) => b.time - a.time);
+            .sort((a, b) => b.name.localeCompare(a.name));
 
-        if (files.length > maxRetention) {
-            const toDelete = files.slice(maxRetention);
+        if (files.length >= maxRetention) {
+            const toDelete = files.slice(maxRetention - 1);
             for (const file of toDelete) {
                 fs.unlinkSync(file.fullPath);
                 console.log(`[Backup] Pruned older backup: ${file.name}`);
