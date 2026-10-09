@@ -315,6 +315,7 @@ async function runSuite() {
     console.log('\n============================================================');
     console.log(`[SUCCESS] ALL ${passedTests}/${totalTests} STAGE 6 POS COUNTER BOOKING TESTS PASSED!`);
     console.log('============================================================\n');
+    process.exit(0);
 }
 
 runSuite().catch(err => {

@@ -163,6 +163,10 @@ async function listDrivers({ branchId, status, search, complianceStatus, page = 
         const comp = calculateCompliance(drv.license_expiry_date, drv.ntsa_verified);
         return {
             ...drv,
+            rating: drv.rating != null ? Number(drv.rating) : 5.0,
+            active_deliveries_count: Number(drv.active_deliveries_count) || 0,
+            completed_deliveries_count: Number(drv.completed_deliveries_count) || 0,
+            incident_count: Number(drv.incident_count) || 0,
             assigned_vehicle_id: drv.vehicle_id || null,
             compliance: comp
         };
@@ -219,6 +223,10 @@ async function getDriverById(id, tx = null) {
         throw err;
     }
 
+    driver.rating = driver.rating != null ? Number(driver.rating) : 5.0;
+    driver.active_deliveries_count = Number(driver.active_deliveries_count) || 0;
+    driver.completed_deliveries_count = Number(driver.completed_deliveries_count) || 0;
+    driver.incident_count = Number(driver.incident_count) || 0;
     driver.assigned_vehicle_id = driver.vehicle_id || null;
     driver.compliance = calculateCompliance(driver.license_expiry_date, driver.ntsa_verified);
     return driver;

@@ -6,6 +6,7 @@ import { Navbar } from './components/Navbar.jsx';
 import { Sidebar } from './components/Sidebar.jsx';
 import { NotificationsDrawer } from './components/NotificationsDrawer.jsx';
 import { ToastContainer } from './components/ToastContainer.jsx';
+import { ErrorBoundary } from './components/common/ErrorBoundary.jsx';
 import { ShieldOff } from 'lucide-react';
 import { api } from './services/api.js';
 
@@ -403,7 +404,11 @@ function MainApp() {
           ref={mainScrollRef}
           className="flex-1 overflow-y-auto p-3 sm:p-4 lg:p-5 [scrollbar-gutter:stable]"
         >
-          <div className={`w-full ${currentView === 'vehicles' || currentView === 'drivers' ? '' : 'max-w-[1760px] mx-auto'}`}>{renderView()}</div>
+          <div className={`w-full ${currentView === 'vehicles' || currentView === 'drivers' ? '' : 'max-w-[1760px] mx-auto'}`}>
+            <ErrorBoundary key={currentView}>
+              {renderView()}
+            </ErrorBoundary>
+          </div>
         </main>
       </div>
 

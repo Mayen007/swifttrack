@@ -57,7 +57,7 @@ export function DriverDetailModal({
                     <span>•</span>
                     <span className="flex items-center gap-1 text-amber-400">
                       <Star className="w-3.5 h-3.5 fill-amber-400" />
-                      <span>{selectedDriver.rating ? selectedDriver.rating.toFixed(1) : '5.0'} / 5.0</span>
+                      <span>{(Number(selectedDriver.rating) || 5.0).toFixed(1)} / 5.0</span>
                     </span>
                   </p>
                 </div>
