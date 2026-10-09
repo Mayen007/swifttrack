@@ -1,7 +1,7 @@
 // tests/orders/test-orders-engine.js
 // SwiftTrack Kenya: Phase 6 Orders Engine & State Machine Integration Suite
 const assert = require('assert');
-const { db } = require('../../server/db/database.js');
+const dbAdapter = require('../../server/db/dbAdapter.js');
 const orderService = require('../../server/services/orderService.js');
 const inventoryStateService = require('../../server/services/inventoryStateService.js');
 
@@ -12,10 +12,10 @@ console.log('============================================================\n');
 let passedTests = 0;
 let totalTests = 0;
 
-function runTest(name, fn) {
+async function runTest(name, fn) {
     totalTests++;
     try {
-        fn();
+        await fn();
         console.log(`[PASS] [PASS] ${name}`);
         passedTests++;
     } catch (err) {
@@ -26,273 +26,296 @@ function runTest(name, fn) {
     }
 }
 
-// Ensure test users and products exist
-const adminUser = db.prepare(`
-    SELECT u.*, r.name as roleName, r.name as role
-    FROM users u
-    JOIN roles r ON u.role_id = r.id
-    WHERE r.name = 'SUPER_ADMIN'
-    LIMIT 1
-`).get() || { id: 1, role: 'SUPER_ADMIN', roleName: 'SUPER_ADMIN', branchId: 1 };
-adminUser.roleName = 'SUPER_ADMIN';
-adminUser.branchId = adminUser.branch_id || 1;
-
-const cashierUser = db.prepare(`
-    SELECT u.*, r.name as roleName, r.name as role
-    FROM users u
-    JOIN roles r ON u.role_id = r.id
-    WHERE r.name = 'CASHIER' AND u.branch_id = 1
-    LIMIT 1
-`).get() || { id: 4, role: 'CASHIER', roleName: 'CASHIER', branchId: 1 };
-cashierUser.roleName = 'CASHIER';
-cashierUser.branchId = cashierUser.branch_id || 1;
-
-// Ensure test customer
-let testCustomer = db.prepare("SELECT * FROM customers WHERE status = 'ACTIVE' LIMIT 1").get();
-if (!testCustomer) {
-    const res = db.prepare(`
-        INSERT INTO customers (branch_id, customer_number, full_name, phone, email, status)
-        VALUES (1, 'CUST-ORD-001', 'Orders Engine Test Customer', '+254711999888', 'ordtest@example.com', 'ACTIVE')
-    `).run();
-    testCustomer = db.prepare('SELECT * FROM customers WHERE id = ?').get(res.lastInsertRowid);
-}
-
-// Fetch two test products with known inventory in Warehouse 1
-const prodA = db.prepare('SELECT * FROM products WHERE is_active = 1 LIMIT 1').get();
-const prodB = db.prepare('SELECT * FROM products WHERE is_active = 1 AND id != ? LIMIT 1').get(prodA.id);
-
-// Reset inventory for test products
-function resetInventory(prodId, qtyOnHand) {
-    let inv = db.prepare('SELECT * FROM inventory WHERE warehouse_id = 1 AND product_id = ?').get(prodId);
+async function resetInventory(prodId, qtyOnHand) {
+    let inv = await dbAdapter.get('SELECT * FROM inventory WHERE warehouse_id = 1 AND product_id = ?', [prodId]);
     if (!inv) {
-        db.prepare(`
+        await dbAdapter.run(`
             INSERT INTO inventory (branch_id, warehouse_id, product_id, quantity_on_hand, quantity_available, quantity_reserved, quantity_in_transit, quantity_damaged, quantity_expired)
             VALUES (1, 1, ?, ?, ?, 0, 0, 0, 0)
-        `).run(prodId, qtyOnHand, qtyOnHand);
+        `, [prodId, qtyOnHand, qtyOnHand]);
     } else {
-        db.prepare(`
+        await dbAdapter.run(`
             UPDATE inventory
             SET quantity_on_hand = ?, quantity_available = ?, quantity_reserved = 0, quantity_in_transit = 0, quantity_damaged = 0, quantity_expired = 0, updated_at = CURRENT_TIMESTAMP
             WHERE id = ?
-        `).run(qtyOnHand, qtyOnHand, inv.id);
+        `, [qtyOnHand, qtyOnHand, inv.id]);
     }
 }
 
-resetInventory(prodA.id, 50);
-resetInventory(prodB.id, 30);
+(async () => {
+    let draftOrderId = null;
+    let draftOrderNumber = null;
+    const createdOrderIds = [];
 
-let draftOrderId = null;
-let draftOrderNumber = null;
+    try {
+        // Ensure test users exist
+        const adminUser = (await dbAdapter.get(`
+            SELECT u.*, r.name as roleName, r.name as role
+            FROM users u
+            JOIN roles r ON u.role_id = r.id
+            WHERE r.name = 'SUPER_ADMIN'
+            LIMIT 1
+        `)) || { id: 1, role: 'SUPER_ADMIN', roleName: 'SUPER_ADMIN', branchId: 1 };
+        adminUser.roleName = 'SUPER_ADMIN';
+        adminUser.branchId = adminUser.branch_id || 1;
 
-// Test 1: Draft Order Creation
-runTest('1. Order Creation: Create DRAFT order without reserving inventory', () => {
-    const invABefore = db.prepare('SELECT * FROM inventory WHERE warehouse_id = 1 AND product_id = ?').get(prodA.id);
+        const cashierUser = (await dbAdapter.get(`
+            SELECT u.*, r.name as roleName, r.name as role
+            FROM users u
+            JOIN roles r ON u.role_id = r.id
+            WHERE r.name = 'CASHIER' AND u.branch_id = 1
+            LIMIT 1
+        `)) || { id: 4, role: 'CASHIER', roleName: 'CASHIER', branchId: 1 };
+        cashierUser.roleName = 'CASHIER';
+        cashierUser.branchId = cashierUser.branch_id || 1;
 
-    const orderRes = orderService.createOrder({
-        branch_id: 1,
-        customer_id: testCustomer.id,
-        initial_status: 'DRAFT',
-        delivery_address: 'Enterprise Road, Gate 4',
-        delivery_city: 'Nairobi',
-        delivery_fee: 350,
-        items: [{ product_id: prodA.id, quantity: 5, unit_price: prodA.selling_price }]
-    }, cashierUser);
+        // Ensure test customer
+        let testCustomer = await dbAdapter.get("SELECT * FROM customers WHERE status = 'ACTIVE' LIMIT 1");
+        if (!testCustomer) {
+            const res = await dbAdapter.run(`
+                INSERT INTO customers (branch_id, customer_number, full_name, phone, email, status)
+                VALUES (1, 'CUST-ORD-001', 'Orders Engine Test Customer', '+254711999888', 'ordtest@example.com', 'ACTIVE')
+            `);
+            testCustomer = await dbAdapter.get('SELECT * FROM customers WHERE id = ?', [res.insertId || res.id]);
+        }
 
-    assert.ok(orderRes.id, 'Order should have an ID');
-    assert.strictEqual(orderRes.status, 'DRAFT', 'Order status must be DRAFT');
-    assert.strictEqual(orderRes.delivery_fee, 350, 'Delivery fee must be 350');
-    assert.strictEqual(orderRes.subtotal, 5 * prodA.selling_price, 'Subtotal must match');
-    assert.strictEqual(orderRes.total_amount, (5 * prodA.selling_price) + 350, 'Total must include delivery fee');
+        // Fetch two test products with known inventory in Warehouse 1
+        const prodA = await dbAdapter.get('SELECT * FROM products WHERE is_active = true LIMIT 1');
+        const prodB = await dbAdapter.get('SELECT * FROM products WHERE is_active = true AND id != ? LIMIT 1', [prodA.id]);
 
-    draftOrderId = orderRes.id;
-    draftOrderNumber = orderRes.order_number;
+        await resetInventory(prodA.id, 50);
+        await resetInventory(prodB.id, 30);
 
-    // Verify inventory was NOT reserved
-    const invAAfter = db.prepare('SELECT * FROM inventory WHERE warehouse_id = 1 AND product_id = ?').get(prodA.id);
-    assert.strictEqual(invAAfter.quantity_available, invABefore.quantity_available, 'Available inventory should remain unreserved');
-    assert.strictEqual(invAAfter.quantity_reserved, invABefore.quantity_reserved, 'Reserved inventory should remain 0');
+        // Test 1: Draft Order Creation
+        await runTest('1. Order Creation: Create DRAFT order without reserving inventory', async () => {
+            const invABefore = await dbAdapter.get('SELECT * FROM inventory WHERE warehouse_id = 1 AND product_id = ?', [prodA.id]);
 
-    // Verify order flag
-    const ordDb = db.prepare('SELECT * FROM orders WHERE id = ?').get(draftOrderId);
-    assert.strictEqual(ordDb.inventory_allocated, 0, 'Inventory allocated flag must be 0 for DRAFT');
-});
+            const orderRes = await orderService.createOrder({
+                branch_id: 1,
+                customer_id: testCustomer.id,
+                initial_status: 'DRAFT',
+                delivery_address: 'Enterprise Road, Gate 4',
+                delivery_city: 'Nairobi',
+                delivery_fee: 350,
+                items: [{ product_id: prodA.id, quantity: 5, unit_price: Number(prodA.selling_price) }]
+            }, cashierUser);
 
-// Test 2: Order Editing Before Fulfillment
-runTest('2. Order Editing: Modify line items and delivery fee before fulfillment', () => {
-    const edited = orderService.editOrder(draftOrderId, {
-        delivery_fee: 450,
-        delivery_address: 'Enterprise Road, Gate 8 Logistics Yard',
-        items: [
-            { product_id: prodA.id, quantity: 3, unit_price: prodA.selling_price },
-            { product_id: prodB.id, quantity: 4, unit_price: prodB.selling_price }
-        ]
-    }, cashierUser);
+            assert.ok(orderRes.id, 'Order should have an ID');
+            createdOrderIds.push(orderRes.id);
+            assert.strictEqual(orderRes.status, 'DRAFT', 'Order status must be DRAFT');
+            assert.strictEqual(Number(orderRes.delivery_fee), 350, 'Delivery fee must be 350');
+            assert.strictEqual(Number(orderRes.subtotal), 5 * Number(prodA.selling_price), 'Subtotal must match');
+            assert.strictEqual(Number(orderRes.total_amount), (5 * Number(prodA.selling_price)) + 350, 'Total must include delivery fee');
 
-    assert.strictEqual(edited.delivery_fee, 450);
-    assert.strictEqual(edited.items.length, 2);
-    assert.strictEqual(edited.delivery_address, 'Enterprise Road, Gate 8 Logistics Yard');
+            draftOrderId = orderRes.id;
+            draftOrderNumber = orderRes.order_number;
 
-    const expectedSubtotal = (3 * prodA.selling_price) + (4 * prodB.selling_price);
-    assert.strictEqual(edited.subtotal, expectedSubtotal);
-    assert.strictEqual(edited.total_amount, expectedSubtotal + 450);
-});
+            // Verify inventory was NOT reserved
+            const invAAfter = await dbAdapter.get('SELECT * FROM inventory WHERE warehouse_id = 1 AND product_id = ?', [prodA.id]);
+            assert.strictEqual(Number(invAAfter.quantity_available), Number(invABefore.quantity_available), 'Available inventory should remain unreserved');
+            assert.strictEqual(Number(invAAfter.quantity_reserved), Number(invABefore.quantity_reserved), 'Reserved inventory should remain 0');
 
-// Test 3: Transition DRAFT -> CONFIRMED allocates inventory reservation
-runTest('3. Confirmation & Allocation: Transition to CONFIRMED reserves inventory', () => {
-    const invABefore = db.prepare('SELECT * FROM inventory WHERE warehouse_id = 1 AND product_id = ?').get(prodA.id);
-    const invBBefore = db.prepare('SELECT * FROM inventory WHERE warehouse_id = 1 AND product_id = ?').get(prodB.id);
+            // Verify order flag
+            const ordDb = await dbAdapter.get('SELECT * FROM orders WHERE id = ?', [draftOrderId]);
+            assert.strictEqual(Number(ordDb.inventory_allocated || 0), 0, 'Inventory allocated flag must be 0 for DRAFT');
+        });
 
-    const confirmed = orderService.transitionOrderStatus(draftOrderId, 'CONFIRMED', {
-        notes: 'Customer confirmed via WhatsApp'
-    }, cashierUser);
+        // Test 2: Order Editing Before Fulfillment
+        await runTest('2. Order Editing: Modify line items and delivery fee before fulfillment', async () => {
+            const edited = await orderService.editOrder(draftOrderId, {
+                delivery_fee: 450,
+                delivery_address: 'Enterprise Road, Gate 8 Logistics Yard',
+                items: [
+                    { product_id: prodA.id, quantity: 3, unit_price: Number(prodA.selling_price) },
+                    { product_id: prodB.id, quantity: 4, unit_price: Number(prodB.selling_price) }
+                ]
+            }, cashierUser);
 
-    assert.strictEqual(confirmed.status, 'CONFIRMED');
-    assert.strictEqual(confirmed.inventory_allocated, 1, 'Inventory allocated flag should be 1');
+            assert.strictEqual(Number(edited.delivery_fee), 450);
+            assert.strictEqual(edited.items.length, 2);
+            assert.strictEqual(edited.delivery_address, 'Enterprise Road, Gate 8 Logistics Yard');
 
-    // Verify inventory reservation
-    const invAAfter = db.prepare('SELECT * FROM inventory WHERE warehouse_id = 1 AND product_id = ?').get(prodA.id);
-    const invBAfter = db.prepare('SELECT * FROM inventory WHERE warehouse_id = 1 AND product_id = ?').get(prodB.id);
+            const expectedSubtotal = (3 * Number(prodA.selling_price)) + (4 * Number(prodB.selling_price));
+            assert.strictEqual(Number(edited.subtotal), expectedSubtotal);
+            assert.strictEqual(Number(edited.total_amount), expectedSubtotal + 450);
+        });
 
-    assert.strictEqual(invAAfter.quantity_reserved, invABefore.quantity_reserved + 3, 'Prod A: 3 units reserved');
-    assert.strictEqual(invAAfter.quantity_available, invABefore.quantity_available - 3, 'Prod A: Available decremented by 3');
+        // Test 3: Transition DRAFT -> CONFIRMED allocates inventory reservation
+        await runTest('3. Confirmation & Allocation: Transition to CONFIRMED reserves inventory', async () => {
+            const invABefore = await dbAdapter.get('SELECT * FROM inventory WHERE warehouse_id = 1 AND product_id = ?', [prodA.id]);
+            const invBBefore = await dbAdapter.get('SELECT * FROM inventory WHERE warehouse_id = 1 AND product_id = ?', [prodB.id]);
 
-    assert.strictEqual(invBAfter.quantity_reserved, invBBefore.quantity_reserved + 4, 'Prod B: 4 units reserved');
-    assert.strictEqual(invBAfter.quantity_available, invBBefore.quantity_available - 4, 'Prod B: Available decremented by 4');
-});
+            const confirmed = await orderService.transitionOrderStatus(draftOrderId, 'CONFIRMED', {
+                notes: 'Customer confirmed via WhatsApp'
+            }, cashierUser);
 
-// Test 4: Progression CONFIRMED -> PAID -> PROCESSING -> PACKED
-runTest('4. Order Progression: Progress through PAID, PROCESSING, and PACKED', () => {
-    const paid = orderService.transitionOrderStatus(draftOrderId, 'PAID', { notes: 'M-Pesa payment confirmed' }, cashierUser);
-    assert.strictEqual(paid.status, 'PAID');
+            assert.strictEqual(confirmed.status, 'CONFIRMED');
+            assert.strictEqual(Number(confirmed.inventory_allocated), 1, 'Inventory allocated flag should be 1');
 
-    const processing = orderService.transitionOrderStatus(draftOrderId, 'PROCESSING', { notes: 'Warehouse pick list printed' }, cashierUser);
-    assert.strictEqual(processing.status, 'PROCESSING');
+            // Verify inventory reservation
+            const invAAfter = await dbAdapter.get('SELECT * FROM inventory WHERE warehouse_id = 1 AND product_id = ?', [prodA.id]);
+            const invBAfter = await dbAdapter.get('SELECT * FROM inventory WHERE warehouse_id = 1 AND product_id = ?', [prodB.id]);
 
-    const packed = orderService.transitionOrderStatus(draftOrderId, 'PACKED', { notes: 'Carton sealed and labeled' }, cashierUser);
-    assert.strictEqual(packed.status, 'PACKED');
-});
+            assert.strictEqual(Number(invAAfter.quantity_reserved), Number(invABefore.quantity_reserved) + 3, 'Prod A: 3 units reserved');
+            assert.strictEqual(Number(invAAfter.quantity_available), Number(invABefore.quantity_available) - 3, 'Prod A: Available decremented by 3');
 
-// Test 5: Edit Rejection after Fulfillment
-runTest('5. Fulfillment Lock: Editing rejected once order is in PACKED or beyond', () => {
-    assert.throws(() => {
-        orderService.editOrder(draftOrderId, { delivery_fee: 100 }, cashierUser);
-    }, (err) => {
-        return err.code === 'ORDER_LOCKED_FOR_EDITING';
-    }, 'Editing order after fulfillment must throw ORDER_LOCKED_FOR_EDITING');
-});
+            assert.strictEqual(Number(invBAfter.quantity_reserved), Number(invBBefore.quantity_reserved) + 4, 'Prod B: 4 units reserved');
+            assert.strictEqual(Number(invBAfter.quantity_available), Number(invBBefore.quantity_available) - 4, 'Prod B: Available decremented by 4');
+        });
 
-// Test 6: CRITICAL INVARIANT GUARD: READY_FOR_DISPATCH requires allocated inventory
-runTest('6. Critical Invariant Guard: READY_FOR_DISPATCH rejected if unallocated inventory', () => {
-    // Create an unallocated order with demand (99,999) exceeding available stock
-    const shortOrder = orderService.createOrder({
-        branch_id: 1,
-        customer_id: testCustomer.id,
-        initial_status: 'DRAFT',
-        items: [{ product_id: prodB.id, quantity: 99999 }]
-    }, cashierUser);
+        // Test 4: Progression CONFIRMED -> PAID -> PROCESSING -> PACKED
+        await runTest('4. Order Progression: Progress through PAID, PROCESSING, and PACKED', async () => {
+            const paid = await orderService.transitionOrderStatus(draftOrderId, 'PAID', { notes: 'M-Pesa payment confirmed' }, cashierUser);
+            assert.strictEqual(paid.status, 'PAID');
 
-    // Bypass to PACKED via super admin
-    db.prepare("UPDATE orders SET status = 'PACKED', inventory_allocated = 0 WHERE id = ?").run(shortOrder.id);
+            const processing = await orderService.transitionOrderStatus(draftOrderId, 'PROCESSING', { notes: 'Warehouse pick list printed' }, cashierUser);
+            assert.strictEqual(processing.status, 'PROCESSING');
 
-    // Attempt transition to READY_FOR_DISPATCH
-    assert.throws(() => {
-        orderService.transitionOrderStatus(shortOrder.id, 'READY_FOR_DISPATCH', {}, adminUser);
-    }, (err) => {
-        return err.code === 'INVENTORY_NOT_ALLOCATED';
-    }, 'Must reject transition to READY_FOR_DISPATCH when inventory cannot be allocated');
+            const packed = await orderService.transitionOrderStatus(draftOrderId, 'PACKED', { notes: 'Carton sealed and labeled' }, cashierUser);
+            assert.strictEqual(packed.status, 'PACKED');
+        });
 
-    // Verify our legitimate order progresses to READY_FOR_DISPATCH
-    const ready = orderService.transitionOrderStatus(draftOrderId, 'READY_FOR_DISPATCH', {
-        notes: 'Staged at dispatch loading bay 2'
-    }, cashierUser);
+        // Test 5: Edit Rejection after Fulfillment
+        await runTest('5. Fulfillment Lock: Editing rejected once order is in PACKED or beyond', async () => {
+            await assert.rejects(async () => {
+                await orderService.editOrder(draftOrderId, { delivery_fee: 100 }, cashierUser);
+            }, (err) => {
+                return err.code === 'ORDER_LOCKED_FOR_EDITING';
+            }, 'Editing order after fulfillment must throw ORDER_LOCKED_FOR_EDITING');
+        });
 
-    assert.strictEqual(ready.status, 'READY_FOR_DISPATCH');
-});
+        // Test 6: CRITICAL INVARIANT GUARD: READY_FOR_DISPATCH requires allocated inventory
+        await runTest('6. Critical Invariant Guard: READY_FOR_DISPATCH rejected if unallocated inventory', async () => {
+            // Create an unallocated order with demand (99,999) exceeding available stock
+            const shortOrder = await orderService.createOrder({
+                branch_id: 1,
+                customer_id: testCustomer.id,
+                initial_status: 'DRAFT',
+                items: [{ product_id: prodB.id, quantity: 99999 }]
+            }, cashierUser);
+            createdOrderIds.push(shortOrder.id);
 
-// Test 7: Dispatch & Physical Stock Deduction
-runTest('7. Dispatch Execution: DISPATCHED decrements ON_HAND and shifts to IN_TRANSIT', () => {
-    const invABefore = db.prepare('SELECT * FROM inventory WHERE warehouse_id = 1 AND product_id = ?').get(prodA.id);
+            // Bypass to PACKED via direct update
+            await dbAdapter.run("UPDATE orders SET status = 'PACKED', inventory_allocated = 0 WHERE id = ?", [shortOrder.id]);
 
-    const dispatched = orderService.transitionOrderStatus(draftOrderId, 'DISPATCHED', {
-        notes: 'Driver Joseph Kiprop scanned package out'
-    }, cashierUser);
+            // Attempt transition to READY_FOR_DISPATCH
+            await assert.rejects(async () => {
+                await orderService.transitionOrderStatus(shortOrder.id, 'READY_FOR_DISPATCH', {}, adminUser);
+            }, (err) => {
+                return err.code === 'INVENTORY_NOT_ALLOCATED';
+            }, 'Must reject transition to READY_FOR_DISPATCH when inventory cannot be allocated');
 
-    assert.strictEqual(dispatched.status, 'DISPATCHED');
+            // Verify our legitimate order progresses to READY_FOR_DISPATCH
+            const ready = await orderService.transitionOrderStatus(draftOrderId, 'READY_FOR_DISPATCH', {
+                notes: 'Staged at dispatch loading bay 2'
+            }, cashierUser);
 
-    // Verify physical ON_HAND was decremented by 3 and RESERVED decremented by 3
-    const invAAfter = db.prepare('SELECT * FROM inventory WHERE warehouse_id = 1 AND product_id = ?').get(prodA.id);
-    assert.strictEqual(invAAfter.quantity_on_hand, invABefore.quantity_on_hand - 3, 'ON_HAND must decrement upon dispatch');
-    assert.strictEqual(invAAfter.quantity_reserved, invABefore.quantity_reserved - 3, 'RESERVED must decrement upon dispatch');
-});
+            assert.strictEqual(ready.status, 'READY_FOR_DISPATCH');
+        });
 
-// Test 8: In Transit & Delivered Lifecycle
-runTest('8. Delivery Completion: IN_TRANSIT to DELIVERED with POD timestamp', () => {
-    const inTransit = orderService.transitionOrderStatus(draftOrderId, 'IN_TRANSIT', { notes: 'Van in transit to Westlands' }, cashierUser);
-    assert.strictEqual(inTransit.status, 'IN_TRANSIT');
+        // Test 7: Dispatch & Physical Stock Deduction
+        await runTest('7. Dispatch Execution: DISPATCHED decrements ON_HAND and shifts to IN_TRANSIT', async () => {
+            const invABefore = await dbAdapter.get('SELECT * FROM inventory WHERE warehouse_id = 1 AND product_id = ?', [prodA.id]);
 
-    const delivered = orderService.transitionOrderStatus(draftOrderId, 'DELIVERED', { notes: 'Recipient signed POD' }, cashierUser);
-    assert.strictEqual(delivered.status, 'DELIVERED');
-    assert.ok(delivered.delivered_at, 'delivered_at timestamp must be recorded');
-});
+            const dispatched = await orderService.transitionOrderStatus(draftOrderId, 'DISPATCHED', {
+                notes: 'Driver Joseph Kiprop scanned package out'
+            }, cashierUser);
 
-// Test 9: Cancellation & Automatic Inventory Release
-runTest('9. Order Cancellation: Cancelling CONFIRMED order automatically releases reserved stock', () => {
-    resetInventory(prodA.id, 40);
-    const invABefore = db.prepare('SELECT * FROM inventory WHERE warehouse_id = 1 AND product_id = ?').get(prodA.id);
+            assert.strictEqual(dispatched.status, 'DISPATCHED');
 
-    const cancelTarget = orderService.createOrder({
-        branch_id: 1,
-        customer_id: testCustomer.id,
-        initial_status: 'CONFIRMED',
-        items: [{ product_id: prodA.id, quantity: 10 }]
-    }, cashierUser);
+            // Verify physical ON_HAND was decremented by 3 and RESERVED decremented by 3
+            const invAAfter = await dbAdapter.get('SELECT * FROM inventory WHERE warehouse_id = 1 AND product_id = ?', [prodA.id]);
+            assert.strictEqual(Number(invAAfter.quantity_on_hand), Number(invABefore.quantity_on_hand) - 3, 'ON_HAND must decrement upon dispatch');
+            assert.strictEqual(Number(invAAfter.quantity_reserved), Number(invABefore.quantity_reserved) - 3, 'RESERVED must decrement upon dispatch');
+        });
 
-    const invAMid = db.prepare('SELECT * FROM inventory WHERE warehouse_id = 1 AND product_id = ?').get(prodA.id);
-    assert.strictEqual(invAMid.quantity_reserved, invABefore.quantity_reserved + 10, '10 units reserved on CONFIRMED');
-    assert.strictEqual(invAMid.quantity_available, invABefore.quantity_available - 10);
+        // Test 8: In Transit & Delivered Lifecycle
+        await runTest('8. Delivery Completion: IN_TRANSIT to DELIVERED with POD timestamp', async () => {
+            const inTransit = await orderService.transitionOrderStatus(draftOrderId, 'IN_TRANSIT', { notes: 'Van in transit to Westlands' }, cashierUser);
+            assert.strictEqual(inTransit.status, 'IN_TRANSIT');
 
-    // Cancel order
-    const cancelled = orderService.transitionOrderStatus(cancelTarget.id, 'CANCELLED', {
-        reason: 'Customer requested cancellation prior to packing'
-    }, cashierUser);
+            const delivered = await orderService.transitionOrderStatus(draftOrderId, 'DELIVERED', { notes: 'Recipient signed POD' }, cashierUser);
+            assert.strictEqual(delivered.status, 'DELIVERED');
+            assert.ok(delivered.delivered_at, 'delivered_at timestamp must be recorded');
+        });
 
-    assert.strictEqual(cancelled.status, 'CANCELLED');
-    assert.strictEqual(cancelled.inventory_allocated, 0, 'inventory_allocated reset to 0');
-    assert.ok(cancelled.cancelled_at, 'cancelled_at recorded');
+        // Test 9: Cancellation & Automatic Inventory Release
+        await runTest('9. Order Cancellation: Cancelling CONFIRMED order automatically releases reserved stock', async () => {
+            await resetInventory(prodA.id, 40);
+            const invABefore = await dbAdapter.get('SELECT * FROM inventory WHERE warehouse_id = 1 AND product_id = ?', [prodA.id]);
 
-    // Verify reserved inventory was released back to AVAILABLE
-    const invAFinal = db.prepare('SELECT * FROM inventory WHERE warehouse_id = 1 AND product_id = ?').get(prodA.id);
-    assert.strictEqual(invAFinal.quantity_reserved, invABefore.quantity_reserved, 'Reserved restored');
-    assert.strictEqual(invAFinal.quantity_available, invABefore.quantity_available, 'Available restored');
-});
+            const cancelTarget = await orderService.createOrder({
+                branch_id: 1,
+                customer_id: testCustomer.id,
+                initial_status: 'CONFIRMED',
+                items: [{ product_id: prodA.id, quantity: 10 }]
+            }, cashierUser);
+            createdOrderIds.push(cancelTarget.id);
 
-// Test 10: Status History, Timeline, Internal Notes, Invoice & CSV Export
-runTest('10. Audit, Invoice & Export: Timeline integrity, staff notes, tax invoice & CSV', () => {
-    // Add internal note
-    orderService.addInternalNote(draftOrderId, 'Customer requested morning delivery before 11am', cashierUser);
+            const invAMid = await dbAdapter.get('SELECT * FROM inventory WHERE warehouse_id = 1 AND product_id = ?', [prodA.id]);
+            assert.strictEqual(Number(invAMid.quantity_reserved), Number(invABefore.quantity_reserved) + 10, '10 units reserved on CONFIRMED');
+            assert.strictEqual(Number(invAMid.quantity_available), Number(invABefore.quantity_available) - 10);
 
-    const order = orderService.getOrderById(draftOrderId, cashierUser);
-    assert.ok(order.timeline.length >= 6, 'Timeline must track every transition');
-    assert.strictEqual(order.internal_notes_list.length, 1, 'Internal note recorded');
-    assert.strictEqual(order.internal_notes_list[0].note, 'Customer requested morning delivery before 11am');
+            // Cancel order
+            const cancelled = await orderService.transitionOrderStatus(cancelTarget.id, 'CANCELLED', {
+                reason: 'Customer requested cancellation prior to packing'
+            }, cashierUser);
 
-    // Generate Invoice Data
-    const invoice = orderService.generateInvoiceData(draftOrderId, cashierUser);
-    assert.strictEqual(invoice.invoice_number, `INV-${order.order_number}`);
-    assert.strictEqual(invoice.delivery_fee, 450);
-    assert.ok(invoice.tax_amount > 0, 'KRA VAT must be calculated');
-    assert.ok(invoice.etr_compliance.fiscal_code, 'ETR fiscal code generated');
+            assert.strictEqual(cancelled.status, 'CANCELLED');
+            assert.strictEqual(Number(cancelled.inventory_allocated || 0), 0, 'inventory_allocated reset to 0');
+            assert.ok(cancelled.cancelled_at, 'cancelled_at recorded');
 
-    // CSV Export
-    const csv = orderService.exportOrdersToCsv({ limit: 10 }, cashierUser);
-    assert.ok(csv.includes('Order Number,Date,Branch'), 'CSV header present');
-    assert.ok(csv.includes(order.order_number), 'Export contains order number');
-});
+            // Verify reserved inventory was released back to AVAILABLE
+            const invAFinal = await dbAdapter.get('SELECT * FROM inventory WHERE warehouse_id = 1 AND product_id = ?', [prodA.id]);
+            assert.strictEqual(Number(invAFinal.quantity_reserved), Number(invABefore.quantity_reserved), 'Reserved restored');
+            assert.strictEqual(Number(invAFinal.quantity_available), Number(invABefore.quantity_available), 'Available restored');
+        });
 
-console.log('\n============================================================');
-console.log(`  ORDERS ENGINE SUITE RESULTS: ${passedTests}/${totalTests} TESTS PASSED`);
-console.log('============================================================\n');
+        // Test 10: Status History, Timeline, Internal Notes, Invoice & CSV Export
+        await runTest('10. Audit, Invoice & Export: Timeline integrity, staff notes, tax invoice & CSV', async () => {
+            // Add internal note
+            await orderService.addInternalNote(draftOrderId, 'Customer requested morning delivery before 11am', cashierUser);
 
-if (passedTests !== totalTests) {
-    process.exit(1);
-}
+            const order = await orderService.getOrderById(draftOrderId, cashierUser);
+            assert.ok(order.timeline.length >= 6, 'Timeline must track every transition');
+            assert.strictEqual(order.internal_notes_list.length, 1, 'Internal note recorded');
+            assert.strictEqual(order.internal_notes_list[0].note, 'Customer requested morning delivery before 11am');
+
+            // Generate Invoice Data
+            const invoice = await orderService.generateInvoiceData(draftOrderId, cashierUser);
+            assert.strictEqual(invoice.invoice_number, `INV-${order.order_number}`);
+            assert.strictEqual(Number(invoice.delivery_fee), 450);
+            assert.ok(Number(invoice.tax_amount) > 0, 'KRA VAT must be calculated');
+            assert.ok(invoice.etr_compliance.fiscal_code, 'ETR fiscal code generated');
+
+            // CSV Export
+            const csv = await orderService.exportOrdersToCsv({ limit: 10 }, cashierUser);
+            assert.ok(csv.includes('Order Number,Date,Branch'), 'CSV header present');
+            assert.ok(csv.includes(order.order_number), 'Export contains order number');
+        });
+
+    } finally {
+        console.log('\n============================================================');
+        console.log(`  ORDERS ENGINE SUITE RESULTS: ${passedTests}/${totalTests} TESTS PASSED`);
+        console.log('============================================================\n');
+
+        // Cleanup
+        try {
+            for (const ordId of createdOrderIds) {
+                await dbAdapter.run('DELETE FROM order_internal_notes WHERE order_id = ?', [ordId]);
+                await dbAdapter.run('DELETE FROM order_status_history WHERE order_id = ?', [ordId]);
+                await dbAdapter.run('DELETE FROM deliveries WHERE order_id = ?', [ordId]);
+                await dbAdapter.run('DELETE FROM order_items WHERE order_id = ?', [ordId]);
+                await dbAdapter.run('DELETE FROM orders WHERE id = ?', [ordId]);
+            }
+        } catch (cleanupErr) {
+            console.warn('Orders test cleanup notice:', cleanupErr.message);
+        }
+
+        if (passedTests !== totalTests) {
+            process.exit(1);
+        } else {
+            process.exit(0);
+        }
+    }
+})();

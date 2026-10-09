@@ -126,7 +126,10 @@ async function run(text, params = [], client = null) {
     const res = await query(text, params, client);
     return {
         rowCount: res.rowCount,
-        insertId: res.insertId
+        changes: res.rowCount,
+        insertId: res.insertId,
+        id: res.insertId,
+        lastInsertRowid: res.insertId
     };
 }
 

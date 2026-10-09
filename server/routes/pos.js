@@ -358,7 +358,8 @@ router.post('/checkout', authenticateToken, authorize('pos', 'create'), async (r
                     WHERE warehouse_id = ? AND product_id = ? AND quantity_available >= ?
                 `, [item.quantity, item.quantity, warehouseId, item.product.id, item.quantity]);
 
-                if (dedRes.changes === 0) {
+                const affectedRows = dedRes.changes !== undefined ? dedRes.changes : dedRes.rowCount;
+                if (affectedRows === 0) {
                     const conflictErr = new Error(`Insufficient stock for '${item.product.name}'. Available: ${prevAvail}, Requested: ${item.quantity}.`);
                     conflictErr.statusCode = 409;
                     conflictErr.code = 'STOCK_CONFLICT';

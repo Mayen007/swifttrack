@@ -363,7 +363,7 @@ async function createDriver(data, creatorUserId = null) {
             license_classes,
             license_issue_date || null,
             license_expiry_date || null,
-            ntsa_verified ? true : false,
+            ntsa_verified ? 1 : 0,
             ntsa_verified ? (data.ntsa_verification_date || new Date().toISOString().split('T')[0]) : null,
             chosenVehicleId || null,
             notes || null
@@ -427,7 +427,7 @@ async function updateDriver(id, data, updaterUserId = null) {
     const license_classes = data.license_classes !== undefined ? data.license_classes : existing.license_classes;
     const license_issue_date = data.license_issue_date !== undefined ? data.license_issue_date : existing.license_issue_date;
     const license_expiry_date = data.license_expiry_date !== undefined ? data.license_expiry_date : existing.license_expiry_date;
-    const ntsa_verified = data.ntsa_verified !== undefined ? (data.ntsa_verified ? true : false) : existing.ntsa_verified;
+    const ntsa_verified = data.ntsa_verified !== undefined ? (data.ntsa_verified ? 1 : 0) : existing.ntsa_verified;
     const ntsa_verification_date = data.ntsa_verification_date !== undefined ? data.ntsa_verification_date : existing.ntsa_verification_date;
     const rating = data.rating !== undefined ? Number(data.rating) : existing.rating;
     const notes = data.notes !== undefined ? data.notes : existing.notes;
@@ -471,8 +471,15 @@ async function updateDriver(id, data, updaterUserId = null) {
             id
         ]);
 
-        if (data.full_name) {
-            await tx.run('UPDATE users SET full_name = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?', [data.full_name, existing.user_id]);
+        if (data.full_name || data.phone || data.email) {
+            await tx.run(`
+                UPDATE users 
+                SET full_name = COALESCE(?, full_name),
+                    phone = COALESCE(?, phone),
+                    email = COALESCE(?, email),
+                    updated_at = CURRENT_TIMESTAMP 
+                WHERE id = ?
+            `, [data.full_name || null, data.phone || null, data.email || null, existing.user_id]);
         }
 
         logAuditEvent({
