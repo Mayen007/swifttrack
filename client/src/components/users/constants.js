@@ -29,13 +29,13 @@ export const RBAC_CAPABILITY_MATRIX = [
     ],
   },
   {
-    category: 'Retail POS & Sales',
+    category: 'Parcel Intake & Counter Operations',
     capabilities: [
-      { name: 'POS Terminal Cashier Checkout', code: 'pos:sale:create', roles: ['SUPER_ADMIN', 'BRANCH_MANAGER', 'CASHIER'] },
+      { name: 'Parcel Counter Intake & Waybill Booking', code: 'pos:sale:create', roles: ['SUPER_ADMIN', 'BRANCH_MANAGER', 'CASHIER'] },
       { name: 'Daraja M-Pesa STK Push / Card / Cash Processing', code: 'pos:payment:process', roles: ['SUPER_ADMIN', 'BRANCH_MANAGER', 'CASHIER'] },
-      { name: 'Customer Return & Refund Request', code: 'refund:request', roles: ['SUPER_ADMIN', 'BRANCH_MANAGER', 'CASHIER'] },
-      { name: 'Dual-Control Refund Approval & Restock', code: 'refund:approve', roles: ['SUPER_ADMIN', 'BRANCH_MANAGER'] },
-      { name: 'Managerial Discount Override (>10%)', code: 'discount:approve', roles: ['SUPER_ADMIN', 'BRANCH_MANAGER'] },
+      { name: 'Waybill Cancellation & Fee Refund Request', code: 'refund:request', roles: ['SUPER_ADMIN', 'BRANCH_MANAGER', 'CASHIER'] },
+      { name: 'Dual-Control Refund Approval Authorization', code: 'refund:approve', roles: ['SUPER_ADMIN', 'BRANCH_MANAGER'] },
+      { name: 'Freight Tariff Discount Override (>10%)', code: 'discount:approve', roles: ['SUPER_ADMIN', 'BRANCH_MANAGER'] },
     ],
   },
   {

@@ -265,7 +265,7 @@ export function ProductCreateModal({
             </div>
 
             <div>
-              <label className="block text-[11px] font-mono text-slate-400 mb-1">Selling Retail Price (KES) *</label>
+              <label className="block text-[11px] font-mono text-slate-400 mb-1">Selling / Unit Price (KES) *</label>
               <input
                 type="number"
                 step="0.01"

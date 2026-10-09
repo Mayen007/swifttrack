@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext.jsx';
-import { CartProvider } from './context/CartContext.jsx';
 import { ThemeProvider } from './context/ThemeContext.jsx';
 import { Navbar } from './components/Navbar.jsx';
 import { Sidebar } from './components/Sidebar.jsx';
@@ -430,9 +429,7 @@ export default function App() {
   return (
     <ThemeProvider>
       <AuthProvider>
-        <CartProvider>
-          <MainApp />
-        </CartProvider>
+        <MainApp />
       </AuthProvider>
     </ThemeProvider>
   );

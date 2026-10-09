@@ -67,7 +67,7 @@ class SoundSynthesizer {
       const gain = ctx.createGain();
 
       osc.type = 'sine';
-      osc.frequency.setValueAtTime(1760, ctx.currentTime); // High pitch retail scanner beep
+      osc.frequency.setValueAtTime(1760, ctx.currentTime); // Waybill barcode scanner chime
       gain.gain.setValueAtTime(0.12, ctx.currentTime);
       gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.08);
 

@@ -260,13 +260,13 @@ export function ReportsView() {
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div className="bg-slate-50 dark:bg-[#0c0e12] border border-slate-200 dark:border-[#2a3447] rounded p-4 space-y-1">
                 <span className="text-[10px] font-mono text-slate-600 dark:text-slate-400 uppercase tracking-wider block font-semibold">
-                  1. Gross Retail Turnover (VAT Inclusive)
+                  1. Gross Logistics & Counter Turnover (VAT Inclusive)
                 </span>
                 <span className="text-xl font-mono font-black text-slate-900 dark:text-slate-100 tabular-nums block">
                   {api.formatKES(grossTurnover)}
                 </span>
                 <span className="text-[10px] text-slate-500 dark:text-slate-400 font-mono block mt-1">
-                  Settled across POS registers and courier dispatches
+                  Settled across station counters and courier dispatches
                 </span>
               </div>
 

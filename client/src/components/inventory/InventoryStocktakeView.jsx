@@ -3,6 +3,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { ClipboardCheck, CheckCircle, RefreshCw, AlertCircle, Save, ArrowLeft } from 'lucide-react';
 import { api } from '../../services/api.js';
 import { sound } from '../../services/sound.js';
+import { ConfirmModal } from '../common/ConfirmModal.jsx';
 
 export function InventoryStocktakeView({ branchId, onNewSession }) {
   const [sessions, setSessions] = useState([]);
@@ -10,6 +11,7 @@ export function InventoryStocktakeView({ branchId, onNewSession }) {
   const [counts, setCounts] = useState({});
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
+  const [confirmReconcileOpen, setConfirmReconcileOpen] = useState(false);
 
   const fetchSessions = useCallback(async () => {
     try {
@@ -64,10 +66,13 @@ export function InventoryStocktakeView({ branchId, onNewSession }) {
     }
   };
 
-  const handleReconcile = async () => {
+  const handleReconcile = () => {
     if (!selectedSession) return;
-    if (!window.confirm('Are you sure you want to reconcile this stocktake? All variance adjustments will immediately adjust system inventory.')) return;
+    setConfirmReconcileOpen(true);
+  };
 
+  const executeReconcile = async () => {
+    if (!selectedSession) return;
     try {
       setActionLoading(true);
       await api.post(`/api/v1/inventory/stocktakes/${selectedSession.id}/reconcile`, {});
@@ -80,6 +85,7 @@ export function InventoryStocktakeView({ branchId, onNewSession }) {
       api.toast('Reconciliation failed: ' + e.message, 'error');
     } finally {
       setActionLoading(false);
+      setConfirmReconcileOpen(false);
     }
   };
 
@@ -186,6 +192,15 @@ export function InventoryStocktakeView({ branchId, onNewSession }) {
             </tbody>
           </table>
         </div>
+
+        <ConfirmModal
+          isOpen={confirmReconcileOpen}
+          title="Reconcile Physical Stocktake"
+          message={`Are you sure you want to reconcile "${selectedSession?.title}" (${selectedSession?.stocktake_number})? All recorded variances will immediately post inventory adjustments to the system ledger.`}
+          confirmText="Approve & Synchronize"
+          onConfirm={executeReconcile}
+          onClose={() => setConfirmReconcileOpen(false)}
+        />
       </div>
     );
   }

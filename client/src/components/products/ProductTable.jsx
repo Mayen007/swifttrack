@@ -44,7 +44,7 @@ export function ProductTable({
               <th className="py-2.5 px-3 min-w-[200px]">Product Name & Brand</th>
               <th className="py-2.5 px-3 whitespace-nowrap">Unit</th>
               <th className="py-2.5 px-3 text-right whitespace-nowrap">Cost Price</th>
-              <th className="py-2.5 px-3 text-right whitespace-nowrap">Retail Price</th>
+              <th className="py-2.5 px-3 text-right whitespace-nowrap">Standard Price</th>
               <th className="py-2.5 px-3 text-right whitespace-nowrap">Wholesale Price</th>
               <th className="py-2.5 px-3 text-center whitespace-nowrap">Tax / VAT</th>
               <th className="py-2.5 px-3 text-center whitespace-nowrap">Variants</th>

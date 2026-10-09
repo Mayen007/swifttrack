@@ -26,6 +26,7 @@ import {
   ChevronLeft,
   MessageSquare,
   Layers,
+  PackagePlus,
 } from 'lucide-react';
 
 export function Sidebar({
@@ -69,7 +70,7 @@ export function Sidebar({
         {
           id: 'pos',
           label: 'Parcel Intake & Waybills',
-          icon: ShoppingCart,
+          icon: PackagePlus,
           roles: ['CASHIER', 'SUPER_ADMIN', 'BRANCH_MANAGER'],
         },
       ],

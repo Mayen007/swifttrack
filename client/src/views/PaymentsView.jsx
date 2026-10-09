@@ -13,6 +13,7 @@ import { InitiatePaymentModal } from '../components/payments/InitiatePaymentModa
 import { PaymentDetailModal } from '../components/payments/PaymentDetailModal.jsx';
 import { PaymentReconciliationModal } from '../components/payments/PaymentReconciliationModal.jsx';
 import { PaymentRefundModal } from '../components/payments/PaymentRefundModal.jsx';
+import { PromptModal } from '../components/common/PromptModal.jsx';
 
 export { PAYMENT_STATUS_STEPS, ALTERNATIVE_PAYMENT_STATES };
 
@@ -53,6 +54,9 @@ export function PaymentsView() {
   const [refundAmount, setRefundAmount] = useState('');
   const [refundReason, setRefundReason] = useState('');
   const [refunding, setRefunding] = useState(false);
+
+  const [cancelModalOpen, setCancelModalOpen] = useState(false);
+  const [intentToCancel, setIntentToCancel] = useState(null);
 
   const [customersList, setCustomersList] = useState([]);
   const searchInputRef = useRef(null);
@@ -206,17 +210,24 @@ export function PaymentsView() {
     }
   };
 
-  const handleCancelIntent = async (intentId) => {
+  const handleCancelIntent = (intentId) => {
+    setIntentToCancel(intentId);
+    setCancelModalOpen(true);
+  };
+
+  const handleConfirmCancelIntent = async (reason) => {
+    if (!intentToCancel) return;
     try {
-      const reason = window.prompt('Reason for cancelling payment intent:', 'Cancelled by staff');
-      if (!reason) return;
-      const res = await api.post(`/api/payments/intents/${intentId}/cancel`, { reason });
+      const res = await api.post(`/api/payments/intents/${intentToCancel}/cancel`, { reason });
       sound.playSuccess();
       api.toast('Payment intent cancelled', 'success');
       setSelectedIntent(res.intent);
       fetchIntents();
     } catch (err) {
       api.toast(`Failed to cancel intent: ${err.message}`, 'error');
+    } finally {
+      setIntentToCancel(null);
+      setCancelModalOpen(false);
     }
   };
 
@@ -389,6 +400,29 @@ export function PaymentsView() {
         refunding={refunding}
         onClose={() => setRefundModalOpen(false)}
         onSubmit={handleExecuteRefund}
+      />
+
+      <PromptModal
+        isOpen={cancelModalOpen}
+        title="Cancel Payment Intent"
+        message="Please provide an operational reason or audit justification for cancelling this payment intent."
+        inputLabel="Cancellation Reason"
+        placeholder="e.g. Abandoned by customer, duplicate entry, wrong amount"
+        defaultValue="Cancelled by staff"
+        presets={[
+          'Cancelled by staff',
+          'Customer requested cancellation',
+          'Duplicate intent created',
+          'Incorrect amount entered',
+          'STK push timed out / abandoned',
+        ]}
+        confirmText="Cancel Intent"
+        isDestructive={true}
+        onConfirm={handleConfirmCancelIntent}
+        onClose={() => {
+          setCancelModalOpen(false);
+          setIntentToCancel(null);
+        }}
       />
     </div>
   );

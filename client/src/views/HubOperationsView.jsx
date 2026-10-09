@@ -13,6 +13,7 @@ import { CrossBorderCustomsTab } from '../components/hub/CrossBorderCustomsTab.j
 import { TransshipmentTab } from '../components/hub/TransshipmentTab.jsx';
 import { ResolveDiscrepancyModal } from '../components/hub/ResolveDiscrepancyModal.jsx';
 import { CustomsActionModal } from '../components/hub/CustomsActionModal.jsx';
+import { RecordHandoffModal } from '../components/hub/RecordHandoffModal.jsx';
 
 export function HubOperationsView() {
   const { selectedBranch } = useAuth();
@@ -58,7 +59,8 @@ export function HubOperationsView() {
   const [sortedItem, setSortedItem] = useState(null);
 
   // Handoffs State
-  const [handoffs] = useState([]);
+  const [handoffs, setHandoffs] = useState([]);
+  const [showRecordHandoffModal, setShowRecordHandoffModal] = useState(false);
 
   // Filter States
   const [manifestStatusFilter, setManifestStatusFilter] = useState('ALL');
@@ -70,18 +72,20 @@ export function HubOperationsView() {
   const fetchHubData = async () => {
     setLoading(true);
     try {
-      const [mRes, dRes, cbRes, awRes, scansRes] = await Promise.all([
+      const [mRes, dRes, cbRes, awRes, scansRes, hRes] = await Promise.all([
         api.get('/api/transport/manifests').catch(() => []),
         api.get('/api/custody/discrepancies').catch(() => []),
         api.get('/api/transport/cross-border/legs').catch(() => []),
         api.get(`/api/shipments/awaiting-manifest/${currentHubId}`).catch(() => []),
-        api.get(`/api/custody/scans?hub_id=${currentHubId}&limit=20`).catch(() => null)
+        api.get(`/api/custody/scans?hub_id=${currentHubId}&limit=20`).catch(() => null),
+        api.get('/api/custody/handoffs').catch(() => [])
       ]);
 
       setManifests(Array.isArray(mRes) ? mRes : mRes?.data || []);
       setDiscrepancies(Array.isArray(dRes) ? dRes : dRes?.data || []);
       setCrossBorderLegs(Array.isArray(cbRes) ? cbRes : cbRes?.data || []);
       setAwaitingShipments(Array.isArray(awRes) ? awRes : awRes?.data || []);
+      setHandoffs(Array.isArray(hRes?.items) ? hRes.items : (Array.isArray(hRes) ? hRes : []));
 
       if (scansRes?.scan_events && Array.isArray(scansRes.scan_events) && scansRes.scan_events.length > 0) {
         const formatted = scansRes.scan_events.map((s) => ({
@@ -355,7 +359,7 @@ export function HubOperationsView() {
           setHandoffTypeFilter={setHandoffTypeFilter}
           onRecordHandoff={() => {
             sound.playClick();
-            alert('Record Handoff dialog initialized');
+            setShowRecordHandoffModal(true);
           }}
         />
       )}
@@ -426,6 +430,14 @@ export function HubOperationsView() {
         customsSubmitting={customsSubmitting}
         onClose={() => setSelectedLegForCustoms(null)}
         onSubmit={handleExecuteCustoms}
+      />
+
+      <RecordHandoffModal
+        isOpen={showRecordHandoffModal}
+        onClose={() => setShowRecordHandoffModal(false)}
+        onSuccess={fetchHubData}
+        currentHubId={currentHubId}
+        currentUser={user}
       />
     </div>
   );

@@ -190,7 +190,7 @@ export function LoginView() {
     { label: 'Super Admin', username: 'superadmin', role: 'SUPER_ADMIN', branch: 'Global HQ', branchId: null, color: 'text-amber-400' },
     { label: 'Branch Manager', username: 'manager.nairobi', role: 'BRANCH_MANAGER', branch: 'Nairobi Hub', branchId: 1, color: 'text-blue-400' },
     { label: 'Dispatcher', username: 'dispatcher.nairobi', role: 'DISPATCHER', branch: 'Nairobi Logistics', branchId: 1, color: 'text-indigo-400' },
-    { label: 'POS Cashier', username: 'cashier.nairobi', role: 'CASHIER', branch: 'Nairobi Retail', branchId: 1, color: 'text-emerald-400' },
+    { label: 'Counter Cashier', username: 'cashier.nairobi', role: 'CASHIER', branch: 'Nairobi Station Hub', branchId: 1, color: 'text-emerald-400' },
     { label: 'Delivery Driver', username: 'driver.nairobi', role: 'DRIVER', branch: 'Nairobi Fleet', branchId: 1, color: 'text-sky-400' },
     { label: 'Mombasa Manager', username: 'manager.mombasa', role: 'BRANCH_MANAGER', branch: 'Coast Port', branchId: 2, color: 'text-cyan-400' },
   ];
@@ -406,7 +406,7 @@ export function LoginView() {
 
       <footer className="h-10 border-t border-[#181f2c] px-4 sm:px-8 flex items-center justify-between text-[10px] font-mono text-slate-400 bg-[#0c101b]">
         <span>© 2026 SwiftTrack Kenya Logistics Ltd</span>
-        <span className="hidden sm:inline">Enterprise Logistics & Retail Platform • 2FA Protected</span>
+        <span className="hidden sm:inline">Enterprise Logistics, Parcel & Courier Platform • 2FA Protected</span>
       </footer>
     </div>
   );

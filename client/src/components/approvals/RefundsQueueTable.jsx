@@ -64,7 +64,7 @@ export function RefundsQueueTable({
 
                   {/* Customer */}
                   <td className="p-3 text-slate-300 font-medium">
-                    {req.customer_name || 'Retail Walk-in'}
+                    {req.customer_name || 'Counter Walk-in'}
                   </td>
 
                   {/* Reason */}

@@ -3,6 +3,8 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '../../services/api.js';
 import { sound } from '../../services/sound.js';
+import { ConfirmModal } from '../common/ConfirmModal.jsx';
+import { PromptModal } from '../common/PromptModal.jsx';
 import {
   X,
   User,
@@ -50,6 +52,19 @@ export function CustomerDetailModal({ customerId, isOpen, onClose, onCustomerUpd
   const [noteText, setNoteText] = useState('');
   const [noteType, setNoteType] = useState('GENERAL');
   const [noteSubmitting, setNoteSubmitting] = useState(false);
+
+  // Custom confirmation dialog
+  const [confirmDialog, setConfirmDialog] = useState({
+    isOpen: false,
+    title: '',
+    message: '',
+    confirmText: 'Confirm',
+    isDestructive: false,
+    onConfirm: () => {}
+  });
+
+  const [statusPromptOpen, setStatusPromptOpen] = useState(false);
+  const [pendingStatus, setPendingStatus] = useState(null);
 
   // History states
   const [orders, setOrders] = useState([]);
@@ -108,14 +123,17 @@ export function CustomerDetailModal({ customerId, isOpen, onClose, onCustomerUpd
   if (!isOpen) return null;
 
   // Status transition handler
-  const handleStatusChange = async (newStatus) => {
+  const handleStatusChange = (newStatus) => {
     if (!customer || customer.status === newStatus) return;
-    let reason = '';
     if (newStatus === 'BLOCKED' || newStatus === 'SUSPENDED') {
-      reason = window.prompt(`Please provide an operational reason for setting customer to ${newStatus}:`);
-      if (reason === null) return; // User cancelled prompt
+      setPendingStatus(newStatus);
+      setStatusPromptOpen(true);
+      return;
     }
+    executeStatusChange(newStatus, 'Operational status change');
+  };
 
+  const executeStatusChange = async (newStatus, reason) => {
     try {
       setStatusChanging(true);
       const updated = await api.patch(`/api/customers/${customer.id}/status`, {
@@ -124,12 +142,15 @@ export function CustomerDetailModal({ customerId, isOpen, onClose, onCustomerUpd
       });
       setCustomer((prev) => ({ ...prev, ...updated }));
       sound.playSuccess();
+      api.toast(`Customer status updated to ${newStatus}`, 'success');
       if (onCustomerUpdated) onCustomerUpdated(updated);
     } catch (err) {
       sound.playError();
-      alert(err.message || 'Failed to update customer status');
+      api.toast(err.message || 'Failed to update customer status', 'error');
     } finally {
       setStatusChanging(false);
+      setStatusPromptOpen(false);
+      setPendingStatus(null);
     }
   };
 
@@ -137,7 +158,7 @@ export function CustomerDetailModal({ customerId, isOpen, onClose, onCustomerUpd
   const handleAddAddress = async (e) => {
     e.preventDefault();
     if (!addressForm.address_line.trim()) {
-      alert('Address line is required');
+      api.toast('Address line is required', 'error');
       return;
     }
 
@@ -145,6 +166,7 @@ export function CustomerDetailModal({ customerId, isOpen, onClose, onCustomerUpd
       setAddressSubmitting(true);
       await api.post(`/api/customers/${customer.id}/addresses`, addressForm);
       sound.playSuccess();
+      api.toast('Delivery address added successfully', 'success');
       setShowAddAddress(false);
       setAddressForm({
         address_label: '',
@@ -158,7 +180,7 @@ export function CustomerDetailModal({ customerId, isOpen, onClose, onCustomerUpd
       await fetchCustomerDetails();
     } catch (err) {
       sound.playError();
-      alert(err.message || 'Failed to add delivery address');
+      api.toast(err.message || 'Failed to add delivery address', 'error');
     } finally {
       setAddressSubmitting(false);
     }
@@ -169,24 +191,34 @@ export function CustomerDetailModal({ customerId, isOpen, onClose, onCustomerUpd
     try {
       await api.post(`/api/customers/${customer.id}/addresses/${addressId}/default`, {});
       sound.playSuccess();
+      api.toast('Default delivery address updated', 'success');
       await fetchCustomerDetails();
     } catch (err) {
       sound.playError();
-      alert(err.message || 'Failed to set default address');
+      api.toast(err.message || 'Failed to set default address', 'error');
     }
   };
 
   // Delete address
-  const handleDeleteAddress = async (addressId) => {
-    if (!window.confirm('Delete this delivery address?')) return;
-    try {
-      await api.delete(`/api/customers/${customer.id}/addresses/${addressId}`);
-      sound.playSuccess();
-      await fetchCustomerDetails();
-    } catch (err) {
-      sound.playError();
-      alert(err.message || 'Failed to delete address');
-    }
+  const handleDeleteAddress = (addressId) => {
+    setConfirmDialog({
+      isOpen: true,
+      title: 'Delete Delivery Address',
+      message: 'Are you sure you want to delete this delivery address? This action cannot be undone.',
+      confirmText: 'Delete Address',
+      isDestructive: true,
+      onConfirm: async () => {
+        try {
+          await api.delete(`/api/customers/${customer.id}/addresses/${addressId}`);
+          sound.playSuccess();
+          api.toast('Delivery address deleted', 'success');
+          await fetchCustomerDetails();
+        } catch (err) {
+          sound.playError();
+          api.toast(err.message || 'Failed to delete address', 'error');
+        }
+      }
+    });
   };
 
   // Add note handler
@@ -201,27 +233,37 @@ export function CustomerDetailModal({ customerId, isOpen, onClose, onCustomerUpd
         note_type: noteType
       });
       sound.playSuccess();
+      api.toast('Note recorded successfully', 'success');
       setNoteText('');
       await fetchCustomerDetails();
     } catch (err) {
       sound.playError();
-      alert(err.message || 'Failed to add note');
+      api.toast(err.message || 'Failed to add note', 'error');
     } finally {
       setNoteSubmitting(false);
     }
   };
 
   // Delete note handler
-  const handleDeleteNote = async (noteId) => {
-    if (!window.confirm('Delete this note?')) return;
-    try {
-      await api.delete(`/api/customers/${customer.id}/notes/${noteId}`);
-      sound.playSuccess();
-      await fetchCustomerDetails();
-    } catch (err) {
-      sound.playError();
-      alert(err.message || 'Failed to delete note');
-    }
+  const handleDeleteNote = (noteId) => {
+    setConfirmDialog({
+      isOpen: true,
+      title: 'Delete Customer Note',
+      message: 'Are you sure you want to remove this note from the customer record?',
+      confirmText: 'Delete Note',
+      isDestructive: true,
+      onConfirm: async () => {
+        try {
+          await api.delete(`/api/customers/${customer.id}/notes/${noteId}`);
+          sound.playSuccess();
+          api.toast('Customer note deleted', 'success');
+          await fetchCustomerDetails();
+        } catch (err) {
+          sound.playError();
+          api.toast(err.message || 'Failed to delete note', 'error');
+        }
+      }
+    });
   };
 
   const getStatusBadge = (status) => {
@@ -908,6 +950,37 @@ export function CustomerDetailModal({ customerId, isOpen, onClose, onCustomerUpd
           </>
         )}
       </div>
+
+      <ConfirmModal
+        {...confirmDialog}
+        onClose={() => setConfirmDialog((prev) => ({ ...prev, isOpen: false }))}
+      />
+
+      <PromptModal
+        isOpen={statusPromptOpen}
+        title={`Set Customer to ${pendingStatus}`}
+        message={`Please provide an operational reason or audit note for placing ${customer?.full_name || 'this customer'} on ${pendingStatus}.`}
+        inputLabel="Operational Reason"
+        placeholder="e.g. Unverified KYC, suspected fraud, delivery dispute, non-payment"
+        defaultValue=""
+        presets={pendingStatus === 'BLOCKED' ? [
+          'Fraudulent transactions / Chargeback risk',
+          'Repeated parcel delivery refusal',
+          'Violated terms of service',
+          'Legal hold / Investigation in progress'
+        ] : [
+          'High unpaid balance / Pending audit',
+          'Unverified KYC or physical address',
+          'Temporary account review requested by manager'
+        ]}
+        confirmText={`Set to ${pendingStatus}`}
+        isDestructive={true}
+        onConfirm={(reason) => executeStatusChange(pendingStatus, reason)}
+        onClose={() => {
+          setStatusPromptOpen(false);
+          setPendingStatus(null);
+        }}
+      />
     </div>
   );
 }

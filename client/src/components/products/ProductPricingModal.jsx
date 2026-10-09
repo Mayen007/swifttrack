@@ -219,7 +219,7 @@ export function ProductPricingModal({ isOpen, onClose, product, branches = [] })
                   </div>
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
                     <div>
-                      <span className="text-[10px] text-slate-500 block">BASE RETAIL</span>
+                      <span className="text-[10px] text-slate-500 block">BASE PRICE</span>
                       <span className="text-white font-bold">KES {Number(simQuote.basePrice).toFixed(2)}</span>
                     </div>
                     <div>

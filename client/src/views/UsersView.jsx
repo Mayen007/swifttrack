@@ -16,6 +16,7 @@ import { StaffInspectorDrawer } from '../components/users/StaffInspectorDrawer.j
 import { TempPasswordModal } from '../components/users/TempPasswordModal.jsx';
 import { LoginHistoryModal } from '../components/users/LoginHistoryModal.jsx';
 import { SecurityAuditDrawer } from '../components/users/SecurityAuditDrawer.jsx';
+import { ConfirmModal } from '../components/common/ConfirmModal.jsx';
 
 export function UsersView() {
   const { user, branches, isSuperAdmin, isBranchManager, quickSwitch, demoMode } = useAuth();
@@ -44,8 +45,17 @@ export function UsersView() {
   const [tempPasswordCopied, setTempPasswordCopied] = useState(false);
   const [isFailedLoginsDrawerOpen, setIsFailedLoginsDrawerOpen] = useState(false);
   const [failedLoginsList, setFailedLoginsList] = useState([]);
-  const [failedLoginsLoading, setFailedLoginsLoading] = useState(false);
   const [adminActionLoading, setAdminActionLoading] = useState(null);
+
+  // Custom confirmation dialog
+  const [confirmDialog, setConfirmDialog] = useState({
+    isOpen: false,
+    title: '',
+    message: '',
+    confirmText: 'Confirm',
+    isDestructive: false,
+    onConfirm: () => {}
+  });
 
   const [createFormData, setCreateFormData] = useState({
     full_name: '',
@@ -240,51 +250,63 @@ export function UsersView() {
     }
   };
 
-  const handleForceLogout = async (targetUser) => {
-    if (!window.confirm(`Force terminate all active sessions for @${targetUser.username}? The user will be immediately logged out across all devices.`)) {
-      return;
-    }
-    try {
-      setAdminActionLoading(targetUser.id);
-      await api.post(`/api/users/${targetUser.id}/force-logout`);
-      sound.playSuccess();
-      api.toast(`All active sessions for @${targetUser.username} terminated`, 'success');
-      await fetchUsersAndRoles();
-      if (inspectingUser && inspectingUser.id === targetUser.id) {
-        setInspectingUser(prev => prev ? { ...prev, token_version: (prev.token_version || 1) + 1 } : null);
+  const handleForceLogout = (targetUser) => {
+    setConfirmDialog({
+      isOpen: true,
+      title: 'Force Terminate Sessions',
+      message: `Force terminate all active sessions for @${targetUser.username}? The user will be immediately logged out across all devices.`,
+      confirmText: 'Force Logout',
+      isDestructive: true,
+      onConfirm: async () => {
+        try {
+          setAdminActionLoading(targetUser.id);
+          await api.post(`/api/users/${targetUser.id}/force-logout`);
+          sound.playSuccess();
+          api.toast(`All active sessions for @${targetUser.username} terminated`, 'success');
+          await fetchUsersAndRoles();
+          if (inspectingUser && inspectingUser.id === targetUser.id) {
+            setInspectingUser(prev => prev ? { ...prev, token_version: (prev.token_version || 1) + 1 } : null);
+          }
+        } catch (err) {
+          sound.playError();
+          api.toast(err.message || 'Failed to force logout user', 'error');
+        } finally {
+          setAdminActionLoading(null);
+        }
       }
-    } catch (err) {
-      sound.playError();
-      api.toast(err.message || 'Failed to force logout user', 'error');
-    } finally {
-      setAdminActionLoading(null);
-    }
+    });
   };
 
-  const handleAdminResetPassword = async (targetUser) => {
-    if (!window.confirm(`Reset password for @${targetUser.username}? A temporary password will be generated, and the operator will be forced to choose a new password on their next login.`)) {
-      return;
-    }
-    try {
-      setAdminActionLoading(targetUser.id);
-      const res = await api.post(`/api/users/${targetUser.id}/reset-password`, {});
-      sound.playSuccess();
-      setTempPasswordCopied(false);
-      setTempPasswordModal({
-        username: targetUser.username,
-        fullName: targetUser.full_name,
-        temporaryPassword: res.temporaryPassword,
-      });
-      await fetchUsersAndRoles();
-      if (inspectingUser && inspectingUser.id === targetUser.id) {
-        setInspectingUser(prev => prev ? { ...prev, must_change_password: 1, failed_login_attempts: 0, is_locked: 0 } : null);
+  const handleAdminResetPassword = (targetUser) => {
+    setConfirmDialog({
+      isOpen: true,
+      title: 'Reset User Password',
+      message: `Reset password for @${targetUser.username}? A temporary password will be generated, and the operator will be forced to choose a new password on their next login.`,
+      confirmText: 'Reset Password',
+      isDestructive: false,
+      onConfirm: async () => {
+        try {
+          setAdminActionLoading(targetUser.id);
+          const res = await api.post(`/api/users/${targetUser.id}/reset-password`, {});
+          sound.playSuccess();
+          setTempPasswordCopied(false);
+          setTempPasswordModal({
+            username: targetUser.username,
+            fullName: targetUser.full_name,
+            temporaryPassword: res.temporaryPassword,
+          });
+          await fetchUsersAndRoles();
+          if (inspectingUser && inspectingUser.id === targetUser.id) {
+            setInspectingUser(prev => prev ? { ...prev, must_change_password: 1, failed_login_attempts: 0, is_locked: 0 } : null);
+          }
+        } catch (err) {
+          sound.playError();
+          api.toast(err.message || 'Failed to reset password', 'error');
+        } finally {
+          setAdminActionLoading(null);
+        }
       }
-    } catch (err) {
-      sound.playError();
-      api.toast(err.message || 'Failed to reset password', 'error');
-    } finally {
-      setAdminActionLoading(null);
-    }
+    });
   };
 
   const handleUnlockAccount = async (targetUser) => {
@@ -509,6 +531,11 @@ export function UsersView() {
         onClose={() => setIsFailedLoginsDrawerOpen(false)}
         failedLoginsLoading={failedLoginsLoading}
         failedLoginsList={failedLoginsList}
+      />
+
+      <ConfirmModal
+        {...confirmDialog}
+        onClose={() => setConfirmDialog((prev) => ({ ...prev, isOpen: false }))}
       />
     </div>
   );

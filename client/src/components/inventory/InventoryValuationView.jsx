@@ -84,7 +84,7 @@ export function InventoryValuationView({ branchId, warehouseId }) {
         {/* Potential Retail Value & Gross Profit */}
         <div className="bg-[#12161f] border border-[#222834] rounded p-3 relative overflow-hidden">
           <div className="flex items-center justify-between text-slate-400 text-[10px] uppercase">
-            <span>Potential Retail Value</span>
+            <span>Potential Selling Value</span>
             <TrendingUp className="w-3.5 h-3.5 text-cyan-400" />
           </div>
           <div className="text-lg font-bold text-cyan-300 mt-1">
@@ -146,7 +146,7 @@ export function InventoryValuationView({ branchId, warehouseId }) {
                 <th className="py-2.5 px-3 text-right">Selling Price</th>
                 <th className="py-2.5 px-3 text-right">Available Qty</th>
                 <th className="py-2.5 px-3 text-right text-blue-400">Available Value</th>
-                <th className="py-2.5 px-3 text-right text-cyan-400">Retail Value</th>
+                <th className="py-2.5 px-3 text-right text-cyan-400">Selling Value</th>
                 <th className="py-2.5 px-3 text-right text-emerald-400">Gross Margin</th>
               </tr>
             </thead>

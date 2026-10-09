@@ -174,7 +174,7 @@ router.get(['/', '/docs'], (req, res) => {
         </header>
 
         <div class="hero">
-            <h2>Enterprise Multi-Branch Logistics & Retail POS Platform API</h2>
+            <h2>Enterprise Multi-Branch Logistics, Courier & Parcel Delivery Platform API</h2>
             <p>Authoritative REST interface supporting standard response envelopes, request correlation IDs, tiered rate limits, idempotency keys, and strict Kenyan fiscal VAT calculations.</p>
             <div class="meta-grid">
                 <div class="meta-card">

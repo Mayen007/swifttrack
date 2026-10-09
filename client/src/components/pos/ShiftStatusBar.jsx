@@ -95,15 +95,17 @@ export function ShiftStatusBar({
                 <span className="inline xs:hidden sm:inline md:hidden">MOVE</span>
               </button>
 
-              <button
-                onClick={() => onOpenExchange()}
-                className="flex-1 sm:flex-none px-2.5 py-1.5 rounded bg-[#161c28] hover:bg-[#202738] border border-[#222834] text-[11px] font-mono text-slate-200 hover:text-white flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
-                title="Product Exchange"
-              >
-                <ArrowRightLeft className="w-3.5 h-3.5 text-blue-400 shrink-0" />
-                <span className="hidden xs:inline sm:hidden md:inline">EXCHANGE</span>
-                <span className="inline xs:hidden sm:inline md:hidden">EXCH</span>
-              </button>
+              {onOpenExchange && (
+                <button
+                  onClick={() => onOpenExchange()}
+                  className="flex-1 sm:flex-none px-2.5 py-1.5 rounded bg-[#161c28] hover:bg-[#202738] border border-[#222834] text-[11px] font-mono text-slate-200 hover:text-white flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                  title="Product Exchange"
+                >
+                  <ArrowRightLeft className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+                  <span className="hidden xs:inline sm:hidden md:inline">EXCHANGE</span>
+                  <span className="inline xs:hidden sm:inline md:hidden">EXCH</span>
+                </button>
+              )}
 
               <button
                 onClick={() => onOpenReprint()}

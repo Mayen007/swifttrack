@@ -152,10 +152,11 @@ export function OperationsControlTower({ onNavigate }) {
 
       setResolvingAlert(null);
       setResolutionNotes('');
+      api.toast('Operational exception resolved successfully', 'success');
       // Refresh telemetry
       await loadTelemetry(true);
     } catch (err) {
-      alert(`Error resolving alert: ${err.message}`);
+      api.toast(`Error resolving alert: ${err.message}`, 'error');
     } finally {
       setResolvingSubmit(false);
     }
