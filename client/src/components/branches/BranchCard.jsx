@@ -13,6 +13,13 @@ import {
   Check,
 } from 'lucide-react';
 
+function sanitizeDisplay(str) {
+  if (!str || typeof str !== 'string') return '';
+  return str.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
+            .replace(/<[^>]*>?/gm, '')
+            .trim();
+}
+
 export function BranchCard({
   branch,
   isSelected,
@@ -41,10 +48,10 @@ export function BranchCard({
             </span>
             <div>
               <h2 className="text-sm font-bold text-white tracking-tight leading-tight flex items-center gap-1.5">
-                {branch.name}
+                {sanitizeDisplay(branch.name) || branch.code}
               </h2>
               <span className="font-mono text-[11px] text-slate-400 uppercase tracking-wider">
-                {branch.city}, KENYA
+                {sanitizeDisplay(branch.city) || 'KENYA'}, KENYA
               </span>
             </div>
           </div>

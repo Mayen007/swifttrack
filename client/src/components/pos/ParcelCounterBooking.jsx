@@ -28,7 +28,17 @@ import {
 } from 'lucide-react';
 import { api } from '../../services/api.js';
 import { sound } from '../../services/sound.js';
+import { cleanLatexText, formatDimensions } from '../../services/formatters.js';
 import { PrintableWaybillModal } from './PrintableWaybillModal.jsx';
+
+export const PACKAGING_PRESETS = [
+  { id: 'ENV', label: 'Envelope', type: 'ENVELOPE', l: 32, w: 24, h: 1, desc: 'Contracts, Docs & Letters' },
+  { id: 'FLY_S', label: 'Flyer A4', type: 'FLYER', l: 35, w: 25, h: 3, desc: 'E-commerce flyer / soft goods' },
+  { id: 'FLY_L', label: 'Flyer A3', type: 'FLYER', l: 45, w: 35, h: 5, desc: 'Apparel, shoes & multiple items' },
+  { id: 'BOX_S', label: 'Box Small', type: 'BOX', l: 25, w: 20, h: 15, desc: 'Small box (electronics, bottles)' },
+  { id: 'BOX_M', label: 'Box Medium', type: 'BOX', l: 35, w: 28, h: 20, desc: 'Medium box (retail, footwear)' },
+  { id: 'BOX_L', label: 'Box Large', type: 'BOX', l: 50, w: 40, h: 30, desc: 'Large box / bulk carton' },
+];
 
 export function ParcelCounterBooking({ user, selectedBranch, activeShift, onRefreshShift, onOpenShiftRequest, onNavigate }) {
   // Destination Hubs
@@ -190,6 +200,20 @@ export function ParcelCounterBooking({ user, selectedBranch, activeShift, onRefr
     setParcels(prev => prev.map(p => {
       if (p.id !== id) return p;
       return { ...p, [field]: value };
+    }));
+  };
+
+  // Apply Packaging Preset
+  const handleApplyPreset = (id, preset) => {
+    setParcels(prev => prev.map(p => {
+      if (p.id !== id) return p;
+      return {
+        ...p,
+        package_type: preset.type,
+        length_cm: preset.l,
+        width_cm: preset.w,
+        height_cm: preset.h
+      };
     }));
   };
 
@@ -880,6 +904,34 @@ export function ParcelCounterBooking({ user, selectedBranch, activeShift, onRefr
                         </div>
                       </div>
 
+                      {/* Packaging Quick Presets */}
+                      <div className="flex flex-wrap items-center gap-1.5 mb-2.5 pb-2 border-b border-[#1e2433]">
+                        <span className="text-[9px] font-mono uppercase text-slate-400 font-semibold mr-1">
+                          Presets:
+                        </span>
+                        {PACKAGING_PRESETS.map(preset => {
+                          const isSelected = p.package_type === preset.type &&
+                            Number(p.length_cm) === preset.l &&
+                            Number(p.width_cm) === preset.w &&
+                            Number(p.height_cm) === preset.h;
+                          return (
+                            <button
+                              key={preset.id}
+                              type="button"
+                              onClick={() => handleApplyPreset(p.id, preset)}
+                              className={`px-2 py-0.5 rounded text-[10px] font-mono transition-colors cursor-pointer border ${
+                                isSelected
+                                  ? 'bg-blue-600/30 text-blue-300 border-blue-500 font-bold'
+                                  : 'bg-[#121622] text-slate-400 border-[#222834] hover:border-slate-600 hover:text-white'
+                              }`}
+                              title={`${preset.desc} (${preset.l} × ${preset.w} × ${preset.h} cm)`}
+                            >
+                              {preset.label} <span className="text-[9px] opacity-75">({preset.l}×{preset.w}×{preset.h})</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+
                       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
                         <div>
                           <label className="block text-[9px] font-mono uppercase text-slate-500 mb-0.5">Package Type</label>
@@ -948,7 +1000,7 @@ export function ParcelCounterBooking({ user, selectedBranch, activeShift, onRefr
                             type="text"
                             placeholder="e.g. Spare parts"
                             value={p.description}
-                            onChange={(e) => handleUpdateParcel(p.id, 'description', e.target.value)}
+                            onChange={(e) => handleUpdateParcel(p.id, 'description', cleanLatexText(e.target.value))}
                             className="w-full px-2 py-1.5 rounded bg-[#121622] border border-[#222834] text-white text-xs font-mono focus:border-blue-500 focus:outline-none"
                           />
                         </div>
@@ -1030,6 +1082,7 @@ export function ParcelCounterBooking({ user, selectedBranch, activeShift, onRefr
               <div>
                 <span className="text-[10px] text-slate-500 uppercase block">Volumetric Wt</span>
                 <span className="text-cyan-400 font-bold">{aggregates.volumetricWeight} kg</span>
+                <span className="text-[9px] text-slate-500 block font-normal">(L × W × H) / 5,000</span>
               </div>
               <div>
                 <span className="text-[10px] text-slate-500 uppercase block">Chargeable Wt</span>

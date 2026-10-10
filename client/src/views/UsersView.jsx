@@ -44,6 +44,7 @@ export function UsersView() {
   const [tempPasswordModal, setTempPasswordModal] = useState(null);
   const [tempPasswordCopied, setTempPasswordCopied] = useState(false);
   const [isFailedLoginsDrawerOpen, setIsFailedLoginsDrawerOpen] = useState(false);
+  const [failedLoginsLoading, setFailedLoginsLoading] = useState(false);
   const [failedLoginsList, setFailedLoginsList] = useState([]);
   const [adminActionLoading, setAdminActionLoading] = useState(null);
 

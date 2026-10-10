@@ -38,7 +38,8 @@ function initProductionBootstrap() {
     const branches = [
         { id: 1, code: 'NRB-HQ', name: 'Nairobi Central Hub', city: 'Nairobi', address: 'Enterprise Rd, Industrial Area', phone: '+254 711 111 001', email: 'nairobi@swifttrack.co.ke' },
         { id: 2, code: 'MSA-01', name: 'Mombasa Port & Coastal Branch', city: 'Mombasa', address: 'Moi Avenue, Port Reitz Logistics Park', phone: '+254 711 111 002', email: 'mombasa@swifttrack.co.ke' },
-        { id: 3, code: 'KSM-01', name: 'Kisumu Lake Basin Branch', city: 'Kisumu', address: 'Oginga Odinga Street, Warehouse Complex', phone: '+254 711 111 003', email: 'kisumu@swifttrack.co.ke' }
+        { id: 3, code: 'KSM-01', name: 'Kisumu Lake Basin Branch', city: 'Kisumu', address: 'Oginga Odinga Street, Warehouse Complex', phone: '+254 711 111 003', email: 'kisumu@swifttrack.co.ke' },
+        { id: 4, code: 'NAK-01', name: 'Nakuru Transit Hub & Depot', city: 'Nakuru', address: 'Commercial Street, Nakuru Industrial Area', phone: '+254 711 111 004', email: 'nakuru@swifttrack.co.ke' }
     ];
 
     for (const b of branches) {
@@ -56,7 +57,8 @@ function initProductionBootstrap() {
         { id: 1, branch_id: 1, code: 'W-NRB-MAIN', name: 'Nairobi Main Distribution Centre', location_desc: 'Block A, Loading Bay 1-4' },
         { id: 2, branch_id: 1, code: 'W-NRB-RET', name: 'Nairobi Retail & Rapid Dispatch Depot', location_desc: 'Front Hub Counter & Bay 5' },
         { id: 3, branch_id: 2, code: 'W-MSA-DEP', name: 'Mombasa Port Transit Warehouse', location_desc: 'Dock 3, Coastal Logistics Hub' },
-        { id: 4, branch_id: 3, code: 'W-KSM-DEP', name: 'Kisumu Regional Distribution Depot', location_desc: 'Zone B, Lake Hub' }
+        { id: 4, branch_id: 3, code: 'W-KSM-DEP', name: 'Kisumu Regional Distribution Depot', location_desc: 'Zone B, Lake Hub' },
+        { id: 5, branch_id: 4, code: 'W-NAK-DEP', name: 'Nakuru Transit Warehouse & Storage Depot', location_desc: 'Main Bay 1, Rift Hub' }
     ];
 
     for (const w of warehouses) {
@@ -175,16 +177,23 @@ function initProductionBootstrap() {
     const defaultPassword = 'Password123!';
 
     const users = [
-        { id: 1, branch_id: null, role_id: 1, username: 'superadmin', email: 'superadmin@swifttrack.co.ke', full_name: 'Amina Kimani (Managing Director)', phone: '+254 722 000 001' },
+        { id: 1, branch_id: null, role_id: 1, username: 'superadmin', email: 'superadmin@swifttrack.co.ke', full_name: 'Grace Mutua (Chief Operations Officer)', phone: '+254 700 000 001' },
         { id: 2, branch_id: 1, role_id: 2, username: 'manager.nairobi', email: 'manager.nairobi@swifttrack.co.ke', full_name: 'David Ochieng (Nairobi Branch Manager)', phone: '+254 722 000 002' },
         { id: 3, branch_id: 1, role_id: 3, username: 'dispatcher.nairobi', email: 'dispatcher.nairobi@swifttrack.co.ke', full_name: 'Faith Wanjiku (Logistics Dispatcher)', phone: '+254 722 000 003' },
         { id: 4, branch_id: 1, role_id: 4, username: 'cashier.nairobi', email: 'cashier.nairobi@swifttrack.co.ke', full_name: 'Kevin Mutua (Senior Cashier)', phone: '+254 722 000 004' },
         { id: 5, branch_id: 1, role_id: 5, username: 'driver.nairobi', email: 'driver.nairobi@swifttrack.co.ke', full_name: 'Joseph Kiprop (Lead Delivery Driver)', phone: '+254 722 000 005' },
         { id: 6, branch_id: 2, role_id: 2, username: 'manager.mombasa', email: 'manager.mombasa@swifttrack.co.ke', full_name: 'Hassan Mwadime (Mombasa Branch Manager)', phone: '+254 722 000 006' },
-        { id: 7, branch_id: 2, role_id: 4, username: 'cashier.mombasa', email: 'cashier.mombasa@swifttrack.co.ke', full_name: 'Halima Bakari (Mombasa Cashier)', phone: '+254 722 000 007' },
-        { id: 8, branch_id: 2, role_id: 5, username: 'driver.mombasa', email: 'driver.mombasa@swifttrack.co.ke', full_name: 'Ali Omar (Coast Fleet Driver)', phone: '+254 722 000 008' },
-        { id: 9, branch_id: 3, role_id: 2, username: 'manager.kisumu', email: 'manager.kisumu@swifttrack.co.ke', full_name: 'Grace Adhiambo (Kisumu Branch Manager)', phone: '+254 722 000 009' },
-        { id: 10, branch_id: 3, role_id: 5, username: 'driver.kisumu', email: 'driver.kisumu@swifttrack.co.ke', full_name: 'Francis Omondi (Lake Basin Fleet Driver)', phone: '+254 722 000 010' }
+        { id: 7, branch_id: 2, role_id: 3, username: 'dispatcher.mombasa', email: 'dispatcher.mombasa@swifttrack.co.ke', full_name: 'Fatuma Athman (Coastal Dispatcher)', phone: '+254 722 000 007' },
+        { id: 8, branch_id: 2, role_id: 4, username: 'cashier.mombasa', email: 'cashier.mombasa@swifttrack.co.ke', full_name: 'Halima Bakari (Mombasa Cashier)', phone: '+254 722 000 008' },
+        { id: 9, branch_id: 2, role_id: 5, username: 'driver.mombasa', email: 'driver.mombasa@swifttrack.co.ke', full_name: 'Ali Omar (Coast Fleet Driver)', phone: '+254 722 000 009' },
+        { id: 10, branch_id: 3, role_id: 2, username: 'manager.kisumu', email: 'manager.kisumu@swifttrack.co.ke', full_name: 'Grace Adhiambo (Kisumu Branch Manager)', phone: '+254 722 000 010' },
+        { id: 11, branch_id: 3, role_id: 3, username: 'dispatcher.kisumu', email: 'dispatcher.kisumu@swifttrack.co.ke', full_name: 'Mercy Achieng (Kisumu Dispatcher)', phone: '+254 722 000 011' },
+        { id: 12, branch_id: 3, role_id: 4, username: 'cashier.kisumu', email: 'cashier.kisumu@swifttrack.co.ke', full_name: 'Erick Otieno (Lake Basin Cashier)', phone: '+254 722 000 012' },
+        { id: 13, branch_id: 3, role_id: 5, username: 'driver.kisumu', email: 'driver.kisumu@swifttrack.co.ke', full_name: 'Francis Omondi (Lake Basin Fleet Driver)', phone: '+254 722 000 013' },
+        { id: 14, branch_id: 4, role_id: 2, username: 'manager.nakuru', email: 'manager.nakuru@swifttrack.co.ke', full_name: 'Peter Kipkorir (Rift Valley Manager)', phone: '+254 722 000 014' },
+        { id: 15, branch_id: 4, role_id: 3, username: 'dispatcher.nakuru', email: 'dispatcher.nakuru@swifttrack.co.ke', full_name: 'Brian Kiptoo (Nakuru Dispatcher)', phone: '+254 722 000 015' },
+        { id: 16, branch_id: 4, role_id: 4, username: 'cashier.nakuru', email: 'cashier.nakuru@swifttrack.co.ke', full_name: 'Caroline Cherono (Nakuru Cashier)', phone: '+254 722 000 016' },
+        { id: 17, branch_id: 4, role_id: 5, username: 'driver.nakuru', email: 'driver.nakuru@swifttrack.co.ke', full_name: 'Samuel Koech (Fleet Driver)', phone: '+254 722 000 017' }
     ];
 
     for (const u of users) {

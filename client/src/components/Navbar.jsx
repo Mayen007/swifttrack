@@ -32,6 +32,13 @@ import {
   LogOut,
 } from 'lucide-react';
 
+function sanitizeDisplay(str) {
+  if (!str || typeof str !== 'string') return '';
+  return str.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
+            .replace(/<[^>]*>?/gm, '')
+            .trim();
+}
+
 export function Navbar({
   onToggleNotifications,
   unreadCount = 0,
@@ -262,9 +269,9 @@ export function Navbar({
                           {b.code}
                         </div>
                         <div className="min-w-0">
-                          <p className="text-xs font-medium truncate">{b.name}</p>
+                          <p className="text-xs font-medium truncate">{sanitizeDisplay(b.name) || b.code}</p>
                           <p className="text-[10px] text-slate-400 font-mono truncate">
-                            {b.city} • OPERATIONAL
+                            {sanitizeDisplay(b.city) || 'KENYA'} • OPERATIONAL
                           </p>
                         </div>
                       </div>

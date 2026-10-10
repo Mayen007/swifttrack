@@ -14,6 +14,12 @@ import {
 } from 'lucide-react';
 import { sound } from '../../services/sound.js';
 
+const sanitizeDisplay = (val) => {
+  if (val === null || val === undefined) return '';
+  const str = String(val);
+  return str.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '').replace(/[<>]/g, '');
+};
+
 export function BranchInspectorModal({
   hub,
   warehouses = [],
@@ -62,7 +68,7 @@ export function BranchInspectorModal({
             </div>
             <div>
               <span className="block text-slate-400 text-[10px] uppercase">CITY LOCATION</span>
-              <span className="font-bold text-white">{hub.city}</span>
+              <span className="font-bold text-white">{sanitizeDisplay(hub.city)}</span>
             </div>
             <div>
               <span className="block text-slate-400 text-[10px] uppercase">OPERATIONAL STATUS</span>
@@ -80,7 +86,7 @@ export function BranchInspectorModal({
           <div className="bg-[#181d28] border border-[#222834] rounded p-3 space-y-2 font-mono text-[11px]">
             <div className="flex items-center gap-2">
               <MapPin className="w-4 h-4 text-emerald-400 shrink-0" />
-              <span className="text-white">{hub.address}</span>
+              <span className="text-white">{sanitizeDisplay(hub.address)}</span>
             </div>
             <div className="flex flex-wrap items-center gap-4 text-slate-300 pt-2 border-t border-[#222834]">
               <div className="flex items-center gap-1.5">

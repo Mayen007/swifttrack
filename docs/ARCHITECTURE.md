@@ -132,8 +132,8 @@ To prevent state corruption, audit gaps, and ambiguous field realities, SwiftTra
 
 ### 4.1 Shipment Core & Parcel Rating
 - **Volumetric Rating Formula**: The system calculates dimensional weight as:
-  $$\text{Volumetric Weight (kg)} = \frac{\text{Length (cm)} \times \text{Width (cm)} \times \text{Height (cm)}}{5000}$$
-  The billable weight is established as $\max(\text{Actual Weight}, \text{Volumetric Weight})$.
+  `Volumetric Weight (kg) = (Length cm × Width cm × Height cm) / 5000`
+  The billable weight is established as `max(Actual Weight, Volumetric Weight)`.
 - **Multi-Piece Tracking**: Consignments contain one or more physical parcels. Each parcel is assigned an individual barcode and tracked through physical scan sessions independently.
 - **Canonical Lifecycle**:
   ```text

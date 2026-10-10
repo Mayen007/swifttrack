@@ -2,6 +2,7 @@
 import React from 'react';
 import { Printer, X, CheckCircle2, ShieldCheck, ArrowRight, Package, MapPin, Phone, Mail, Building2 } from 'lucide-react';
 import { api } from '../../services/api.js';
+import { cleanLatexText } from '../../services/formatters.js';
 
 export function PrintableWaybillModal({ isOpen, onClose, waybillData, onNewBooking, onNavigate }) {
   if (!isOpen || !waybillData) return null;
@@ -225,10 +226,10 @@ export function PrintableWaybillModal({ isOpen, onClose, waybillData, onNewBooki
                         <td className="py-1.5 px-2.5 font-mono text-slate-400 print:text-black">{p.item_no}</td>
                         <td className="py-1.5 px-2.5 font-mono font-bold text-white print:text-black">{p.parcel_number}</td>
                         <td className="py-1.5 px-2.5 font-mono uppercase text-slate-300 print:text-black">{p.package_type}</td>
-                        <td className="py-1.5 px-2.5 font-mono text-slate-400 print:text-black">{p.dimensions || '—'}</td>
+                        <td className="py-1.5 px-2.5 font-mono text-slate-400 print:text-black">{cleanLatexText(p.dimensions) || '—'}</td>
                         <td className="py-1.5 px-2.5 font-mono text-right text-slate-200 print:text-black">{p.weight_kg} kg</td>
                         <td className="py-1.5 px-2.5 font-mono text-right text-slate-400 print:text-black">{p.volumetric_weight_kg} kg</td>
-                        <td className="py-1.5 px-2.5 text-slate-300 truncate max-w-[140px] print:text-black">{p.description}</td>
+                        <td className="py-1.5 px-2.5 text-slate-300 truncate max-w-[140px] print:text-black">{cleanLatexText(p.description)}</td>
                       </tr>
                     ))}
                   </tbody>

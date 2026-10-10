@@ -136,19 +136,14 @@ async function runTest(name, fn) {
                 createdId = res.body?.data?.id || res.body?.id;
             } finally {
                 if (createdId) {
-                    const { db } = require('../../server/db/database.js');
-                    db.prepare('DELETE FROM inventory WHERE branch_id = ?').run(createdId);
-                    db.prepare('DELETE FROM warehouses WHERE branch_id = ?').run(createdId);
-                    db.exec('DROP TRIGGER IF EXISTS prevent_audit_logs_update;');
-                    db.prepare('UPDATE audit_logs SET branch_id = NULL WHERE branch_id = ?').run(createdId);
-                    db.exec(`
-                        CREATE TRIGGER IF NOT EXISTS prevent_audit_logs_update
-                        BEFORE UPDATE ON audit_logs
-                        BEGIN
-                            SELECT RAISE(FAIL, 'CRITICAL SECURITY VIOLATION: audit_logs is append-only and cannot be modified.');
-                        END;
-                    `);
-                    db.prepare('DELETE FROM branches WHERE id = ?').run(createdId);
+                    const dbAdapter = require('../../server/db/dbAdapter.js');
+                    try {
+                        await dbAdapter.run('DELETE FROM inventory WHERE branch_id = ?', [createdId]);
+                        await dbAdapter.run('DELETE FROM warehouses WHERE branch_id = ?', [createdId]);
+                        await dbAdapter.run('DELETE FROM branches WHERE id = ?', [createdId]);
+                    } catch (cleanupErr) {
+                        console.warn('[test-csrf cleanup notice]:', cleanupErr.message);
+                    }
                 }
             }
         });
@@ -177,19 +172,14 @@ async function runTest(name, fn) {
                 createdId = res.body?.data?.id || res.body?.id;
             } finally {
                 if (createdId) {
-                    const { db } = require('../../server/db/database.js');
-                    db.prepare('DELETE FROM inventory WHERE branch_id = ?').run(createdId);
-                    db.prepare('DELETE FROM warehouses WHERE branch_id = ?').run(createdId);
-                    db.exec('DROP TRIGGER IF EXISTS prevent_audit_logs_update;');
-                    db.prepare('UPDATE audit_logs SET branch_id = NULL WHERE branch_id = ?').run(createdId);
-                    db.exec(`
-                        CREATE TRIGGER IF NOT EXISTS prevent_audit_logs_update
-                        BEFORE UPDATE ON audit_logs
-                        BEGIN
-                            SELECT RAISE(FAIL, 'CRITICAL SECURITY VIOLATION: audit_logs is append-only and cannot be modified.');
-                        END;
-                    `);
-                    db.prepare('DELETE FROM branches WHERE id = ?').run(createdId);
+                    const dbAdapter = require('../../server/db/dbAdapter.js');
+                    try {
+                        await dbAdapter.run('DELETE FROM inventory WHERE branch_id = ?', [createdId]);
+                        await dbAdapter.run('DELETE FROM warehouses WHERE branch_id = ?', [createdId]);
+                        await dbAdapter.run('DELETE FROM branches WHERE id = ?', [createdId]);
+                    } catch (cleanupErr) {
+                        console.warn('[test-csrf cleanup notice]:', cleanupErr.message);
+                    }
                 }
             }
         });

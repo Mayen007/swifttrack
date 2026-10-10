@@ -2,7 +2,8 @@ import React from 'react';
 import {
   X, User, ShieldCheck, AlertTriangle, XCircle, Award,
   Phone, Mail, MapPin, CreditCard, FileText, Calendar,
-  TrendingUp, CheckCircle2, Clock, Star, Car, AlertCircle, Plus, Truck
+  TrendingUp, CheckCircle2, Clock, Star, Car, AlertCircle, Plus, Truck,
+  Edit3, RefreshCw
 } from 'lucide-react';
 import { sound } from '../../services/sound.js';
 
@@ -16,6 +17,7 @@ export function DriverDetailModal({
   driverDeliveries,
   driverIncidents,
   driverHistory,
+  onOpenEdit,
   onOpenStatus,
   onOpenVehicle,
   onOpenIncident
@@ -63,12 +65,25 @@ export function DriverDetailModal({
                 </div>
               </div>
 
-              <button
-                onClick={onClose}
-                className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
-              >
-                <X className="w-6 h-6" />
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => onOpenEdit && onOpenEdit(selectedDriver)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border border-amber-500/30 text-xs font-semibold transition-colors cursor-pointer"
+                  title="Edit Driver Profile & License"
+                >
+                  <Edit3 className="w-3.5 h-3.5" />
+                  <span>Edit Driver</span>
+                </button>
+
+                <button
+                  onClick={onClose}
+                  className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+                  aria-label="Close"
+                >
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
             </div>
 
             {/* Drawer Tabs */}
@@ -121,7 +136,7 @@ export function DriverDetailModal({
               {detailTab === 'overview' && (
                 <div className="space-y-6">
                   {/* Compliance Banner */}
-                  <div className={`p-4 rounded-xl border flex items-center justify-between ${
+                  <div className={`p-4 rounded-xl border flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 ${
                     selectedDriver.compliance?.status === 'VALID'
                       ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
                       : selectedDriver.compliance?.status === 'EXPIRING_SOON'
@@ -129,7 +144,7 @@ export function DriverDetailModal({
                       : 'bg-rose-500/10 border-rose-500/30 text-rose-400'
                   }`}>
                     <div className="flex items-center gap-3">
-                      <ShieldCheck className="w-6 h-6" />
+                      <ShieldCheck className="w-6 h-6 shrink-0" />
                       <div>
                         <div className="font-bold text-sm">
                           License Compliance: {selectedDriver.compliance?.status?.replace('_', ' ')}
@@ -137,9 +152,20 @@ export function DriverDetailModal({
                         <div className="text-xs opacity-90">{selectedDriver.compliance?.message}</div>
                       </div>
                     </div>
-                    <span className="font-mono font-bold text-sm">
-                      {selectedDriver.compliance?.days_left > 0 ? `${selectedDriver.compliance?.days_left} days left` : 'Expired'}
-                    </span>
+                    <div className="flex items-center gap-3 self-stretch sm:self-auto justify-between sm:justify-end">
+                      <span className="font-mono font-bold text-sm">
+                        {selectedDriver.compliance?.days_left > 0 ? `${selectedDriver.compliance?.days_left} days left` : 'Expired'}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => onOpenEdit && onOpenEdit(selectedDriver, 'license')}
+                        className="px-2.5 py-1 rounded-lg bg-white/10 hover:bg-white/20 text-white text-xs font-bold border border-white/20 transition-all cursor-pointer flex items-center gap-1.5 shadow-xs"
+                        title="Update Driving License & Expiry Date"
+                      >
+                        <RefreshCw className="w-3 h-3" />
+                        <span>Update / Renew</span>
+                      </button>
+                    </div>
                   </div>
 
                   {/* 2 Column Details */}

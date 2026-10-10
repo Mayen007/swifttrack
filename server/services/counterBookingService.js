@@ -280,7 +280,7 @@ async function bookCounterShipment(data, user = {}) {
                 parcel_number: pNum,
                 parcel_index: idx + 1,
                 weight_kg: p.weight_kg,
-                dimensions: `${p.length_cm || 0}x${p.width_cm || 0}x${p.height_cm || 0} cm`,
+                dimensions: `${p.length_cm || 0} × ${p.width_cm || 0} × ${p.height_cm || 0} cm`,
                 volumetric_weight_kg: p.volumetric_weight_kg,
                 package_type: p.package_type || 'BOX',
                 description: p.description || null
@@ -630,7 +630,7 @@ async function getWaybillByIdentifier(identifier, user = {}) {
         parcel_number: p.parcel_number,
         parcel_index: p.parcel_index,
         weight_kg: p.weight_kg,
-        dimensions: `${p.length_cm || 0}x${p.width_cm || 0}x${p.height_cm || 0} cm`,
+        dimensions: `${p.length_cm || 0} × ${p.width_cm || 0} × ${p.height_cm || 0} cm`,
         volumetric_weight_kg: p.volumetric_weight_kg,
         package_type: p.package_type,
         description: p.description

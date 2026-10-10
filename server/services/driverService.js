@@ -490,6 +490,38 @@ async function updateDriver(id, data, updaterUserId = null) {
             `, [data.full_name || null, data.phone || null, data.email || null, existing.user_id]);
         }
 
+        // Synchronize branch reassignment if specified
+        if (data.branch_id !== undefined && data.branch_id && Number(data.branch_id) !== existing.branch_id) {
+            const newBranchId = Number(data.branch_id);
+            await tx.run('UPDATE drivers SET branch_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?', [newBranchId, id]);
+            await tx.run('UPDATE users SET branch_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?', [newBranchId, existing.user_id]);
+        }
+
+        // Synchronize vehicle assignment if specified
+        if (data.vehicle_id !== undefined || data.assigned_vehicle_id !== undefined) {
+            const rawVeh = data.vehicle_id !== undefined ? data.vehicle_id : data.assigned_vehicle_id;
+            const newVehId = rawVeh ? Number(rawVeh) : null;
+            const curVehId = existing.vehicle_id ? Number(existing.vehicle_id) : null;
+
+            if (newVehId !== curVehId) {
+                if (!newVehId) {
+                    await tx.run('UPDATE drivers SET vehicle_id = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = ?', [id]);
+                    await tx.run('UPDATE vehicles SET assigned_driver_id = NULL, updated_at = CURRENT_TIMESTAMP WHERE assigned_driver_id = ?', [id]);
+                    if (curVehId) {
+                        await tx.run('UPDATE vehicles SET assigned_driver_id = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = ?', [curVehId]);
+                    }
+                } else {
+                    await tx.run('UPDATE drivers SET vehicle_id = NULL WHERE vehicle_id = ? AND id != ?', [newVehId, id]);
+                    if (curVehId && curVehId !== newVehId) {
+                        await tx.run('UPDATE vehicles SET assigned_driver_id = NULL WHERE id = ?', [curVehId]);
+                    }
+                    await tx.run('UPDATE vehicles SET assigned_driver_id = NULL WHERE assigned_driver_id = ? AND id != ?', [id, newVehId]);
+                    await tx.run('UPDATE drivers SET vehicle_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?', [newVehId, id]);
+                    await tx.run('UPDATE vehicles SET assigned_driver_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?', [id, newVehId]);
+                }
+            }
+        }
+
         logAuditEvent({
             userId: updaterUserId,
             role: 'DISPATCHER',

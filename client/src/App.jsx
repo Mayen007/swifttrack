@@ -147,26 +147,33 @@ function MainApp() {
 
   // Poll/fetch real unread notification count
   useEffect(() => {
+    // Don't poll at all if there's no authenticated user/token
+    if (!user || !api.token) {
+      setUnreadCount(0);
+      return;
+    }
+
     let isMounted = true;
+    let interval = null;
+
     async function fetchUnreadCount() {
-      if (!user || !api.token || (typeof document !== 'undefined' && document.hidden)) {
-        if (!user && isMounted) setUnreadCount(0);
-        return;
-      }
+      if (!isMounted || !api.token || (typeof document !== 'undefined' && document.hidden)) return;
       try {
         const res = await api.get('/api/notifications');
         if (isMounted && res) {
           setUnreadCount(typeof res.unread_count === 'number' ? res.unread_count : 0);
         }
       } catch (e) {
-        if ((e?.status === 401 || e?.message?.includes('Session expired')) && isMounted) {
+        if (isMounted && (e?.status === 401 || e?.message?.includes('Session expired'))) {
           setUnreadCount(0);
+          // Stop polling — session is gone, AuthContext will handle logout
+          clearInterval(interval);
         }
       }
     }
 
     fetchUnreadCount();
-    const interval = setInterval(fetchUnreadCount, 30000);
+    interval = setInterval(fetchUnreadCount, 30000);
 
     const handleVisibility = () => {
       if (!document.hidden && user && api.token) {

@@ -27,8 +27,8 @@
 
 ### 1.1 Service Level Agreements (SLA)
 - **Availability Target**: 99.9% uptime (~43.8 minutes unplanned downtime / month).
-- **Recovery Point Objective (RPO)**: $\le 15\text{ minutes}$ (Maximum tolerable data loss window).
-- **Recovery Time Objective (RTO)**: $\le 30\text{ minutes}$ (Maximum tolerable time to restore full service).
+- **Recovery Point Objective (RPO)**: <= 15 minutes (Maximum tolerable data loss window).
+- **Recovery Time Objective (RTO)**: <= 30 minutes (Maximum tolerable time to restore full service).
 
 ### 1.2 Core Production Services
 | Service Container | Technology | Responsibilities | Health Probe |

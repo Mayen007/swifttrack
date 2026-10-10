@@ -4,6 +4,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../context/AuthContext.jsx';
 import { api } from '../services/api.js';
 import { sound } from '../services/sound.js';
+import { formatDimensions, cleanLatexText } from '../services/formatters.js';
 import {
   Package,
   Search,
@@ -572,11 +573,11 @@ export function ShipmentsView({ onNavigate }) {
                   <div key={p.id || idx} className="bg-[#181d28] border border-[#222834] p-3 rounded-xl flex items-center justify-between text-xs">
                     <div>
                       <p className="font-mono font-bold text-white">{p.parcel_number || `PCL-${selectedShipment.tracking_number}-${idx+1}`}</p>
-                      <p className="text-[10px] text-slate-400">{p.description || 'Standard Box'}</p>
+                      <p className="text-[10px] text-slate-400">{cleanLatexText(p.description) || 'Standard Box'}</p>
                     </div>
                     <div className="text-right">
                       <p className="font-medium text-white">{p.weight_kg} kg</p>
-                      <p className="text-[10px] text-slate-500">{p.length_cm}x{p.width_cm}x{p.height_cm} cm</p>
+                      <p className="text-[10px] text-slate-500 font-mono">{formatDimensions(p.length_cm, p.width_cm, p.height_cm)}</p>
                     </div>
                   </div>
                 ))}

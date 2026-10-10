@@ -16,6 +16,7 @@ import { DriverFilterBar } from '../components/drivers/DriverFilterBar.jsx';
 import { DriverTable } from '../components/drivers/DriverTable.jsx';
 import { CreateDriverModal } from '../components/drivers/CreateDriverModal.jsx';
 import { DriverDetailModal } from '../components/drivers/DriverDetailModal.jsx';
+import { EditDriverModal } from '../components/drivers/EditDriverModal.jsx';
 import { DriverStatusModal } from '../components/drivers/DriverStatusModal.jsx';
 import { AssignVehicleModal } from '../components/drivers/AssignVehicleModal.jsx';
 import { LogIncidentModal } from '../components/drivers/LogIncidentModal.jsx';
@@ -66,11 +67,41 @@ export function DriversView() {
 
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [detailModalOpen, setDetailModalOpen] = useState(false);
+  const [editModalOpen, setEditModalOpen] = useState(false);
   const [statusModalOpen, setStatusModalOpen] = useState(false);
   const [vehicleModalOpen, setVehicleModalOpen] = useState(false);
   const [incidentModalOpen, setIncidentModalOpen] = useState(false);
 
   const [selectedDriver, setSelectedDriver] = useState(null);
+  const [selectedDriverForEdit, setSelectedDriverForEdit] = useState(null);
+  const [editTab, setEditTab] = useState('license');
+  const [editForm, setEditForm] = useState({
+    full_name: '',
+    phone: '',
+    alt_phone: '',
+    email: '',
+    branch_id: 1,
+    national_id: '',
+    kra_pin: '',
+    nssf_number: '',
+    nhif_number: '',
+    license_number: '',
+    license_classes: 'B, C1',
+    license_issue_date: '',
+    license_expiry_date: '',
+    ntsa_verified: 1,
+    ntsa_verification_date: '',
+    employment_type: 'FULL_TIME',
+    hire_date: '',
+    blood_group: 'O+',
+    residential_address: '',
+    city: '',
+    emergency_contact_name: '',
+    emergency_contact_phone: '',
+    emergency_contact_relation: 'Next of Kin',
+    vehicle_id: '',
+    notes: ''
+  });
   const [driverScorecard, setDriverScorecard] = useState(null);
   const [driverDeliveries, setDriverDeliveries] = useState([]);
   const [driverIncidents, setDriverIncidents] = useState([]);
@@ -226,6 +257,71 @@ export function DriversView() {
       setDriverHistory(Array.isArray(history) ? history : (history?.history || []));
     } catch (err) {
       console.error('Failed to load driver dossier:', err);
+    }
+  };
+
+  const openEditModal = (driver, initialTab = 'license') => {
+    sound.playClick();
+    setSelectedDriverForEdit(driver);
+    setEditTab(initialTab);
+    setEditForm({
+      full_name: driver.full_name || '',
+      phone: driver.phone || '',
+      alt_phone: driver.alt_phone || '',
+      email: driver.email || '',
+      branch_id: driver.branch_id || selectedBranch?.id || 1,
+      national_id: driver.national_id || '',
+      kra_pin: driver.kra_pin || '',
+      nssf_number: driver.nssf_number || '',
+      nhif_number: driver.nhif_number || '',
+      license_number: driver.license_number || '',
+      license_classes: driver.license_classes || 'B, C1',
+      license_issue_date: driver.license_issue_date ? String(driver.license_issue_date).split('T')[0] : '',
+      license_expiry_date: driver.license_expiry_date ? String(driver.license_expiry_date).split('T')[0] : '',
+      ntsa_verified: driver.ntsa_verified ? 1 : 0,
+      ntsa_verification_date: driver.ntsa_verification_date ? String(driver.ntsa_verification_date).split('T')[0] : '',
+      employment_type: driver.employment_type || 'FULL_TIME',
+      hire_date: driver.hire_date ? String(driver.hire_date).split('T')[0] : '',
+      blood_group: driver.blood_group || 'O+',
+      residential_address: driver.residential_address || '',
+      city: driver.city || '',
+      emergency_contact_name: driver.emergency_contact_name || '',
+      emergency_contact_phone: driver.emergency_contact_phone || '',
+      emergency_contact_relation: driver.emergency_contact_relation || 'Next of Kin',
+      vehicle_id: driver.vehicle_id || driver.assigned_vehicle_id || '',
+      notes: driver.notes || ''
+    });
+    setEditModalOpen(true);
+  };
+
+  const handleUpdateDriver = async (e) => {
+    e.preventDefault();
+    if (!selectedDriverForEdit) return;
+    setActionLoading(true);
+    try {
+      const payload = {
+        ...editForm,
+        branch_id: Number(editForm.branch_id) || selectedDriverForEdit.branch_id,
+        vehicle_id: editForm.vehicle_id ? Number(editForm.vehicle_id) : null,
+        ntsa_verified: editForm.ntsa_verified ? 1 : 0
+      };
+
+      const updated = await api.put(`/api/v1/drivers/${selectedDriverForEdit.id}`, payload);
+      sound.playSuccess();
+      api.successToast(`Driver ${updated.full_name || selectedDriverForEdit.full_name} updated successfully!`);
+      setEditModalOpen(false);
+      await fetchData();
+
+      // Refresh detail modal if open
+      if (detailModalOpen && selectedDriver?.id === selectedDriverForEdit.id) {
+        setSelectedDriver(updated);
+        openDriverDetail(updated);
+      }
+    } catch (err) {
+      sound.playError();
+      api.errorToast(err.message || 'Failed to update driver');
+    } finally {
+      setActionLoading(false);
     }
   };
 
@@ -395,6 +491,7 @@ export function DriversView() {
         drivers={drivers}
         loading={loading}
         onOpenDetail={openDriverDetail}
+        onOpenEdit={openEditModal}
         onOpenStatus={openStatusModal}
         onOpenVehicle={openVehicleModal}
         onOpenIncident={openIncidentModal}
@@ -414,6 +511,20 @@ export function DriversView() {
         vehicles={vehicles}
       />
 
+      <EditDriverModal
+        isOpen={editModalOpen}
+        driver={selectedDriverForEdit}
+        onClose={() => setEditModalOpen(false)}
+        editTab={editTab}
+        setEditTab={setEditTab}
+        editForm={editForm}
+        setEditForm={setEditForm}
+        onSubmit={handleUpdateDriver}
+        actionLoading={actionLoading}
+        branches={branches}
+        vehicles={vehicles}
+      />
+
       <DriverDetailModal
         isOpen={detailModalOpen}
         selectedDriver={selectedDriver}
@@ -424,6 +535,7 @@ export function DriversView() {
         driverDeliveries={driverDeliveries}
         driverIncidents={driverIncidents}
         driverHistory={driverHistory}
+        onOpenEdit={(drv, tab) => openEditModal(drv, tab)}
         onOpenStatus={() => openStatusModal(selectedDriver)}
         onOpenVehicle={() => openVehicleModal(selectedDriver)}
         onOpenIncident={() => openIncidentModal(selectedDriver)}

@@ -1,7 +1,7 @@
 import React from 'react';
 import {
   RefreshCw, User, Phone, MapPin, CreditCard,
-  ShieldCheck, AlertTriangle, XCircle, Star, Eye, Car, Truck, Activity
+  ShieldCheck, AlertTriangle, XCircle, Star, Eye, Car, Truck, Activity, Edit2
 } from 'lucide-react';
 import { sound } from '../../services/sound.js';
 
@@ -9,6 +9,7 @@ export function DriverTable({
   drivers = [],
   loading,
   onOpenDetail,
+  onOpenEdit,
   onOpenStatus,
   onOpenVehicle,
   onOpenIncident,
@@ -19,16 +20,16 @@ export function DriverTable({
   return (
     <div className="bg-[#12161f] rounded-xl border border-[#222834] overflow-hidden shadow-sm">
       <div className="overflow-x-auto max-h-[calc(100vh-275px)] overflow-y-auto">
-        <table className="w-full text-left text-xs text-slate-300 border-collapse min-w-[1140px]">
+        <table className="w-full text-left text-xs text-slate-300 border-collapse min-w-[1180px]">
           {/* Dedicated column allocations ensuring zero element collisions & instant readability */}
           <colgroup>
-            <col style={{ width: '22%', minWidth: '220px' }} />
+            <col style={{ width: '21%', minWidth: '210px' }} />
             <col style={{ width: '14%', minWidth: '150px' }} />
             <col style={{ width: '15%', minWidth: '160px' }} />
             <col style={{ width: '24%', minWidth: '250px' }} />
             <col style={{ width: '12%', minWidth: '130px' }} />
-            <col style={{ width: '13%', minWidth: '125px' }} />
-            <col style={{ width: '150px', minWidth: '150px' }} />
+            <col style={{ width: '12%', minWidth: '120px' }} />
+            <col style={{ width: '180px', minWidth: '180px' }} />
           </colgroup>
 
           <thead className="sticky top-0 z-10 bg-[#161c28] border-b border-[#222834] text-[10px] font-bold uppercase tracking-wider text-slate-400 shadow-xs">
@@ -176,6 +177,20 @@ export function DriverTable({
                             Exp: {new Date(drv.license_expiry_date).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })}
                           </span>
                         )}
+
+                        {(isExpired || isExpiringSoon) && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (onOpenEdit) onOpenEdit(drv, 'license');
+                            }}
+                            className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/30 transition-colors cursor-pointer"
+                            title="Quickly renew driving license"
+                          >
+                            Renew
+                          </button>
+                        )}
                       </div>
                     </td>
 
@@ -218,8 +233,8 @@ export function DriverTable({
                       </div>
                     </td>
 
-                    {/* Actions (Dedicated 150px prevents any collision with scorecard) */}
-                    <td className={`${cellPadding} min-w-[150px] w-[150px] text-right`} onClick={(e) => e.stopPropagation()}>
+                    {/* Actions */}
+                    <td className={`${cellPadding} min-w-[180px] w-[180px] text-right`} onClick={(e) => e.stopPropagation()}>
                       <div className="flex items-center justify-end gap-1.5">
                         <button
                           onClick={() => onOpenDetail(drv)}
@@ -227,6 +242,14 @@ export function DriverTable({
                           title="View Scorecard & Compliance Dossier"
                         >
                           <Eye className="w-3.5 h-3.5" />
+                        </button>
+
+                        <button
+                          onClick={() => onOpenEdit && onOpenEdit(drv)}
+                          className="p-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 border border-[#222834] text-slate-400 hover:text-amber-400 transition-colors cursor-pointer"
+                          title="Edit Driver Details & License"
+                        >
+                          <Edit2 className="w-3.5 h-3.5" />
                         </button>
 
                         <button

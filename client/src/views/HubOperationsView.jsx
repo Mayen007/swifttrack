@@ -16,7 +16,7 @@ import { CustomsActionModal } from '../components/hub/CustomsActionModal.jsx';
 import { RecordHandoffModal } from '../components/hub/RecordHandoffModal.jsx';
 
 export function HubOperationsView() {
-  const { selectedBranch } = useAuth();
+  const { user, selectedBranch } = useAuth();
   const currentHubId = selectedBranch?.id || 1;
 
   const [activeTab, setActiveTab] = useState('RECEIVING');
