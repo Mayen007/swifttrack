@@ -7,6 +7,21 @@ import {
 } from 'lucide-react';
 import { sound } from '../../services/sound.js';
 
+const formatDate = (val) => {
+  if (!val) return 'N/A';
+  try {
+    const d = new Date(val);
+    if (isNaN(d.getTime())) return String(val).split('T')[0] || 'N/A';
+    return d.toLocaleDateString('en-KE', {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric'
+    });
+  } catch {
+    return String(val).split('T')[0] || 'N/A';
+  }
+};
+
 export function DriverDetailModal({
   isOpen,
   selectedDriver,
@@ -192,9 +207,15 @@ export function DriverDetailModal({
                         <span className="text-slate-400">Allowed Classes:</span>
                         <span className="font-semibold text-white">{selectedDriver.license_classes || 'B, C1'}</span>
                         <span className="text-slate-400">Issue Date:</span>
-                        <span className="font-semibold text-white">{selectedDriver.license_issue_date || 'N/A'}</span>
+                        <span className="font-semibold text-white">{formatDate(selectedDriver.license_issue_date)}</span>
                         <span className="text-slate-400">Expiry Date:</span>
-                        <span className="font-semibold text-white">{selectedDriver.license_expiry_date || 'N/A'}</span>
+                        <span className="font-semibold text-white">{formatDate(selectedDriver.license_expiry_date)}</span>
+                        {selectedDriver.ntsa_verification_date && (
+                          <>
+                            <span className="text-slate-400">NTSA Verified:</span>
+                            <span className="font-semibold text-emerald-400">{formatDate(selectedDriver.ntsa_verification_date)}</span>
+                          </>
+                        )}
                       </div>
                     </div>
                   </div>

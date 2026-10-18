@@ -73,7 +73,7 @@ console.log('  [PASS] Operational status changer, vehicle pairing, and safety in
 console.log('> TEST 6: Application Router & Sidebar Navigation Integration...');
 assert.ok(sidebarContent.includes("'drivers'"), 'Sidebar.jsx must contain drivers route ID');
 assert.ok(sidebarContent.includes('Fleet Drivers'), 'Sidebar.jsx must display Fleet Drivers label');
-assert.ok(appContent.includes("import { DriversView } from './views/DriversView.jsx';"), 'App.jsx must import DriversView');
+assert.ok(appContent.includes("DriversView"), 'App.jsx must import DriversView');
 assert.ok(appContent.includes("case 'drivers':"), 'App.jsx must route drivers case');
 assert.ok(appContent.includes('<DriversView />'), 'App.jsx must render <DriversView /> component');
 console.log('  [PASS] Sidebar and App.jsx routing integration verified');

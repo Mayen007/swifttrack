@@ -50,14 +50,22 @@ jobs:
       - name: Install Client Dependencies
         run: cd client && npm ci
 
+      - name: Static Architecture & Security Governance Gates
+        run: |
+          npm run lint:architecture
+          npm run audit:secrets
+
       - name: Build Frontend Application
         run: cd client && npm run build
+
+      - name: Verify Frontend Component & Navigation Integrity
+        run: npm run test:frontend
 
       - name: Run Authoritative PostgreSQL Migrations
         run: npm run db:migrate
 
-      - name: Bootstrap PostgreSQL Production Baseline & Demo Seed
-        run: npm run db:seed:prod
+      - name: Seed Database for Test Suite Executions
+        run: node server/db/seed.js
 
       - name: Verify PostgreSQL Migrations & Repository Layer
         run: node tests/database/test-postgres-data-architecture.js
@@ -68,25 +76,35 @@ jobs:
       - name: Verify API Documentation Parity
         run: node tests/docs/test-api-doc-parity.js
 
-      - name: Run Logistics Domain Test Suites
-        run: |
-          node tests/logistics/test-shipments-core.js
-          node tests/logistics/test-transport-runs.js
-          node tests/logistics/test-physical-custody.js
-          node tests/logistics/test-last-mile-delivery.js
-          node tests/logistics/test-cod-settlement.js
-          node tests/logistics/test-control-tower.js
-          node tests/logistics/test-notifications-engine.js
-          node tests/logistics/test-multi-leg-and-customs.js
-          node tests/logistics/test-offline-sync.js
-          node tests/logistics/test-vehicles-management.js
-          node tests/logistics/test-drivers-management.js
+      - name: Run Inventory & Warehousing Domain Suites
+        run: npm run test:inventory
 
-      - name: Run Full End-to-End Acceptance Scenario (PRD Section 30)
-        run: node tests/logistics/test-e2e-acceptance.js
+      - name: Run Point of Sale & Counter Booking Suites
+        run: npm run test:pos
+
+      - name: Run Orders State Machine & Allocation Suites
+        run: npm run test:orders
+
+      - name: Run Commerce, Pricing & Customer Domain Suites
+        run: |
+          npm run test:commerce
+          npm run test:customers
+
+      - name: Run Procurement & Vendor Lifecycle Suites
+        run: npm run test:procurement
+
+      - name: Run Financial Reporting & Payment Ledger Suites
+        run: |
+          npm run test:reports
+          npm run test:payments
+
+      - name: Run Logistics, Transport & Fleet Suites
+        run: |
+          npm run test:fleet
+          npm run test:logistics
 
       - name: Verify Security & Injection Guards
-        run: |
-          node tests/security/test-sql-injection.js
-          node tests/security/test-csrf-cors.js
-          node tests/security/test-xss.js
+        run: npm run test:security
+
+      - name: Run Full End-to-End Acceptance Scenario (PRD Section 30)
+        run: npm run test:e2e

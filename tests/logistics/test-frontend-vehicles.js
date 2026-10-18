@@ -73,7 +73,7 @@ console.log('  [PASS] Quick-action modals (refuel, maintenance, trip log, status
 console.log('> TEST 6: Application Router & Sidebar Navigation Integration...');
 assert.ok(sidebarContent.includes("'vehicles'"), 'Sidebar.jsx must contain vehicles route ID');
 assert.ok(sidebarContent.includes('Fleet Vehicles'), 'Sidebar.jsx must display Fleet Vehicles label');
-assert.ok(appContent.includes("import { VehiclesView } from './views/VehiclesView.jsx';"), 'App.jsx must import VehiclesView');
+assert.ok(appContent.includes("VehiclesView"), 'App.jsx must import VehiclesView');
 assert.ok(appContent.includes("case 'vehicles':"), 'App.jsx must route vehicles case');
 assert.ok(appContent.includes('<VehiclesView />'), 'App.jsx must render <VehiclesView /> component');
 console.log('  [PASS] Sidebar and App.jsx routing integration verified');

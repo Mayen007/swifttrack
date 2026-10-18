@@ -38,6 +38,16 @@ export {
 // PATCH endpoint:             /status (PATCH /api/v1/drivers/:id/status)
 // ─────────────────────────────────────────────────────────────────────────────
 
+function toDateInputVal(val) {
+  if (!val) return '';
+  const d = new Date(val);
+  if (isNaN(d.getTime())) return String(val).split('T')[0];
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 export function DriversView() {
   const { user, selectedBranch } = useAuth();
   const [drivers, setDrivers] = useState([]);
@@ -276,12 +286,12 @@ export function DriversView() {
       nhif_number: driver.nhif_number || '',
       license_number: driver.license_number || '',
       license_classes: driver.license_classes || 'B, C1',
-      license_issue_date: driver.license_issue_date ? String(driver.license_issue_date).split('T')[0] : '',
-      license_expiry_date: driver.license_expiry_date ? String(driver.license_expiry_date).split('T')[0] : '',
+      license_issue_date: toDateInputVal(driver.license_issue_date),
+      license_expiry_date: toDateInputVal(driver.license_expiry_date),
       ntsa_verified: driver.ntsa_verified ? 1 : 0,
-      ntsa_verification_date: driver.ntsa_verification_date ? String(driver.ntsa_verification_date).split('T')[0] : '',
+      ntsa_verification_date: toDateInputVal(driver.ntsa_verification_date),
       employment_type: driver.employment_type || 'FULL_TIME',
-      hire_date: driver.hire_date ? String(driver.hire_date).split('T')[0] : '',
+      hire_date: toDateInputVal(driver.hire_date),
       blood_group: driver.blood_group || 'O+',
       residential_address: driver.residential_address || '',
       city: driver.city || '',
@@ -511,20 +521,6 @@ export function DriversView() {
         vehicles={vehicles}
       />
 
-      <EditDriverModal
-        isOpen={editModalOpen}
-        driver={selectedDriverForEdit}
-        onClose={() => setEditModalOpen(false)}
-        editTab={editTab}
-        setEditTab={setEditTab}
-        editForm={editForm}
-        setEditForm={setEditForm}
-        onSubmit={handleUpdateDriver}
-        actionLoading={actionLoading}
-        branches={branches}
-        vehicles={vehicles}
-      />
-
       <DriverDetailModal
         isOpen={detailModalOpen}
         selectedDriver={selectedDriver}
@@ -539,6 +535,20 @@ export function DriversView() {
         onOpenStatus={() => openStatusModal(selectedDriver)}
         onOpenVehicle={() => openVehicleModal(selectedDriver)}
         onOpenIncident={() => openIncidentModal(selectedDriver)}
+      />
+
+      <EditDriverModal
+        isOpen={editModalOpen}
+        driver={selectedDriverForEdit}
+        onClose={() => setEditModalOpen(false)}
+        editTab={editTab}
+        setEditTab={setEditTab}
+        editForm={editForm}
+        setEditForm={setEditForm}
+        onSubmit={handleUpdateDriver}
+        actionLoading={actionLoading}
+        branches={branches}
+        vehicles={vehicles}
       />
 
       <DriverStatusModal

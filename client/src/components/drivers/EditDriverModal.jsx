@@ -106,7 +106,7 @@ export function EditDriverModal({
   const ComplianceIcon = compliancePreview.icon;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-xs animate-fadeIn">
+    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/80 backdrop-blur-xs animate-fadeIn">
       <div className="bg-[#12161f] rounded-2xl border border-[#222834] shadow-2xl w-full max-w-3xl overflow-hidden max-h-[92vh] flex flex-col text-white">
         {/* Modal Header */}
         <div className="p-5 bg-[#181d28] border-b border-[#222834] flex items-center justify-between">
