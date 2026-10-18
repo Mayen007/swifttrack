@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, Suspense } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext.jsx';
 import { ThemeProvider } from './context/ThemeContext.jsx';
 import { Navbar } from './components/Navbar.jsx';
@@ -6,33 +6,35 @@ import { Sidebar } from './components/Sidebar.jsx';
 import { NotificationsDrawer } from './components/NotificationsDrawer.jsx';
 import { ToastContainer } from './components/ToastContainer.jsx';
 import { ErrorBoundary } from './components/common/ErrorBoundary.jsx';
+import { ViewSkeleton } from './components/common/ViewSkeleton.jsx';
 import { ShieldOff } from 'lucide-react';
 import { api } from './services/api.js';
 
-import { DashboardView } from './views/DashboardView.jsx';
-import { OperationsControlTower } from './components/dashboard/OperationsControlTower.jsx';
-import { PosView } from './views/PosView.jsx';
-import { DispatchView } from './views/DispatchView.jsx';
-import { DriverView } from './views/DriverView.jsx';
-import { InventoryView } from './views/InventoryView.jsx';
-import { OrdersView } from './views/OrdersView.jsx';
-import { ApprovalsView } from './views/ApprovalsView.jsx';
-import { ExpensesView } from './views/ExpensesView.jsx';
-import { ReportsView } from './views/ReportsView.jsx';
-import { BranchesView } from './views/BranchesView.jsx';
-import { UsersView } from './views/UsersView.jsx';
-import { AuditView } from './views/AuditView.jsx';
-import { ProductsView } from './views/ProductsView.jsx';
-import { CustomersView } from './views/CustomersView.jsx';
-import { PaymentsView } from './views/PaymentsView.jsx';
-import { ProcurementView } from './views/ProcurementView.jsx';
-import { DriversView } from './views/DriversView.jsx';
-import { VehiclesView } from './views/VehiclesView.jsx';
-import { CommunicationsView } from './views/CommunicationsView.jsx';
-import { ShipmentsView } from './views/ShipmentsView.jsx';
-import { HubOperationsView } from './views/HubOperationsView.jsx';
-import { CodReconciliationView } from './views/CodReconciliationView.jsx';
-import { LoginView } from './views/LoginView.jsx';
+// Route-Level Lazy-Loaded Module Chunks (PRD Performance Mandate Section 30)
+const DashboardView = React.lazy(() => import('./views/DashboardView.jsx').then(m => ({ default: m.DashboardView })));
+const OperationsControlTower = React.lazy(() => import('./components/dashboard/OperationsControlTower.jsx').then(m => ({ default: m.OperationsControlTower })));
+const PosView = React.lazy(() => import('./views/PosView.jsx').then(m => ({ default: m.PosView })));
+const DispatchView = React.lazy(() => import('./views/DispatchView.jsx').then(m => ({ default: m.DispatchView })));
+const DriverView = React.lazy(() => import('./views/DriverView.jsx').then(m => ({ default: m.DriverView })));
+const InventoryView = React.lazy(() => import('./views/InventoryView.jsx').then(m => ({ default: m.InventoryView })));
+const OrdersView = React.lazy(() => import('./views/OrdersView.jsx').then(m => ({ default: m.OrdersView })));
+const ApprovalsView = React.lazy(() => import('./views/ApprovalsView.jsx').then(m => ({ default: m.ApprovalsView })));
+const ExpensesView = React.lazy(() => import('./views/ExpensesView.jsx').then(m => ({ default: m.ExpensesView })));
+const ReportsView = React.lazy(() => import('./views/ReportsView.jsx').then(m => ({ default: m.ReportsView })));
+const BranchesView = React.lazy(() => import('./views/BranchesView.jsx').then(m => ({ default: m.BranchesView })));
+const UsersView = React.lazy(() => import('./views/UsersView.jsx').then(m => ({ default: m.UsersView })));
+const AuditView = React.lazy(() => import('./views/AuditView.jsx').then(m => ({ default: m.AuditView })));
+const ProductsView = React.lazy(() => import('./views/ProductsView.jsx').then(m => ({ default: m.ProductsView })));
+const CustomersView = React.lazy(() => import('./views/CustomersView.jsx').then(m => ({ default: m.CustomersView })));
+const PaymentsView = React.lazy(() => import('./views/PaymentsView.jsx').then(m => ({ default: m.PaymentsView })));
+const ProcurementView = React.lazy(() => import('./views/ProcurementView.jsx').then(m => ({ default: m.ProcurementView })));
+const DriversView = React.lazy(() => import('./views/DriversView.jsx').then(m => ({ default: m.DriversView })));
+const VehiclesView = React.lazy(() => import('./views/VehiclesView.jsx').then(m => ({ default: m.VehiclesView })));
+const CommunicationsView = React.lazy(() => import('./views/CommunicationsView.jsx').then(m => ({ default: m.CommunicationsView })));
+const ShipmentsView = React.lazy(() => import('./views/ShipmentsView.jsx').then(m => ({ default: m.ShipmentsView })));
+const HubOperationsView = React.lazy(() => import('./views/HubOperationsView.jsx').then(m => ({ default: m.HubOperationsView })));
+const CodReconciliationView = React.lazy(() => import('./views/CodReconciliationView.jsx').then(m => ({ default: m.CodReconciliationView })));
+const LoginView = React.lazy(() => import('./views/LoginView.jsx').then(m => ({ default: m.LoginView })));
 const VIEW_PERMISSIONS = {
   audit: ['SUPER_ADMIN'],
   users: ['SUPER_ADMIN', 'BRANCH_MANAGER'],
@@ -303,7 +305,11 @@ function MainApp() {
   }
 
   if (!user) {
-    return <LoginView />;
+    return (
+      <Suspense fallback={<ViewSkeleton view="Authentication" />}>
+        <LoginView />
+      </Suspense>
+    );
   }
 
   const renderView = () => {
@@ -412,7 +418,9 @@ function MainApp() {
         >
           <div className={`w-full ${currentView === 'vehicles' || currentView === 'drivers' ? '' : 'max-w-[1760px] mx-auto'}`}>
             <ErrorBoundary key={currentView}>
-              {renderView()}
+              <Suspense fallback={<ViewSkeleton view={currentView} />}>
+                {renderView()}
+              </Suspense>
             </ErrorBoundary>
           </div>
         </main>

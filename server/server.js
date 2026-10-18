@@ -56,7 +56,42 @@ const authRateLimiter = createRateLimiter({
 });
 app.use(['/api/v1/auth/login', '/api/auth/login'], authRateLimiter);
 
-// 6. Mount API routes: primary versioned /api/v1 and legacy alias /api
+// 6. Root health probes for container orchestrators (Docker, Kubernetes)
+app.get(['/health/live', '/live'], (req, res) => {
+    res.json({ status: 'alive', uptimeSeconds: Math.floor(process.uptime()), timestamp: new Date().toISOString() });
+});
+
+app.get(['/health/ready', '/ready', '/health'], async (req, res) => {
+    const isPostgres = process.env.DB_CLIENT === 'postgres' || (!!process.env.DATABASE_URL && process.env.DB_CLIENT !== 'sqlite');
+    let isHealthy = false;
+    let dbStatus = 'disconnected';
+    let latencyMs = 0;
+    try {
+        const start = Date.now();
+        if (isPostgres) {
+            const pool = require('./db/postgres/pool.js');
+            const check = await pool.poolHealthCheck();
+            latencyMs = check.latencyMs || (Date.now() - start);
+            isHealthy = check.connected && check.status === 'healthy';
+            dbStatus = check.status;
+        } else {
+            const dbAdapter = require('./db/dbAdapter.js');
+            const row = await dbAdapter.get('SELECT 1 as ok');
+            latencyMs = Date.now() - start;
+            isHealthy = Number(row?.ok) === 1;
+            dbStatus = isHealthy ? 'healthy' : 'unhealthy';
+        }
+    } catch (err) {
+        dbStatus = 'error: ' + err.message;
+        isHealthy = false;
+    }
+    if (!isHealthy) {
+        return res.status(503).json({ status: 'unready', database: dbStatus, latencyMs, timestamp: new Date().toISOString() });
+    }
+    return res.json({ status: 'ready', database: dbStatus, latencyMs, timestamp: new Date().toISOString() });
+});
+
+// 7. Mount API routes: primary versioned /api/v1 and legacy alias /api
 app.use('/api/v1', v1Router);
 app.use('/api', v1Router);
 
@@ -67,7 +102,7 @@ app.use(express.static(clientPath));
 
 // SPA fallback to index.html for non-API GET requests
 app.use((req, res, next) => {
-    if (req.method === 'GET' && !req.path.startsWith('/api')) {
+    if (req.method === 'GET' && !req.path.startsWith('/api') && !req.path.startsWith('/health')) {
         return res.sendFile(path.join(clientPath, 'index.html'));
     }
     next();
@@ -109,8 +144,14 @@ async function initializeDatabaseRuntime() {
         const company = await dbAdapter.get('SELECT COUNT(*) as count FROM company_settings');
         const count = company ? Number(company.count) : 0;
         if (count === 0) {
-            console.log('[Startup] Fresh database detected. Seeding baseline foundation data...');
-            await seed.seedProductionBaseline();
+            if (isProd) {
+                console.log('[Startup] Fresh production database detected. Seeding pure system foundation (zero demo accounts)...');
+                await seed.seedProductionFoundation();
+                console.log('[Startup] Notice: To provision the initial system administrator, run: npm run admin:bootstrap');
+            } else {
+                console.log('[Startup] Fresh database detected. Seeding baseline enterprise demo data...');
+                await seed.seedProductionBaseline();
+            }
         }
     } else {
         if (isProd) {

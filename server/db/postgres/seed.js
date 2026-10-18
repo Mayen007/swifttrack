@@ -86,6 +86,133 @@ async function truncateAllTables(client) {
 }
 
 /**
+ * Seeds canonical permissions and role_permissions matrix.
+ */
+async function seedPermissionsAndMappings(client) {
+    const permissions = [
+        { code: 'pos.view', module: 'pos', description: 'View POS counter, products, and held orders' },
+        { code: 'pos.create', module: 'pos', description: 'Process counter sales and checkouts' },
+        { code: 'pos.hold', module: 'pos', description: 'Hold and resume in-progress POS transactions' },
+        { code: 'pos.refund_request', module: 'pos', description: 'Submit refund requests for completed sales' },
+        { code: 'pos.refund_approve', module: 'pos', description: 'Approve or reject customer refund requests' },
+        { code: 'pos:counter:book', module: 'pos', description: 'Counter parcel booking and acceptance' },
+        { code: 'pos:counter:quote', module: 'pos', description: 'Calculate live shipping tariff quotes at counter' },
+        { code: 'inventory.view', module: 'inventory', description: 'Inspect stock levels and catalog items' },
+        { code: 'inventory.adjust_request', module: 'inventory', description: 'Request stock count adjustments' },
+        { code: 'inventory.adjust_approve', module: 'inventory', description: 'Approve or reject inventory adjustments' },
+        { code: 'inventory.transfer_request', module: 'inventory', description: 'Initiate inter-branch stock transfers' },
+        { code: 'inventory.transfer_status', module: 'inventory', description: 'Update status of inter-branch transfers' },
+        { code: 'dispatch.view', module: 'dispatch', description: 'View dispatch board and delivery queues' },
+        { code: 'dispatch.create', module: 'dispatch', description: 'Create and schedule dispatches' },
+        { code: 'dispatch.assign', module: 'dispatch', description: 'Assign drivers and vehicles to deliveries' },
+        { code: 'dispatch.update', module: 'dispatch', description: 'Update dispatch and delivery statuses' },
+        { code: 'delivery.view_own', module: 'delivery', description: 'View assigned deliveries' },
+        { code: 'delivery.start', module: 'delivery', description: 'Start in-transit delivery route' },
+        { code: 'delivery.pod_submit', module: 'delivery', description: 'Submit proof-of-delivery (OTP, signature)' },
+        { code: 'delivery.problem', module: 'delivery', description: 'Flag delivery exceptions and problems' },
+        { code: 'users.view', module: 'users', description: 'View staff members and credentials' },
+        { code: 'users.create', module: 'users', description: 'Provision new operational staff accounts' },
+        { code: 'users.edit', module: 'users', description: 'Modify staff profiles and role assignments' },
+        { code: 'users.manage', module: 'users', description: 'Administrative actions: unlock, password reset, force logout' },
+        { code: 'reports.financial_all', module: 'reports', description: 'View enterprise-wide financial statements' },
+        { code: 'reports.financial_own', module: 'reports', description: 'View branch-specific sales and revenue reports' },
+        { code: 'reports.shift_own', module: 'reports', description: 'View individual shift and cashier reconciliation' },
+        { code: 'expenses.create', module: 'expenses', description: 'Log operational branch expenditures' },
+        { code: 'expenses.approve', module: 'expenses', description: 'Approve or reject branch expense vouchers' },
+        { code: 'branches.view', module: 'branches', description: 'View company regional branches' },
+        { code: 'branches.create', module: 'branches', description: 'Create new branches and operational nodes' },
+        { code: 'branches.manage', module: 'branches', description: 'Edit branch configuration and active status' },
+        { code: 'shipments:create', module: 'shipments', description: 'Book parcel shipment bookings' },
+        { code: 'shipments:view:all', module: 'shipments', description: 'View shipments network-wide' },
+        { code: 'shipments:view:own', module: 'shipments', description: 'View shipments within assigned hub' },
+        { code: 'shipments:cancel', module: 'shipments', description: 'Cancel un-dispatched shipments' },
+        { code: 'shipments:status:update', module: 'shipments', description: 'Perform lifecycle state transitions' },
+        { code: 'shipments:price:override', module: 'shipments', description: 'Apply discount or rating override' },
+        { code: 'transport:runs:plan', module: 'transport', description: 'Plan linehaul transport runs and assign resources' },
+        { code: 'transport:runs:dispatch', module: 'transport', description: 'Dispatch in-transit linehaul runs' },
+        { code: 'transport:runs:arrive', module: 'transport', description: 'Record arrival and intake at destination hub' },
+        { code: 'transport:runs:view', module: 'transport', description: 'View network linehaul schedule' },
+        { code: 'custody:scan', module: 'custody', description: 'Execute barcode scan and intake' },
+        { code: 'custody:handoff', module: 'custody', description: 'Record chain-of-custody handoffs' },
+        { code: 'custody:receive_session', module: 'custody', description: 'Manage bulk hub receiving sessions' },
+        { code: 'custody:discrepancy:flag', module: 'custody', description: 'Flag weight and damage discrepancies' },
+        { code: 'custody:discrepancy:resolve', module: 'custody', description: 'Approve and resolve parcel discrepancies' },
+        { code: 'lastmile:assign', module: 'lastmile', description: 'Assign packages to last-mile delivery routes' },
+        { code: 'lastmile:pod:record', module: 'lastmile', description: 'Record proof of delivery with signature and GPS' },
+        { code: 'lastmile:exceptions:manage', module: 'lastmile', description: 'Manage delivery exception workflows' },
+        { code: 'cod:view', module: 'cod', description: 'View COD settlements and reconciliation records' },
+        { code: 'cod:collect', module: 'cod', description: 'Record COD collection from recipient' },
+        { code: 'cod:remit', module: 'cod', description: 'Remit collected COD funds to finance/depot' },
+        { code: 'cod:reconcile', module: 'cod', description: 'Reconcile and sign off COD settlements' },
+        { code: 'control_tower:view', module: 'control_tower', description: 'View operational control tower telemetry' },
+        { code: 'control_tower:resolve', module: 'control_tower', description: 'Resolve bottleneck alerts in real-time' }
+    ];
+
+    for (const p of permissions) {
+        await client.query(`
+            INSERT INTO permissions (code, module, description)
+            VALUES ($1, $2, $3)
+            ON CONFLICT (code) DO UPDATE SET
+                description = EXCLUDED.description;
+        `, [p.code, p.module, p.description]);
+    }
+
+    const permRows = await client.query('SELECT id, code FROM permissions');
+
+    // Super Admin (Role 1): Grant all permissions
+    for (const p of permRows.rows) {
+        await client.query(`
+            INSERT INTO role_permissions (role_id, permission_id)
+            VALUES (1, $1)
+            ON CONFLICT DO NOTHING;
+        `, [p.id]);
+    }
+
+    // Branch Manager (Role 2): Grant all operational and management permissions
+    const managerPerms = permRows.rows.filter(p => !['branches.create'].includes(p.code));
+    for (const p of managerPerms) {
+        await client.query(`
+            INSERT INTO role_permissions (role_id, permission_id)
+            VALUES (2, $1)
+            ON CONFLICT DO NOTHING;
+        `, [p.id]);
+    }
+
+    // Dispatcher (Role 3)
+    const dispatcherPrefixes = ['dispatch', 'delivery', 'transport', 'custody', 'shipments', 'control_tower', 'branches.view', 'users.view', 'inventory.view'];
+    const dispatcherPerms = permRows.rows.filter(p => dispatcherPrefixes.some(pref => p.code.startsWith(pref)));
+    for (const p of dispatcherPerms) {
+        await client.query(`
+            INSERT INTO role_permissions (role_id, permission_id)
+            VALUES (3, $1)
+            ON CONFLICT DO NOTHING;
+        `, [p.id]);
+    }
+
+    // Cashier (Role 4)
+    const cashierPrefixes = ['pos', 'reports.shift_own', 'payments', 'shipments:create', 'shipments:view:own', 'inventory.view', 'cod:collect', 'cod:remit'];
+    const cashierPerms = permRows.rows.filter(p => cashierPrefixes.some(pref => p.code.startsWith(pref)));
+    for (const p of cashierPerms) {
+        await client.query(`
+            INSERT INTO role_permissions (role_id, permission_id)
+            VALUES (4, $1)
+            ON CONFLICT DO NOTHING;
+        `, [p.id]);
+    }
+
+    // Driver (Role 5)
+    const driverPrefixes = ['delivery.', 'custody:scan', 'custody:handoff', 'lastmile:', 'cod:collect'];
+    const driverPerms = permRows.rows.filter(p => driverPrefixes.some(pref => p.code.startsWith(pref)));
+    for (const p of driverPerms) {
+        await client.query(`
+            INSERT INTO role_permissions (role_id, permission_id)
+            VALUES (5, $1)
+            ON CONFLICT DO NOTHING;
+        `, [p.id]);
+    }
+}
+
+/**
  * Seeds a complete, coherent logistics and POS enterprise dataset.
  */
 async function seedCleanEnterpriseData(pool = null, options = {}) {
@@ -250,128 +377,8 @@ async function seedCleanEnterpriseData(pool = null, options = {}) {
             `, [r.id, r.name, r.display_name, r.description]);
         }
 
-        const permissions = [
-            { code: 'pos.view', module: 'pos', description: 'View POS counter, products, and held orders' },
-            { code: 'pos.create', module: 'pos', description: 'Process counter sales and checkouts' },
-            { code: 'pos.hold', module: 'pos', description: 'Hold and resume in-progress POS transactions' },
-            { code: 'pos.refund_request', module: 'pos', description: 'Submit refund requests for completed sales' },
-            { code: 'pos.refund_approve', module: 'pos', description: 'Approve or reject customer refund requests' },
-            { code: 'pos:counter:book', module: 'pos', description: 'Counter parcel booking and acceptance' },
-            { code: 'pos:counter:quote', module: 'pos', description: 'Calculate live shipping tariff quotes at counter' },
-            { code: 'inventory.view', module: 'inventory', description: 'Inspect stock levels and catalog items' },
-            { code: 'inventory.adjust_request', module: 'inventory', description: 'Request stock count adjustments' },
-            { code: 'inventory.adjust_approve', module: 'inventory', description: 'Approve or reject inventory adjustments' },
-            { code: 'inventory.transfer_request', module: 'inventory', description: 'Initiate inter-branch stock transfers' },
-            { code: 'inventory.transfer_status', module: 'inventory', description: 'Update status of inter-branch transfers' },
-            { code: 'dispatch.view', module: 'dispatch', description: 'View dispatch board and delivery queues' },
-            { code: 'dispatch.create', module: 'dispatch', description: 'Create and schedule dispatches' },
-            { code: 'dispatch.assign', module: 'dispatch', description: 'Assign drivers and vehicles to deliveries' },
-            { code: 'dispatch.update', module: 'dispatch', description: 'Update dispatch and delivery statuses' },
-            { code: 'delivery.view_own', module: 'delivery', description: 'View assigned deliveries' },
-            { code: 'delivery.start', module: 'delivery', description: 'Start in-transit delivery route' },
-            { code: 'delivery.pod_submit', module: 'delivery', description: 'Submit proof-of-delivery (OTP, signature)' },
-            { code: 'delivery.problem', module: 'delivery', description: 'Flag delivery exceptions and problems' },
-            { code: 'users.view', module: 'users', description: 'View staff members and credentials' },
-            { code: 'users.create', module: 'users', description: 'Provision new operational staff accounts' },
-            { code: 'users.edit', module: 'users', description: 'Modify staff profiles and role assignments' },
-            { code: 'users.manage', module: 'users', description: 'Administrative actions: unlock, password reset, force logout' },
-            { code: 'reports.financial_all', module: 'reports', description: 'View enterprise-wide financial statements' },
-            { code: 'reports.financial_own', module: 'reports', description: 'View branch-specific sales and revenue reports' },
-            { code: 'reports.shift_own', module: 'reports', description: 'View individual shift and cashier reconciliation' },
-            { code: 'expenses.create', module: 'expenses', description: 'Log operational branch expenditures' },
-            { code: 'expenses.approve', module: 'expenses', description: 'Approve or reject branch expense vouchers' },
-            { code: 'branches.view', module: 'branches', description: 'View company regional branches' },
-            { code: 'branches.create', module: 'branches', description: 'Create new branches and operational nodes' },
-            { code: 'branches.manage', module: 'branches', description: 'Edit branch configuration and active status' },
-            { code: 'shipments:create', module: 'shipments', description: 'Book parcel shipment bookings' },
-            { code: 'shipments:view:all', module: 'shipments', description: 'View shipments network-wide' },
-            { code: 'shipments:view:own', module: 'shipments', description: 'View shipments within assigned hub' },
-            { code: 'shipments:cancel', module: 'shipments', description: 'Cancel un-dispatched shipments' },
-            { code: 'shipments:status:update', module: 'shipments', description: 'Perform lifecycle state transitions' },
-            { code: 'shipments:price:override', module: 'shipments', description: 'Apply discount or rating override' },
-            { code: 'transport:runs:plan', module: 'transport', description: 'Plan linehaul transport runs and assign resources' },
-            { code: 'transport:runs:dispatch', module: 'transport', description: 'Dispatch in-transit linehaul runs' },
-            { code: 'transport:runs:arrive', module: 'transport', description: 'Record arrival and intake at destination hub' },
-            { code: 'transport:runs:view', module: 'transport', description: 'View network linehaul schedule' },
-            { code: 'custody:scan', module: 'custody', description: 'Execute barcode scan and intake' },
-            { code: 'custody:handoff', module: 'custody', description: 'Record chain-of-custody handoffs' },
-            { code: 'custody:receive_session', module: 'custody', description: 'Manage bulk hub receiving sessions' },
-            { code: 'custody:discrepancy:flag', module: 'custody', description: 'Flag weight and damage discrepancies' },
-            { code: 'custody:discrepancy:resolve', module: 'custody', description: 'Approve and resolve parcel discrepancies' },
-            { code: 'lastmile:assign', module: 'lastmile', description: 'Assign packages to last-mile delivery routes' },
-            { code: 'lastmile:pod:record', module: 'lastmile', description: 'Record proof of delivery with signature and GPS' },
-            { code: 'lastmile:exceptions:manage', module: 'lastmile', description: 'Manage delivery exception workflows' },
-            { code: 'cod:view', module: 'cod', description: 'View COD settlements and reconciliation records' },
-            { code: 'cod:collect', module: 'cod', description: 'Record COD collection from recipient' },
-            { code: 'cod:remit', module: 'cod', description: 'Remit collected COD funds to finance/depot' },
-            { code: 'cod:reconcile', module: 'cod', description: 'Reconcile and sign off COD settlements' },
-            { code: 'control_tower:view', module: 'control_tower', description: 'View operational control tower telemetry' },
-            { code: 'control_tower:resolve', module: 'control_tower', description: 'Resolve bottleneck alerts in real-time' }
-        ];
-
-        for (const p of permissions) {
-            await client.query(`
-                INSERT INTO permissions (code, module, description)
-                VALUES ($1, $2, $3)
-                ON CONFLICT (code) DO UPDATE SET
-                    description = EXCLUDED.description;
-            `, [p.code, p.module, p.description]);
-        }
-
-        const permRows = await client.query('SELECT id, code FROM permissions');
-        const permMap = new Map(permRows.rows.map(r => [r.code, r.id]));
-
-        // Super Admin (Role 1): Grant all permissions
-        for (const p of permRows.rows) {
-            await client.query(`
-                INSERT INTO role_permissions (role_id, permission_id)
-                VALUES (1, $1)
-                ON CONFLICT DO NOTHING;
-            `, [p.id]);
-        }
-
-        // Branch Manager (Role 2): Grant all operational and management permissions
-        const managerPerms = permRows.rows.filter(p => !['branches.create'].includes(p.code));
-        for (const p of managerPerms) {
-            await client.query(`
-                INSERT INTO role_permissions (role_id, permission_id)
-                VALUES (2, $1)
-                ON CONFLICT DO NOTHING;
-            `, [p.id]);
-        }
-
-        // Dispatcher (Role 3)
-        const dispatcherPrefixes = ['dispatch', 'delivery', 'transport', 'custody', 'shipments', 'control_tower', 'branches.view', 'users.view', 'inventory.view'];
-        const dispatcherPerms = permRows.rows.filter(p => dispatcherPrefixes.some(pref => p.code.startsWith(pref)));
-        for (const p of dispatcherPerms) {
-            await client.query(`
-                INSERT INTO role_permissions (role_id, permission_id)
-                VALUES (3, $1)
-                ON CONFLICT DO NOTHING;
-            `, [p.id]);
-        }
-
-        // Cashier (Role 4)
-        const cashierPrefixes = ['pos', 'reports.shift_own', 'payments', 'shipments:create', 'shipments:view:own', 'inventory.view', 'cod:collect', 'cod:remit'];
-        const cashierPerms = permRows.rows.filter(p => cashierPrefixes.some(pref => p.code.startsWith(pref)));
-        for (const p of cashierPerms) {
-            await client.query(`
-                INSERT INTO role_permissions (role_id, permission_id)
-                VALUES (4, $1)
-                ON CONFLICT DO NOTHING;
-            `, [p.id]);
-        }
-
-        // Driver (Role 5)
-        const driverPrefixes = ['delivery.', 'custody:scan', 'custody:handoff', 'lastmile:', 'cod:collect'];
-        const driverPerms = permRows.rows.filter(p => driverPrefixes.some(pref => p.code.startsWith(pref)));
-        for (const p of driverPerms) {
-            await client.query(`
-                INSERT INTO role_permissions (role_id, permission_id)
-                VALUES (5, $1)
-                ON CONFLICT DO NOTHING;
-            `, [p.id]);
-        }
+        // 4.1 Seed Permissions Matrix & Mappings
+        await seedPermissionsAndMappings(client);
 
         // 5. Authentic Enterprise Staff Users (Password: Password123!)
         console.log('  -> Seeding authentic operational users (all Password123!)...');
@@ -1054,16 +1061,213 @@ async function seedCleanEnterpriseData(pool = null, options = {}) {
     console.log('============================================================\n');
 }
 
-// Backward compatibility alias
-async function seedProductionBaseline(pool = null) {
-    return seedCleanEnterpriseData(pool, { clean: true });
+/**
+ * Seeds ONLY production foundational infrastructure without demo accounts,
+ * mock shipments, or default credentials.
+ */
+async function seedProductionFoundation(pool = null, options = {}) {
+    const shouldClean = options.clean === true;
+    console.log(`[PostgreSQL Seed] Starting pure production foundational setup (Clean: ${shouldClean})...`);
+
+    await withTransaction(async (client) => {
+        if (shouldClean) {
+            await truncateAllTables(client);
+        }
+
+        // 1. Company Settings
+        console.log('  -> Seeding company settings...');
+        await client.query(`
+            INSERT INTO company_settings (
+                id, company_name, registration_number, kra_pin, vat_rate, currency,
+                phone, email, address, city, country, receipt_header, receipt_footer,
+                etims_enabled, etims_branch_code
+            ) VALUES (
+                1, 'SwiftTrack Kenya Logistics Ltd', 'CPR/2021/88921', 'P051234567Z', 16.00, 'KES',
+                '+254 700 123 456', 'info@swifttrack.co.ke', 'Enterprise Road, Industrial Area, Plot 42',
+                'Nairobi', 'Kenya',
+                '*** SWIFTTRACK KENYA LOGISTICS & POS ***\nYour Trusted Cross-Country Supply Partner',
+                'Thank you for partnering with SwiftTrack Kenya!\neTIMS Certified Tax Invoice\nGoods once sold subject to return policy.',
+                true, '00'
+            )
+            ON CONFLICT (id) DO UPDATE SET
+                company_name = EXCLUDED.company_name,
+                kra_pin = EXCLUDED.kra_pin,
+                address = EXCLUDED.address;
+        `);
+
+        // 2. Foundation Regional Hub Branches
+        console.log('  -> Seeding foundational regional branches...');
+        const branches = [
+            {
+                id: 1,
+                code: 'NRB-HQ',
+                name: 'Nairobi Central Hub',
+                city: 'Nairobi',
+                address: 'Enterprise Rd, Industrial Area',
+                phone: '+254 711 111 001',
+                email: 'nairobi@swifttrack.co.ke',
+                is_hub: true,
+                hub_type: 'HEADQUARTERS',
+                latitude: -1.303205,
+                longitude: 36.852994,
+                max_parcels_capacity: 25000,
+                contact_person: 'David Ochieng'
+            },
+            {
+                id: 2,
+                code: 'MSA-01',
+                name: 'Mombasa Port & Coastal Branch',
+                city: 'Mombasa',
+                address: 'Moi Avenue, Port Reitz Logistics Park',
+                phone: '+254 711 111 002',
+                email: 'mombasa@swifttrack.co.ke',
+                is_hub: true,
+                hub_type: 'TRANSIT_HUB',
+                latitude: -4.043477,
+                longitude: 39.668206,
+                max_parcels_capacity: 15000,
+                contact_person: 'Hassan Mwadime'
+            },
+            {
+                id: 3,
+                code: 'KSM-01',
+                name: 'Kisumu Lake Basin Branch',
+                city: 'Kisumu',
+                address: 'Oginga Odinga Street, Warehouse Complex',
+                phone: '+254 711 111 003',
+                email: 'kisumu@swifttrack.co.ke',
+                is_hub: true,
+                hub_type: 'REGIONAL_HUB',
+                latitude: -0.091702,
+                longitude: 34.767956,
+                max_parcels_capacity: 10000,
+                contact_person: 'Grace Adhiambo'
+            },
+            {
+                id: 4,
+                code: 'NAK-01',
+                name: 'Nakuru Transit Hub & Depot',
+                city: 'Nakuru',
+                address: 'Commercial Street, Nakuru Industrial Area',
+                phone: '+254 711 111 004',
+                email: 'nakuru@swifttrack.co.ke',
+                is_hub: true,
+                hub_type: 'TRANSIT_HUB',
+                latitude: -0.303099,
+                longitude: 36.080026,
+                max_parcels_capacity: 10000,
+                contact_person: 'Peter Kipkorir'
+            }
+        ];
+
+        for (const b of branches) {
+            await client.query(`
+                INSERT INTO branches (
+                    id, code, name, city, address, phone, email, is_active,
+                    is_hub, hub_type, latitude, longitude, max_parcels_capacity, contact_person
+                ) VALUES ($1, $2, $3, $4, $5, $6, $7, true, $8, $9, $10, $11, $12, $13)
+                ON CONFLICT (id) DO UPDATE SET
+                    code = EXCLUDED.code,
+                    name = EXCLUDED.name,
+                    city = EXCLUDED.city,
+                    address = EXCLUDED.address,
+                    phone = EXCLUDED.phone,
+                    email = EXCLUDED.email,
+                    is_active = true,
+                    is_hub = EXCLUDED.is_hub,
+                    hub_type = EXCLUDED.hub_type,
+                    latitude = EXCLUDED.latitude,
+                    longitude = EXCLUDED.longitude,
+                    max_parcels_capacity = EXCLUDED.max_parcels_capacity,
+                    contact_person = EXCLUDED.contact_person;
+            `, [
+                b.id, b.code, b.name, b.city, b.address, b.phone, b.email,
+                b.is_hub, b.hub_type, b.latitude, b.longitude, b.max_parcels_capacity, b.contact_person
+            ]);
+        }
+
+        // 3. Attached Hub Warehouses
+        console.log('  -> Seeding foundational hub warehouses...');
+        const warehouses = [
+            { id: 1, branch_id: 1, code: 'W-NRB-MAIN', name: 'Nairobi Main Distribution Centre', location_desc: 'Block A, Loading Bay 1-4' },
+            { id: 2, branch_id: 1, code: 'W-NRB-RET', name: 'Nairobi Retail & Rapid Dispatch Depot', location_desc: 'Front Hub Counter & Bay 5' },
+            { id: 3, branch_id: 2, code: 'W-MSA-DEP', name: 'Mombasa Port Transit Warehouse', location_desc: 'Dock 3, Coastal Logistics Hub' },
+            { id: 4, branch_id: 3, code: 'W-KSM-DEP', name: 'Kisumu Regional Distribution Depot', location_desc: 'Zone B, Lake Hub' },
+            { id: 5, branch_id: 4, code: 'W-NAK-DEP', name: 'Nakuru Regional Distribution Depot', location_desc: 'Main Bay 1, Rift Hub' }
+        ];
+
+        for (const w of warehouses) {
+            await client.query(`
+                INSERT INTO warehouses (id, branch_id, code, name, location_desc, is_active)
+                VALUES ($1, $2, $3, $4, $5, true)
+                ON CONFLICT (id) DO UPDATE SET
+                    name = EXCLUDED.name,
+                    code = EXCLUDED.code,
+                    location_desc = EXCLUDED.location_desc;
+            `, [w.id, w.branch_id, w.code, w.name, w.location_desc]);
+        }
+
+        // 4. Roles & Permissions Matrix
+        console.log('  -> Seeding roles and permissions matrix...');
+        const roles = [
+            { id: 1, name: 'SUPER_ADMIN', display_name: 'Super Administrator', description: 'Complete system-wide unrestricted access across all hubs and functions' },
+            { id: 2, name: 'BRANCH_MANAGER', display_name: 'Branch Manager', description: 'Full operational control, approvals, staff & inventory management for assigned hub' },
+            { id: 3, name: 'DISPATCHER', display_name: 'Logistics Dispatcher', description: 'Order fulfilment, delivery assignment, linehaul routing, driver tracking' },
+            { id: 4, name: 'CASHIER', display_name: 'POS Cashier', description: 'Counter sales, parcel acceptance, M-Pesa verification and checkout' },
+            { id: 5, name: 'DRIVER', display_name: 'Delivery Driver', description: 'Mobile delivery execution, status updates, electronic proof of delivery' }
+        ];
+
+        for (const r of roles) {
+            await client.query(`
+                INSERT INTO roles (id, name, display_name, description, is_system)
+                VALUES ($1, $2, $3, $4, true)
+                ON CONFLICT (id) DO UPDATE SET
+                    display_name = EXCLUDED.display_name,
+                    description = EXCLUDED.description;
+            `, [r.id, r.name, r.display_name, r.description]);
+        }
+
+        await seedPermissionsAndMappings(client);
+
+        // 5. Sequence Resets for Foundational Tables
+        const serialTables = ['branches', 'warehouses', 'roles', 'permissions', 'company_settings'];
+        for (const tbl of serialTables) {
+            await resetSequence(client, tbl);
+        }
+
+        console.log('\n============================================================');
+        console.log('[PostgreSQL Seed] [SUCCESS] Production system foundation seeded cleanly.');
+        console.log('  - 4 Regional Hubs (Nairobi, Mombasa, Kisumu, Nakuru)');
+        console.log('  - 5 Attached Hub Warehouses');
+        console.log('  - Full RBAC Matrix (5 Roles, 40 Permissions)');
+        console.log('  - ZERO demo users, mock orders, or default passwords inserted.');
+        console.log('  - Provision administrator: Run "npm run admin:bootstrap"');
+        console.log('============================================================\n');
+    });
+}
+
+// Baseline seeder that respects NODE_ENV and options.productionOnly
+async function seedProductionBaseline(pool = null, options = {}) {
+    const isProd = process.env.NODE_ENV === 'production' || options.productionOnly === true;
+    if (isProd) {
+        return seedProductionFoundation(pool, options);
+    }
+    return seedCleanEnterpriseData(pool, { clean: options.clean !== false });
 }
 
 // CLI handler
 if (require.main === module) {
     (async () => {
         try {
-            await seedCleanEnterpriseData(null, { clean: true });
+            const args = process.argv.slice(2);
+            const isProd = args.includes('--prod') || args.includes('--production') || process.env.NODE_ENV === 'production';
+            if (isProd) {
+                console.log('[PostgreSQL Seed] Running pure production foundation seed (zero demo accounts)...');
+                await seedProductionFoundation(null, { clean: args.includes('--clean') });
+            } else {
+                console.log('[PostgreSQL Seed] Running enterprise demo seed with test data...');
+                await seedCleanEnterpriseData(null, { clean: args.includes('--clean') || true });
+            }
         } catch (err) {
             console.error('[PostgreSQL Seed Fatal Error]:', err);
             process.exit(1);
@@ -1076,6 +1280,8 @@ if (require.main === module) {
 module.exports = {
     seedCleanEnterpriseData,
     seedProductionBaseline,
+    seedProductionFoundation,
+    seedPermissionsAndMappings,
     resetSequence,
     truncateAllTables
 };

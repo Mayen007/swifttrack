@@ -5,6 +5,8 @@ const crypto = require('node:crypto');
 const KNOWN_INSECURE_SECRETS = [
     'swifttrack_jwt_super_secret_production_key_2026',
     'swifttrack_jwt_super_secret_production_key_2026_change_in_prod',
+    'swifttrack_jwt_production_secret_change_in_real_env',
+    'super_secure_pg_password_2026',
     'secret',
     'jwt_secret',
     'changeme',

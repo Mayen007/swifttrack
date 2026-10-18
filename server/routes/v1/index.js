@@ -12,7 +12,59 @@ router.use(queryParser());
 router.use('/docs', require('../docs.js'));
 router.use('/', require('../docs.js')); // Serves /openapi.json
 
-// Health Check
+// 1. Two-Stage Liveness Probe (Kubernetes / Docker container ping)
+router.get(['/health/live', '/live'], (req, res) => {
+    res.json({
+        status: 'alive',
+        uptimeSeconds: Math.floor(process.uptime()),
+        timestamp: new Date().toISOString()
+    });
+});
+
+// 2. Two-Stage Readiness Probe (Verifies PostgreSQL pool, migrations & runtime state)
+router.get(['/health/ready', '/ready'], async (req, res) => {
+    const isPostgres = process.env.DB_CLIENT === 'postgres' || (!!process.env.DATABASE_URL && process.env.DB_CLIENT !== 'sqlite');
+    let dbStatus = 'disconnected';
+    let poolMetrics = null;
+    let latencyMs = 0;
+    let isHealthy = false;
+
+    try {
+        const start = Date.now();
+        if (isPostgres) {
+            const pool = require('../../db/postgres/pool.js');
+            const check = await pool.poolHealthCheck();
+            latencyMs = check.latencyMs || (Date.now() - start);
+            isHealthy = check.connected && check.status === 'healthy';
+            dbStatus = check.status;
+            poolMetrics = check.pool;
+        } else {
+            const row = await dbAdapter.get('SELECT 1 as ok');
+            latencyMs = Date.now() - start;
+            isHealthy = Number(row?.ok) === 1;
+            dbStatus = isHealthy ? 'healthy' : 'unhealthy';
+        }
+    } catch (err) {
+        dbStatus = 'error: ' + err.message;
+        isHealthy = false;
+    }
+
+    const payload = {
+        status: isHealthy ? 'ready' : 'unready',
+        database: dbStatus,
+        latencyMs,
+        pool: poolMetrics,
+        engine: isPostgres ? 'PostgreSQL 16+' : 'SQLite Dev',
+        timestamp: new Date().toISOString()
+    };
+
+    if (!isHealthy) {
+        return res.status(503).json(payload);
+    }
+    return res.json(payload);
+});
+
+// 3. Composite Health Check (Backward compatibility)
 router.get('/health', async (req, res) => {
     let dbConnected = false;
     try {
