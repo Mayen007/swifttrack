@@ -465,8 +465,8 @@ function initProductionBootstrap() {
 
     const drivers = [
         { id: 1, user_id: 5, branch_id: 1, license: 'DL-NRB-88219', vehicle_id: 2, phone: '+254 722 000 005', status: 'AVAILABLE', lat: -1.3032, lng: 36.8456 },
-        { id: 2, user_id: 8, branch_id: 2, license: 'DL-MSA-44102', vehicle_id: 4, phone: '+254 722 000 008', status: 'AVAILABLE', lat: -4.0435, lng: 39.6682 },
-        { id: 3, user_id: 10, branch_id: 3, license: 'DL-KSM-99120', vehicle_id: 5, phone: '+254 722 000 010', status: 'AVAILABLE', lat: -0.0917, lng: 34.7680 }
+        { id: 2, user_id: 9, branch_id: 2, license: 'DL-MSA-44102', vehicle_id: 4, phone: '+254 722 000 009', status: 'AVAILABLE', lat: -4.0435, lng: 39.6682 },
+        { id: 3, user_id: 13, branch_id: 3, license: 'DL-KSM-99120', vehicle_id: 5, phone: '+254 722 000 013', status: 'AVAILABLE', lat: -0.0917, lng: 34.7680 }
     ];
 
     for (const d of drivers) {

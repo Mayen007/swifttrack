@@ -115,20 +115,25 @@ function seedAllBranchesDemoData() {
     }
 
     const driverProfiles = [
-        { id: 1, user_id: 5, branch_id: 1, license: 'DL-NRB-88219', vehicle_id: 2, phone: '+254 722 000 005', status: 'AVAILABLE', lat: -1.3032, lng: 36.8456 },
-        { id: 2, user_id: 8, branch_id: 2, license: 'DL-MSA-44102', vehicle_id: 4, phone: '+254 722 000 008', status: 'AVAILABLE', lat: -4.0435, lng: 39.6682 },
-        { id: 3, user_id: 10, branch_id: 3, license: 'DL-KSM-99120', vehicle_id: 5, phone: '+254 722 000 010', status: 'AVAILABLE', lat: -0.0917, lng: 34.7680 },
-        { id: 4, user_id: 18, branch_id: 4, license: 'DL-NAK-77182', vehicle_id: 6, phone: '+254 722 000 018', status: 'AVAILABLE', lat: -0.3031, lng: 36.0800 }
+        { id: 1, username: 'driver.nairobi', branch_id: 1, license: 'DL-NRB-88219', vehicle_id: 2, phone: '+254 722 000 005', status: 'AVAILABLE', lat: -1.3032, lng: 36.8456 },
+        { id: 2, username: 'driver.mombasa', branch_id: 2, license: 'DL-MSA-44102', vehicle_id: 4, phone: '+254 722 000 009', status: 'AVAILABLE', lat: -4.0435, lng: 39.6682 },
+        { id: 3, username: 'driver.kisumu', branch_id: 3, license: 'DL-KSM-99120', vehicle_id: 5, phone: '+254 722 000 013', status: 'AVAILABLE', lat: -0.0917, lng: 34.7680 },
+        { id: 4, username: 'driver.nakuru', branch_id: 4, license: 'DL-NAK-77182', vehicle_id: 6, phone: '+254 722 000 017', status: 'AVAILABLE', lat: -0.3031, lng: 36.0800 }
     ];
 
     for (const d of driverProfiles) {
-        const exist = db.prepare('SELECT id FROM drivers WHERE user_id = ?').get(d.user_id);
+        const user = db.prepare('SELECT id FROM users WHERE username = ?').get(d.username);
+        if (!user) {
+            throw new Error(`Cannot seed driver profile: user "${d.username}" does not exist.`);
+        }
+
+        const exist = db.prepare('SELECT id FROM drivers WHERE user_id = ?').get(user.id);
         if (!exist) {
             db.prepare(`
                 INSERT INTO drivers (id, user_id, branch_id, license_number, vehicle_id, phone, status, current_latitude, current_longitude, last_ping_at)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-            `).run(d.id, d.user_id, d.branch_id, d.license, d.vehicle_id, d.phone, d.status, d.lat, d.lng);
-            console.log(`  [OK] Provisioned driver record for User ID: ${d.user_id} (${d.license})`);
+            `).run(d.id, user.id, d.branch_id, d.license, d.vehicle_id, d.phone, d.status, d.lat, d.lng);
+            console.log(`  [OK] Provisioned driver record for ${d.username} (${d.license})`);
         }
     }
 
@@ -647,7 +652,7 @@ function seedAllBranchesDemoData() {
 
         // Nakuru
         { exp_no: 'EXP-NAK-001', branch_id: 4, category: 'FUEL', desc: 'Depot 3-phase backup generator diesel refill', amt: 4200.0, payee: 'Rubis Nakuru West', method: 'MPESA', status: 'APPROVED', user_id: 15, app_user_id: 15 },
-        { exp_no: 'EXP-NAK-002', branch_id: 4, category: 'VEHICLE_MAINTENANCE', desc: 'Fleet Van KDG 430Y periodic engine oil & filter service', amt: 4800.0, payee: 'Nakuru Auto Care Centre', method: 'MPESA', status: 'APPROVED', user_id: 18, app_user_id: 15 },
+        { exp_no: 'EXP-NAK-002', branch_id: 4, category: 'VEHICLE_MAINTENANCE', desc: 'Fleet Van KDG 430Y periodic engine oil & filter service', amt: 4800.0, payee: 'Nakuru Auto Care Centre', method: 'MPESA', status: 'APPROVED', user_id: 17, app_user_id: 15 },
         { exp_no: 'EXP-NAK-003', branch_id: 4, category: 'OTHER', desc: 'KeNHA axle weighbridge road transit permits', amt: 1800.0, payee: 'KeNHA Nakuru Office', method: 'MPESA', status: 'APPROVED', user_id: 15, app_user_id: 15 },
         { exp_no: 'EXP-NAK-004', branch_id: 4, category: 'UTILITIES', desc: 'Depot cleaning & Menengai dust sanitation supplies', amt: 2500.0, payee: 'CleanCare Nakuru Supplies', method: 'CASH', status: 'PENDING_APPROVAL', user_id: 16, app_user_id: null }
     ];
