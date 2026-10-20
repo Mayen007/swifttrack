@@ -78,6 +78,56 @@ assert.ok(appContent.includes("case 'drivers':"), 'App.jsx must route drivers ca
 assert.ok(appContent.includes('<DriversView />'), 'App.jsx must render <DriversView /> component');
 console.log('  [PASS] Sidebar and App.jsx routing integration verified');
 
+console.log('> TEST 7: Modal Z-Index Stacking Hierarchy & Overlay Priority...');
+const editModalPath = path.join(__dirname, '../../client/src/components/drivers/EditDriverModal.jsx');
+const statusModalPath = path.join(__dirname, '../../client/src/components/drivers/DriverStatusModal.jsx');
+const assignModalPath = path.join(__dirname, '../../client/src/components/drivers/AssignVehicleModal.jsx');
+const incidentModalPath = path.join(__dirname, '../../client/src/components/drivers/LogIncidentModal.jsx');
+
+assert.ok(fs.existsSync(editModalPath), 'EditDriverModal.jsx must exist');
+const editModalContent = fs.readFileSync(editModalPath, 'utf8');
+assert.ok(editModalContent.includes('z-[60]'), 'EditDriverModal must use z-[60] to elevate above base drawer');
+
+if (fs.existsSync(statusModalPath)) {
+  const statusContent = fs.readFileSync(statusModalPath, 'utf8');
+  assert.ok(statusContent.includes('z-[60]'), 'DriverStatusModal must use z-[60]');
+}
+if (fs.existsSync(assignModalPath)) {
+  const assignContent = fs.readFileSync(assignModalPath, 'utf8');
+  assert.ok(assignContent.includes('z-[60]'), 'AssignVehicleModal must use z-[60]');
+}
+if (fs.existsSync(incidentModalPath)) {
+  const incidentContent = fs.readFileSync(incidentModalPath, 'utf8');
+  assert.ok(incidentContent.includes('z-[60]'), 'LogIncidentModal must use z-[60]');
+}
+console.log('  [PASS] Modal z-index elevation and stacking hierarchy verified (z-[60])');
+
+console.log('> TEST 8: Human-Readable Driver Date Formatting...');
+const detailModalPath = path.join(__dirname, '../../client/src/components/drivers/DriverDetailModal.jsx');
+assert.ok(fs.existsSync(detailModalPath), 'DriverDetailModal.jsx must exist');
+const detailModalContent = fs.readFileSync(detailModalPath, 'utf8');
+assert.ok(detailModalContent.includes('formatDate'), 'DriverDetailModal must implement formatDate utility');
+assert.ok(detailModalContent.includes("toLocaleDateString('en-KE'"), 'DriverDetailModal must format dates with en-KE locale');
+assert.ok(detailModalContent.includes('formatDate(selectedDriver.license_expiry_date)'), 'License expiry date must be formatted through formatDate');
+assert.ok(detailModalContent.includes('formatDate(selectedDriver.license_issue_date)'), 'License issue date must be formatted through formatDate');
+console.log('  [PASS] Driver date formatting helper verified (no raw ISO string leakage)');
+
+console.log('> TEST 9: Date Input Timezone-Safe Normalization...');
+assert.ok(driversContent.includes('toDateInputVal'), 'DriversView must implement toDateInputVal');
+assert.ok(driversContent.includes('getFullYear()'), 'toDateInputVal must use local calendar year');
+assert.ok(driversContent.includes('getDate()'), 'toDateInputVal must use local calendar date');
+console.log('  [PASS] Date input timezone normalization verified (no off-by-one EAT day shift)');
+
+console.log('> TEST 10: Offline Sync Status Telemetry Component Mounting...');
+assert.ok(appContent.includes('OfflineSyncStatus'), 'App.jsx must import and mount OfflineSyncStatus');
+assert.ok(appContent.includes('<OfflineSyncStatus />'), 'App.jsx must render <OfflineSyncStatus />');
+const offlineStatusPath = path.join(__dirname, '../../client/src/components/common/OfflineSyncStatus.jsx');
+assert.ok(fs.existsSync(offlineStatusPath), 'OfflineSyncStatus.jsx must exist');
+const offlineStatusContent = fs.readFileSync(offlineStatusPath, 'utf8');
+assert.ok(offlineStatusContent.includes('initAutoSync'), 'OfflineSyncStatus must connect to initAutoSync');
+assert.ok(offlineStatusContent.includes('Offline Mode'), 'OfflineSyncStatus must support Offline Mode UI state');
+console.log('  [PASS] Offline sync indicator integration and reactive telemetry verified');
+
 console.log('\n============================================================');
-console.log('[SUCCESS]  ALL 6 FRONTEND DRIVERS TESTS PASSED!');
+console.log('[SUCCESS]  ALL 10 FRONTEND DRIVERS & UI CONTRACT TESTS PASSED!');
 console.log('============================================================\n');

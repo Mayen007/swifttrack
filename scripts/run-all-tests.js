@@ -73,6 +73,7 @@ const TEST_SUITES = [
     { file: 'tests/procurement/test-frontend-procurement.js', domain: 'Frontend Integrity', name: 'Frontend Procurement Integrity' },
     { file: 'tests/logistics/test-frontend-drivers.js', domain: 'Frontend Integrity', name: 'Frontend Drivers Integrity' },
     { file: 'tests/logistics/test-frontend-vehicles.js', domain: 'Frontend Integrity', name: 'Frontend Vehicles Integrity' },
+    { file: 'tests/frontend/test-ui-contracts.js', domain: 'Frontend Integrity', name: 'UI Contracts & Modal Stacking' },
 
     // 14. Disaster Recovery & System Observability (Track 6)
     { file: 'tests/database/test-backup-restore.js', domain: 'Disaster Recovery', name: 'Database Backup & Restore Drill' },
