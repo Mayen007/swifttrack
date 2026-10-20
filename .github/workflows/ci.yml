@@ -31,6 +31,7 @@ jobs:
       DB_CLIENT: postgres
       DATABASE_URL: postgres://swifttrack_admin:super_secure_pg_password_2026@localhost:5432/swifttrack_logistics
       PORT: 4000
+      CORS_ORIGINS: https://app.swifttrack.co.ke,http://localhost:5173,http://localhost:5174,http://localhost:4000
       JWT_SECRET: test_jwt_secret_key_swifttrack_ci_2026_enterprise
       REFRESH_TOKEN_SECRET: test_refresh_token_secret_ci_2026_enterprise
 
