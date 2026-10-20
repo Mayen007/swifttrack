@@ -104,7 +104,10 @@ async function listDrivers({ branchId, status, search, complianceStatus, page = 
         FROM drivers d
         JOIN users u ON d.user_id = u.id
         JOIN branches b ON d.branch_id = b.id
-        LEFT JOIN vehicles v ON (d.vehicle_id = v.id OR v.assigned_driver_id = d.id)
+        LEFT JOIN vehicles v ON v.id = COALESCE(
+            d.vehicle_id,
+            (SELECT id FROM vehicles WHERE assigned_driver_id = d.id ORDER BY id LIMIT 1)
+        )
         WHERE 1=1
     `;
     const params = [];

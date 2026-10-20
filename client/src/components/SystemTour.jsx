@@ -16,6 +16,7 @@ import {
   Truck,
   X,
 } from 'lucide-react';
+import { useTheme } from '../context/ThemeContext.jsx';
 
 const WORKSPACE_BY_ROLE = {
   SUPER_ADMIN: {
@@ -86,6 +87,8 @@ const FIRST_TASK_BY_ROLE = {
 export function SystemTour({ isOpen, user, selectedBranch, onClose, onNavigate }) {
   const [stepIndex, setStepIndex] = useState(0);
   const closeButtonRef = useRef(null);
+  const { resolvedTheme } = useTheme();
+  const isLight = resolvedTheme === 'light';
   const role = user?.role || 'SUPER_ADMIN';
   const workspace = WORKSPACE_BY_ROLE[role] || WORKSPACE_BY_ROLE.SUPER_ADMIN;
   const firstTask = FIRST_TASK_BY_ROLE[role] || FIRST_TASK_BY_ROLE.SUPER_ADMIN;
@@ -155,26 +158,27 @@ export function SystemTour({ isOpen, user, selectedBranch, onClose, onNavigate }
   const currentStep = steps[stepIndex];
   const StepIcon = currentStep.icon;
   const isLastStep = stepIndex === steps.length - 1;
+  const accentText = isLight ? 'text-amber-800' : 'text-amber-300';
 
   return (
     <div className="fixed inset-0 z-[90] flex items-center justify-center bg-[#05070b]/80 p-4 backdrop-blur-sm">
       <section
         aria-labelledby="system-tour-title"
         aria-modal="true"
-        className="relative w-full max-w-2xl overflow-hidden rounded-xl border border-[#30394a] bg-[#0e121a] text-slate-200 shadow-[0_32px_100px_rgba(0,0,0,0.7)]"
+        className={`relative w-full max-w-2xl overflow-hidden rounded-xl border shadow-[0_32px_100px_rgba(0,0,0,0.32)] ${isLight ? 'border-slate-300 bg-white text-slate-900' : 'border-[#30394a] bg-[#0e121a] text-slate-200 shadow-[0_32px_100px_rgba(0,0,0,0.7)]'}`}
         role="dialog"
       >
-        <div className="pointer-events-none absolute inset-0 opacity-30 [background-image:linear-gradient(rgba(148,163,184,0.07)_1px,transparent_1px),linear-gradient(90deg,rgba(148,163,184,0.07)_1px,transparent_1px)] [background-size:32px_32px]" />
+        <div className={`pointer-events-none absolute inset-0 [background-image:linear-gradient(rgba(148,163,184,0.07)_1px,transparent_1px),linear-gradient(90deg,rgba(148,163,184,0.07)_1px,transparent_1px)] [background-size:32px_32px] ${isLight ? 'opacity-50' : 'opacity-30'}`} />
         <div className="relative grid md:grid-cols-[0.9fr_1.1fr]">
-          <div className="flex min-h-56 flex-col justify-between border-b border-[#252d3b] bg-[#111722]/90 p-6 md:min-h-[390px] md:border-b-0 md:border-r md:p-8">
+          <div className={`flex min-h-56 flex-col justify-between border-b p-6 md:min-h-[390px] md:border-b-0 md:border-r md:p-8 ${isLight ? 'border-slate-300 bg-slate-100' : 'border-[#252d3b] bg-[#111722]/90'}`}>
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2 text-[10px] font-mono font-bold uppercase tracking-[0.2em] text-amber-300">
+              <div className={`flex items-center gap-2 text-[10px] font-mono font-bold uppercase tracking-[0.2em] ${accentText}`}>
                 <Compass className="h-4 w-4" />
                 SwiftTrack / Briefing
               </div>
               <button
                 aria-label="Close system tour"
-                className="rounded-md p-2 text-slate-400 transition hover:bg-white/5 hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-amber-400"
+                className={`rounded-md p-2 transition focus-visible:outline focus-visible:outline-2 ${isLight ? 'text-slate-600 hover:bg-slate-200 hover:text-slate-950 focus-visible:outline-amber-700' : 'text-slate-400 hover:bg-white/5 hover:text-white focus-visible:outline-amber-400'}`}
                 onClick={onClose}
                 ref={closeButtonRef}
                 type="button"
@@ -184,12 +188,12 @@ export function SystemTour({ isOpen, user, selectedBranch, onClose, onNavigate }
             </div>
 
             <div className="mt-10 md:mt-0">
-              <div className="mb-4 flex items-center gap-2 text-[10px] font-mono uppercase tracking-[0.18em] text-slate-500">
+              <div className={`mb-4 flex items-center gap-2 text-[10px] font-mono uppercase tracking-[0.18em] ${isLight ? 'text-slate-700' : 'text-slate-500'}`}>
                 <span>FIELD GUIDE</span>
-                <span className="h-px w-7 bg-amber-400/60" />
+                <span className={`h-px w-7 ${isLight ? 'bg-amber-700' : 'bg-amber-400/60'}`} />
                 <span>{String(stepIndex + 1).padStart(2, '0')} / {String(steps.length).padStart(2, '0')}</span>
               </div>
-              <p className="max-w-xs text-3xl font-semibold leading-tight tracking-tight text-white md:text-[2.4rem]">
+              <p className={`max-w-xs text-3xl font-semibold leading-tight tracking-tight md:text-[2.4rem] ${isLight ? 'text-slate-950' : 'text-white'}`}>
                 Every parcel. Every branch. In motion.
               </p>
             </div>
@@ -198,7 +202,7 @@ export function SystemTour({ isOpen, user, selectedBranch, onClose, onNavigate }
               {steps.map((step, index) => (
                 <span
                   aria-current={index === stepIndex ? 'step' : undefined}
-                  className={`h-1 rounded-full transition-all ${index === stepIndex ? 'w-9 bg-amber-400' : 'w-4 bg-slate-700'}`}
+                  className={`h-1 rounded-full transition-all ${index === stepIndex ? `w-9 ${isLight ? 'bg-amber-700' : 'bg-amber-400'}` : `w-4 ${isLight ? 'bg-slate-300' : 'bg-slate-700'}`}`}
                   key={step.eyebrow}
                 />
               ))}
@@ -207,39 +211,39 @@ export function SystemTour({ isOpen, user, selectedBranch, onClose, onNavigate }
 
           <div aria-live="polite" className="flex flex-col justify-between p-6 md:p-8">
             <div>
-              <div className="mb-7 flex h-12 w-12 items-center justify-center rounded-lg border border-amber-400/25 bg-amber-400/10 text-amber-300">
+              <div className={`mb-7 flex h-12 w-12 items-center justify-center rounded-lg border ${isLight ? 'border-amber-300 bg-amber-50 text-amber-800' : 'border-amber-400/25 bg-amber-400/10 text-amber-300'}`}>
                 <StepIcon className="h-5 w-5" />
               </div>
-              <p className="mb-2 text-[10px] font-mono font-bold uppercase tracking-[0.2em] text-amber-300">
+              <p className={`mb-2 text-[10px] font-mono font-bold uppercase tracking-[0.2em] ${accentText}`}>
                 {currentStep.eyebrow}
               </p>
-              <h2 className="text-xl font-semibold tracking-tight text-white" id="system-tour-title">
+              <h2 className={`text-xl font-semibold tracking-tight ${isLight ? 'text-slate-950' : 'text-white'}`} id="system-tour-title">
                 {currentStep.title}
               </h2>
-              <p className="mt-3 max-w-md text-sm leading-6 text-slate-400">
+              <p className={`mt-3 max-w-md text-sm leading-6 ${isLight ? 'text-slate-700' : 'text-slate-400'}`}>
                 {currentStep.description}
               </p>
 
               {stepIndex === 1 && (
-                <div className="mt-6 flex items-center gap-3 rounded-lg border border-[#293344] bg-[#121924] p-3">
-                  <WorkspaceIcon className="h-4 w-4 shrink-0 text-amber-300" />
-                  <span className="text-xs font-medium text-slate-200">{workspace.title}</span>
-                  <span className="ml-auto text-[9px] font-mono uppercase tracking-wider text-slate-500">{role.replace('_', ' ')}</span>
+                <div className={`mt-6 flex items-center gap-3 rounded-lg border p-3 ${isLight ? 'border-slate-300 bg-slate-50' : 'border-[#293344] bg-[#121924]'}`}>
+                  <WorkspaceIcon className={`h-4 w-4 shrink-0 ${accentText}`} />
+                  <span className={`text-xs font-medium ${isLight ? 'text-slate-900' : 'text-slate-200'}`}>{workspace.title}</span>
+                  <span className={`ml-auto text-[9px] font-mono uppercase tracking-wider ${isLight ? 'text-slate-700' : 'text-slate-500'}`}>{role.replace('_', ' ')}</span>
                 </div>
               )}
 
               {stepIndex === 3 && selectedBranch && (
-                <div className="mt-6 flex items-center gap-3 rounded-lg border border-[#293344] bg-[#121924] p-3">
-                  <MapPin className="h-4 w-4 shrink-0 text-amber-300" />
-                  <span className="truncate text-xs font-medium text-slate-200">{selectedBranch.name}</span>
-                  <span className="ml-auto shrink-0 text-[9px] font-mono uppercase tracking-wider text-slate-500">{selectedBranch.code}</span>
+                <div className={`mt-6 flex items-center gap-3 rounded-lg border p-3 ${isLight ? 'border-slate-300 bg-slate-50' : 'border-[#293344] bg-[#121924]'}`}>
+                  <MapPin className={`h-4 w-4 shrink-0 ${accentText}`} />
+                  <span className={`truncate text-xs font-medium ${isLight ? 'text-slate-900' : 'text-slate-200'}`}>{selectedBranch.name}</span>
+                  <span className={`ml-auto shrink-0 text-[9px] font-mono uppercase tracking-wider ${isLight ? 'text-slate-700' : 'text-slate-500'}`}>{selectedBranch.code}</span>
                 </div>
               )}
             </div>
 
-            <div className="mt-10 flex items-center justify-between gap-3 border-t border-[#252d3b] pt-5">
+            <div className={`mt-10 flex items-center justify-between gap-3 border-t pt-5 ${isLight ? 'border-slate-300' : 'border-[#252d3b]'}`}>
               <button
-                className="text-xs font-medium text-slate-500 transition hover:text-slate-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-amber-400"
+                className={`text-xs font-medium transition focus-visible:outline focus-visible:outline-2 ${isLight ? 'text-slate-700 hover:text-slate-950 focus-visible:outline-amber-700' : 'text-slate-500 hover:text-slate-200 focus-visible:outline-amber-400'}`}
                 onClick={onClose}
                 type="button"
               >
@@ -249,7 +253,7 @@ export function SystemTour({ isOpen, user, selectedBranch, onClose, onNavigate }
                 {stepIndex > 0 && (
                   <button
                     aria-label="Previous tour step"
-                    className="flex h-10 w-10 items-center justify-center rounded-md border border-[#30394a] text-slate-300 transition hover:border-slate-500 hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-amber-400"
+                    className={`flex h-10 w-10 items-center justify-center rounded-md border transition focus-visible:outline focus-visible:outline-2 ${isLight ? 'border-slate-400 text-slate-800 hover:border-slate-600 hover:bg-slate-100 hover:text-slate-950 focus-visible:outline-amber-700' : 'border-[#30394a] text-slate-300 hover:border-slate-500 hover:text-white focus-visible:outline-amber-400'}`}
                     onClick={() => setStepIndex((current) => Math.max(current - 1, 0))}
                     type="button"
                   >
@@ -257,7 +261,7 @@ export function SystemTour({ isOpen, user, selectedBranch, onClose, onNavigate }
                   </button>
                 )}
                 <button
-                  className="inline-flex h-10 items-center gap-2 rounded-md bg-amber-400 px-4 text-xs font-bold text-[#17140d] transition hover:bg-amber-300 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white"
+                  className={`inline-flex h-10 items-center gap-2 rounded-md px-4 text-xs font-bold transition focus-visible:outline focus-visible:outline-2 ${isLight ? 'bg-amber-700 text-white hover:bg-amber-800 focus-visible:outline-amber-900' : 'bg-amber-400 text-[#17140d] hover:bg-amber-300 focus-visible:outline-white'}`}
                   onClick={() => {
                     if (isLastStep) {
                       onClose();

@@ -32,13 +32,7 @@ import {
   LogOut,
   Compass,
 } from 'lucide-react';
-
-function sanitizeDisplay(str) {
-  if (!str || typeof str !== 'string') return '';
-  return str.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
-            .replace(/<[^>]*>?/gm, '')
-            .trim();
-}
+import { sanitizeDisplay } from '../services/displayText.js';
 
 export function Navbar({
   onToggleNotifications,

@@ -153,7 +153,7 @@ function MainApp() {
   // Poll/fetch real unread notification count
   useEffect(() => {
     // Don't poll at all if there's no authenticated user/token
-    if (!user || !api.token) {
+    if (loading || !user || !api.token) {
       setUnreadCount(0);
       return;
     }
@@ -196,7 +196,7 @@ function MainApp() {
         document.removeEventListener('visibilitychange', handleVisibility);
       }
     };
-  }, [user]);
+  }, [user, loading]);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
     try {

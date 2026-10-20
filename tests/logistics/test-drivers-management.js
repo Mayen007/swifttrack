@@ -29,6 +29,8 @@ async function runTest(name, fn) {
   let createdDriver1 = null;
   let createdDriver2 = null;
   let testVehicle = null;
+  let duplicateAssignmentVehicleId = null;
+  let duplicateAssignmentVehicleReg = null;
   const createdDeliveryIds = [];
   const createdOrderIds = [];
 
@@ -224,6 +226,19 @@ async function runTest(name, fn) {
 
       // Re-assign for delivery tests
       await driverService.assignDriverVehicle(createdDriver1.id, testVehicle.id, adminUser.id);
+
+      // Conflicting legacy vehicle links must not duplicate the driver in the roster.
+      duplicateAssignmentVehicleReg = `KDF-DUP-${Date.now()}`;
+      await dbAdapter.run(`
+        INSERT INTO vehicles (branch_id, registration_number, vehicle_type, model, max_capacity_kg, is_active, assigned_driver_id)
+        VALUES (?, ?, 'VAN', 'Test duplicate assignment', 1200, true, ?)
+      `, [branch1.id, duplicateAssignmentVehicleReg, createdDriver1.id]);
+      const duplicateVehicle = await dbAdapter.get('SELECT id FROM vehicles WHERE registration_number = ?', [duplicateAssignmentVehicleReg]);
+      duplicateAssignmentVehicleId = duplicateVehicle?.id;
+      const roster = await driverService.listDrivers({ search: createdDriver1.full_name });
+      const rosterMatches = roster.drivers.filter((driver) => driver.id === createdDriver1.id);
+      assert.strictEqual(rosterMatches.length, 1, 'A driver must appear only once even with conflicting vehicle links');
+      assert.strictEqual(Number(rosterMatches[0].vehicle_id), Number(testVehicle.id), 'Driver vehicle_id should take precedence over a conflicting assigned_driver_id link');
     });
 
     // TEST 7: Delivery History Ledger with Proof of Delivery (POD)
@@ -330,6 +345,11 @@ async function runTest(name, fn) {
 
     // Cleanup
     try {
+      if (duplicateAssignmentVehicleId) {
+        await dbAdapter.run('DELETE FROM vehicles WHERE id = ?', [duplicateAssignmentVehicleId]);
+      } else if (duplicateAssignmentVehicleReg) {
+        await dbAdapter.run('DELETE FROM vehicles WHERE registration_number = ?', [duplicateAssignmentVehicleReg]);
+      }
       for (const delId of createdDeliveryIds) {
         try {
           await dbAdapter.run('DELETE FROM proof_of_delivery WHERE delivery_id = ?', [delId]);

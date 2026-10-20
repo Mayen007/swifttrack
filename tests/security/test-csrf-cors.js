@@ -3,6 +3,7 @@
 const assert = require('node:assert');
 const http = require('node:http');
 const app = require('../../server/server.js');
+const cleanupBranchFixture = require('./cleanupBranchFixture.js');
 
 console.log('\n============================================================');
 console.log('  SWIFTTRACK PENETRATION SUITE: CSRF, CORS & BODY LIMITS');
@@ -136,14 +137,7 @@ async function runTest(name, fn) {
                 createdId = res.body?.data?.id || res.body?.id;
             } finally {
                 if (createdId) {
-                    const dbAdapter = require('../../server/db/dbAdapter.js');
-                    try {
-                        await dbAdapter.run('DELETE FROM inventory WHERE branch_id = ?', [createdId]);
-                        await dbAdapter.run('DELETE FROM warehouses WHERE branch_id = ?', [createdId]);
-                        await dbAdapter.run('DELETE FROM branches WHERE id = ?', [createdId]);
-                    } catch (cleanupErr) {
-                        console.warn('[test-csrf cleanup notice]:', cleanupErr.message);
-                    }
+                    await cleanupBranchFixture(createdId);
                 }
             }
         });
@@ -172,14 +166,7 @@ async function runTest(name, fn) {
                 createdId = res.body?.data?.id || res.body?.id;
             } finally {
                 if (createdId) {
-                    const dbAdapter = require('../../server/db/dbAdapter.js');
-                    try {
-                        await dbAdapter.run('DELETE FROM inventory WHERE branch_id = ?', [createdId]);
-                        await dbAdapter.run('DELETE FROM warehouses WHERE branch_id = ?', [createdId]);
-                        await dbAdapter.run('DELETE FROM branches WHERE id = ?', [createdId]);
-                    } catch (cleanupErr) {
-                        console.warn('[test-csrf cleanup notice]:', cleanupErr.message);
-                    }
+                    await cleanupBranchFixture(createdId);
                 }
             }
         });

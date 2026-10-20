@@ -3,6 +3,7 @@
 const assert = require('node:assert');
 const http = require('node:http');
 const app = require('../../server/server.js');
+const cleanupBranchFixture = require('./cleanupBranchFixture.js');
 
 console.log('\n============================================================');
 console.log('  SWIFTTRACK PENETRATION SUITE: XSS & HEADER IMMUNITY');
@@ -195,14 +196,7 @@ async function runTest(name, fn) {
                 }
             } finally {
                 if (createdBranchId) {
-                    const dbAdapter = require('../../server/db/dbAdapter.js');
-                    try {
-                        await dbAdapter.run('DELETE FROM inventory WHERE branch_id = ?', [createdBranchId]);
-                        await dbAdapter.run('DELETE FROM warehouses WHERE branch_id = ?', [createdBranchId]);
-                        await dbAdapter.run('DELETE FROM branches WHERE id = ?', [createdBranchId]);
-                    } catch (cleanupErr) {
-                        console.warn('[test-xss cleanup notice]:', cleanupErr.message);
-                    }
+                    await cleanupBranchFixture(createdBranchId);
                 }
             }
         });

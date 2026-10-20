@@ -29,6 +29,7 @@ import {
 import { api } from '../../services/api.js';
 import { sound } from '../../services/sound.js';
 import { cleanLatexText, formatDimensions } from '../../services/formatters.js';
+import { sanitizeDisplay } from '../../services/displayText.js';
 import { PrintableWaybillModal } from './PrintableWaybillModal.jsx';
 
 export const PACKAGING_PRESETS = [
@@ -116,7 +117,7 @@ export function ParcelCounterBooking({ user, selectedBranch, activeShift, onRefr
     async function loadHubs() {
       try {
         setLoadingHubs(true);
-        const res = await api.get('/api/branches');
+        const res = await api.get('/api/branches?is_active=true');
         const list = Array.isArray(res) ? res : (res?.data || []);
         setHubs(list);
       } catch (err) {
@@ -127,6 +128,13 @@ export function ParcelCounterBooking({ user, selectedBranch, activeShift, onRefr
     }
     loadHubs();
   }, [user?.branchId]);
+
+  const formatHubLabel = (hub) => {
+    const name = sanitizeDisplay(hub.name) || sanitizeDisplay(hub.code);
+    const code = sanitizeDisplay(hub.code);
+    const city = sanitizeDisplay(hub.city);
+    return `${name}${code ? ` (${code})` : ''}${city ? ` — ${city}` : ''}`;
+  };
 
   // Pre-fill sender phone into MPESA field when senderPhone changes
   useEffect(() => {
@@ -574,7 +582,7 @@ export function ParcelCounterBooking({ user, selectedBranch, activeShift, onRefr
                 >
                   {hubs.map((h) => (
                     <option key={h.id} value={h.id}>
-                      {h.name} ({h.code}) — {h.city}
+                      {formatHubLabel(h)}
                     </option>
                   ))}
                 </select>
@@ -595,7 +603,7 @@ export function ParcelCounterBooking({ user, selectedBranch, activeShift, onRefr
                     .filter((h) => h.id !== Number(originHubId))
                     .map((h) => (
                       <option key={h.id} value={h.id}>
-                        {h.name} ({h.code}) — {h.city}
+                        {formatHubLabel(h)}
                       </option>
                     ))}
                 </select>

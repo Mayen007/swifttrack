@@ -13,12 +13,7 @@ import {
   Lock,
 } from 'lucide-react';
 import { sound } from '../../services/sound.js';
-
-const sanitizeDisplay = (val) => {
-  if (val === null || val === undefined) return '';
-  const str = String(val);
-  return str.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '').replace(/[<>]/g, '');
-};
+import { sanitizeDisplay } from '../../services/displayText.js';
 
 export function BranchInspectorModal({
   hub,

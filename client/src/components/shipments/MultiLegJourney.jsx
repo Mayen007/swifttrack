@@ -208,7 +208,7 @@ export function MultiLegJourney({ shipment, legs = [], onUpdate }) {
           Multi-Leg Corridor Journey ({legs.length} Segments)
         </h3>
         <span className="text-[10px] font-mono text-slate-400">
-          Routing Sequence 1 $\to$ {legs.length}
+          {legs.length} {legs.length === 1 ? 'segment' : 'segments'}
         </span>
       </div>
 
@@ -233,7 +233,7 @@ export function MultiLegJourney({ shipment, legs = [], onUpdate }) {
                     LEG {String(leg.leg_sequence || index + 1).padStart(2, '0')}
                   </span>
                   <span className="text-xs font-semibold text-white">
-                    {leg.origin_hub_name || `Hub #${leg.origin_hub_id}`} $\to$ {leg.destination_hub_name || `Hub #${leg.destination_hub_id}`}
+                    From {leg.origin_hub_name || `Hub #${leg.origin_hub_id}`} to {leg.destination_hub_name || `Hub #${leg.destination_hub_id}`}
                   </span>
                 </div>
                 {getLegStatusBadge(leg.status)}

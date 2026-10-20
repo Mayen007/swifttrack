@@ -491,7 +491,7 @@ export function ShipmentsView({ onNavigate }) {
               <tr>
                 <th className="py-2 px-3">Tracking & Waybill</th>
                 <th className="py-2 px-3">Route & Corridors</th>
-                <th className="py-2 px-3">Shipper $\to$ Consignee</th>
+                <th className="py-2 px-3">Sender / recipient</th>
                 <th className="py-2 px-3">Parcels & Weight</th>
                 <th className="py-2 px-3">Billing & COD</th>
                 <th className="py-2 px-3">Current Status</th>
@@ -561,8 +561,8 @@ export function ShipmentsView({ onNavigate }) {
 
                     <td className="py-2 px-3">
                       <div className="font-medium text-white">{s.sender_name || 'Shipper'}</div>
-                      <div className="text-[10px] text-slate-400 mt-0.5 flex items-center gap-1">
-                        $\to$ {s.recipient_name || 'Consignee'} ({s.recipient_city || 'City'})
+                      <div className="text-[10px] text-slate-400 mt-0.5">
+                        To {s.recipient_name || 'Consignee'} ({s.recipient_city || 'City'})
                       </div>
                     </td>
 

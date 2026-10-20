@@ -31,6 +31,7 @@ const driverDetailModal = fs.readFileSync(path.join(clientSrc, 'components/drive
 const editDriverModal = fs.readFileSync(path.join(clientSrc, 'components/drivers/EditDriverModal.jsx'), 'utf8');
 const offlineStatus = fs.readFileSync(path.join(clientSrc, 'components/common/OfflineSyncStatus.jsx'), 'utf8');
 const systemTour = fs.readFileSync(path.join(clientSrc, 'components/SystemTour.jsx'), 'utf8');
+const dispatchHeader = fs.readFileSync(path.join(clientSrc, 'components/dispatch/DispatchConsoleHeader.jsx'), 'utf8');
 const navbar = fs.readFileSync(path.join(clientSrc, 'components/Navbar.jsx'), 'utf8');
 const sidebar = fs.readFileSync(path.join(clientSrc, 'components/Sidebar.jsx'), 'utf8');
 const dashboardView = fs.readFileSync(path.join(clientSrc, 'views/DashboardView.jsx'), 'utf8');
@@ -40,6 +41,9 @@ const hubOperations = fs.readFileSync(path.join(clientSrc, 'views/HubOperationsV
 const inboundReceiving = fs.readFileSync(path.join(clientSrc, 'components/hub/InboundReceivingTab.jsx'), 'utf8');
 const e2eAcceptanceRoute = fs.readFileSync(path.resolve(__dirname, '../../server/routes/e2eAcceptance.js'), 'utf8');
 const shipmentsView = fs.readFileSync(path.join(clientSrc, 'views/ShipmentsView.jsx'), 'utf8');
+const multiLegJourney = fs.readFileSync(path.join(clientSrc, 'components/shipments/MultiLegJourney.jsx'), 'utf8');
+const parcelCounterBooking = fs.readFileSync(path.join(clientSrc, 'components/pos/ParcelCounterBooking.jsx'), 'utf8');
+const displayText = fs.readFileSync(path.join(clientSrc, 'services/displayText.js'), 'utf8');
 
 // Test 1: Route-level code-splitting & lazy chunk loading
 runTest('App.jsx implements React.lazy dynamic chunk loading for views', () => {
@@ -98,6 +102,10 @@ runTest('System tour opens once per user after required password changes and can
     assert.ok(systemTour.includes('aria-modal="true"'), 'Tour must be presented as an accessible modal');
     assert.ok(systemTour.includes('Skip tour'), 'Users must be able to skip onboarding');
     assert.ok(navbar.includes('Take the system tour'), 'Users must be able to replay the tour from their profile menu');
+    assert.ok(systemTour.includes("const { resolvedTheme } = useTheme();"), 'Tour must adapt to the active theme');
+    assert.ok(systemTour.includes("isLight ? 'border-slate-300 bg-white text-slate-900'"), 'Light theme tour dialog must use a high-contrast light surface');
+    assert.ok(systemTour.includes("isLight ? 'text-slate-700' : 'text-slate-400'"), 'Light theme tour descriptions must use readable foreground colors');
+    assert.ok(systemTour.includes("isLight ? 'bg-amber-700 text-white hover:bg-amber-800"), 'Light theme tour primary action must use a high-contrast accent');
 });
 
 runTest('First-login tour ends with a role-specific real task', () => {
@@ -114,6 +122,21 @@ runTest('Navigation labels explain parcel booking and the operational sequence',
     assert.ok(sidebar.includes('2. Hub Processing'));
     assert.ok(sidebar.includes('3. Linehaul & Fleet'));
     assert.ok(sidebar.includes('4. Last-Mile Delivery'));
+});
+
+runTest('Parcel Intake only lists active hubs and renders sanitized hub labels', () => {
+    assert.ok(parcelCounterBooking.includes("api.get('/api/branches?is_active=true')"), 'Parcel Intake must request only active hubs');
+    assert.ok(parcelCounterBooking.includes('sanitizeDisplay(hub.name)'), 'Hub names must be sanitized before display');
+    assert.ok(parcelCounterBooking.includes('sanitizeDisplay(hub.code)'), 'Hub codes must be sanitized before display');
+    assert.ok(parcelCounterBooking.includes('sanitizeDisplay(hub.city)'), 'Hub cities must be sanitized before display');
+    assert.strictEqual((parcelCounterBooking.match(/\{formatHubLabel\(h\)\}/g) || []).length, 2, 'Both hub selectors must use the safe label formatter');
+    assert.ok(displayText.includes('<script\\b'), 'Display sanitization must remove script blocks');
+    assert.ok(displayText.includes('<[^>]*>?'), 'Display sanitization must remove remaining tags');
+});
+
+runTest('Notification polling waits until auth initialization has completed', () => {
+    assert.ok(appJsx.includes('if (loading || !user || !api.token)'), 'Notification polling must wait for auth initialization');
+    assert.ok(appJsx.includes('}, [user, loading]);'), 'Notification polling must restart when auth loading completes');
 });
 
 runTest('Hub receiving uses persisted sessions and does not invent session records', () => {
@@ -151,6 +174,25 @@ runTest('Shipment details show a role-appropriate next operational step', () => 
     assert.ok(shipmentsView.includes("view: 'dispatch'"), 'Dispatch-stage next steps must link to dispatch');
     assert.ok(shipmentsView.includes("view: 'control-tower'"), 'Exceptions must link to the control tower');
     assert.ok(shipmentsView.includes("view: 'cod-finance'"), 'COD deliveries must link to reconciliation');
+});
+
+runTest('Dispatch header keeps branch sync status concise and tabs accessible', () => {
+    assert.ok(dispatchHeader.includes('<h1 className="text-base font-semibold'), 'Dispatch console should have a concise heading');
+    assert.ok(dispatchHeader.includes('Updated {lastSyncTime} EAT'), 'Header should report the actual last update time');
+    assert.ok(!dispatchHeader.includes('100% LIVE SYNC'), 'Header must not claim unmeasured live-sync certainty');
+    assert.ok(!dispatchHeader.includes('DISPATCH CONSOLE'), 'Remove redundant console label');
+    assert.ok(!dispatchHeader.includes('<span>SYNC</span>'), 'Use a compact refresh control instead of a redundant text label');
+    assert.ok(dispatchHeader.includes('aria-label="Refresh dispatch board"'), 'Icon-only refresh control must have an accessible name');
+    assert.ok(dispatchHeader.includes('aria-pressed={activeTab ==='), 'Tabs must expose selected state to assistive technology');
+});
+
+runTest('Shipment routes use readable labels instead of raw math notation', () => {
+    assert.ok(shipmentsView.includes('Sender / recipient'), 'Shipment table should use a plain-language party heading');
+    assert.ok(shipmentsView.includes('To {s.recipient_name'), 'Recipient should be introduced with readable text');
+    assert.ok(multiLegJourney.includes("{legs.length === 1 ? 'segment' : 'segments'}"), 'Route count should be plain language');
+    assert.ok(multiLegJourney.includes('From {leg.origin_hub_name'), 'Leg route should use plain-language origin and destination');
+    assert.ok(!shipmentsView.includes('$\\to$'), 'Shipment view must not expose raw LaTeX arrows');
+    assert.ok(!multiLegJourney.includes('$\\to$'), 'Multi-leg journey must not expose raw LaTeX arrows');
 });
 
 console.log(`\nResults: ${passedTests}/${totalTests} tests passed (${Math.round((passedTests / totalTests) * 100)}%)\n`);

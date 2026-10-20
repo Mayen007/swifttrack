@@ -41,25 +41,21 @@ export function DispatchConsoleHeader({
               <Truck className="w-4 h-4" />
             </span>
             <div>
-              <h1 className="text-sm font-bold text-slate-900 dark:text-slate-100 uppercase tracking-wider font-mono flex items-center gap-2">
-                Fleet Dispatch & Manifest Pipeline
-                <span className="text-[10px] font-normal px-2 py-0.5 rounded bg-[#181d28] border border-[#2a3447] text-slate-600 dark:text-slate-400">
-                  DISPATCH CONSOLE
-                </span>
+              <h1 className="text-base font-semibold text-slate-900 dark:text-slate-100 tracking-tight">
+                Dispatch
               </h1>
-              <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 font-mono">
-                HUB: <span className="text-slate-800 dark:text-slate-200 font-semibold">{selectedBranch?.name || 'Distribution Hub'}</span>
-                <span className="mx-2 text-slate-400 dark:text-[#2a3447]">|</span>
-                TELEMETRY: <span className="text-emerald-600 dark:text-emerald-400 font-bold">100% LIVE SYNC</span>
-                {lastSyncTime && <span className="ml-1 text-slate-500 font-mono">({lastSyncTime} EAT)</span>}
+              <p className="mt-0.5 text-xs text-slate-600 dark:text-slate-400">
+                {selectedBranch?.name || 'Distribution Hub'}
+                {lastSyncTime && <span className="text-slate-500 dark:text-slate-500"> · Updated {lastSyncTime} EAT</span>}
               </p>
             </div>
           </div>
         </div>
 
         <div className="flex items-center flex-wrap gap-2">
-          <div className="flex bg-[#0b0e14] p-1 rounded-lg border border-[#2a3447] text-xs font-mono">
+          <div className="flex bg-[#0b0e14] p-1 rounded-lg border border-[#2a3447] text-xs">
             <button
+              aria-pressed={activeTab === 'KANBAN'}
               onClick={() => {
                 onTabChange('KANBAN');
                 sound.playScan();
@@ -71,10 +67,11 @@ export function DispatchConsoleHeader({
               }`}
             >
               <Layers className={`w-3.5 h-3.5 ${activeTab === 'KANBAN' ? 'text-white' : 'text-blue-400'}`} />
-              PIPELINE ({filteredDeliveriesCount})
+              Pipeline <span className="tabular-nums opacity-80">{filteredDeliveriesCount}</span>
             </button>
 
             <button
+              aria-pressed={activeTab === 'FLEET'}
               onClick={() => {
                 onTabChange('FLEET');
                 sound.playScan();
@@ -86,10 +83,11 @@ export function DispatchConsoleHeader({
               }`}
             >
               <Users className={`w-3.5 h-3.5 ${activeTab === 'FLEET' ? 'text-white' : 'text-amber-400'}`} />
-              COURIERS ({driversCount})
+              Couriers <span className="tabular-nums opacity-80">{driversCount}</span>
             </button>
 
             <button
+              aria-pressed={activeTab === 'EXCEPTIONS'}
               onClick={() => {
                 onTabChange('EXCEPTIONS');
                 sound.playScan();
@@ -101,7 +99,7 @@ export function DispatchConsoleHeader({
               }`}
             >
               <ShieldAlert className={`w-3.5 h-3.5 ${activeTab === 'EXCEPTIONS' ? 'text-white' : 'text-rose-400'}`} />
-              EXCEPTIONS ({exceptionItemsCount})
+              Exceptions <span className="tabular-nums opacity-80">{exceptionItemsCount}</span>
             </button>
           </div>
 
@@ -111,11 +109,11 @@ export function DispatchConsoleHeader({
               sound.playScan();
             }}
             disabled={loading}
-            className="h-8 px-3 rounded-lg bg-[#0b0e14] hover:bg-[#181d28] border border-[#2a3447] text-slate-300 hover:text-white text-xs font-mono font-medium flex items-center gap-1.5 transition-colors cursor-pointer disabled:opacity-50"
-            title="Reload pipeline data"
+            aria-label="Refresh dispatch board"
+            className="h-8 w-8 rounded-lg bg-[#0b0e14] hover:bg-[#181d28] border border-[#2a3447] text-slate-300 hover:text-white flex items-center justify-center transition-colors cursor-pointer disabled:opacity-50"
+            title="Refresh dispatch board"
           >
-            <RefreshCw className={`w-3 h-3 ${loading ? 'animate-spin text-blue-400' : 'text-slate-400'}`} />
-            <span>SYNC</span>
+            <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin text-blue-400' : 'text-slate-400'}`} />
           </button>
         </div>
       </div>
