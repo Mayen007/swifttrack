@@ -74,12 +74,27 @@ async function runAsyncTest(name, fn) {
                   'architecture@example.test', 'Test Address', 'Nairobi', 'Kenya')
         ON CONFLICT (id) DO NOTHING
     `);
+    const originHubCode = 'ARCH-TEST-ORIGIN';
+    const destinationHubCode = 'ARCH-TEST-DEST';
     await dbAdapter.run(`
         INSERT INTO branches (name, code, city, address, phone, email, is_active)
-        VALUES ('Architecture Test Branch', 'ARCH-TEST-BOOTSTRAP', 'Nairobi',
-                'Test Address', '+254700000000', 'branch@example.test', true)
+        VALUES ('Architecture Test Origin', ?, 'Nairobi',
+                'Test Address', '+254700000000', 'origin@example.test', true)
         ON CONFLICT (code) DO NOTHING
-    `);
+    `, [originHubCode]);
+    await dbAdapter.run(`
+        INSERT INTO branches (name, code, city, address, phone, email, is_active)
+        VALUES ('Architecture Test Destination', ?, 'Mombasa',
+                'Test Address', '+254700000001', 'destination@example.test', true)
+        ON CONFLICT (code) DO NOTHING
+    `, [destinationHubCode]);
+    const testOriginHub = await dbAdapter.get('SELECT id FROM branches WHERE code = ?', [originHubCode]);
+    const testDestinationHub = await dbAdapter.get('SELECT id FROM branches WHERE code = ?', [destinationHubCode]);
+    if (!testOriginHub || !testDestinationHub) {
+        throw new Error('Failed to create PostgreSQL repository test hub fixtures');
+    }
+    const testOriginHubId = testOriginHub.id;
+    const testDestinationHubId = testDestinationHub.id;
 
     // -------------------------------------------------------------------------
     // 1. PostgreSQL Schema Migrations Completeness & Dynamic Validation
@@ -319,9 +334,9 @@ async function runAsyncTest(name, fn) {
         const shipmentId = await shipmentRepository.create({
             tracking_number: trackingNum,
             waybill_number: `WAY-${trackingNum}`,
-            origin_hub_id: 1,
-            destination_hub_id: 2,
-            current_hub_id: 1,
+            origin_hub_id: testOriginHubId,
+            destination_hub_id: testDestinationHubId,
+            current_hub_id: testOriginHubId,
             current_location_desc: 'Nairobi Central',
             sender_name: 'Alice Shipper',
             sender_phone: '+254700000001',
@@ -373,8 +388,8 @@ async function runAsyncTest(name, fn) {
         const legId = await shipmentRepository.createLeg({
             shipment_id: shipmentId,
             leg_sequence: 1,
-            origin_hub_id: 1,
-            destination_hub_id: 2,
+            origin_hub_id: testOriginHubId,
+            destination_hub_id: testDestinationHubId,
             status: 'PENDING'
         });
         assert(legId > 0, 'Leg ID must be returned');
@@ -394,7 +409,7 @@ async function runAsyncTest(name, fn) {
             leg_id: legId,
             event_code: 'IN_TRANSIT',
             event_name: 'Departed Hub',
-            hub_id: 1,
+            hub_id: testOriginHubId,
             description: 'Departed Nairobi Hub',
             actor_name: 'Driver John',
             is_customer_visible: true
@@ -411,8 +426,8 @@ async function runAsyncTest(name, fn) {
         const runNum = `RUN-TEST-${Date.now().toString().slice(-6)}`;
         const runId = await transportRepository.createRun({
             run_number: runNum,
-            origin_hub_id: 1,
-            destination_hub_id: 2,
+            origin_hub_id: testOriginHubId,
+            destination_hub_id: testDestinationHubId,
             dispatcher_user_id: 1,
             status: 'PLANNED',
             notes: 'Stage 2 architecture verification run'
@@ -428,8 +443,8 @@ async function runAsyncTest(name, fn) {
         const manId = await transportRepository.createManifest({
             manifest_number: manNum,
             transport_run_id: runId,
-            origin_hub_id: 1,
-            destination_hub_id: 2,
+            origin_hub_id: testOriginHubId,
+            destination_hub_id: testDestinationHubId,
             status: 'DRAFT'
         });
         assert(manId > 0, 'Manifest ID must be positive');
@@ -448,7 +463,7 @@ async function runAsyncTest(name, fn) {
             scan_uuid: scanUuid,
             barcode: 'SWT-BAR-TEST-001',
             scan_type: 'INTAKE',
-            hub_id: 1,
+            hub_id: testOriginHubId,
             scanned_by_user_id: 1,
             location_desc: 'Nairobi Inbound Bay'
         });
@@ -462,7 +477,7 @@ async function runAsyncTest(name, fn) {
         const sessionNum = `REC-TEST-${Date.now().toString().slice(-6)}`;
         const sessionId = await custodyRepository.createReceivingSession({
             session_number: sessionNum,
-            hub_id: 1,
+            hub_id: testOriginHubId,
             status: 'OPEN',
             received_by_user_id: 1
         });
@@ -479,8 +494,8 @@ async function runAsyncTest(name, fn) {
         const delNum = `DEL-TEST-${Date.now().toString().slice(-6)}`;
         const deliveryId = await deliveryRepository.createDelivery({
             delivery_number: delNum,
-            shipment_id: testShipmentId || 1,
-            hub_id: 1,
+            shipment_id: testShipmentId,
+            hub_id: testOriginHubId,
             status: 'PENDING',
             recipient_name: 'Bob Consignee',
             recipient_phone: '+254700000002',
@@ -496,7 +511,7 @@ async function runAsyncTest(name, fn) {
         // Proof of Delivery
         const podId = await deliveryRepository.createPOD({
             delivery_id: deliveryId,
-            shipment_id: testShipmentId || 1,
+            shipment_id: testShipmentId,
             recipient_name: 'Bob Consignee',
             otp_verified: true,
             signature_data: 'data:image/svg+xml;signature_test',
@@ -509,10 +524,10 @@ async function runAsyncTest(name, fn) {
         const ref = `COD-TEST-${Date.now().toString().slice(-6)}`;
         const codId = await codRepository.createSettlement({
             settlement_number: ref,
-            shipment_id: testShipmentId || 1,
+            shipment_id: testShipmentId,
             expected_amount: 1500.00,
             status: 'PENDING_COLLECTION',
-            hub_id: 1
+            hub_id: testOriginHubId
         });
         assert(codId > 0);
 

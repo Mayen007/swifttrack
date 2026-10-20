@@ -47,47 +47,31 @@ SwiftTrack connects physical regional hubs (**Nairobi Central Hub `NRB-HQ`**, **
 
 ## 1. Operational Architecture & End-to-End Parcel Journey
 
-The core business flow in SwiftTrack enforces a strict 19-step chain of operational custody:
+SwiftTrack guides each parcel through a sequence of custody handoffs. The exact route
+depends on the service, destination, payment terms, and whether a delivery needs
+intervention; notifications and Control Tower monitoring support the journey throughout
+rather than acting as final steps.
 
-```text
-1. Counter Booking / API Intake
-       ↓
-2. Shipment & Parcel Generation (Waybill, Volumetric CBM / Weight Rating)
-       ↓
-3. Multi-Leg Journey Decomposition (Leg 1 → Leg 2 → Leg N)
-       ↓
-4. Manifest Assignment & Consolidation
-       ↓
-5. Transport Run Allocation (Qualified Vehicle & Active Driver Verification)
-       ↓
-6. Loading & Bay Scanning (Weight & Seal Validation)
-       ↓
-7. Hub Departure (Lock-and-Load Immutability Enforcement)
-       ↓
-8. En-Route Waypoint Checkpoints & Geofence Telemetry
-       ↓
-9. Destination / Transit Hub Arrival
-       ↓
-10. Hub Inbound Intake & Bay Receiving
-       ↓
-11. Manifest Variance Auditing (Overages, Shortages, Damage Detection)
-       ↓
-12. Transshipment Intake OR Cross-Border Customs Clearance (DECLARED → INSPECTION → CLEARED)
-       ↓
-13. Last-Mile Courier Allocation & Route Queue Dispatch
-       ↓
-14. Delivery Attempt Execution (Mandatory BR-008 Reason Codes on Failure)
-       ↓
-15. Proof of Delivery (POD) Capture (Recipient Signature + 6-Digit OTP + GPS Geotag)
-       ↓
-16. Cash on Delivery (COD) Float Collection & Daily Remittance
-       ↓
-17. Financial Variance Audit & Managerial Reconciliation (BR-010 Sign-Off)
-       ↓
-18. Transactional Outbox Dispatches (SMS, WhatsApp, Email)
-       ↓
-19. Real-Time Operations Control Tower Observability & Bottleneck Analytics
-```
+| Stage | Operator action | Primary workspace |
+| --- | --- | --- |
+| Book | Capture sender, recipient, service, parcel details, and payment; create the waybill. | Parcel Intake (POS) or an authorized API integration |
+| Receive | Record physical acceptance and custody at the origin station. | Hub Operations |
+| Sort and dispatch | Sort for the next leg, consolidate into a manifest, assign an eligible driver and vehicle, then dispatch. | Hub Operations and Dispatch |
+| Transfer between hubs | Track the leg, receive the parcel into a persisted receiving session, and investigate any manifest variance. Repeat sorting and dispatch for each remaining leg. | Dispatch and Hub Operations |
+| Deliver or hold for pickup | Assign last-mile work, record the delivery attempt, and capture a required reason if it fails; alternatively, keep the parcel ready for customer pickup. | Dispatch, Driver Portal, or Hub Operations |
+| Close the financial handoff | Record proof of delivery. For Cash on Delivery (COD), remit collected funds and reconcile the batch. | Driver Portal and COD Settlement & Reconciliation |
+
+Operators can open a shipment to see its current status and the recommended next
+operational step. The available action depends on the operator's role; if that role cannot
+perform the next handoff, the shipment status still provides the point to coordinate from.
+Use the Control Tower to monitor live work and investigate exceptions. A failed delivery,
+payment hold, custody variance, or customs hold may interrupt the usual sequence and must
+be resolved before the parcel proceeds.
+
+Tracking history, customer notifications, and operational telemetry are cross-cutting
+records: they are updated or surfaced as events occur, not treated as separate custody
+handoffs. Only live operational records should be presented as current metrics; unavailable
+feeds must remain visibly unavailable rather than being represented by invented values.
 
 ---
 
