@@ -134,7 +134,9 @@ function listBackups(backupDir = BACKUP_DIR) {
  */
 async function createBackup(options = {}) {
     const backupDir = options.backupDir || BACKUP_DIR;
-    const isPostgres = options.engine === 'postgres' || process.env.DB_CLIENT === 'postgres' || (!!process.env.DATABASE_URL && process.env.DB_CLIENT !== 'sqlite');
+    const isPostgres = options.engine
+        ? options.engine === 'postgres'
+        : process.env.DB_CLIENT === 'postgres' || (!!process.env.DATABASE_URL && process.env.DB_CLIENT !== 'sqlite');
     const retentionDays = options.retentionDays || DEFAULT_RETENTION_DAYS;
     const maxCount = options.maxRetentionCount || DEFAULT_MAX_RETENTION_COUNT;
 
@@ -314,7 +316,9 @@ async function restoreBackup(backupFilePath, options = {}) {
         throw new Error(`Integrity verification failed! Checksum mismatch on ${path.basename(backupFilePath)}. Aborting restore.`);
     }
 
-    const isPostgres = options.engine === 'postgres' || process.env.DB_CLIENT === 'postgres' || backupFilePath.includes('_pg_');
+    const isPostgres = options.engine
+        ? options.engine === 'postgres'
+        : process.env.DB_CLIENT === 'postgres' || (!!process.env.DATABASE_URL && process.env.DB_CLIENT !== 'sqlite') || backupFilePath.includes('_pg_');
 
     console.log(`[Restore] Verified integrity of ${path.basename(backupFilePath)} (SHA-256: ${integrity.calculatedHash})`);
     console.log(`[Restore] Target Engine: ${isPostgres ? 'PostgreSQL' : 'SQLite'}`);
