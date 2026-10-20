@@ -15,6 +15,14 @@ import { ResolveDiscrepancyModal } from '../components/hub/ResolveDiscrepancyMod
 import { CustomsActionModal } from '../components/hub/CustomsActionModal.jsx';
 import { RecordHandoffModal } from '../components/hub/RecordHandoffModal.jsx';
 
+function getFeedItems(response, collectionKey) {
+  if (Array.isArray(response)) return response;
+  if (Array.isArray(response?.[collectionKey])) return response[collectionKey];
+  if (Array.isArray(response?.data)) return response.data;
+  if (Array.isArray(response?.data?.[collectionKey])) return response.data[collectionKey];
+  return null;
+}
+
 export function HubOperationsView() {
   const { user, selectedBranch } = useAuth();
   const currentHubId = selectedBranch?.id ?? user?.branch_id ?? null;
@@ -117,17 +125,22 @@ export function HubOperationsView() {
         })
       ]);
 
-      setManifests(Array.isArray(mRes) ? mRes : mRes?.data || []);
-      setDiscrepancies(Array.isArray(dRes) ? dRes : dRes?.data || []);
-      setCrossBorderLegs(Array.isArray(cbRes) ? cbRes : cbRes?.data || []);
-      setAwaitingShipments(Array.isArray(awRes) ? awRes : awRes?.data || []);
-      setHandoffs(Array.isArray(hRes?.items) ? hRes.items : (Array.isArray(hRes) ? hRes : []));
+      const manifestItems = getFeedItems(mRes, 'manifests');
+      const discrepancyItems = getFeedItems(dRes, 'discrepancies');
+      const crossBorderItems = getFeedItems(cbRes, 'legs');
+      const awaitingItems = getFeedItems(awRes, 'shipments');
+      const handoffItems = getFeedItems(hRes, 'handoffs');
+      setManifests(manifestItems || []);
+      setDiscrepancies(discrepancyItems || []);
+      setCrossBorderLegs(crossBorderItems || []);
+      setAwaitingShipments(awaitingItems || []);
+      setHandoffs(handoffItems || []);
       const failedHubFeeds = [];
-      if (!Array.isArray(mRes) && !Array.isArray(mRes?.data)) failedHubFeeds.push('manifests');
-      if (!Array.isArray(dRes) && !Array.isArray(dRes?.data)) failedHubFeeds.push('discrepancies');
-      if (!Array.isArray(cbRes) && !Array.isArray(cbRes?.data)) failedHubFeeds.push('cross-border movements');
-      if (!Array.isArray(awRes) && !Array.isArray(awRes?.data)) failedHubFeeds.push('awaiting shipments');
-      if (!Array.isArray(hRes?.items) && !Array.isArray(hRes)) failedHubFeeds.push('handoffs');
+      if (!manifestItems) failedHubFeeds.push('manifests');
+      if (!discrepancyItems) failedHubFeeds.push('discrepancies');
+      if (!crossBorderItems) failedHubFeeds.push('cross-border movements');
+      if (!awaitingItems) failedHubFeeds.push('awaiting shipments');
+      if (!handoffItems) failedHubFeeds.push('handoffs');
 
       if (sessionsLoadError) {
         setSessions([]);

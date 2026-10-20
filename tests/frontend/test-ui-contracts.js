@@ -38,6 +38,8 @@ const dashboardView = fs.readFileSync(path.join(clientSrc, 'views/DashboardView.
 const dashboardHeader = fs.readFileSync(path.join(clientSrc, 'components/dashboard/CommercialBentoHeader.jsx'), 'utf8');
 const controlTower = fs.readFileSync(path.join(clientSrc, 'components/dashboard/OperationsControlTower.jsx'), 'utf8');
 const hubOperations = fs.readFileSync(path.join(clientSrc, 'views/HubOperationsView.jsx'), 'utf8');
+const linehaulManifests = fs.readFileSync(path.join(clientSrc, 'components/hub/LinehaulManifestsTab.jsx'), 'utf8');
+const discrepanciesTab = fs.readFileSync(path.join(clientSrc, 'components/hub/DiscrepanciesTab.jsx'), 'utf8');
 const inboundReceiving = fs.readFileSync(path.join(clientSrc, 'components/hub/InboundReceivingTab.jsx'), 'utf8');
 const e2eAcceptanceRoute = fs.readFileSync(path.resolve(__dirname, '../../server/routes/e2eAcceptance.js'), 'utf8');
 const shipmentsView = fs.readFileSync(path.join(clientSrc, 'views/ShipmentsView.jsx'), 'utf8');
@@ -146,6 +148,15 @@ runTest('Hub receiving uses persisted sessions and does not invent session recor
     assert.ok(!hubOperations.includes('REC-NRB-HQ-001'), 'Hub view must not inject a sample session');
     assert.ok(inboundReceiving.includes('No receiving sessions at this branch yet.'));
     assert.ok(inboundReceiving.includes('Open a receiving session'));
+});
+
+runTest('Hub manifests and discrepancies read their named API collections', () => {
+    assert.ok(hubOperations.includes("getFeedItems(mRes, 'manifests')"), 'Manifest response must read the manifests collection');
+    assert.ok(hubOperations.includes("getFeedItems(dRes, 'discrepancies')"), 'Discrepancy response must read the discrepancies collection');
+    assert.ok(hubOperations.includes("getFeedItems(hRes, 'handoffs')"), 'Handoff response must read the handoffs collection');
+    assert.ok(hubOperations.includes('Array.isArray(response?.[collectionKey])'), 'Hub feed parser must support named collection responses');
+    assert.ok(linehaulManifests.includes('manifests.filter('), 'Manifest ledger must receive a normalized list');
+    assert.ok(discrepanciesTab.includes('discrepancies.filter('), 'Discrepancy ledger must receive a normalized list');
 });
 
 runTest('Live dashboard metrics do not substitute fabricated values when data is absent', () => {
