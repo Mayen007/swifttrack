@@ -1,6 +1,7 @@
 // tests/commerce/test-catalog-variants.js
 // Automated Integration Suite: Product Catalog, Variants, Brands, Suppliers & Archiving
 const assert = require('node:assert');
+const { randomUUID } = require('node:crypto');
 const http = require('node:http');
 const app = require('../../server/server.js');
 const dbAdapter = require('../../server/db/dbAdapter.js');
@@ -78,6 +79,8 @@ async function runTest(name, fn) {
 
     let createdProductId = null;
     let createdVariantId = null;
+    let selectedBrand = null;
+    let selectedSupplier = null;
 
     try {
         // 1. Authenticate as Super Admin
@@ -98,7 +101,8 @@ async function runTest(name, fn) {
             assert.strictEqual(res.status, 200);
             const brands = Array.isArray(res.body.data) ? res.body.data : res.body;
             assert.ok(brands.length >= 5, 'Expected at least 5 seeded brands');
-            assert.ok(brands.some(b => b.name.includes('Bamburi')));
+            selectedBrand = brands.find(b => b.is_active === true || b.is_active === 1) || brands[0];
+            assert.ok(selectedBrand.id && selectedBrand.name);
         });
 
         await runTest('1.2: GET /api/v1/suppliers returns active suppliers', async () => {
@@ -106,22 +110,23 @@ async function runTest(name, fn) {
             assert.strictEqual(res.status, 200);
             const suppliers = Array.isArray(res.body.data) ? res.body.data : res.body;
             assert.ok(suppliers.length >= 3, 'Expected at least 3 suppliers');
-            assert.ok(suppliers.some(s => s.code.includes('BAMBURI')));
+            selectedSupplier = suppliers.find(s => s.is_active === true || s.is_active === 1) || suppliers[0];
+            assert.ok(selectedSupplier.id && selectedSupplier.code);
         });
 
         // -------------------------------------------------------------
         // TEST 2: Product Master Catalog CRUD
         // -------------------------------------------------------------
-        const testSku = `TEST-PROD-${timestamp}`;
-        const testBarcode = `890199${timestamp}`;
+        const testSku = `TEST-PROD-${randomUUID().toUpperCase()}`;
+        const testBarcode = `890199${randomUUID().replace(/-/g, '').slice(0, 14)}`;
 
         await runTest('2.1: POST /api/v1/products creates product with full metadata', async () => {
             const res = await makeRequest('/api/v1/products', {
                 method: 'POST',
                 body: {
                     category_id: 1,
-                    brand_id: 1,
-                    supplier_id: 2,
+                    brand_id: selectedBrand.id,
+                    supplier_id: selectedSupplier.id,
                     sku: testSku,
                     barcode: testBarcode,
                     name: `Heavy Industrial Pallet Wrap ${timestamp}`,
@@ -166,7 +171,7 @@ async function runTest(name, fn) {
             assert.strictEqual(res.status, 200);
             const p = res.body.data || res.body;
             assert.strictEqual(p.id, createdProductId);
-            assert.strictEqual(p.brand_name, 'SwiftPack Commercial');
+            assert.strictEqual(p.brand_name, selectedBrand.name);
             assert.ok(Array.isArray(p.images));
         });
 

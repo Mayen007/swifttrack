@@ -1,8 +1,10 @@
 // tests/commerce/test-pricing-engine.js
 // Automated Integration Suite: Multi-Tier Dynamic Pricing Engine & Promotions
 const assert = require('node:assert');
+const { randomUUID } = require('node:crypto');
 const http = require('node:http');
 const app = require('../../server/server.js');
+const dbAdapter = require('../../server/db/dbAdapter.js');
 const { resolvePrice } = require('../../server/services/pricingService.js');
 
 console.log('\n============================================================');
@@ -14,6 +16,8 @@ let baseUrl = '';
 let passedTests = 0;
 let totalTests = 0;
 let authToken = '';
+const fixtureProductIds = [];
+const fixturePromoCodes = [];
 
 function makeRequest(path, options = {}) {
     return new Promise((resolve, reject) => {
@@ -85,12 +89,95 @@ async function runTest(name, fn) {
         authToken = loginRes.body?.token || loginRes.body?.data?.token;
         assert.ok(authToken);
 
+        const categories = await dbAdapter.all(
+            'SELECT id FROM categories WHERE is_active = true ORDER BY id LIMIT 1'
+        );
+        const branches = await dbAdapter.all('SELECT id FROM branches ORDER BY id LIMIT 2');
+        assert.ok(categories.length, 'Pricing tests require an active product category');
+        assert.strictEqual(branches.length, 2, 'Pricing tests require two seeded branches');
+
+        const fixtureSuffix = randomUUID().toUpperCase();
+        const createProduct = async ({ name, sellingPrice, wholesalePrice, taxCategory }) => {
+            const result = await dbAdapter.run(`
+                INSERT INTO products (
+                    category_id, sku, barcode, name, unit, cost_price, selling_price,
+                    wholesale_price, tax_category, min_stock_alert, reorder_quantity,
+                    is_active, is_archived
+                ) VALUES (?, ?, ?, ?, 'PCS', 0, ?, ?, ?, 1, 1, true, false)
+            `, [
+                categories[0].id,
+                `TEST-PRICE-${fixtureSuffix}-${fixtureProductIds.length + 1}`,
+                `TESTBAR-${fixtureSuffix}-${fixtureProductIds.length + 1}`,
+                name,
+                sellingPrice,
+                wholesalePrice,
+                taxCategory
+            ]);
+            fixtureProductIds.push(result.insertId);
+            return result.insertId;
+        };
+
+        const pricingProductId = await createProduct({
+            name: 'Commerce Pricing Test Product',
+            sellingPrice: 180,
+            wholesalePrice: 150,
+            taxCategory: 'STANDARD_16'
+        });
+        const branchProductId = await createProduct({
+            name: 'Commerce Branch Override Test Product',
+            sellingPrice: 850,
+            wholesalePrice: 780,
+            taxCategory: 'STANDARD_16'
+        });
+        const waterProductId = await createProduct({
+            name: 'Commerce Zero-Rated Test Product',
+            sellingPrice: 720,
+            wholesalePrice: 600,
+            taxCategory: 'ZERO_RATED_0'
+        });
+
+        for (const [minQuantity, maxQuantity, unitPrice] of [
+            [20, 49, 165],
+            [50, 99, 150],
+            [100, null, 135]
+        ]) {
+            await dbAdapter.run(`
+                INSERT INTO product_bulk_pricing (product_id, min_quantity, max_quantity, unit_price)
+                VALUES (?, ?, ?, ?)
+            `, [pricingProductId, minQuantity, maxQuantity, unitPrice]);
+        }
+
+        await dbAdapter.run(`
+            INSERT INTO branch_product_prices (branch_id, product_id, selling_price)
+            VALUES (?, ?, ?)
+        `, [branches[1].id, branchProductId, 820]);
+
+        const promoCode = `LOGISTICS10-${fixtureSuffix.slice(0, 8)}`;
+        fixturePromoCodes.push(promoCode);
+        fixturePromoCodes.push(`TEST-PROMO-${fixtureSuffix.slice(0, 8)}`);
+        for (const [code, name] of [
+            [fixturePromoCodes[0], 'Commerce Pricing Test Promotion'],
+            [fixturePromoCodes[1], 'Commerce Scheduled Test Promotion']
+        ]) {
+            await dbAdapter.run(`
+                INSERT INTO promotions (
+                    promo_code, name, discount_type, discount_value, scope, target_id,
+                    min_spend, min_quantity, start_date, end_date, is_active
+                ) VALUES (?, ?, 'PERCENTAGE', 10, 'PRODUCT', ?, 1000, 1, ?, ?, true)
+            `, [
+                code,
+                name,
+                pricingProductId,
+                new Date(Date.now() - 86400000).toISOString(),
+                new Date(Date.now() + 86400000).toISOString()
+            ]);
+        }
+
         // -------------------------------------------------------------
         // TEST 1: Baseline Retail & Wholesale Resolution
         // -------------------------------------------------------------
         await runTest('1.1: Standard retail unit price calculation (Corrugated Box)', async () => {
-            // Product 1: Heavy Duty Box (Retail: 180.0, Wholesale: 150.0)
-            const result = await resolvePrice({ productId: 1, quantity: 1 });
+            const result = await resolvePrice({ productId: pricingProductId, quantity: 1 });
             assert.strictEqual(result.unitPrice, 180.0);
             assert.strictEqual(result.subtotal, 180.0);
             assert.strictEqual(result.taxCategory, 'STANDARD_16');
@@ -100,7 +187,7 @@ async function runTest(name, fn) {
         });
 
         await runTest('1.2: Base wholesale pricing request', async () => {
-            const result = await resolvePrice({ productId: 1, quantity: 5, isWholesale: true });
+            const result = await resolvePrice({ productId: pricingProductId, quantity: 5, isWholesale: true });
             assert.strictEqual(result.unitPrice, 150.0);
             assert.strictEqual(result.subtotal, 750.0);
         });
@@ -109,11 +196,10 @@ async function runTest(name, fn) {
         // TEST 2: Branch Price Overrides
         // -------------------------------------------------------------
         await runTest('2.1: Mombasa Branch price override applied (Product 6 Cement)', async () => {
-            // Product 6: Bamburi Cement (Base: 850.0, Mombasa Branch 2 Override: 820.0)
-            const nairobiPrice = await resolvePrice({ productId: 6, branchId: 1, quantity: 1 });
+            const nairobiPrice = await resolvePrice({ productId: branchProductId, branchId: branches[0].id, quantity: 1 });
             assert.strictEqual(nairobiPrice.unitPrice, 850.0);
 
-            const mombasaPrice = await resolvePrice({ productId: 6, branchId: 2, quantity: 1 });
+            const mombasaPrice = await resolvePrice({ productId: branchProductId, branchId: branches[1].id, quantity: 1 });
             assert.strictEqual(mombasaPrice.unitPrice, 820.0);
             assert.ok(mombasaPrice.appliedRules.some(r => r.type === 'BRANCH_OVERRIDE'));
         });
@@ -122,22 +208,17 @@ async function runTest(name, fn) {
         // TEST 3: Bulk Quantity Break Tiers
         // -------------------------------------------------------------
         await runTest('3.1: Bulk quantity breaks resolve accurately across quantity thresholds', async () => {
-            // Product 1 Bulk Tiers:
-            // 1-19: 180.0
-            // 20-49: 165.0
-            // 50-99: 150.0
-            // 100+: 135.0
-            const single = await resolvePrice({ productId: 1, quantity: 5 });
+            const single = await resolvePrice({ productId: pricingProductId, quantity: 5 });
             assert.strictEqual(single.unitPrice, 180.0);
 
-            const tier1 = await resolvePrice({ productId: 1, quantity: 25 });
+            const tier1 = await resolvePrice({ productId: pricingProductId, quantity: 25 });
             assert.strictEqual(tier1.unitPrice, 165.0);
             assert.strictEqual(tier1.subtotal, 4125.0);
 
-            const tier2 = await resolvePrice({ productId: 1, quantity: 60 });
+            const tier2 = await resolvePrice({ productId: pricingProductId, quantity: 60 });
             assert.strictEqual(tier2.unitPrice, 150.0);
 
-            const tier3 = await resolvePrice({ productId: 1, quantity: 120 });
+            const tier3 = await resolvePrice({ productId: pricingProductId, quantity: 120 });
             assert.strictEqual(tier3.unitPrice, 135.0);
         });
 
@@ -145,17 +226,13 @@ async function runTest(name, fn) {
         // TEST 4: Scheduled Promotions & Promo Codes
         // -------------------------------------------------------------
         await runTest('4.1: Scheduled Category Promotion applied (LOGISTICS10 on packaging)', async () => {
-            // Promo LOGISTICS10: 10% off packaging category (min spend 1000 KES)
-            // Product 1: 10 boxes @ 180 = 1800 KES (above min spend 1000)
-            // Unit price after 10% off 180 = 162.0 (or bulk tier discount, best rule)
-            const result = await resolvePrice({ productId: 1, quantity: 10, promoCode: 'LOGISTICS10' });
+            const result = await resolvePrice({ productId: pricingProductId, quantity: 10, promoCode });
             assert.strictEqual(result.unitPrice, 162.0);
-            assert.ok(result.appliedRules.some(r => r.type === 'PROMOTION' && r.promoCode === 'LOGISTICS10'));
+            assert.ok(result.appliedRules.some(r => r.type === 'PROMOTION' && r.promoCode === promoCode));
         });
 
         await runTest('4.2: Zero-Rated Kenyan foodstuff VAT calculation (Spring Water / Rice)', async () => {
-            // Product 16: Kilima Spring Water (tax_category: ZERO_RATED_0)
-            const water = await resolvePrice({ productId: 16, quantity: 2 });
+            const water = await resolvePrice({ productId: waterProductId, quantity: 2 });
             assert.strictEqual(water.taxCategory, 'ZERO_RATED_0');
             assert.strictEqual(water.taxRate, 0.0);
             assert.strictEqual(water.taxAmount, 0.0);
@@ -169,9 +246,9 @@ async function runTest(name, fn) {
             const res = await makeRequest('/api/v1/products/resolve-price', {
                 method: 'POST',
                 body: {
-                    productId: 1,
+                    productId: pricingProductId,
                     quantity: 25,
-                    branchId: 1
+                    branchId: branches[0].id
                 }
             });
 
@@ -188,8 +265,7 @@ async function runTest(name, fn) {
             const res = await makeRequest('/api/v1/promotions?active_only=true');
             assert.strictEqual(res.status, 200);
             const promos = Array.isArray(res.body.data) ? res.body.data : res.body;
-            assert.ok(promos.length >= 2);
-            assert.ok(promos.some(p => p.promo_code === 'LOGISTICS10'));
+            assert.ok(fixturePromoCodes.every(code => promos.some(p => p.promo_code === code)));
         });
 
         console.log('\n============================================================');
@@ -207,6 +283,14 @@ async function runTest(name, fn) {
         }
 
     } finally {
+        for (const code of fixturePromoCodes) {
+            await dbAdapter.run('DELETE FROM promotions WHERE promo_code = ?', [code]);
+        }
+        for (const productId of fixtureProductIds) {
+            await dbAdapter.run('DELETE FROM product_bulk_pricing WHERE product_id = ?', [productId]);
+            await dbAdapter.run('DELETE FROM branch_product_prices WHERE product_id = ?', [productId]);
+            await dbAdapter.run('DELETE FROM products WHERE id = ?', [productId]);
+        }
         server.close();
         process.exit(passedTests === totalTests ? 0 : 1);
     }
