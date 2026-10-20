@@ -39,6 +39,7 @@ const controlTower = fs.readFileSync(path.join(clientSrc, 'components/dashboard/
 const hubOperations = fs.readFileSync(path.join(clientSrc, 'views/HubOperationsView.jsx'), 'utf8');
 const inboundReceiving = fs.readFileSync(path.join(clientSrc, 'components/hub/InboundReceivingTab.jsx'), 'utf8');
 const e2eAcceptanceRoute = fs.readFileSync(path.resolve(__dirname, '../../server/routes/e2eAcceptance.js'), 'utf8');
+const shipmentsView = fs.readFileSync(path.join(clientSrc, 'views/ShipmentsView.jsx'), 'utf8');
 
 // Test 1: Route-level code-splitting & lazy chunk loading
 runTest('App.jsx implements React.lazy dynamic chunk loading for views', () => {
@@ -140,6 +141,16 @@ runTest('Acceptance simulation is unavailable in production', () => {
     assert.ok(controlTower.includes('import.meta.env.DEV &&'), 'Simulator entry point must be development-only');
     assert.ok(e2eAcceptanceRoute.includes("process.env.NODE_ENV === 'production'"));
     assert.ok(e2eAcceptanceRoute.includes('Acceptance simulation is disabled in production.'));
+});
+
+runTest('Shipment details show a role-appropriate next operational step', () => {
+    assert.ok(shipmentsView.includes('NEXT_STEP_BY_STATUS'), 'Next-step guidance must follow shipment state');
+    assert.ok(shipmentsView.includes('aria-label="Next operational step"'), 'Next step must be clearly labeled');
+    assert.ok(shipmentsView.includes('nextStep.roles.includes(user?.role)'), 'Next steps must respect the current role');
+    assert.ok(shipmentsView.includes("view: 'hub-operations'"), 'Hub-stage next steps must link to hub operations');
+    assert.ok(shipmentsView.includes("view: 'dispatch'"), 'Dispatch-stage next steps must link to dispatch');
+    assert.ok(shipmentsView.includes("view: 'control-tower'"), 'Exceptions must link to the control tower');
+    assert.ok(shipmentsView.includes("view: 'cod-finance'"), 'COD deliveries must link to reconciliation');
 });
 
 console.log(`\nResults: ${passedTests}/${totalTests} tests passed (${Math.round((passedTests / totalTests) * 100)}%)\n`);

@@ -81,6 +81,124 @@ const STATUS_LABELS = {
   CANCELLED: 'Cancelled (Terminal)'
 };
 
+const NEXT_STEP_BY_STATUS = {
+  BOOKED: {
+    title: 'Complete counter intake',
+    detail: 'Confirm payment requirements and hand the parcel over for origin-hub processing.',
+    view: 'pos',
+    roles: ['SUPER_ADMIN', 'BRANCH_MANAGER', 'CASHIER']
+  },
+  PAYMENT_PENDING: {
+    title: 'Resolve payment, then receive the parcel',
+    detail: 'Check the counter payment status before routing this shipment into hub operations.',
+    view: 'pos',
+    roles: ['SUPER_ADMIN', 'BRANCH_MANAGER', 'CASHIER']
+  },
+  PAID: {
+    title: 'Receive the parcel at its origin hub',
+    detail: 'Record physical intake and custody at the assigned origin station.',
+    view: 'hub-operations',
+    roles: ['SUPER_ADMIN', 'BRANCH_MANAGER', 'DISPATCHER']
+  },
+  ACCEPTED: {
+    title: 'Process the parcel at the hub',
+    detail: 'Scan inbound custody, sort the parcel, and prepare it for its next route.',
+    view: 'hub-operations',
+    roles: ['SUPER_ADMIN', 'BRANCH_MANAGER', 'DISPATCHER']
+  },
+  AT_ORIGIN_HUB: {
+    title: 'Sort and prepare for linehaul',
+    detail: 'Complete station processing, then consolidate the parcel into an outbound manifest.',
+    view: 'hub-operations',
+    roles: ['SUPER_ADMIN', 'BRANCH_MANAGER', 'DISPATCHER']
+  },
+  SORTED: {
+    title: 'Prepare the outbound manifest',
+    detail: 'Confirm the parcel’s route and include it in the correct linehaul dispatch.',
+    view: 'dispatch',
+    roles: ['SUPER_ADMIN', 'BRANCH_MANAGER', 'DISPATCHER']
+  },
+  READY_FOR_DISPATCH: {
+    title: 'Load and dispatch the linehaul',
+    detail: 'Assign the manifest to a qualified vehicle and driver, then dispatch the run.',
+    view: 'dispatch',
+    roles: ['SUPER_ADMIN', 'BRANCH_MANAGER', 'DISPATCHER']
+  },
+  LOADED: {
+    title: 'Depart on the assigned linehaul',
+    detail: 'Verify the manifest and record the transport run departure.',
+    view: 'dispatch',
+    roles: ['SUPER_ADMIN', 'BRANCH_MANAGER', 'DISPATCHER']
+  },
+  IN_TRANSIT: {
+    title: 'Receive at the next hub',
+    detail: 'Use the destination station’s receiving session to scan and reconcile inbound parcels.',
+    view: 'hub-operations',
+    roles: ['SUPER_ADMIN', 'BRANCH_MANAGER', 'DISPATCHER']
+  },
+  AT_HUB: {
+    title: 'Process at the current hub',
+    detail: 'Sort for the next linehaul leg, local delivery, or customer pickup.',
+    view: 'hub-operations',
+    roles: ['SUPER_ADMIN', 'BRANCH_MANAGER', 'DISPATCHER']
+  },
+  READY_FOR_DELIVERY: {
+    title: 'Assign a last-mile courier',
+    detail: 'Allocate a driver and delivery run for this destination.',
+    view: 'dispatch',
+    roles: ['SUPER_ADMIN', 'BRANCH_MANAGER', 'DISPATCHER']
+  },
+  OUT_FOR_DELIVERY: {
+    title: 'Monitor the delivery and await proof',
+    detail: 'Track the active courier attempt and follow up on any delivery exception.',
+    view: 'control-tower',
+    roles: ['SUPER_ADMIN', 'BRANCH_MANAGER', 'DISPATCHER']
+  },
+  DELIVERY_FAILED: {
+    title: 'Review the failed delivery attempt',
+    detail: 'Check the recorded reason and arrange a retry or return to hub.',
+    view: 'control-tower',
+    roles: ['SUPER_ADMIN', 'BRANCH_MANAGER', 'DISPATCHER']
+  },
+  FAILED_DELIVERY: {
+    title: 'Review the failed delivery attempt',
+    detail: 'Check the recorded reason and arrange a retry or return to hub.',
+    view: 'control-tower',
+    roles: ['SUPER_ADMIN', 'BRANCH_MANAGER', 'DISPATCHER']
+  },
+  EXCEPTION: {
+    title: 'Investigate the shipment exception',
+    detail: 'Review the exception queue and resolve the custody or delivery issue.',
+    view: 'control-tower',
+    roles: ['SUPER_ADMIN', 'BRANCH_MANAGER', 'DISPATCHER']
+  },
+  ON_HOLD: {
+    title: 'Review the shipment hold',
+    detail: 'Check the investigation notes and resume or cancel the shipment when cleared.',
+    view: 'control-tower',
+    roles: ['SUPER_ADMIN', 'BRANCH_MANAGER', 'DISPATCHER']
+  },
+  DELIVERED: {
+    title: 'Review cash-on-delivery settlement',
+    detail: 'Confirm collected COD is remitted and reconciled for this delivery.',
+    view: 'cod-finance',
+    roles: ['SUPER_ADMIN', 'BRANCH_MANAGER', 'CASHIER'],
+    when: (shipment) => Number(shipment.cod_amount) > 0
+  },
+  READY_FOR_PICKUP: {
+    title: 'Prepare the customer pickup',
+    detail: 'Keep the parcel available at the destination counter until handover is confirmed.',
+    view: 'hub-operations',
+    roles: ['SUPER_ADMIN', 'BRANCH_MANAGER', 'DISPATCHER']
+  },
+  RETURN_TO_HUB: {
+    title: 'Receive the returned parcel',
+    detail: 'Record its return at the hub and determine whether it should be re-dispatched or returned to sender.',
+    view: 'hub-operations',
+    roles: ['SUPER_ADMIN', 'BRANCH_MANAGER', 'DISPATCHER']
+  }
+};
+
 export function ShipmentsView({ onNavigate }) {
   const { user, selectedBranch } = useAuth();
 
@@ -119,6 +237,15 @@ export function ShipmentsView({ onNavigate }) {
 
   // Copy Feedback
   const [copiedId, setCopiedId] = useState(null);
+
+  const nextStep = selectedShipment
+    ? NEXT_STEP_BY_STATUS[selectedShipment.status]
+    : null;
+  const availableNextStep = nextStep
+    && nextStep.roles.includes(user?.role)
+    && (!nextStep.when || nextStep.when(selectedShipment))
+    ? nextStep
+    : null;
 
   const fetchShipments = async () => {
     setLoading(true);
@@ -536,6 +663,37 @@ export function ShipmentsView({ onNavigate }) {
                 {copiedId === 'drawer' ? 'Copied' : 'Copy Tracking'}
               </button>
             </div>
+
+            {availableNextStep && (
+              <section
+                aria-label="Next operational step"
+                className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-4"
+              >
+                <div className="text-[10px] font-bold uppercase tracking-wider text-amber-300">
+                  Next operational step
+                </div>
+                <h3 className="mt-1 text-sm font-semibold text-white">{availableNextStep.title}</h3>
+                <p className="mt-1 text-xs leading-5 text-slate-400">{availableNextStep.detail}</p>
+                {onNavigate && (
+                  <button
+                    className="mt-3 inline-flex items-center gap-1.5 rounded-lg border border-amber-400/30 bg-amber-400/10 px-3 py-2 text-xs font-semibold text-amber-200 transition hover:bg-amber-400/15 focus-visible:outline focus-visible:outline-2 focus-visible:outline-amber-300"
+                    onClick={() => onNavigate(availableNextStep.view)}
+                    type="button"
+                  >
+                    Open {availableNextStep.view === 'pos'
+                      ? 'counter intake'
+                      : availableNextStep.view === 'hub-operations'
+                        ? 'hub operations'
+                        : availableNextStep.view === 'dispatch'
+                          ? 'dispatch'
+                          : availableNextStep.view === 'control-tower'
+                            ? 'control tower'
+                            : 'COD reconciliation'}
+                    <ArrowRight className="h-3.5 w-3.5" />
+                  </button>
+                )}
+              </section>
+            )}
 
             {/* Multi-Leg Corridor Journey & Cross-Border Customs Section */}
             <MultiLegJourney
