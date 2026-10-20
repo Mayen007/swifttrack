@@ -662,7 +662,7 @@ async function seedCleanEnterpriseData(pool = null, options = {}) {
         const templates = [
             { code: 'SHIPMENT_BOOKED', name: 'Shipment Intake Notification', event: 'SHIPMENT_BOOKED', sms: 'Habari {{recipient_name}}, shipment {{tracking_number}} has been booked by {{sender_name}} to {{destination_city}}. Track online: https://swifttrack.co.ke/t/{{tracking_number}}', wa: 'SwiftTrack Update: Parcel {{tracking_number}} has been booked for delivery to {{recipient_name}}.', sub: 'Shipment Booked: {{tracking_number}}' },
             { code: 'IN_TRANSIT', name: 'Corridor Transit Milestone', event: 'IN_TRANSIT', sms: 'SwiftTrack: Shipment {{tracking_number}} is now in transit from {{origin_city}} to {{destination_city}}.', wa: 'SwiftTrack In-Transit: Parcel {{tracking_number}} dispatched on corridor linehaul.', sub: 'In Transit: {{tracking_number}}' },
-            { code: 'OUT_FOR_DELIVERY', name: 'Out For Delivery Alert', event: 'OUT_FOR_DELIVERY', sms: 'SwiftTrack: Shipment {{tracking_number}} is out for delivery with driver {{driver_name}} ({{driver_phone}}). Your delivery verification OTP is {{pod_otp}}.', wa: 'SwiftTrack Last-Mile: Driver {{driver_name}} is approaching your address with shipment {{tracking_number}}. OTP: {{pod_otp}}', sub: 'Out for Delivery: {{tracking_number}}' },
+            { code: 'OUT_FOR_DELIVERY', name: 'Out For Delivery Alert', event: 'OUT_FOR_DELIVERY', sms: 'SwiftTrack: Shipment {{tracking_number}} is out for delivery with driver {{driver_name}} ({{driver_phone}}). Your delivery verification OTP is {{otp_code}}.', wa: 'SwiftTrack Last-Mile: Driver {{driver_name}} is approaching your address with shipment {{tracking_number}}. OTP: {{otp_code}}', sub: 'Out for Delivery: {{tracking_number}}' },
             { code: 'DELIVERED', name: 'Proof of Delivery Completed', event: 'DELIVERED', sms: 'SwiftTrack: Shipment {{tracking_number}} has been delivered successfully to {{recipient_name}}. Thank you for choosing SwiftTrack Kenya!', wa: 'SwiftTrack Delivered: Parcel {{tracking_number}} delivered. Digital receipt attached.', sub: 'Delivery Complete: {{tracking_number}}' },
             { code: 'EXCEPTION', name: 'Delivery Exception Notice', event: 'EXCEPTION', sms: 'SwiftTrack: Delivery for {{tracking_number}} was rescheduled: {{exception_reason}}. Our team will re-attempt shortly.', wa: 'SwiftTrack Notice: Delivery attempt exception on {{tracking_number}}.', sub: 'Delivery Update: {{tracking_number}}' }
         ];
@@ -671,7 +671,10 @@ async function seedCleanEnterpriseData(pool = null, options = {}) {
             await client.query(`
                 INSERT INTO notification_templates (code, name, event_type, sms_template, whatsapp_template, email_subject, is_active)
                 VALUES ($1, $2, $3, $4, $5, $6, true)
-                ON CONFLICT (code) DO UPDATE SET name = EXCLUDED.name, sms_template = EXCLUDED.sms_template;
+                ON CONFLICT (code) DO UPDATE SET
+                    name = EXCLUDED.name,
+                    sms_template = EXCLUDED.sms_template,
+                    whatsapp_template = EXCLUDED.whatsapp_template;
             `, [t.code, t.name, t.event, t.sms, t.wa, t.sub]);
         }
 

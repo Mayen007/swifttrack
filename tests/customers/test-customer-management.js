@@ -382,4 +382,16 @@ let testCustomerNumber;
     if (passedTests !== totalTests) {
         process.exit(1);
     }
-})();
+})()
+    .catch(err => {
+        console.error('[FAIL] Customer management suite aborted:', err);
+        process.exitCode = 1;
+    })
+    .finally(async () => {
+        try {
+            await dbAdapter.close();
+        } catch (err) {
+            console.error('[FAIL] Could not close the customer test database connection:', err);
+            process.exitCode = 1;
+        }
+    });

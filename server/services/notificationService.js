@@ -163,6 +163,7 @@ class NotificationService {
                 driver_name: driverName,
                 driver_phone: driverPhone,
                 otp_code: otpCode,
+                pod_otp: otpCode,
                 reason: reason,
                 eta: eta
             };

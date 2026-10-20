@@ -29,6 +29,7 @@ async function runTest(name, fn) {
 
 let adminUser;
 let cashierUser;
+let testBranchId;
 let testProduct;
 let testCustomer;
 
@@ -55,17 +56,20 @@ async function runSuite() {
         FROM users u
         JOIN roles r ON u.role_id = r.id
         WHERE r.name = 'CASHIER'
+          AND u.branch_id IS NOT NULL
+        ORDER BY u.branch_id ASC, u.id ASC
         LIMIT 1
     `)) || adminUser;
     cashierUser.roleName = 'CASHIER';
     cashierUser.branchId = cashierUser.branch_id || 1;
+    testBranchId = Number(cashierUser.branchId);
 
     testProduct = await dbAdapter.get('SELECT * FROM products WHERE is_active = ? LIMIT 1', [dbAdapter.isPostgres ? true : 1]);
     testCustomer = (await dbAdapter.get("SELECT * FROM customers WHERE status = 'ACTIVE' LIMIT 1")) || { id: 1, full_name: 'Test Customer', phone: '0712345678' };
 
     // Setup a real test order for payment linkages
     const orderRes = await orderService.createOrder({
-        branch_id: 1,
+        branch_id: testBranchId,
         customer_id: testCustomer.id,
         initial_status: 'CONFIRMED',
         delivery_address: 'Moi Avenue, Nairobi CBD',
@@ -80,7 +84,7 @@ async function runSuite() {
     // TEST 1: Payment Intent Creation for All 4 Methods in PENDING state
     await runTest('1. Payment Intent Creation: Create PENDING intents across M-Pesa, Card, Cash, and Bank', async () => {
         createdIntentMpesa = await paymentService.createPaymentIntent({
-            branch_id: 1,
+            branch_id: testBranchId,
             order_id: testOrder.id,
             customer_id: testCustomer.id,
             payment_method: 'MPESA',
@@ -95,7 +99,7 @@ async function runSuite() {
         assert.ok(createdIntentMpesa.intent_number.startsWith('PI-'));
 
         createdIntentCard = await paymentService.createPaymentIntent({
-            branch_id: 1,
+            branch_id: testBranchId,
             order_id: testOrder.id,
             customer_id: testCustomer.id,
             payment_method: 'CARD',
@@ -105,7 +109,7 @@ async function runSuite() {
         assert.strictEqual(createdIntentCard.payment_method, 'CARD');
 
         createdIntentCash = await paymentService.createPaymentIntent({
-            branch_id: 1,
+            branch_id: testBranchId,
             order_id: testOrder.id,
             customer_id: testCustomer.id,
             payment_method: 'CASH',
@@ -115,7 +119,7 @@ async function runSuite() {
         assert.strictEqual(createdIntentCash.payment_method, 'CASH');
 
         createdIntentBank = await paymentService.createPaymentIntent({
-            branch_id: 1,
+            branch_id: testBranchId,
             order_id: testOrder.id,
             customer_id: testCustomer.id,
             payment_method: 'BANK',
@@ -130,7 +134,7 @@ async function runSuite() {
         const uniqueKey = `idemp-test-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 
         const intent1 = await paymentService.createPaymentIntent({
-            branch_id: 1,
+            branch_id: testBranchId,
             order_id: testOrder.id,
             payment_method: 'MPESA',
             amount: 3200,
@@ -139,7 +143,7 @@ async function runSuite() {
         }, cashierUser);
 
         const intent2 = await paymentService.createPaymentIntent({
-            branch_id: 1,
+            branch_id: testBranchId,
             order_id: testOrder.id,
             payment_method: 'MPESA',
             amount: 3200,
@@ -221,7 +225,7 @@ async function runSuite() {
     // TEST 6: User-Cancelled & Failed Callback (ResultCode 1032 -> FAILED)
     await runTest('6. Failed Callback Handling: User cancellation (ResultCode 1032) marks intent as FAILED', async () => {
         const failedIntent = await paymentService.createPaymentIntent({
-            branch_id: 1,
+            branch_id: testBranchId,
             order_id: testOrder.id,
             payment_method: 'MPESA',
             amount: 750,
@@ -267,7 +271,7 @@ async function runSuite() {
     // TEST 8: Timeout Recovery & Status Query
     await runTest('8. Timeout Recovery: Status inquiry from provider reconciles pending intent', async () => {
         const timeoutIntent = await paymentService.createPaymentIntent({
-            branch_id: 1,
+            branch_id: testBranchId,
             order_id: testOrder.id,
             payment_method: 'MPESA',
             amount: 990,
@@ -305,7 +309,7 @@ async function runSuite() {
 
     // TEST 10: Automated Payment Reconciliation Engine
     await runTest('10. Payment Reconciliation: Evaluates payments, matches provider references, and reports discrepancies', async () => {
-        const recon = await paymentService.reconcilePayments({ branch_id: 1 }, adminUser);
+        const recon = await paymentService.reconcilePayments({ branch_id: testBranchId }, adminUser);
 
         assert.ok(recon.total_evaluated > 0, 'Must evaluate payments');
         assert.ok(recon.matched_count > 0, 'Must have matched payments');

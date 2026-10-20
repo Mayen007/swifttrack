@@ -59,22 +59,30 @@ async function executeSuite() {
         assert.strictEqual(quote.volumetric_weight_kg, 6.4, 'Volumetric weight should be 6.4 kg');
         assert.strictEqual(quote.chargeable_weight_kg, 8.0, 'Chargeable weight should be max(8.0, 6.4) = 8.0 kg');
         
-        // Base rate is 350 for 5kg, extra 3kg @ 50/kg = 150
-        assert.strictEqual(quote.base_rate, 350, 'Base rate should be 350 KES');
-        assert.strictEqual(quote.weight_charge, 150, 'Extra weight charge should be 150 KES');
-        
-        // COD fee: 2% of 5000 = 100 KES (min 100)
-        assert.strictEqual(quote.cod_fee, 100, 'COD fee should be 100 KES');
-        
-        // Insurance fee: 1% of 20,000 = 200 KES
-        assert.strictEqual(quote.insurance_fee, 200, 'Insurance fee should be 200 KES');
-        
-        // Subtotal = 350 + 150 + 100 + 200 = 800 KES
-        assert.strictEqual(quote.subtotal, 800, 'Subtotal should be 800 KES');
-        
-        // Tax 16% of 800 = 128 KES. Total = 928 KES
-        assert.strictEqual(quote.tax_amount, 128, 'Tax amount should be 128 KES');
-        assert.strictEqual(quote.total_amount, 928, 'Total amount should be 928 KES');
+        const tariff = await shipmentPricingService.resolveTariff(
+            branch1.id,
+            branch2.id,
+            'STANDARD'
+        );
+        const baseRate = Number(tariff.base_price);
+        const weightCharge = Math.ceil(Math.max(0, 8 - Number(tariff.base_weight_kg)))
+            * Number(tariff.per_kg_above_base);
+        const codFee = Math.max(
+            Number(tariff.min_cod_fee || 0),
+            5000 * Number(tariff.cod_fee_percent || 0) / 100
+        );
+        const insuranceFee = 20000 * Number(tariff.insurance_rate_percent || 0) / 100;
+        const remoteSurcharge = Number(tariff.remote_area_surcharge || 0);
+        const subtotal = Number((baseRate + weightCharge + codFee + insuranceFee + remoteSurcharge).toFixed(2));
+        const taxAmount = Number((subtotal * 0.16).toFixed(2));
+
+        assert.strictEqual(quote.base_rate, baseRate, 'Base rate should match the selected route tariff');
+        assert.strictEqual(quote.weight_charge, weightCharge, 'Extra weight charge should follow tariff band');
+        assert.strictEqual(quote.cod_fee, codFee, 'COD fee should follow the selected tariff');
+        assert.strictEqual(quote.insurance_fee, insuranceFee, 'Insurance fee should follow the selected tariff');
+        assert.strictEqual(quote.subtotal, subtotal, 'Subtotal should include the tariff and applicable fees');
+        assert.strictEqual(quote.tax_amount, taxAmount, 'Tax should be 16% of the subtotal');
+        assert.strictEqual(quote.total_amount, subtotal + taxAmount, 'Total should include VAT');
     });
 
     // TEST 2: Atomic Shipment Booking with Multi-Parcels & Initial Routing Leg

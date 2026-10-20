@@ -14,7 +14,7 @@ function buildPoolConfig() {
         min: parseInt(process.env.PGPOOL_MIN || '2', 10),
         idleTimeoutMillis: parseInt(process.env.PGPOOL_IDLE_TIMEOUT_MS || '30000', 10),
         connectionTimeoutMillis: parseInt(process.env.PGPOOL_CONN_TIMEOUT_MS || '5000', 10),
-        allowExitOnIdle: false
+        allowExitOnIdle: process.env.NODE_ENV === 'test'
     };
 
     if (process.env.DATABASE_URL) {
