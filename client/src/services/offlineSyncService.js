@@ -1,72 +1,31 @@
 // client/src/services/offlineSyncService.js
-// SwiftTrack Logistics: Client-side Durable Offline Operations Queue & Sync Service (PRD Section 21)
+// SwiftTrack Logistics: Client-side Durable Offline Operations Queue & Auto-Sync Worker (PRD Section 21)
 
-const STORAGE_KEY = 'swifttrack_offline_operations_queue_v1';
+import {
+  enqueueOfflineOperation,
+  getQueuedOperations,
+  removeOperations,
+  clearOfflineQueue,
+  getPendingQueueCount,
+  generateClientOperationId
+} from './offlineQueue.js';
+
 const SYNC_ENDPOINT = '/api/v1/offline/sync';
 
-/**
- * Generates a unique client operation ID for idempotent replay deduplication
- */
-export function generateClientOperationId(prefix = 'OP') {
-  const ts = Date.now();
-  const rand = Math.random().toString(36).substring(2, 8).toUpperCase();
-  return `${prefix}-${ts}-${rand}`;
-}
+export {
+  generateClientOperationId,
+  enqueueOfflineOperation,
+  getQueuedOperations,
+  removeOperations,
+  clearOfflineQueue,
+  getPendingQueueCount
+};
 
 /**
- * Returns all currently queued operations from durable local storage
+ * Backward compatibility alias for enqueueOfflineOperation
  */
-export function getQueuedOperations() {
-  if (typeof window === 'undefined' || !window.localStorage) return [];
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? JSON.parse(raw) : [];
-  } catch (e) {
-    console.error('Failed to read offline operations queue:', e);
-    return [];
-  }
-}
-
-/**
- * Saves queued operations to local storage
- */
-function saveQueuedOperations(operations) {
-  if (typeof window === 'undefined' || !window.localStorage) return;
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(operations));
-  } catch (e) {
-    console.error('Failed to persist offline operations queue:', e);
-  }
-}
-
-/**
- * Enqueues a new operation to the durable queue
- * @param {string} operationType - SCAN, CUSTODY_HANDOFF, HUB_RECEIVE, DELIVERY_ATTEMPT, DELIVERY_POD, DRIVER_LOCATION
- * @param {Object} payload - Domain operation payload
- * @returns {Object} Enqueued operation descriptor with client_operation_id
- */
-export function queueOfflineOperation(operationType, payload = {}) {
-  const operationId = generateClientOperationId(operationType.slice(0, 4));
-  const operation = {
-    operation_id: operationId,
-    operation_type: operationType,
-    payload,
-    client_timestamp: new Date().toISOString(),
-    status: 'QUEUED'
-  };
-
-  const queue = getQueuedOperations();
-  queue.push(operation);
-  saveQueuedOperations(queue);
-
-  return operation;
-}
-
-/**
- * Returns count of pending operations awaiting synchronization
- */
-export function getPendingQueueCount() {
-  return getQueuedOperations().length;
+export async function queueOfflineOperation(operationType, payload = {}) {
+  return await enqueueOfflineOperation(operationType, payload);
 }
 
 /**
@@ -75,13 +34,22 @@ export function getPendingQueueCount() {
  * @returns {Promise<Object>} Synchronization report
  */
 export async function syncOfflineQueue(apiClient) {
-  const queue = getQueuedOperations();
-  if (queue.length === 0) {
-    return { synced_count: 0, duplicate_count: 0, error_count: 0, pending: 0 };
+  const queue = await getQueuedOperations();
+  if (!queue || queue.length === 0) {
+    return {
+      success: true,
+      processed_count: 0,
+      duplicate_count: 0,
+      error_count: 0,
+      remaining_pending: 0
+    };
   }
 
   try {
-    const deviceId = typeof window !== 'undefined' ? (localStorage.getItem('swifttrack_device_id') || 'WEB_CLIENT') : 'WEB_CLIENT';
+    const deviceId = typeof window !== 'undefined'
+      ? (localStorage.getItem('swifttrack_device_id') || 'WEB_CLIENT')
+      : 'WEB_CLIENT';
+
     const payload = {
       device_id: deviceId,
       app_version: '1.4.0',
@@ -110,51 +78,103 @@ export async function syncOfflineQueue(apiClient) {
     }
 
     // Process acknowledgement results
-    if (response && Array.isArray(response.operations)) {
-      const ackSet = new Set(
-        response.operations
-          .filter(op => op.status === 'ACKNOWLEDGED' || op.status === 'DUPLICATE')
-          .map(op => op.operation_id)
-      );
+    // Results from server are in response.results or response.operations
+    const results = response?.results || response?.operations || (Array.isArray(response) ? response : []);
+    const ackIds = [];
 
-      // Keep only operations that were rejected or failed, prune acknowledged ones
-      const remaining = queue.filter(item => !ackSet.has(item.operation_id));
-      saveQueuedOperations(remaining);
-
-      return {
-        ...response,
-        remaining_pending: remaining.length
-      };
+    for (const r of results) {
+      if (r.status === 'ACKNOWLEDGED' || r.status === 'DUPLICATE') {
+        ackIds.push(r.operation_id);
+      }
     }
 
-    return response;
+    if (ackIds.length > 0) {
+      await removeOperations(ackIds);
+    }
+
+    const remainingCount = await getPendingQueueCount();
+
+    return {
+      success: true,
+      processed_count: response?.processed_count !== undefined ? response.processed_count : ackIds.length,
+      duplicate_count: response?.duplicate_count || 0,
+      results,
+      remaining_pending: remainingCount
+    };
   } catch (err) {
-    console.error('Offline synchronization error:', err);
+    console.error('[OfflineSync] Synchronization error:', err);
     throw err;
   }
 }
 
 /**
- * Binds auto-sync listener to browser connectivity events
+ * Binds auto-sync listener to browser connectivity events & periodic heartbeat
+ * @param {Object} apiClient - API client
+ * @param {Function} onSyncStatusChange - Callback receiving { isSyncing, pending, lastReport, error }
+ * @returns {Function} Cleanup unbind function
  */
-export function initAutoSync(apiClient, onSyncComplete) {
+export function initAutoSync(apiClient, onSyncStatusChange) {
   if (typeof window === 'undefined') return () => {};
 
-  const handleOnline = async () => {
-    const pending = getPendingQueueCount();
-    if (pending > 0) {
-      console.log(`[OfflineSync] Network restored. Synchronizing ${pending} queued operations...`);
-      try {
-        const report = await syncOfflineQueue(apiClient);
-        if (typeof onSyncComplete === 'function') {
-          onSyncComplete(report);
+  let isSyncing = false;
+
+  const performSync = async () => {
+    if (isSyncing || (typeof navigator !== 'undefined' && !navigator.onLine)) return;
+
+    try {
+      const pending = await getPendingQueueCount();
+      if (pending === 0) {
+        if (typeof onSyncStatusChange === 'function') {
+          onSyncStatusChange({ isSyncing: false, pending: 0 });
         }
-      } catch (err) {
-        console.warn('[OfflineSync] Auto-sync failed, will retry on next reconnect:', err.message);
+        return;
       }
+
+      isSyncing = true;
+      if (typeof onSyncStatusChange === 'function') {
+        onSyncStatusChange({ isSyncing: true, pending });
+      }
+
+      const report = await syncOfflineQueue(apiClient);
+      if (typeof onSyncStatusChange === 'function') {
+        onSyncStatusChange({
+          isSyncing: false,
+          pending: report.remaining_pending,
+          lastReport: report
+        });
+      }
+    } catch (err) {
+      console.warn('[OfflineSync] Auto-sync attempt error:', err.message);
+      if (typeof onSyncStatusChange === 'function') {
+        const pending = await getPendingQueueCount().catch(() => 0);
+        onSyncStatusChange({ isSyncing: false, pending, error: err.message });
+      }
+    } finally {
+      isSyncing = false;
     }
   };
 
+  const handleOnline = () => {
+    console.log('[OfflineSync] Network connectivity restored. Checking queue...');
+    performSync();
+  };
+
+  // Heartbeat every 30 seconds
+  const intervalId = setInterval(() => {
+    if (typeof navigator !== 'undefined' && navigator.onLine) {
+      performSync();
+    }
+  }, 30000);
+
   window.addEventListener('online', handleOnline);
-  return () => window.removeEventListener('online', handleOnline);
+
+  // Initial trigger
+  if (typeof navigator !== 'undefined' && navigator.onLine) {
+    performSync();
+  }
+
+  return () => {
+    window.removeEventListener('online', handleOnline);
+    clearInterval(intervalId);
+  };
 }

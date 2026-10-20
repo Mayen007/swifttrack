@@ -4,6 +4,7 @@ const express = require('express');
 const router = express.Router();
 const { authenticateToken } = require('../middleware/auth.js');
 const transportService = require('../services/transportService.js');
+const customsService = require('../services/customsService.js');
 
 // --- ROUTES ---
 
@@ -249,6 +250,31 @@ router.post('/legs/:id/customs/release', authenticateToken, async (req, res) => 
         res.json(result);
     } catch (err) {
         console.error('Release customs leg error:', err);
+        res.status(err.statusCode || 400).json({ error: err.message });
+    }
+});
+
+// GET /api/v1/transport/runs/:id/customs-manifest - Export EAC TradeNet / ASYCUDA road transit manifest (XML or JSON)
+router.get('/runs/:id/customs-manifest', authenticateToken, async (req, res) => {
+    try {
+        const format = req.query.format === 'json' ? 'json' : 'xml';
+        const manifest = await customsService.generateEACManifest(req.params.id, {
+            format,
+            borderPost: req.query.borderPost || req.query.border_post
+        });
+
+        if (format === 'xml') {
+            res.setHeader('Content-Type', 'application/xml; charset=utf-8');
+            res.setHeader('Content-Disposition', `attachment; filename="EAC-Manifest-Run-${req.params.id}.xml"`);
+            return res.status(200).send(manifest);
+        }
+
+        res.status(200).json({
+            success: true,
+            manifest
+        });
+    } catch (err) {
+        console.error('Export customs manifest error:', err);
         res.status(err.statusCode || 400).json({ error: err.message });
     }
 });

@@ -120,4 +120,26 @@ router.post('/test-send', authenticateToken, requirePermission('notifications', 
     }
 });
 
+/**
+ * POST /api/v1/notifications-engine/dlr
+ * Public Webhook Endpoint for Carrier Delivery Reports (Africa's Talking / Twilio)
+ */
+router.post('/dlr', async (req, res, next) => {
+    try {
+        const payload = req.body;
+        const result = await notificationService.handleDeliveryReport(payload);
+        res.status(200).json({
+            status: 'success',
+            result
+        });
+    } catch (err) {
+        console.error('[Notifications DLR] Webhook processing error:', err.message);
+        // Telco carriers require HTTP 200 acknowledgment to avoid retry flood
+        res.status(200).json({
+            status: 'acknowledged_with_error',
+            error: err.message
+        });
+    }
+});
+
 module.exports = router;

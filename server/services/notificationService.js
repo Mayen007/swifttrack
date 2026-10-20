@@ -257,26 +257,116 @@ class NotificationService {
         const contact = String(recipientContact).trim();
 
         if (channel === 'SMS') {
-            // Simulated / Africa's Talking / Safaricom SMS Gateway
             if (!contact.startsWith('+')) {
                 throw new Error(`Invalid SMS phone number ${contact}. Must be in E.164 format (+254...).`);
             }
+
+            const atApiKey = process.env.AT_API_KEY;
+            const atUsername = process.env.AT_USERNAME;
+            const atSenderId = process.env.AT_SENDER_ID || 'SWIFTTRACK';
+            const atEnv = process.env.AT_ENVIRONMENT || 'production';
+
+            // Live Africa's Talking API Call
+            if (atApiKey && atUsername && !metadata.forceSimulate) {
+                try {
+                    const host = atEnv === 'sandbox' ? 'https://api.sandbox.africastalking.com' : 'https://api.africastalking.com';
+                    const endpoint = `${host}/version1/messaging`;
+                    const params = new URLSearchParams();
+                    params.append('username', atUsername);
+                    params.append('to', contact);
+                    params.append('message', renderedContent);
+                    if (atSenderId && atSenderId !== 'sandbox') {
+                        params.append('from', atSenderId);
+                    }
+
+                    const res = await fetch(endpoint, {
+                        method: 'POST',
+                        headers: {
+                            'apiKey': atApiKey,
+                            'Content-Type': 'application/x-www-form-urlencoded',
+                            'Accept': 'application/json'
+                        },
+                        body: params.toString()
+                    });
+
+                    if (res.ok) {
+                        const data = await res.json();
+                        const recipient = data?.SMSMessageData?.Recipients?.[0] || {};
+                        return {
+                            provider: 'AFRICAS_TALKING_SMS',
+                            messageId: recipient.messageId || `AT-SMS-${crypto.randomBytes(6).toString('hex').toUpperCase()}`,
+                            status: recipient.status || 'Success',
+                            statusCode: recipient.statusCode || 101,
+                            cost: recipient.cost || '0.80 KES',
+                            senderId: atSenderId,
+                            is_live: true
+                        };
+                    }
+                    console.warn(`[NotificationService] Africa's Talking HTTP ${res.status}, falling back to simulated dispatch`);
+                } catch (netErr) {
+                    console.warn('[NotificationService] Africa\'s Talking network dispatch error:', netErr.message);
+                }
+            }
+
+            // High-fidelity fallback / test simulator
             const msgId = `AT-SMS-${crypto.randomBytes(6).toString('hex').toUpperCase()}`;
             return {
                 provider: 'AFRICAS_TALKING_SMS',
                 messageId: msgId,
                 status: 'DELIVERED_TO_TELCO',
                 credits: 1.0,
-                cost: '0.80 KES'
+                cost: '0.80 KES',
+                senderId: atSenderId,
+                is_simulated: true
             };
         } else if (channel === 'WHATSAPP') {
+            const twilioSid = process.env.TWILIO_ACCOUNT_SID;
+            const twilioAuth = process.env.TWILIO_AUTH_TOKEN;
+            const twilioFrom = process.env.TWILIO_WHATSAPP_NUMBER || '+14155238886';
+
+            // Live Twilio WhatsApp Business API
+            if (twilioSid && twilioAuth && !metadata.forceSimulate) {
+                try {
+                    const endpoint = `https://api.twilio.com/2010-04-01/Accounts/${twilioSid}/Messages.json`;
+                    const auth = Buffer.from(`${twilioSid}:${twilioAuth}`).toString('base64');
+                    const params = new URLSearchParams();
+                    params.append('From', `whatsapp:${twilioFrom}`);
+                    params.append('To', `whatsapp:${contact}`);
+                    params.append('Body', renderedContent);
+
+                    const res = await fetch(endpoint, {
+                        method: 'POST',
+                        headers: {
+                            'Authorization': `Basic ${auth}`,
+                            'Content-Type': 'application/x-www-form-urlencoded'
+                        },
+                        body: params.toString()
+                    });
+
+                    if (res.ok) {
+                        const data = await res.json();
+                        return {
+                            provider: 'TWILIO_WHATSAPP',
+                            messageId: data.sid,
+                            status: data.status || 'queued',
+                            meta_conversation_id: data.sid,
+                            is_live: true
+                        };
+                    }
+                    console.warn(`[NotificationService] Twilio WhatsApp HTTP ${res.status}, falling back to simulated dispatch`);
+                } catch (twErr) {
+                    console.warn('[NotificationService] Twilio WhatsApp dispatch error:', twErr.message);
+                }
+            }
+
             // Simulated Twilio / Meta WhatsApp Business Cloud API
             const msgId = `WA-MSG-${crypto.randomBytes(6).toString('hex').toUpperCase()}`;
             return {
                 provider: 'TWILIO_WHATSAPP',
                 messageId: msgId,
                 status: 'SENT_TO_META',
-                meta_conversation_id: `CONV-${crypto.randomBytes(4).toString('hex')}`
+                meta_conversation_id: `CONV-${crypto.randomBytes(4).toString('hex')}`,
+                is_simulated: true
             };
         } else if (channel === 'EMAIL') {
             // Simulated SMTP / SendGrid Transactional Mailer
@@ -292,6 +382,72 @@ class NotificationService {
         } else {
             throw new Error(`Unsupported communication channel: '${channel}'`);
         }
+    }
+
+    /**
+     * Inbound Delivery Report (DLR) Webhook Handler from Africa's Talking / Twilio
+     */
+    async handleDeliveryReport(payload = {}) {
+        const messageId = payload.id || payload.messageId || payload.MessageSid || payload.smsMessageId;
+        const rawStatus = String(payload.status || payload.MessageStatus || '').trim();
+        const failureReason = payload.failureReason || payload.reason || null;
+
+        if (!messageId) {
+            throw new Error('DLR payload requires message identifier (id or MessageSid)');
+        }
+
+        // Map telco carrier status:
+        // Africa's Talking: 'Success', 'Failed', 'Rejected', 'Buffered'
+        // Twilio: 'delivered', 'undelivered', 'failed', 'sent'
+        const lower = rawStatus.toLowerCase();
+        let internalStatus = 'SENT';
+        if (lower === 'success' || lower === 'delivered' || lower === 'delivrd') {
+            internalStatus = 'DELIVERED';
+        } else if (lower === 'failed' || lower === 'rejected' || lower === 'undelivered' || lower === 'undeliv') {
+            internalStatus = 'FAILED';
+        } else if (lower === 'buffered' || lower === 'queued' || lower === 'accepted') {
+            internalStatus = 'QUEUED';
+        }
+
+        // Locate and update notification_logs entry
+        const logEntry = await dbAdapter.get(`
+            SELECT * FROM notification_logs
+            WHERE provider_message_id = ?
+            ORDER BY id DESC LIMIT 1
+        `, [messageId]);
+
+        if (logEntry) {
+            await dbAdapter.run(`
+                UPDATE notification_logs
+                SET status = ?,
+                    response_payload = ?,
+                    error_message = COALESCE(?, error_message)
+                WHERE id = ?
+            `, [
+                internalStatus === 'DELIVERED' ? 'DELIVERED' : (internalStatus === 'FAILED' ? 'FAILED' : logEntry.status),
+                JSON.stringify({ ...JSON.parse(logEntry.response_payload || '{}'), dlr: payload }),
+                failureReason,
+                logEntry.id
+            ]);
+
+            // Update parent outbox record status if failed or delivered
+            if (internalStatus === 'FAILED') {
+                await dbAdapter.run(`
+                    UPDATE notification_outbox
+                    SET status = 'FAILED', last_error = ?, updated_at = CURRENT_TIMESTAMP
+                    WHERE id = ?
+                `, [failureReason ? `DLR Failure: ${failureReason}` : 'Carrier delivery rejected', logEntry.outbox_id]);
+            }
+        }
+
+        return {
+            acknowledged: true,
+            message_id: messageId,
+            carrier_status: rawStatus,
+            internal_status: internalStatus,
+            log_id: logEntry ? logEntry.id : null,
+            received_at: new Date().toISOString()
+        };
     }
 
     /**

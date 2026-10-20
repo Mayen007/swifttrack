@@ -343,7 +343,7 @@ SwiftTrack includes a production-grade multi-stage [Dockerfile](file:///c:/Users
 
 ### Docker Compose Architecture
 The production stack orchestrates three isolated services:
-1. **`postgres`**: Official `postgres:16-alpine` database pre-configured with pooled connections, volume persistence (`pgdata`), and automatic initialization of all 23 migrations.
+1. **`postgres`**: Official `postgres:18-alpine` database pre-configured with pooled connections, volume persistence (`pgdata`), and automatic initialization of all 23 migrations.
 2. **`app`**: Multi-stage Node.js 22 runtime serving the Express.js API backend and static pre-compiled React 18 / Vite 6 client application under an unprivileged `node` user with healthcheck monitoring.
 3. **`worker`**: Dedicated background worker container running the transactional outbox notifications processor and sync engine with isolated resource boundaries.
 

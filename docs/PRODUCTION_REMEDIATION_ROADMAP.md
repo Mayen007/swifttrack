@@ -418,7 +418,7 @@ Update GitHub Actions to provision a real PostgreSQL service container, fix the 
 
 #### 7.1 Provision PostgreSQL in GitHub Actions
 - [ ] Update `.github/workflows/ci.yml`:
-  - Add `postgres:16` service container with healthy readiness checks.
+  - Add `postgres:18-alpine` service container with healthy readiness checks.
   - Set environment:
     ```yaml
     env:

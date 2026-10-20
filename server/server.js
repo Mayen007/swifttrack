@@ -91,7 +91,10 @@ app.get(['/health/ready', '/ready', '/health'], async (req, res) => {
     return res.json({ status: 'ready', database: dbStatus, latencyMs, timestamp: new Date().toISOString() });
 });
 
-// 7. Mount API routes: primary versioned /api/v1 and legacy alias /api
+// 7. Root Prometheus Metrics Scraping Endpoint
+app.use('/metrics', require('./routes/metrics.js'));
+
+// 8. Mount API routes: primary versioned /api/v1 and legacy alias /api
 app.use('/api/v1', v1Router);
 app.use('/api', v1Router);
 
@@ -102,7 +105,7 @@ app.use(express.static(clientPath));
 
 // SPA fallback to index.html for non-API GET requests
 app.use((req, res, next) => {
-    if (req.method === 'GET' && !req.path.startsWith('/api') && !req.path.startsWith('/health')) {
+    if (req.method === 'GET' && !req.path.startsWith('/api') && !req.path.startsWith('/health') && !req.path.startsWith('/metrics')) {
         return res.sendFile(path.join(clientPath, 'index.html'));
     }
     next();

@@ -6,13 +6,13 @@
   "assessmentDate": "2026-10-07",
   "architecture": {
     "backend": "Express.js 5.2",
-    "authoritativeDatabase": "PostgreSQL 16",
+    "authoritativeDatabase": "PostgreSQL 18",
     "databaseAbstraction": "Async dbAdapter with transactional parameterization",
     "architecturalLintViolations": 0,
     "frontend": "React 18.3 / Vite 6.4",
     "styling": "Dieter Rams / Matte Obsidian Design System",
     "containerization": "Multi-stage Dockerfile / docker-compose.yml",
-    "ciCd": "GitHub Actions (ubuntu-latest, postgres:16-alpine)"
+    "ciCd": "GitHub Actions (ubuntu-latest, postgres:18-alpine)"
   },
   "verificationMetrics": {
     "architecturalViolations": 0,

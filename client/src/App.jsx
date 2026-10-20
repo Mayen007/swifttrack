@@ -7,6 +7,7 @@ import { NotificationsDrawer } from './components/NotificationsDrawer.jsx';
 import { ToastContainer } from './components/ToastContainer.jsx';
 import { ErrorBoundary } from './components/common/ErrorBoundary.jsx';
 import { ViewSkeleton } from './components/common/ViewSkeleton.jsx';
+import { OfflineSyncStatus } from './components/common/OfflineSyncStatus.jsx';
 import { ShieldOff } from 'lucide-react';
 import { api } from './services/api.js';
 
@@ -433,6 +434,9 @@ function MainApp() {
         onRefreshCount={setUnreadCount}
         onNavigate={setCurrentView}
       />
+
+      {/* Offline-First Synchronization Status Indicator */}
+      <OfflineSyncStatus />
 
       {/* Floating System Toasts */}
       <ToastContainer />

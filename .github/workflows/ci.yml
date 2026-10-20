@@ -13,7 +13,7 @@ jobs:
 
     services:
       postgres:
-        image: postgres:16-alpine
+        image: postgres:18-alpine
         env:
           POSTGRES_USER: swifttrack_admin
           POSTGRES_PASSWORD: super_secure_pg_password_2026
@@ -102,6 +102,14 @@ jobs:
         run: |
           npm run test:fleet
           npm run test:logistics
+
+      - name: Verify Live Gateways & Regional Customs Manifest
+        run: npm run test:gateways
+
+      - name: Verify Disaster Recovery & Observability Metrics (Track 6)
+        run: |
+          npm run test:backup
+          npm run test:metrics
 
       - name: Verify Security & Injection Guards
         run: npm run test:security

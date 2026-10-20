@@ -46,6 +46,7 @@ const TEST_SUITES = [
 
     // 10. Payments & Billing
     { file: 'tests/payments/test-payments-engine.js', domain: 'Payments', name: 'Payments Ledger & M-Pesa' },
+    { file: 'tests/logistics/test-daraja-gateway.js', domain: 'Payments', name: 'Safaricom Daraja 2.0 Gateway' },
 
     // 11. Logistics & Transport Runs
     { file: 'tests/logistics/test-shipments-core.js', domain: 'Logistics', name: 'Shipments Lifecycle & Waybills' },
@@ -55,8 +56,11 @@ const TEST_SUITES = [
     { file: 'tests/logistics/test-cod-settlement.js', domain: 'Logistics', name: 'COD Cash Collection & Escrow' },
     { file: 'tests/logistics/test-control-tower.js', domain: 'Logistics', name: 'Operations Control Tower' },
     { file: 'tests/logistics/test-notifications-engine.js', domain: 'Logistics', name: 'Outbox Notification Dispatcher' },
+    { file: 'tests/logistics/test-notifications-gateway.js', domain: 'Logistics', name: 'Africa\'s Talking & Twilio Gateway' },
     { file: 'tests/logistics/test-multi-leg-and-customs.js', domain: 'Logistics', name: 'Cross-Border Multi-Leg Transit' },
+    { file: 'tests/logistics/test-customs-manifest.js', domain: 'Logistics', name: 'EAC Customs ASYCUDA Manifest' },
     { file: 'tests/logistics/test-offline-sync.js', domain: 'Logistics', name: 'Offline PWA Sync Engine' },
+    { file: 'tests/logistics/test-client-offline-queue.js', domain: 'Logistics', name: 'Client Offline Queue & Auto-Replay' },
 
     // 12. Fleet Management
     { file: 'tests/logistics/test-vehicles-management.js', domain: 'Fleet', name: 'Fleet Vehicles & Telematic Health' },
@@ -70,7 +74,11 @@ const TEST_SUITES = [
     { file: 'tests/logistics/test-frontend-drivers.js', domain: 'Frontend Integrity', name: 'Frontend Drivers Integrity' },
     { file: 'tests/logistics/test-frontend-vehicles.js', domain: 'Frontend Integrity', name: 'Frontend Vehicles Integrity' },
 
-    // 14. Full End-to-End Acceptance Scenario
+    // 14. Disaster Recovery & System Observability (Track 6)
+    { file: 'tests/database/test-backup-restore.js', domain: 'Disaster Recovery', name: 'Database Backup & Restore Drill' },
+    { file: 'tests/system/test-metrics-endpoint.js', domain: 'Telemetry & Observability', name: 'Prometheus Metrics & Health' },
+
+    // 15. Full End-to-End Acceptance Scenario
     { file: 'tests/logistics/test-e2e-acceptance.js', domain: 'E2E Acceptance', name: 'Master End-to-End Workflow' }
 ];
 

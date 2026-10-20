@@ -124,5 +124,6 @@ router.use('/control-tower', require('../controlTower.js'));
 router.use('/notifications-engine', require('../notificationsLogistics.js'));
 router.use('/e2e', require('../e2eAcceptance.js'));
 router.use('/offline', require('../offline.js'));
+router.use('/metrics', require('../metrics.js'));
 
 module.exports = router;

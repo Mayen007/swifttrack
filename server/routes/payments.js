@@ -4,11 +4,18 @@ const express = require('express');
 const router = express.Router();
 const { authenticateToken, enforceBranchIsolation } = require('../middleware/auth.js');
 const paymentService = require('../services/paymentService.js');
+const darajaService = require('../services/darajaService.js');
 
 // 1. POST /api/payments/callbacks/mpesa - Public Webhook Endpoint for Safaricom Daraja
 // Must be publicly accessible without JWT token; validates payload structure and handles deduplication
 router.post('/callbacks/mpesa', async (req, res) => {
     try {
+        const clientIp = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.socket?.remoteAddress;
+        if (!darajaService.isSafaricomCallbackIp(clientIp)) {
+            console.warn(`[Daraja Webhook] Unauthorized callback IP attempt: ${clientIp}`);
+            return res.status(403).json({ error: 'Untrusted callback source IP' });
+        }
+
         const result = await paymentService.handleMpesaCallback(req.body);
 
         // Standard Safaricom Daraja callback acknowledgment response
@@ -23,6 +30,21 @@ router.post('/callbacks/mpesa', async (req, res) => {
             ResultCode: 0,
             ResultDesc: 'Acknowledged with error'
         });
+    }
+});
+
+// POST /api/payments/reconcile-statement - Automated Safaricom settlement statement reconciliation
+router.post('/reconcile-statement', authenticateToken, async (req, res) => {
+    try {
+        const statementRows = req.body.transactions || req.body.statement || req.body;
+        const report = await darajaService.reconcileSettlementStatement(statementRows);
+        res.json({
+            success: true,
+            report
+        });
+    } catch (err) {
+        console.error('Settlement statement reconciliation error:', err);
+        res.status(400).json({ error: err.message });
     }
 });
 

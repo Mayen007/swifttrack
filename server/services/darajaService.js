@@ -347,6 +347,156 @@ class DarajaService {
 
         return payload;
     }
+
+    /**
+     * Verify whether an incoming webhook request originates from Safaricom callback servers
+     * Official Safaricom production IP ranges: 196.201.214.0/24, 196.201.213.0/24, 196.201.212.0/24, 196.13.107.0/24
+     */
+    isSafaricomCallbackIp(ip) {
+        if (process.env.DARAJA_BYPASS_IP_CHECK === 'true' || this.env === 'sandbox') {
+            return true;
+        }
+        if (!ip) return false;
+        const cleanIp = String(ip).replace(/^::ffff:/, '').trim();
+        if (cleanIp === '127.0.0.1' || cleanIp === '::1' || cleanIp === 'localhost') {
+            return true;
+        }
+
+        const safaricomPrefixes = [
+            '196.201.214.',
+            '196.201.213.',
+            '196.201.212.',
+            '196.13.107.'
+        ];
+        return safaricomPrefixes.some(prefix => cleanIp.startsWith(prefix));
+    }
+
+    /**
+     * Automated reconciliation worker reconciling Daraja daily settlement statements against payment_callbacks & payments
+     */
+    async reconcileSettlementStatement(statementRows = [], db = null) {
+        const dbAdapter = db || require('../db/dbAdapter.js');
+        if (!Array.isArray(statementRows)) {
+            throw new Error('statementRows must be an array of settlement transactions');
+        }
+
+        const matched = [];
+        const discrepancies = [];
+        let totalStatementAmount = 0;
+        let totalMatchedAmount = 0;
+
+        for (const row of statementRows) {
+            const receipt = row.mpesa_receipt_number || row.receipt_number || row.ReceiptNo;
+            const stmtAmount = Number(row.amount || row.Amount || 0);
+            totalStatementAmount += stmtAmount;
+
+            if (!receipt) {
+                discrepancies.push({
+                    type: 'MISSING_RECEIPT_IDENTIFIER',
+                    row,
+                    reason: 'Statement row lacks MpesaReceiptNumber'
+                });
+                continue;
+            }
+
+            // Look up in payment_callbacks first
+            let callback = null;
+            try {
+                callback = await dbAdapter.get(`
+                    SELECT pc.*, pi.id as intent_id, pi.amount as intent_amount, pi.status as intent_status
+                    FROM payment_callbacks pc
+                    LEFT JOIN payment_intents pi ON pc.payment_intent_id = pi.id
+                    WHERE pc.raw_payload::text LIKE ?
+                    LIMIT 1
+                `, [`%${receipt}%`]);
+            } catch {
+                callback = null;
+            }
+
+            if (!callback) {
+                // Check if recorded directly in payments table
+                let payment = null;
+                try {
+                    payment = await dbAdapter.get(`
+                        SELECT * FROM payments WHERE reference = ? OR mpesa_receipt = ? OR notes LIKE ? LIMIT 1
+                    `, [receipt, receipt, `%${receipt}%`]);
+                } catch {
+                    payment = null;
+                }
+
+                if (!payment) {
+                    discrepancies.push({
+                        type: 'MISSING_INTERNAL',
+                        receipt,
+                        amount: stmtAmount,
+                        phone: row.phone || row.PhoneNumber,
+                        transaction_date: row.transaction_date || row.CompletionTime,
+                        reason: `Payment receipt ${receipt} found in settlement statement but missing from internal ledger`
+                    });
+                    continue;
+                }
+
+                const pAmount = Number(payment.amount || 0);
+                if (Math.abs(pAmount - stmtAmount) > 0.01) {
+                    discrepancies.push({
+                        type: 'AMOUNT_VARIANCE',
+                        receipt,
+                        statement_amount: stmtAmount,
+                        internal_amount: pAmount,
+                        variance: stmtAmount - pAmount,
+                        reason: `Amount mismatch: Statement KES ${stmtAmount} vs Internal KES ${pAmount}`
+                    });
+                } else {
+                    totalMatchedAmount += stmtAmount;
+                    matched.push({
+                        receipt,
+                        amount: stmtAmount,
+                        internal_id: payment.id,
+                        source: 'payments',
+                        matched_at: new Date().toISOString()
+                    });
+                }
+                continue;
+            }
+
+            const parsed = this.parseCallback(typeof callback.raw_payload === 'string' ? JSON.parse(callback.raw_payload) : callback.raw_payload);
+            const internalAmount = Number(parsed?.amount || callback.intent_amount || 0);
+
+            if (Math.abs(internalAmount - stmtAmount) > 0.01) {
+                discrepancies.push({
+                    type: 'AMOUNT_VARIANCE',
+                    receipt,
+                    statement_amount: stmtAmount,
+                    internal_amount: internalAmount,
+                    variance: stmtAmount - internalAmount,
+                    reason: `Amount mismatch for ${receipt}: Statement KES ${stmtAmount} vs Internal KES ${internalAmount}`
+                });
+            } else {
+                totalMatchedAmount += stmtAmount;
+                matched.push({
+                    receipt,
+                    amount: stmtAmount,
+                    callback_id: callback.id,
+                    intent_id: callback.intent_id,
+                    source: 'payment_callbacks',
+                    matched_at: new Date().toISOString()
+                });
+            }
+        }
+
+        return {
+            reconciliation_id: `REC-${Date.now()}`,
+            timestamp: new Date().toISOString(),
+            total_records: statementRows.length,
+            matched_count: matched.length,
+            discrepancy_count: discrepancies.length,
+            total_statement_amount: totalStatementAmount,
+            total_matched_amount: totalMatchedAmount,
+            variance_amount: totalStatementAmount - totalMatchedAmount,
+            matched,
+            discrepancies
+        };
+    }
 }
 
 const darajaService = new DarajaService();
