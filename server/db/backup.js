@@ -150,39 +150,67 @@ async function createBackup(options = {}) {
     let destinationPath;
 
     if (isPostgres) {
-        // --- PostgreSQL Engine Backup ---
-        backupFilename = `swifttrack_backup_pg_${timestamp}.dump`;
-        destinationPath = path.join(backupDir, backupFilename);
-
-        console.log(`[Backup] Initiating PostgreSQL snapshot (${backupFilename})...`);
-
-        // Check if pg_dump CLI is available
-        let pgDumpAvailable = false;
-        try {
-            const check = spawnSync('pg_dump', ['--version'], { encoding: 'utf8' });
-            if (check.status === 0) pgDumpAvailable = true;
-        } catch {
-            pgDumpAvailable = false;
+        const pgDumpCheck = spawnSync('pg_dump', ['--version'], { encoding: 'utf8' });
+        if (pgDumpCheck.error && pgDumpCheck.error.code !== 'ENOENT') {
+            throw pgDumpCheck.error;
+        }
+        const pgDumpAvailable = !pgDumpCheck.error && pgDumpCheck.status === 0;
+        if (!pgDumpAvailable && !pgDumpCheck.error && pgDumpCheck.status !== 0) {
+            throw new Error(`Could not determine pg_dump version: ${pgDumpCheck.stderr || pgDumpCheck.stdout}`);
         }
 
-        const dbUrl = process.env.DATABASE_URL;
-        if (pgDumpAvailable && dbUrl) {
-            // Execute pg_dump with custom compressed archive format
-            execSync(`pg_dump --format=c --file="${destinationPath}" "${dbUrl}"`, {
+        let usePgDump = pgDumpAvailable && options.format !== 'portable';
+        if (usePgDump) {
+            const clientVersionMatch = `${pgDumpCheck.stdout}\n${pgDumpCheck.stderr}`.match(/(?:PostgreSQL\)\s+)(\d+)(?:\.(\d+))?/);
+            if (!clientVersionMatch) {
+                throw new Error('Could not parse pg_dump version output.');
+            }
+
+            const pool = require('./postgres/pool.js');
+            const server = await pool.query('SHOW server_version_num');
+            const serverVersionNum = Number(server.rows[0]?.server_version_num);
+            if (!Number.isInteger(serverVersionNum)) {
+                throw new Error('Could not determine PostgreSQL server version.');
+            }
+
+            const serverMajor = serverVersionNum >= 100000
+                ? String(Math.floor(serverVersionNum / 10000))
+                : `${Math.floor(serverVersionNum / 10000)}.${Math.floor((serverVersionNum % 10000) / 100)}`;
+            const clientVersion = Number(clientVersionMatch[1]);
+            const clientMajor = clientVersion >= 10
+                ? String(clientVersion)
+                : `${clientVersion}.${clientVersionMatch[2] || '0'}`;
+            usePgDump = clientMajor === serverMajor;
+
+            if (!usePgDump) {
+                console.warn(`[Backup] pg_dump ${clientMajor} does not match PostgreSQL server ${serverMajor}; using portable SQL format.`);
+            }
+        }
+
+        backupFilename = `swifttrack_backup_pg_${timestamp}.${usePgDump ? 'dump' : 'sql'}`;
+        destinationPath = path.join(backupDir, backupFilename);
+        console.log(`[Backup] Initiating PostgreSQL snapshot (${backupFilename})...`);
+
+        if (usePgDump) {
+            const args = process.env.DATABASE_URL
+                ? ['--format=c', `--file=${destinationPath}`, process.env.DATABASE_URL]
+                : [
+                    '-h', process.env.PGHOST || '127.0.0.1',
+                    '-p', process.env.PGPORT || '5432',
+                    '-U', process.env.PGUSER || 'postgres',
+                    '-d', process.env.PGDATABASE || 'swifttrack_logistics',
+                    '-F', 'c', '-f', destinationPath
+                ];
+            const result = spawnSync('pg_dump', args, {
+                encoding: 'utf8',
+                env: { ...process.env, PGPASSWORD: process.env.PGPASSWORD || 'postgres' },
                 stdio: ['ignore', 'inherit', 'inherit']
             });
-        } else if (pgDumpAvailable && !dbUrl) {
-            const host = process.env.PGHOST || '127.0.0.1';
-            const port = process.env.PGPORT || '5432';
-            const user = process.env.PGUSER || 'postgres';
-            const db = process.env.PGDATABASE || 'swifttrack_logistics';
-            const env = { ...process.env, PGPASSWORD: process.env.PGPASSWORD || 'postgres' };
-            execSync(`pg_dump -h "${host}" -p "${port}" -U "${user}" -d "${db}" -F c -f "${destinationPath}"`, {
-                env,
-                stdio: ['ignore', 'inherit', 'inherit']
-            });
+            if (result.error) throw result.error;
+            if (result.status !== 0) {
+                throw new Error(`pg_dump failed with exit code ${result.status}.`);
+            }
         } else {
-            // Pure JavaScript portable SQL dump fallback when pg_dump binary is absent
             const pool = require('./postgres/pool.js');
             const client = await pool.getClient();
             try {
@@ -292,6 +320,7 @@ async function restoreBackup(backupFilePath, options = {}) {
     console.log(`[Restore] Target Engine: ${isPostgres ? 'PostgreSQL' : 'SQLite'}`);
 
     if (isPostgres) {
+        const isPortableSql = path.extname(backupFilePath).toLowerCase() === '.sql';
         let pgRestoreAvailable = false;
         try {
             const check = spawnSync('pg_restore', ['--version'], { encoding: 'utf8' });
@@ -301,7 +330,7 @@ async function restoreBackup(backupFilePath, options = {}) {
         }
 
         const dbUrl = process.env.DATABASE_URL;
-        if (pgRestoreAvailable && dbUrl) {
+        if (!isPortableSql && pgRestoreAvailable && dbUrl) {
             // Restore via pg_restore --clean
             execSync(`pg_restore --clean --if-exists --no-owner --dbname="${dbUrl}" "${backupFilePath}"`, {
                 stdio: ['ignore', 'inherit', 'inherit']
