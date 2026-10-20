@@ -59,24 +59,24 @@ export function Sidebar({
       ],
     },
     {
-      title: 'Shipments & Counter',
+      title: '1. Parcel Booking & Tracking',
       items: [
         {
           id: 'shipments',
-          label: 'Shipments & Waybills',
+          label: 'Track & Manage Shipments',
           icon: Package,
           roles: ['SUPER_ADMIN', 'BRANCH_MANAGER', 'DISPATCHER', 'CASHIER'],
         },
         {
           id: 'pos',
-          label: 'Parcel Intake & Waybills',
+          label: 'Book a Parcel',
           icon: PackagePlus,
           roles: ['CASHIER', 'SUPER_ADMIN', 'BRANCH_MANAGER'],
         },
       ],
     },
     {
-      title: 'Hub Operations',
+      title: '2. Hub Processing',
       items: [
         {
           id: 'hub-operations',
@@ -93,7 +93,7 @@ export function Sidebar({
       ],
     },
     {
-      title: 'Transport & Fleet',
+      title: '3. Linehaul & Fleet',
       items: [
         {
           id: 'dispatch',
@@ -116,7 +116,7 @@ export function Sidebar({
       ],
     },
     {
-      title: 'Last-Mile Delivery',
+      title: '4. Last-Mile Delivery',
       items: [
         {
           id: 'driver',

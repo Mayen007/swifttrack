@@ -17,10 +17,13 @@ import { RecordHandoffModal } from '../components/hub/RecordHandoffModal.jsx';
 
 export function HubOperationsView() {
   const { user, selectedBranch } = useAuth();
-  const currentHubId = selectedBranch?.id || 1;
+  const currentHubId = selectedBranch?.id ?? user?.branch_id ?? null;
 
   const [activeTab, setActiveTab] = useState('RECEIVING');
   const [loading, setLoading] = useState(false);
+  const [sessionsError, setSessionsError] = useState(null);
+  const [openingSession, setOpeningSession] = useState(false);
+  const [completingSession, setCompletingSession] = useState(false);
 
   // Cross-Border Customs State
   const [crossBorderLegs, setCrossBorderLegs] = useState([]);
@@ -71,14 +74,47 @@ export function HubOperationsView() {
 
   const fetchHubData = async () => {
     setLoading(true);
+    setSessionsError(null);
+    if (!currentHubId) {
+      setManifests([]);
+      setDiscrepancies([]);
+      setCrossBorderLegs([]);
+      setAwaitingShipments([]);
+      setHandoffs([]);
+      setSessions([]);
+      setSessionScannedItems([]);
+      setLoading(false);
+      return;
+    }
+
     try {
-      const [mRes, dRes, cbRes, awRes, scansRes, hRes] = await Promise.all([
-        api.get('/api/transport/manifests').catch(() => []),
-        api.get('/api/custody/discrepancies').catch(() => []),
-        api.get('/api/transport/cross-border/legs').catch(() => []),
-        api.get(`/api/shipments/awaiting-manifest/${currentHubId}`).catch(() => []),
-        api.get(`/api/custody/scans?hub_id=${currentHubId}&limit=20`).catch(() => null),
-        api.get('/api/custody/handoffs').catch(() => [])
+      let sessionsLoadError = null;
+      const [mRes, dRes, cbRes, awRes, hRes, sessionsRes] = await Promise.all([
+        api.get('/api/transport/manifests').catch((error) => {
+          console.error('Error fetching manifests:', error);
+          return null;
+        }),
+        api.get('/api/custody/discrepancies').catch((error) => {
+          console.error('Error fetching discrepancies:', error);
+          return null;
+        }),
+        api.get('/api/transport/cross-border/legs').catch((error) => {
+          console.error('Error fetching cross-border movements:', error);
+          return null;
+        }),
+        api.get(`/api/shipments/awaiting-manifest/${currentHubId}`).catch((error) => {
+          console.error('Error fetching awaiting shipments:', error);
+          return null;
+        }),
+        api.get('/api/custody/handoffs').catch((error) => {
+          console.error('Error fetching handoffs:', error);
+          return null;
+        }),
+        api.get(`/api/custody/receiving-sessions?hub_id=${currentHubId}`).catch((error) => {
+          sessionsLoadError = error;
+          console.error('Error fetching receiving sessions:', error);
+          return null;
+        })
       ]);
 
       setManifests(Array.isArray(mRes) ? mRes : mRes?.data || []);
@@ -86,33 +122,53 @@ export function HubOperationsView() {
       setCrossBorderLegs(Array.isArray(cbRes) ? cbRes : cbRes?.data || []);
       setAwaitingShipments(Array.isArray(awRes) ? awRes : awRes?.data || []);
       setHandoffs(Array.isArray(hRes?.items) ? hRes.items : (Array.isArray(hRes) ? hRes : []));
+      const failedHubFeeds = [];
+      if (!Array.isArray(mRes) && !Array.isArray(mRes?.data)) failedHubFeeds.push('manifests');
+      if (!Array.isArray(dRes) && !Array.isArray(dRes?.data)) failedHubFeeds.push('discrepancies');
+      if (!Array.isArray(cbRes) && !Array.isArray(cbRes?.data)) failedHubFeeds.push('cross-border movements');
+      if (!Array.isArray(awRes) && !Array.isArray(awRes?.data)) failedHubFeeds.push('awaiting shipments');
+      if (!Array.isArray(hRes?.items) && !Array.isArray(hRes)) failedHubFeeds.push('handoffs');
 
-      if (scansRes?.scan_events && Array.isArray(scansRes.scan_events) && scansRes.scan_events.length > 0) {
-        const formatted = scansRes.scan_events.map((s) => ({
-          id: s.id,
-          barcode: s.barcode,
-          scanned_at: s.scanned_at ? new Date(s.scanned_at).toLocaleTimeString() : new Date().toLocaleTimeString(),
-          is_damaged: !!s.is_damaged,
-          status: s.condition_status || (s.is_damaged ? 'DAMAGED' : 'INTACT')
-        }));
-        setSessionScannedItems(formatted);
-      }
+      if (sessionsLoadError) {
+        setSessions([]);
+        setSessionScannedItems([]);
+        setSessionsError('Receiving sessions could not be loaded. Try syncing again.');
+      } else if (!Array.isArray(sessionsRes?.receiving_sessions)) {
+        console.error('Unexpected receiving sessions response:', sessionsRes);
+        setSessions([]);
+        setSessionScannedItems([]);
+        setSessionsError('Receiving sessions could not be loaded because the response was invalid.');
+      } else {
+        const receivingSessions = sessionsRes.receiving_sessions;
+        setSessions(receivingSessions);
+        const activeSession = receivingSessions.find((session) => session.status === 'IN_PROGRESS');
 
-      setSessions([
-        {
-          id: 1,
-          session_number: 'REC-NRB-HQ-001',
-          hub_id: currentHubId,
-          status: 'COMPLETED',
-          expected_packages_count: 14,
-          scanned_packages_count: 14,
-          intact_count: 14,
-          damaged_count: 0,
-          created_at: new Date(Date.now() - 3600000).toISOString()
+        if (activeSession) {
+          try {
+            const sessionDetail = await api.get(`/api/custody/receiving-sessions/${activeSession.id}`);
+            const items = Array.isArray(sessionDetail?.items) ? sessionDetail.items : [];
+            setSessionScannedItems(items.map((item) => ({
+              id: item.id,
+              barcode: item.barcode,
+              scanned_at: item.scanned_at ? new Date(item.scanned_at).toLocaleTimeString() : '',
+              is_damaged: item.condition !== 'GOOD',
+              status: item.condition === 'GOOD' ? 'INTACT' : item.condition
+            })));
+          } catch (error) {
+            console.error('Error fetching active receiving session details:', error);
+            setSessionScannedItems([]);
+            setSessionsError('The active receiving session loaded, but its scanned parcels could not be shown.');
+          }
+        } else {
+          setSessionScannedItems([]);
         }
-      ]);
+      }
+      if (failedHubFeeds.length > 0) {
+        api.toast(`Some hub data could not be loaded: ${failedHubFeeds.join(', ')}.`, 'warning');
+      }
     } catch (err) {
       console.warn('Error fetching hub operations telemetry:', err);
+      setSessionsError('Hub operations data could not be loaded. Try syncing again.');
     } finally {
       setLoading(false);
     }
@@ -120,7 +176,26 @@ export function HubOperationsView() {
 
   useEffect(() => {
     fetchHubData();
-  }, [selectedBranch]);
+  }, [selectedBranch, currentHubId]);
+
+  const activeReceivingSession = sessions.find((session) => session.status === 'IN_PROGRESS') || null;
+
+  const handleOpenReceivingSession = async () => {
+    if (!currentHubId) return;
+    setOpeningSession(true);
+    try {
+      const session = await api.post('/api/custody/receiving-sessions', { hub_id: currentHubId });
+      setSessions((current) => [session, ...current.filter((item) => item.id !== session.id)]);
+      setSessionScannedItems([]);
+      sound.playSuccess();
+      api.toast(`Receiving session ${session.session_number} opened.`, 'success');
+    } catch (err) {
+      sound.playError();
+      api.toast(`Could not open receiving session: ${err.message}`, 'error');
+    } finally {
+      setOpeningSession(false);
+    }
+  };
 
   const openCustomsModal = (leg, actionType) => {
     setSelectedLegForCustoms(leg);
@@ -201,33 +276,46 @@ export function HubOperationsView() {
   const handleReceivingScan = async (e) => {
     e.preventDefault();
     if (!scanInput.trim()) return;
+    if (!activeReceivingSession) {
+      api.toast('Open a receiving session before scanning parcels.', 'error');
+      return;
+    }
 
     const barcode = scanInput.trim().toUpperCase();
     sound.playBeep();
 
     try {
-      const scanRes = await api.post('/api/custody/scans', {
+      const scanRes = await api.post(`/api/custody/receiving-sessions/${activeReceivingSession.id}/scan`, {
         barcode,
-        scan_type: 'HUB_RECEIVING',
-        hub_id: currentHubId,
-        is_damaged: isDamagedScan,
-        condition_status: isDamagedScan ? 'DAMAGED' : 'INTACT',
-        notes: isDamagedScan ? 'Flagged as damaged during inbound hub intake' : 'Inbound physical intake scan'
+        condition: isDamagedScan ? 'DAMAGED' : 'GOOD',
+        condition_notes: isDamagedScan ? 'Flagged as damaged during inbound hub intake' : undefined
       });
 
+      const item = scanRes?.item;
+      if (!item) throw new Error('The server did not return the recorded receiving item.');
       const newItem = {
-        id: scanRes?.id || Date.now(),
-        barcode,
-        scanned_at: new Date().toLocaleTimeString(),
-        is_damaged: isDamagedScan,
-        status: isDamagedScan ? 'DAMAGED' : 'INTACT'
+        id: item.id,
+        barcode: item.barcode,
+        scanned_at: item.scanned_at ? new Date(item.scanned_at).toLocaleTimeString() : new Date().toLocaleTimeString(),
+        is_damaged: item.condition !== 'GOOD',
+        status: item.condition === 'GOOD' ? 'INTACT' : item.condition
       };
 
       setSessionScannedItems((prev) => [newItem, ...prev]);
+      if (scanRes.session) {
+        setSessions((current) => current.map((session) => (
+          session.id === scanRes.session.id ? scanRes.session : session
+        )));
+      }
       setScanInput('');
       setIsDamagedScan(false);
       sound.playScan();
-      api.toast(`Custody intake scan logged for ${barcode}`, 'success');
+      api.toast(
+        scanRes.discrepancy
+          ? `Scan recorded. A ${(scanRes.discrepancy.discrepancy_type || 'receiving').toLowerCase().replaceAll('_', ' ')} discrepancy was raised.`
+          : `Parcel ${barcode} received into session ${activeReceivingSession.session_number}.`,
+        scanRes.discrepancy ? 'warning' : 'success'
+      );
     } catch (err) {
       sound.playError();
       api.toast(`Intake scan failed: ${err.message}`, 'error');
@@ -290,10 +378,30 @@ export function HubOperationsView() {
     }
   };
 
-  const handleReconcileSession = () => {
-    sound.playSuccess();
-    api.toast(`Receiving Session Reconciled! ${sessionScannedItems.length} packages confirmed into Hub inventory.`, 'success');
-    setSessionScannedItems([]);
+  const handleReconcileSession = async () => {
+    if (!activeReceivingSession) return;
+    setCompletingSession(true);
+    try {
+      const result = await api.post(`/api/custody/receiving-sessions/${activeReceivingSession.id}/complete`, {});
+      if (!result?.session) throw new Error('The server did not return the completed receiving session.');
+      setSessions((current) => current.map((session) => (
+        session.id === result.session.id ? result.session : session
+      )));
+      setSessionScannedItems([]);
+      sound.playSuccess();
+      const missingCount = Number(result.missing_items_count || 0);
+      api.toast(
+        missingCount > 0
+          ? `Session completed. ${missingCount} missing manifest parcel${missingCount === 1 ? '' : 's'} flagged for review.`
+          : `Receiving session ${result.session.session_number} completed.`,
+        'success'
+      );
+    } catch (err) {
+      sound.playError();
+      api.toast(`Could not complete receiving session: ${err.message}`, 'error');
+    } finally {
+      setCompletingSession(false);
+    }
   };
 
   const handleResolveDiscrepancy = async (e) => {
@@ -314,6 +422,14 @@ export function HubOperationsView() {
       setResolvingModalOpen(false);
     }
   };
+
+  if (!currentHubId) {
+    return (
+      <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-5 text-sm text-slate-300">
+        Select an operating branch from the top bar to view and process its hub operations.
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">
@@ -338,6 +454,12 @@ export function HubOperationsView() {
           setIsDamagedScan={setIsDamagedScan}
           sessionScannedItems={sessionScannedItems}
           sessions={sessions}
+          sessionsError={sessionsError}
+          sessionsLoading={loading}
+          activeReceivingSession={activeReceivingSession}
+          openingSession={openingSession}
+          completingSession={completingSession}
+          onOpenReceivingSession={handleOpenReceivingSession}
           onReceivingScan={handleReceivingScan}
           onReconcileSession={handleReconcileSession}
         />

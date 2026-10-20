@@ -34,9 +34,10 @@ export function OperationsControlTower({ onNavigate }) {
   const { user, selectedBranch, branches } = useAuth();
 
   const [summary, setSummary] = useState(null);
-  const [alertsData, setAlertsData] = useState({ alerts: [], critical_count: 0, high_count: 0, total_alerts: 0 });
-  const [corridorsData, setCorridorsData] = useState({ runs: [], corridors: [], total_active_runs: 0 });
-  const [hubTelemetry, setHubTelemetry] = useState({ hubs: [] });
+  const [alertsData, setAlertsData] = useState(null);
+  const [corridorsData, setCorridorsData] = useState(null);
+  const [hubTelemetry, setHubTelemetry] = useState(null);
+  const [unavailableFeeds, setUnavailableFeeds] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [lastUpdated, setLastUpdated] = useState(new Date());
@@ -89,18 +90,36 @@ export function OperationsControlTower({ onNavigate }) {
       const hubParam = selectedBranch ? `?hub_id=${selectedBranch.id}` : '';
 
       const [sumRes, alertsRes, corridorsRes, hubsRes] = await Promise.all([
-        api.get(`/api/v1/control-tower/summary${hubParam}`).catch(() => null),
-        api.get(`/api/v1/control-tower/alerts${hubParam}`).catch(() => ({ alerts: [] })),
-        api.get('/api/v1/control-tower/active-corridors').catch(() => ({ runs: [], corridors: [] })),
-        api.get('/api/v1/control-tower/hub-telemetry').catch(() => ({ hubs: [] }))
+        api.get(`/api/v1/control-tower/summary${hubParam}`).catch((error) => {
+          console.error('Failed to load Control Tower summary:', error);
+          return null;
+        }),
+        api.get(`/api/v1/control-tower/alerts${hubParam}`).catch((error) => {
+          console.error('Failed to load Control Tower alerts:', error);
+          return null;
+        }),
+        api.get('/api/v1/control-tower/active-corridors').catch((error) => {
+          console.error('Failed to load active corridors:', error);
+          return null;
+        }),
+        api.get('/api/v1/control-tower/hub-telemetry').catch((error) => {
+          console.error('Failed to load hub telemetry:', error);
+          return null;
+        })
       ]);
 
-      if (sumRes) setSummary(sumRes);
-      if (alertsRes) setAlertsData(alertsRes);
-      if (corridorsRes) setCorridorsData(corridorsRes);
-      if (hubsRes) setHubTelemetry(hubsRes);
+      setSummary(sumRes);
+      setAlertsData(alertsRes);
+      setCorridorsData(corridorsRes);
+      setHubTelemetry(hubsRes);
+      setUnavailableFeeds([
+        !sumRes && 'operational summary',
+        !alertsRes && 'exception alerts',
+        !corridorsRes && 'linehaul runs',
+        !hubsRes && 'branch telemetry',
+      ].filter(Boolean));
 
-      setLastUpdated(new Date());
+      if (sumRes) setLastUpdated(new Date());
     } catch (err) {
       console.error('Failed to load Control Tower telemetry:', err);
     } finally {
@@ -208,31 +227,54 @@ export function OperationsControlTower({ onNavigate }) {
   const cod = summary?.cod || {};
 
   // Filter alerts by severity
-  const visibleAlerts = alertsData.alerts.filter((a) => {
+  const visibleAlerts = (alertsData?.alerts || []).filter((a) => {
     if (alertSeverityFilter === 'ALL') return true;
     return a.severity === alertSeverityFilter;
   });
 
+  if (!summary) {
+    return (
+      <div className="flex min-h-[360px] flex-col items-center justify-center gap-3 rounded-xl border border-rose-500/20 bg-rose-500/5 p-6 text-center" role="alert">
+        <p className="text-sm font-semibold text-slate-200">Live operations summary is unavailable.</p>
+        <p className="max-w-md text-xs text-slate-400">Control Tower metrics cannot be shown until the operational summary loads.</p>
+        <button
+          className="rounded-lg border border-[#38455e] bg-[#18202d] px-3 py-2 text-xs font-semibold text-slate-200 hover:text-white"
+          onClick={() => loadTelemetry()}
+          type="button"
+        >
+          Retry
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6 pb-12 animate-fade-in">
+      {unavailableFeeds.length > 0 && (
+        <div className="rounded-lg border border-amber-500/20 bg-amber-500/5 px-4 py-3 text-xs text-amber-200" role="status">
+          Some live feeds are unavailable: {unavailableFeeds.join(', ')}. Related counts and empty states may be incomplete.
+        </div>
+      )}
       {/* 1. TOP CONTROL TOWER STATUS INSTRUMENT (STACKED BENTO GRID) */}
       <div className="bg-[#12161f] border border-slate-800 rounded-2xl p-4 sm:p-5 shadow-xl relative overflow-hidden">
         <div className="absolute top-0 right-0 w-96 h-96 bg-amber-500/5 rounded-full blur-3xl pointer-events-none" />
 
         {/* Tier 1: Platform Identity & Operational Toolbar */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start relative z-10">
-          {/* Identity & Live Telemetry Badge */}
+          {/* Identity & live data freshness */}
           <div className="lg:col-span-7 xl:col-span-7 space-y-1.5">
             <div className="flex flex-wrap items-center gap-2.5">
-              <span className="flex h-2.5 w-2.5 relative">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500" />
-              </span>
-              <span className="text-[11px] font-mono font-bold uppercase tracking-wider text-emerald-400 bg-emerald-950/40 px-2 py-0.5 rounded border border-emerald-800/40">
-                Live Operations Telemetry Active
+              <span className={`text-[11px] font-mono font-bold uppercase tracking-wider px-2 py-0.5 rounded border ${
+                refreshing
+                  ? 'text-blue-300 bg-blue-950/40 border-blue-800/40'
+                  : unavailableFeeds.length > 0
+                    ? 'text-amber-300 bg-amber-950/40 border-amber-800/40'
+                    : 'text-emerald-400 bg-emerald-950/40 border-emerald-800/40'
+              }`}>
+                {refreshing ? 'Refreshing feeds' : unavailableFeeds.length > 0 ? 'Partial live data' : 'All feeds updated'}
               </span>
               <span className="text-xs text-slate-400 font-mono">
-                Updated {lastUpdated.toLocaleTimeString()}
+                Summary updated {lastUpdated.toLocaleTimeString()}
               </span>
             </div>
 
@@ -267,7 +309,7 @@ export function OperationsControlTower({ onNavigate }) {
               </button>
             </form>
 
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
               <button
                 onClick={() => loadTelemetry()}
                 disabled={refreshing}
@@ -289,14 +331,16 @@ export function OperationsControlTower({ onNavigate }) {
                 </button>
               )}
 
-              <button
-                onClick={() => { sound.playClick(); setSimModalOpen(true); }}
-                className="flex items-center justify-center space-x-1.5 py-2 px-2 bg-emerald-600 hover:bg-emerald-500 border border-emerald-500/60 text-slate-950 font-bold text-xs rounded transition-all active:scale-95 cursor-pointer shadow-sm"
-                title="Launch Multi-Leg Acceptance Scenario Simulator"
-              >
-                <Sparkles className="w-3.5 h-3.5 text-slate-950" />
-                <span className="truncate">E2E Test</span>
-              </button>
+              {import.meta.env.DEV && (
+                <button
+                  onClick={() => { sound.playClick(); setSimModalOpen(true); }}
+                  className="flex items-center justify-center space-x-1.5 py-2 px-2 bg-emerald-600 hover:bg-emerald-500 border border-emerald-500/60 text-slate-950 font-bold text-xs rounded transition-all active:scale-95 cursor-pointer shadow-sm"
+                  title="Launch Multi-Leg Acceptance Scenario Simulator"
+                >
+                  <Sparkles className="w-3.5 h-3.5 text-slate-950" />
+                  <span className="truncate">E2E Test</span>
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -317,8 +361,8 @@ export function OperationsControlTower({ onNavigate }) {
           <div className="bg-[#0e1219]/80 border border-[#222834] rounded-xl p-3 flex items-center justify-between">
             <div className="space-y-0.5">
               <span className="text-[10px] text-slate-400 uppercase tracking-wider block font-mono">Active Corridors</span>
-              <div className="text-xl font-bold text-cyan-400 font-mono">{corridorsData.total_active_runs || 0}</div>
-              <span className="text-[10px] text-slate-500 block">Linehaul runs dispatched</span>
+              <div className="text-xl font-bold text-cyan-400 font-mono">{corridorsData?.total_active_runs ?? '—'}</div>
+              <span className="text-[10px] text-slate-500 block">{corridorsData ? 'Linehaul runs dispatched' : 'Linehaul feed unavailable'}</span>
             </div>
             <div className="w-9 h-9 rounded-lg bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center text-cyan-400">
               <Activity className="w-4 h-4" />
@@ -328,15 +372,19 @@ export function OperationsControlTower({ onNavigate }) {
           <div className="bg-[#0e1219]/80 border border-[#222834] rounded-xl p-3 flex items-center justify-between">
             <div className="space-y-0.5">
               <span className="text-[10px] text-slate-400 uppercase tracking-wider block font-mono">Network Exceptions</span>
-              <div className={`text-xl font-bold font-mono ${alertsData.critical_count > 0 ? 'text-rose-400 animate-pulse' : 'text-slate-200'}`}>
-                {alertsData.total_count || 0}
+              <div className={`text-xl font-bold font-mono ${alertsData?.critical_count > 0 ? 'text-rose-400 animate-pulse' : 'text-slate-200'}`}>
+                {alertsData ? alertsData.total_alerts ?? 0 : '—'}
               </div>
               <span className="text-[10px] text-slate-500 block">
-                {alertsData.critical_count > 0 ? `${alertsData.critical_count} critical bottlenecks` : 'All corridors nominal'}
+                {!alertsData
+                  ? 'Alert feed unavailable'
+                  : alertsData.critical_count > 0
+                    ? `${alertsData.critical_count} critical bottlenecks`
+                    : 'No active operational alerts'}
               </span>
             </div>
             <div className={`w-9 h-9 rounded-lg flex items-center justify-center ${
-              alertsData.critical_count > 0
+              alertsData?.critical_count > 0
                 ? 'bg-rose-500/10 border border-rose-500/30 text-rose-400'
                 : 'bg-slate-800/50 border border-slate-700/40 text-slate-400'
             }`}>
@@ -348,7 +396,7 @@ export function OperationsControlTower({ onNavigate }) {
             <div className="space-y-0.5">
               <span className="text-[10px] text-slate-400 uppercase tracking-wider block font-mono">Delivery Success</span>
               <div className="text-xl font-bold text-emerald-400 font-mono">
-                {performance.delivery_success_rate_pct || 100}%
+                {performance.delivery_success_rate_pct == null ? '—' : `${performance.delivery_success_rate_pct}%`}
               </div>
               <span className="text-[10px] text-slate-500 block">First-attempt completed</span>
             </div>
@@ -476,21 +524,21 @@ export function OperationsControlTower({ onNavigate }) {
           <div className="bg-slate-900/40 border border-slate-800/80 rounded-xl p-3">
             <span className="text-[11px] text-slate-400 block">Delivery Success Rate</span>
             <span className="text-lg font-bold text-emerald-400">
-              {performance.delivery_success_rate_pct || 100}%
+              {performance.delivery_success_rate_pct == null ? '—' : `${performance.delivery_success_rate_pct}%`}
             </span>
           </div>
 
           <div className="bg-slate-900/40 border border-slate-800/80 rounded-xl p-3">
             <span className="text-[11px] text-slate-400 block">First-Attempt Success</span>
             <span className="text-lg font-bold text-sky-400">
-              {performance.first_attempt_success_rate_pct || 100}%
+              {performance.first_attempt_success_rate_pct == null ? '—' : `${performance.first_attempt_success_rate_pct}%`}
             </span>
           </div>
 
           <div className="bg-slate-900/40 border border-slate-800/80 rounded-xl p-3">
             <span className="text-[11px] text-slate-400 block">COD Settlement Recon Rate</span>
             <span className="text-lg font-bold text-amber-400">
-              {performance.cod_reconciliation_rate_pct || 100}%
+              {performance.cod_reconciliation_rate_pct == null ? '—' : `${performance.cod_reconciliation_rate_pct}%`}
             </span>
           </div>
 
@@ -510,7 +558,7 @@ export function OperationsControlTower({ onNavigate }) {
             <h2 className="text-lg font-bold text-white flex items-center gap-2">
               <AlertTriangle className="w-5 h-5 text-rose-400" />
               What Needs Attention? (Operational Exception Queue)
-              {alertsData.critical_count > 0 && (
+              {alertsData?.critical_count > 0 && (
                 <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-rose-500/20 text-rose-400 border border-rose-500/40 animate-pulse">
                   {alertsData.critical_count} CRITICAL
                 </span>
@@ -540,7 +588,11 @@ export function OperationsControlTower({ onNavigate }) {
         </div>
 
         {/* Alert Cards List */}
-        {visibleAlerts.length === 0 ? (
+        {!alertsData ? (
+          <div className="rounded-xl border border-dashed border-slate-800 bg-slate-900/30 p-8 text-center text-sm text-slate-400">
+            Exception alerts are unavailable. Sync the Control Tower to try again.
+          </div>
+        ) : visibleAlerts.length === 0 ? (
           <div className="flex flex-col items-center justify-center p-8 bg-slate-900/30 rounded-xl border border-dashed border-slate-800 text-slate-400">
             <CheckCircle2 className="w-10 h-10 text-emerald-500/80 mb-2" />
             <p className="text-sm font-semibold text-slate-200">All Systems Nominal</p>
@@ -623,12 +675,12 @@ export function OperationsControlTower({ onNavigate }) {
           </div>
 
           <span className="text-xs font-bold text-cyan-400 bg-cyan-950/40 border border-cyan-800/40 px-3 py-1 rounded-full self-start sm:self-auto">
-            {corridorsData.total_active_runs} Active Linehaul Runs
+            {corridorsData?.total_active_runs ?? '—'} Active Linehaul Runs
           </span>
         </div>
 
         {/* Primary Corridors Volume Summary */}
-        {corridorsData.corridors.length > 0 && (
+        {corridorsData?.corridors?.length > 0 && (
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             {corridorsData.corridors.map((c) => (
               <div
@@ -651,7 +703,11 @@ export function OperationsControlTower({ onNavigate }) {
         )}
 
         {/* Transport Runs Cards */}
-        {corridorsData.runs.length === 0 ? (
+        {!corridorsData ? (
+          <div className="rounded-xl border border-dashed border-slate-800 bg-slate-900/20 p-8 text-center text-slate-400">
+            Linehaul data is unavailable. Sync the Control Tower to try again.
+          </div>
+        ) : corridorsData.runs.length === 0 ? (
           <div className="p-8 text-center text-slate-500 bg-slate-900/20 rounded-xl border border-dashed border-slate-800">
             No linehaul transport runs currently in transit or dispatched.
           </div>
@@ -727,7 +783,7 @@ export function OperationsControlTower({ onNavigate }) {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {hubTelemetry.hubs.map((hub) => (
+          {hubTelemetry?.hubs?.map((hub) => (
             <div
               key={hub.hub_id}
               className="bg-slate-900/80 border border-slate-800 rounded-xl p-4 space-y-3"
@@ -773,6 +829,16 @@ export function OperationsControlTower({ onNavigate }) {
               </div>
             </div>
           ))}
+          {!hubTelemetry && (
+            <p className="rounded-xl border border-dashed border-slate-800 p-6 text-center text-xs text-slate-400">
+              Branch telemetry is unavailable.
+            </p>
+          )}
+          {hubTelemetry?.hubs?.length === 0 && (
+            <p className="rounded-xl border border-dashed border-slate-800 p-6 text-center text-xs text-slate-400">
+              No branch telemetry is currently available.
+            </p>
+          )}
         </div>
       </div>
 
@@ -931,7 +997,7 @@ export function OperationsControlTower({ onNavigate }) {
         </div>
       )}
       {/* 8. PRD SECTION 30: MULTI-LEG E2E ACCEPTANCE SIMULATOR MODAL */}
-      {simModalOpen && (
+      {import.meta.env.DEV && simModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-md animate-fadeIn">
           <div className="bg-[#12161f] border border-emerald-500/40 rounded-3xl max-w-3xl w-full p-6 shadow-2xl space-y-5 max-h-[90vh] overflow-y-auto [scrollbar-gutter:stable]">
             {/* Modal Header */}

@@ -43,6 +43,10 @@ router.get('/steps', authenticateToken, (req, res) => {
  * Executes the complete 23-step multi-leg journey in real time
  */
 router.post('/simulate-acceptance-run', authenticateToken, requirePermission('shipments', 'create'), async (req, res, next) => {
+    if (process.env.NODE_ENV === 'production') {
+        return res.status(404).json({ error: 'Acceptance simulation is disabled in production.' });
+    }
+
     try {
         const result = await e2eAcceptanceService.executeFullAcceptanceScenario(req.body, req.user);
         res.apiSuccess(result, 'End-to-End Acceptance Scenario completed successfully (23/23 steps passed)');

@@ -163,15 +163,15 @@ async function getLiveOperationalSummary(query = {}, user = {}) {
     const totalFinishedDel = completedDel + failedDel;
     const deliverySuccessRate = totalFinishedDel > 0
         ? Number(((completedDel / totalFinishedDel) * 100).toFixed(1))
-        : 100.0;
+        : null;
 
     const codReconciliationRate = totalCod > 0
         ? Number(((reconciledCod / totalCod) * 100).toFixed(1))
-        : 100.0;
+        : null;
 
     const firstAttemptSuccessRate = completedDel > 0
         ? Number((((completedDel - multiAttemptDeliveries) / completedDel) * 100).toFixed(1))
-        : 100.0;
+        : null;
 
     return {
         timestamp: new Date().toISOString(),
@@ -231,7 +231,7 @@ async function getLiveOperationalSummary(query = {}, user = {}) {
         // 5. Network Performance KPIs
         performance: {
             delivery_success_rate_pct: deliverySuccessRate,
-            first_attempt_success_rate_pct: Math.max(0, firstAttemptSuccessRate),
+            first_attempt_success_rate_pct: firstAttemptSuccessRate == null ? null : Math.max(0, firstAttemptSuccessRate),
             avg_delivery_attempts: avgAttempts,
             cod_reconciliation_rate_pct: codReconciliationRate
         }

@@ -736,7 +736,7 @@ router.get('/dashboard-charts', authenticateToken, authorize('reports', 'financi
         const codOutstanding = Number(rawCodStats.outstanding_amount || 0);
         const codOutstandingCount = Number(rawCodStats.outstanding_count || 0);
         const totalCodVolume = codCollected + codOutstanding;
-        const codCollectionRate = totalCodVolume > 0 ? Math.round((codCollected / totalCodVolume) * 100) : 100;
+        const codCollectionRate = totalCodVolume > 0 ? Math.round((codCollected / totalCodVolume) * 100) : null;
 
         const codSummary = {
             collectedAmount: Math.round(codCollected),

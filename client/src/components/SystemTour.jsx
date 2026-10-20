@@ -3,6 +3,7 @@ import {
   Activity,
   Bell,
   Bike,
+  Building2,
   Check,
   ChevronLeft,
   ChevronRight,
@@ -11,6 +12,7 @@ import {
   MapPin,
   Package,
   PanelLeft,
+  ScanBarcode,
   Truck,
   X,
 } from 'lucide-react';
@@ -43,11 +45,50 @@ const WORKSPACE_BY_ROLE = {
   },
 };
 
-export function SystemTour({ isOpen, user, selectedBranch, onClose }) {
+const FIRST_TASK_BY_ROLE = {
+  SUPER_ADMIN: {
+    title: 'Set up your first branch.',
+    description: 'Add a real operating branch before staff begin booking or processing parcels.',
+    actionLabel: 'Open branch setup',
+    view: 'branches',
+    icon: Building2,
+  },
+  BRANCH_MANAGER: {
+    title: 'Review your branch operations.',
+    description: 'Start with live exceptions and work moving through your branch.',
+    actionLabel: 'Open operations',
+    view: 'control-tower',
+    icon: Activity,
+  },
+  DISPATCHER: {
+    title: 'Review live operations.',
+    description: 'Check the control tower for work that needs dispatch or intervention.',
+    actionLabel: 'Open control tower',
+    view: 'control-tower',
+    icon: Activity,
+  },
+  CASHIER: {
+    title: 'Book your first parcel.',
+    description: 'Open the counter terminal to create a waybill and accept payment.',
+    actionLabel: 'Open parcel intake',
+    view: 'pos',
+    icon: ScanBarcode,
+  },
+  DRIVER: {
+    title: 'Review your assigned deliveries.',
+    description: 'Open your driver portal to see assigned work and capture proof of delivery.',
+    actionLabel: 'Open driver portal',
+    view: 'driver',
+    icon: Bike,
+  },
+};
+
+export function SystemTour({ isOpen, user, selectedBranch, onClose, onNavigate }) {
   const [stepIndex, setStepIndex] = useState(0);
   const closeButtonRef = useRef(null);
   const role = user?.role || 'SUPER_ADMIN';
   const workspace = WORKSPACE_BY_ROLE[role] || WORKSPACE_BY_ROLE.SUPER_ADMIN;
+  const firstTask = FIRST_TASK_BY_ROLE[role] || FIRST_TASK_BY_ROLE.SUPER_ADMIN;
   const WorkspaceIcon = workspace.icon;
   const branchDescription = role === 'SUPER_ADMIN'
     ? 'Use the branch selector in the top bar to focus on a hub or review all Kenya hubs.'
@@ -83,6 +124,14 @@ export function SystemTour({ isOpen, user, selectedBranch, onClose }) {
       title: 'Watch for updates and alerts.',
       description: 'The bell in the top bar collects operational notifications. Reopen this tour any time from your profile menu.',
       icon: Bell,
+    },
+    {
+      eyebrow: 'YOUR FIRST TASK',
+      title: firstTask.title,
+      description: firstTask.description,
+      icon: firstTask.icon,
+      actionLabel: firstTask.actionLabel,
+      view: firstTask.view,
     },
   ];
 
@@ -210,14 +259,17 @@ export function SystemTour({ isOpen, user, selectedBranch, onClose }) {
                 <button
                   className="inline-flex h-10 items-center gap-2 rounded-md bg-amber-400 px-4 text-xs font-bold text-[#17140d] transition hover:bg-amber-300 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white"
                   onClick={() => {
-                    if (isLastStep) onClose();
+                    if (isLastStep) {
+                      onClose();
+                      if (currentStep.view) onNavigate?.(currentStep.view);
+                    }
                     else setStepIndex((current) => Math.min(current + 1, steps.length - 1));
                   }}
                   type="button"
                 >
                   {isLastStep ? (
                     <>
-                      Start working <Check className="h-4 w-4" />
+                      {currentStep.actionLabel} <Check className="h-4 w-4" />
                     </>
                   ) : (
                     <>

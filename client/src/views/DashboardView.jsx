@@ -10,13 +10,14 @@ import { CriticalInventoryGrid } from '../components/dashboard/CriticalInventory
 export function DashboardView({ onNavigate }) {
   const { user, selectedBranch, isSuperAdmin } = useAuth();
   const [stats, setStats] = useState(null);
-  const [lowStock, setLowStock] = useState([]);
-  const [branchPerformance, setBranchPerformance] = useState([]);
-  const [, setLoading] = useState(true);
+  const [lowStock, setLowStock] = useState(null);
+  const [branchPerformance, setBranchPerformance] = useState(null);
+  const [loading, setLoading] = useState(true);
 
   const [chartData, setChartData] = useState(null);
+  const [chartError, setChartError] = useState(null);
   const [chartDays, setChartDays] = useState(14);
-  const [, setChartLoading] = useState(true);
+  const [chartLoading, setChartLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [shippedView, setShippedView] = useState('products');
   const [pendingView, setPendingView] = useState('products');
@@ -24,45 +25,48 @@ export function DashboardView({ onNavigate }) {
   const canViewFinancials = isSuperAdmin || user?.role === 'BRANCH_MANAGER' || user?.roleName === 'BRANCH_MANAGER';
 
   async function loadDashboardData() {
+    setChartLoading(true);
     try {
       const activeBranchId = !isSuperAdmin && user?.branch_id ? user.branch_id : (selectedBranch?.id || null);
       const branchParam = activeBranchId ? `?branch_id=${activeBranchId}` : '';
 
       const [pnlData, stockData, branchesData, charts] = await Promise.all([
         canViewFinancials ? api.get(`/api/reports/pnl${branchParam}`).catch(() => null) : Promise.resolve(null),
-        api.get(`/api/inventory${branchParam}`).catch(() => []),
-        api.get('/api/branches').catch(() => []),
+        api.get(`/api/inventory${branchParam}`).catch(() => null),
+        api.get('/api/branches').catch(() => null),
         canViewFinancials
           ? api.get(`/api/reports/dashboard-charts?days=${chartDays}${branchParam ? `&${branchParam.slice(1)}` : ''}`).catch(() => null)
           : Promise.resolve(null),
       ]);
 
-      const inventory = Array.isArray(stockData) ? stockData : [];
-      const lowItems = inventory.filter((item) => Number(item.quantity_available ?? item.quantity_on_hand ?? 0) <= Number(item.min_stock_alert ?? 0));
-      setLowStock(lowItems);
+      const inventory = Array.isArray(stockData) ? stockData : null;
+      const driverPerformance = Array.isArray(charts?.driver_performance)
+        ? charts.driver_performance
+        : null;
+      const lowItems = inventory
+        ? inventory.filter((item) => Number(item.quantity_available ?? item.quantity_on_hand ?? 0) <= Number(item.min_stock_alert ?? 0))
+        : [];
+      setLowStock(inventory ? lowItems : null);
 
-      const totalSales = Number(pnlData?.gross_revenue ?? charts?.totals?.revenue ?? 0);
-      const totalOrders = Number(charts?.totals?.orders ?? charts?.totals?.all_orders ?? 0);
-      const cogs = Number(pnlData?.cogs ?? 0);
-      const netIncome = Number(pnlData?.net_income ?? (totalSales - cogs));
-      const activeFleet = Array.isArray(charts?.driver_performance) && charts.driver_performance.length > 0
-        ? charts.driver_performance.length
-        : (selectedBranch ? 2 : 6);
+      const grossRevenue = pnlData?.gross_revenue ?? null;
+      const totalOrders = charts?.totals?.all_orders ?? charts?.totals?.orders ?? null;
+      const netIncome = pnlData?.net_income
+        ?? (pnlData && grossRevenue != null && pnlData.cogs != null
+          ? Number(grossRevenue) - Number(pnlData.cogs)
+          : null);
 
       setStats({
-        todaySales: totalSales,
-        mtdSales: totalSales,
-        ordersCount: totalOrders,
-        lowStockCount: lowItems.length,
-        activeFleet,
+        grossRevenue: grossRevenue == null ? null : Number(grossRevenue),
+        ordersCount: totalOrders == null ? null : Number(totalOrders),
+        lowStockCount: inventory ? lowItems.length : null,
+        couriersInPeriod: driverPerformance?.length ?? null,
         netIncome,
       });
 
-      if (Array.isArray(branchesData)) {
-        setBranchPerformance(branchesData);
-      }
+      setBranchPerformance(Array.isArray(branchesData) ? branchesData : null);
 
       setChartData(charts);
+      setChartError(canViewFinancials && !charts ? 'Analytics are unavailable right now. Refresh to try again.' : null);
     } catch (err) {
       console.error('Failed to load dashboard data:', err);
     } finally {
@@ -75,6 +79,8 @@ export function DashboardView({ onNavigate }) {
   async function handleTimeRangeChange(days) {
     if (!canViewFinancials) return;
     setChartDays(days);
+    setChartLoading(true);
+    setChartError(null);
     try {
       const activeBranchId = !isSuperAdmin && user?.branch_id ? user.branch_id : (selectedBranch?.id || null);
       const branchParam = activeBranchId ? `?branch_id=${activeBranchId}` : '';
@@ -82,6 +88,8 @@ export function DashboardView({ onNavigate }) {
       setChartData(charts);
     } catch (err) {
       console.error('Failed to update chart range:', err);
+      setChartData(null);
+      setChartError('Could not load analytics for that reporting period. Try again.');
     } finally {
       setChartLoading(false);
     }
@@ -96,9 +104,9 @@ export function DashboardView({ onNavigate }) {
     loadDashboardData();
   }, [selectedBranch, isSuperAdmin]);
 
-  const completedDel = chartData?.delivery_results?.find((r) => r.key === 'DELIVERED')?.count || 0;
-  const totalDel = chartData?.totals?.all_deliveries || 1;
-  const deliverySuccessRate = Math.round((completedDel / totalDel) * 100) || 100;
+  const completedDel = Number(chartData?.delivery_results?.find((r) => r.key === 'DELIVERED')?.count ?? 0);
+  const totalDel = Number(chartData?.totals?.all_deliveries ?? 0);
+  const deliverySuccessRate = totalDel > 0 ? Math.round((completedDel / totalDel) * 100) : null;
 
   return (
     <div className="space-y-6">
@@ -147,7 +155,13 @@ export function DashboardView({ onNavigate }) {
 
       <CommercialQuickNav onNavigate={onNavigate} />
 
-      <CommercialMetricStrip stats={stats} />
+      <CommercialMetricStrip stats={stats} loading={loading} />
+
+      {chartError && (
+        <div className="rounded-lg border border-rose-500/20 bg-rose-500/5 px-4 py-3 text-xs text-rose-300" role="alert">
+          {chartError}
+        </div>
+      )}
 
       <CommercialChartsGrid
         chartData={chartData}
@@ -158,11 +172,13 @@ export function DashboardView({ onNavigate }) {
         pendingView={pendingView}
         setPendingView={setPendingView}
         deliverySuccessRate={deliverySuccessRate}
+        chartLoading={chartLoading}
       />
 
       <CriticalInventoryGrid
         lowStock={lowStock}
         branchPerformance={branchPerformance}
+        loading={loading}
         onNavigate={onNavigate}
       />
     </div>

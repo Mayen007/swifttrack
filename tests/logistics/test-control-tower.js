@@ -47,9 +47,20 @@ async function run() {
         // -------------------------------------------------------------
         console.log('> TEST 2: Network Performance KPIs (Delivery Success, COD Reconciliation)...');
         assert.ok(summary.performance, 'Performance section must exist');
-        assert.ok(typeof summary.performance.delivery_success_rate_pct === 'number', 'Delivery success rate must be a number');
-        assert.ok(summary.performance.delivery_success_rate_pct >= 0 && summary.performance.delivery_success_rate_pct <= 100);
-        assert.ok(typeof summary.performance.cod_reconciliation_rate_pct === 'number', 'COD reconciliation rate must be a number');
+        assert.ok(
+            summary.performance.delivery_success_rate_pct === null
+                || (typeof summary.performance.delivery_success_rate_pct === 'number'
+                    && summary.performance.delivery_success_rate_pct >= 0
+                    && summary.performance.delivery_success_rate_pct <= 100),
+            'Delivery success rate must be unavailable without completed delivery outcomes, otherwise between 0 and 100'
+        );
+        assert.ok(
+            summary.performance.cod_reconciliation_rate_pct === null
+                || (typeof summary.performance.cod_reconciliation_rate_pct === 'number'
+                    && summary.performance.cod_reconciliation_rate_pct >= 0
+                    && summary.performance.cod_reconciliation_rate_pct <= 100),
+            'COD reconciliation rate must be unavailable without settlements, otherwise between 0 and 100'
+        );
         assert.ok(typeof summary.performance.avg_delivery_attempts === 'number');
         console.log(`  [PASS] Performance KPIs: Delivery Success: ${summary.performance.delivery_success_rate_pct}%, COD Recon: ${summary.performance.cod_reconciliation_rate_pct}%, Avg Attempts: ${summary.performance.avg_delivery_attempts}`);
         passedTests++;

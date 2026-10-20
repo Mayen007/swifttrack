@@ -19,6 +19,7 @@ export function CommercialChartsGrid({
   pendingView,
   setPendingView,
   deliverySuccessRate,
+  chartLoading,
 }) {
   return (
     <div className="space-y-6">
@@ -28,7 +29,7 @@ export function CommercialChartsGrid({
             <BarChart2 className="w-3.5 h-3.5 text-blue-400" />
             <span>VISUAL TELEMETRY & BUSINESS INTELLIGENCE</span>
             <span>//</span>
-            <span className="text-emerald-400 font-semibold">10 LIVE INSTRUMENTS</span>
+            <span className="text-slate-400 font-semibold">{chartLoading ? 'UPDATING' : `${chartDays}-DAY REPORTING PERIOD`}</span>
           </div>
           <h2 className="text-base sm:text-lg font-bold text-white font-sans mt-0.5">
             Operational & Financial Analytics Dashboard
@@ -69,7 +70,7 @@ export function CommercialChartsGrid({
               </div>
               <div className="flex items-center gap-2">
                 <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-blue-500/10 border border-blue-500/30 text-blue-400 font-bold tabular-nums">
-                  {chartData?.totals?.orders || 0} TOTAL ORDERS
+                  {chartData?.totals?.orders ?? '—'} TOTAL ORDERS
                 </span>
                 <span className="text-[10px] font-mono text-slate-400 hidden sm:inline">
                   LINE CHART
@@ -110,7 +111,7 @@ export function CommercialChartsGrid({
               </div>
               <div className="flex items-center gap-2">
                 <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 font-bold tabular-nums">
-                  {api.formatKES(chartData?.totals?.revenue || 0)}
+                  {chartData?.totals?.revenue == null ? '—' : api.formatKES(chartData.totals.revenue)}
                 </span>
                 <span className="text-[10px] font-mono text-slate-400 hidden sm:inline">
                   LINE CHART
@@ -154,7 +155,7 @@ export function CommercialChartsGrid({
               </div>
               <div className="flex items-center gap-2">
                 <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-[#0c0e12] border border-[#222834] text-slate-300">
-                  {chartData?.order_status?.length || 0} PHASES
+                  {chartData?.order_status?.length ?? '—'} PHASES
                 </span>
                 <span className="text-[10px] font-mono text-slate-400 hidden sm:inline">
                   DONUT CHART
@@ -173,7 +174,7 @@ export function CommercialChartsGrid({
 
           <div className="mt-4 pt-3 border-t border-[#1e2532] flex items-center justify-between text-[11px] font-mono text-slate-400">
             <span>Interactive Segment Hover</span>
-            <span>All Branches</span>
+            <span>Order status in selected scope</span>
           </div>
         </div>
 
@@ -190,7 +191,7 @@ export function CommercialChartsGrid({
               </div>
               <div className="flex items-center gap-2">
                 <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 font-bold">
-                  {deliverySuccessRate}% SUCCESS
+                  {deliverySuccessRate == null ? 'NO DELIVERY DATA' : `${deliverySuccessRate}% SUCCESS`}
                 </span>
                 <span className="text-[10px] font-mono text-slate-400 hidden sm:inline">
                   DONUT CHART
@@ -200,7 +201,7 @@ export function CommercialChartsGrid({
 
             <SvgDonutChart
               data={chartData?.delivery_results || []}
-              centerValue={`${deliverySuccessRate}%`}
+              centerValue={deliverySuccessRate == null ? '—' : `${deliverySuccessRate}%`}
               centerLabel="Delivery Rate"
               unit="jobs"
               size={175}
@@ -210,9 +211,9 @@ export function CommercialChartsGrid({
           <div className="mt-4 pt-3 border-t border-[#1e2532] flex items-center justify-between text-[11px] font-mono text-slate-400">
             <span className="text-emerald-400 flex items-center gap-1">
               <CheckCircle2 className="w-3.5 h-3.5" />
-              Proof of Delivery Verified
+              Delivery outcomes in reporting range
             </span>
-            <span>GPS Tagged Trips</span>
+            <span>Selected reporting range</span>
           </div>
         </div>
       </div>
@@ -231,7 +232,7 @@ export function CommercialChartsGrid({
               </div>
               <div className="flex items-center gap-2">
                 <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-[#0c0e12] border border-[#222834] text-slate-300">
-                  {chartData?.branch_performance?.length || 0} HUBS
+                  {chartData?.branch_performance?.length ?? '—'} HUBS
                 </span>
                 <span className="text-[10px] font-mono text-slate-400 hidden sm:inline">
                   BAR CHART
@@ -421,7 +422,9 @@ export function CommercialChartsGrid({
               </div>
               <div className="flex items-center gap-2">
                 <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 font-bold">
-                  {chartData?.cod_summary?.collectionRatePercent || 100}% COLLECTED
+                  {chartData?.cod_summary?.collectionRatePercent == null
+                    ? 'NO COD DATA'
+                    : `${chartData.cod_summary.collectionRatePercent}% COLLECTED`}
                 </span>
                 <span className="text-[10px] font-mono text-slate-400 hidden sm:inline">
                   BAR CHART
@@ -436,10 +439,10 @@ export function CommercialChartsGrid({
                   COD Collected
                 </div>
                 <div className="mt-1 text-base font-bold font-mono text-white tabular-nums">
-                  {api.formatKES(chartData?.cod_summary?.collectedAmount || 0)}
+                  {chartData?.cod_summary?.collectedAmount == null ? '—' : api.formatKES(chartData.cod_summary.collectedAmount)}
                 </div>
                 <div className="text-[10px] text-slate-400 font-mono mt-0.5">
-                  {chartData?.cod_summary?.collectedCount || 0} Orders Settled
+                  {chartData?.cod_summary?.collectedCount ?? '—'} Orders Settled
                 </div>
               </div>
 
@@ -449,10 +452,10 @@ export function CommercialChartsGrid({
                   COD Outstanding
                 </div>
                 <div className="mt-1 text-base font-bold font-mono text-amber-400 tabular-nums">
-                  {api.formatKES(chartData?.cod_summary?.outstandingAmount || 0)}
+                  {chartData?.cod_summary?.outstandingAmount == null ? '—' : api.formatKES(chartData.cod_summary.outstandingAmount)}
                 </div>
                 <div className="text-[10px] text-slate-400 font-mono mt-0.5">
-                  {chartData?.cod_summary?.outstandingCount || 0} Orders in Field
+                  {chartData?.cod_summary?.outstandingCount ?? '—'} Orders in Field
                 </div>
               </div>
             </div>
@@ -470,7 +473,7 @@ export function CommercialChartsGrid({
 
           <div className="mt-4 pt-3 border-t border-[#1e2532] flex items-center justify-between text-[11px] font-mono text-slate-400">
             <span>M-Pesa & Cash on Delivery Clearance</span>
-            <span>Total Vol: {api.formatKES(chartData?.cod_summary?.totalVolume || 0)}</span>
+            <span>Total Vol: {chartData?.cod_summary?.totalVolume == null ? '—' : api.formatKES(chartData.cod_summary.totalVolume)}</span>
           </div>
         </div>
 

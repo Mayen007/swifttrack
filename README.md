@@ -419,6 +419,10 @@ alongside `ADMIN_INITIAL_PASSWORD` (or let the tool generate a one-time password
 `npm run admin:bootstrap`. Never run demo seed commands or a clean/reset command against
 production.
 
+The multi-leg acceptance simulator is available in local development only; its API endpoint
+is disabled when `NODE_ENV=production` to prevent test shipments from being written to live
+operational records.
+
 ### 4. Running Locally
 
 Launch both the backend API server and the frontend client development server in separate terminal windows:

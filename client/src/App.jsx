@@ -470,6 +470,7 @@ function MainApp() {
       <SystemTour
         isOpen={systemTourOpen}
         onClose={closeSystemTour}
+        onNavigate={setCurrentView}
         selectedBranch={selectedBranch}
         user={user}
       />

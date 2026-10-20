@@ -32,6 +32,13 @@ const editDriverModal = fs.readFileSync(path.join(clientSrc, 'components/drivers
 const offlineStatus = fs.readFileSync(path.join(clientSrc, 'components/common/OfflineSyncStatus.jsx'), 'utf8');
 const systemTour = fs.readFileSync(path.join(clientSrc, 'components/SystemTour.jsx'), 'utf8');
 const navbar = fs.readFileSync(path.join(clientSrc, 'components/Navbar.jsx'), 'utf8');
+const sidebar = fs.readFileSync(path.join(clientSrc, 'components/Sidebar.jsx'), 'utf8');
+const dashboardView = fs.readFileSync(path.join(clientSrc, 'views/DashboardView.jsx'), 'utf8');
+const dashboardHeader = fs.readFileSync(path.join(clientSrc, 'components/dashboard/CommercialBentoHeader.jsx'), 'utf8');
+const controlTower = fs.readFileSync(path.join(clientSrc, 'components/dashboard/OperationsControlTower.jsx'), 'utf8');
+const hubOperations = fs.readFileSync(path.join(clientSrc, 'views/HubOperationsView.jsx'), 'utf8');
+const inboundReceiving = fs.readFileSync(path.join(clientSrc, 'components/hub/InboundReceivingTab.jsx'), 'utf8');
+const e2eAcceptanceRoute = fs.readFileSync(path.resolve(__dirname, '../../server/routes/e2eAcceptance.js'), 'utf8');
 
 // Test 1: Route-level code-splitting & lazy chunk loading
 runTest('App.jsx implements React.lazy dynamic chunk loading for views', () => {
@@ -90,6 +97,49 @@ runTest('System tour opens once per user after required password changes and can
     assert.ok(systemTour.includes('aria-modal="true"'), 'Tour must be presented as an accessible modal');
     assert.ok(systemTour.includes('Skip tour'), 'Users must be able to skip onboarding');
     assert.ok(navbar.includes('Take the system tour'), 'Users must be able to replay the tour from their profile menu');
+});
+
+runTest('First-login tour ends with a role-specific real task', () => {
+    assert.ok(systemTour.includes('FIRST_TASK_BY_ROLE'), 'Tour must provide next steps by role');
+    assert.ok(systemTour.includes('actionLabel'), 'Final tour step must name the next action');
+    assert.ok(systemTour.includes('onNavigate?.(currentStep.view)'), 'Final tour action must navigate to its destination');
+    assert.ok(appJsx.includes('onNavigate={setCurrentView}'), 'App must wire tour navigation to view routing');
+});
+
+runTest('Navigation labels explain parcel booking and the operational sequence', () => {
+    assert.ok(sidebar.includes('1. Parcel Booking & Tracking'));
+    assert.ok(sidebar.includes("label: 'Track & Manage Shipments'"));
+    assert.ok(sidebar.includes("label: 'Book a Parcel'"));
+    assert.ok(sidebar.includes('2. Hub Processing'));
+    assert.ok(sidebar.includes('3. Linehaul & Fleet'));
+    assert.ok(sidebar.includes('4. Last-Mile Delivery'));
+});
+
+runTest('Hub receiving uses persisted sessions and does not invent session records', () => {
+    assert.ok(hubOperations.includes('/api/custody/receiving-sessions?hub_id='));
+    assert.ok(hubOperations.includes('/api/custody/receiving-sessions/${activeReceivingSession.id}/scan'));
+    assert.ok(hubOperations.includes('/api/custody/receiving-sessions/${activeReceivingSession.id}/complete'));
+    assert.ok(!hubOperations.includes('REC-NRB-HQ-001'), 'Hub view must not inject a sample session');
+    assert.ok(inboundReceiving.includes('No receiving sessions at this branch yet.'));
+    assert.ok(inboundReceiving.includes('Open a receiving session'));
+});
+
+runTest('Live dashboard metrics do not substitute fabricated values when data is absent', () => {
+    assert.ok(!dashboardView.includes('selectedBranch ? 2 : 6'), 'Fleet totals must come from live data');
+    assert.ok(!dashboardView.includes('|| 100'), 'Delivery success must not default to 100%');
+    assert.ok(!dashboardHeader.includes('14ms'));
+    assert.ok(!dashboardHeader.includes('+14.2%'));
+    assert.ok(!dashboardHeader.includes('120,000.00 met'));
+    assert.ok(!dashboardHeader.includes('100% UP'));
+    assert.ok(!controlTower.includes('delivery_success_rate_pct || 100'));
+    assert.ok(!controlTower.includes('first_attempt_success_rate_pct || 100'));
+    assert.ok(!controlTower.includes('cod_reconciliation_rate_pct || 100'));
+});
+
+runTest('Acceptance simulation is unavailable in production', () => {
+    assert.ok(controlTower.includes('import.meta.env.DEV &&'), 'Simulator entry point must be development-only');
+    assert.ok(e2eAcceptanceRoute.includes("process.env.NODE_ENV === 'production'"));
+    assert.ok(e2eAcceptanceRoute.includes('Acceptance simulation is disabled in production.'));
 });
 
 console.log(`\nResults: ${passedTests}/${totalTests} tests passed (${Math.round((passedTests / totalTests) * 100)}%)\n`);

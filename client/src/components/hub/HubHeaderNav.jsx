@@ -19,17 +19,17 @@ export function HubHeaderNav({
   onSync,
   activeTab,
   onTabChange,
-  manifestsCount = 0,
-  discrepanciesCount = 0,
-  crossBorderCount = 0,
-  awaitingCount = 0
+  manifestsCount,
+  discrepanciesCount,
+  crossBorderCount,
+  awaitingCount
 }) {
   const tabs = [
     { id: 'RECEIVING', label: 'Inbound', icon: ScanBarcode },
     { id: 'SORT', label: 'Sortation', icon: Layers },
     { id: 'HANDOFFS', label: 'Handoffs', icon: ArrowRightLeft },
     { id: 'MANIFESTS', label: 'Manifests', icon: FileCheck2, count: manifestsCount },
-    { id: 'DISCREPANCIES', label: 'Discrepancies', icon: AlertTriangle, count: discrepanciesCount, alert: discrepanciesCount > 0 },
+    { id: 'DISCREPANCIES', label: 'Discrepancies', icon: AlertTriangle, count: discrepanciesCount, alert: typeof discrepanciesCount === 'number' && discrepanciesCount > 0 },
     { id: 'CROSS_BORDER', label: 'Cross-Border', icon: Globe, count: crossBorderCount },
     { id: 'TRANSSHIPMENT', label: 'Transshipment', icon: Truck, count: awaitingCount },
   ];
@@ -48,10 +48,6 @@ export function HubHeaderNav({
               </h1>
               <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-blue-500/10 text-blue-400 border border-blue-500/20">
                 Station #{currentHubId}
-              </span>
-              <span className="hidden sm:inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-mono font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                ONLINE
               </span>
             </div>
           </div>
@@ -90,7 +86,7 @@ export function HubHeaderNav({
             >
               <Icon className={`w-3.5 h-3.5 shrink-0 ${isActive ? 'text-white' : 'text-slate-400'}`} />
               <span>{tab.label}</span>
-              {typeof tab.count === 'number' && tab.count > 0 && (
+              {typeof tab.count === 'number' && (
                 <span
                   className={`ml-0.5 px-1.5 py-0.2 rounded-full text-[10px] font-mono font-bold leading-none ${
                     isActive
