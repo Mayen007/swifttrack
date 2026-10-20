@@ -85,7 +85,7 @@ SwiftTrack is engineered as an enterprise-grade, high-throughput parcel transpor
 ├──────────────────────────────────────┬──────────────────────────────────────┤
 │  AUTHORITATIVE PRODUCTION ENGINE     │  OFFLINE EDGE / LOCAL DEV FALLBACK   │
 │  PostgreSQL 16 Relational Database   │  Node 24 Native SQLite (WAL Mode)    │
-│  23 Sequential Schema Migrations     │  Append-Only Triggers                │
+│  24 Sequential Schema Migrations     │  Append-Only Triggers                │
 │  Connection Pooling (pg.Pool)        │  Deterministic Fixtures & Offline Q  │
 └──────────────────────────────────────┴──────────────────────────────────────┘
                                        │
@@ -192,7 +192,7 @@ SwiftTrack uses an intelligent database abstraction layer ([server/db/dbAdapter.
 2. **Node 24 Native SQLite**: High-performance local development and offline edge mode using `node:sqlite` in Write-Ahead Logging (`WAL`) mode with parameterized queries (`?`).
 
 ### 5.2 PostgreSQL 16 Authoritative Migration Architecture
-The authoritative production schema is structured into **23 sequential, transactional migrations** in [server/db/postgres/migrations/](file:///c:/Users/ariic/Documents/Logistics%20Platform/server/db/postgres/migrations/):
+The authoritative production schema is structured into **24 sequential, transactional migrations** in [server/db/postgres/migrations/](file:///c:/Users/ariic/Documents/Logistics%20Platform/server/db/postgres/migrations/):
 
 ```
 001_initial_schema.sql                 -> Branches, users, roles, products, inventory, orders
@@ -217,13 +217,14 @@ The authoritative production schema is structured into **23 sequential, transact
 020_totp_two_factor_auth.sql           -> RFC 6238 TOTP secrets, single-use recovery codes
 021_control_tower_views.sql            -> Materialized analytical views for bottleneck detection
 022_partitioning_for_high_volume.sql   -> Monthly range partitioning on tracking & audit tables
-023_retention_and_archival_policies.sql-> Automated data retention routines and cold storage jobs
+023_logistics_notifications_engine.sql -> Notification templates, delivery infrastructure, and offline gateway
+024_remove_default_demo_tariffs.sql     -> Removes unchanged sample global tariff records
 ```
 
 ### 5.3 Partitioning, Retention & Immutability Triggers
 - **Partitioning**: High-volume tables (`tracking_events`, `audit_logs`, `custody_scans`) are partitioned by month via range partitioning in Migration `022`, ensuring sub-millisecond query performance as log volumes scale into tens of millions.
 - **Audit Immutability Triggers**: Migration `012` installs PL/pgSQL triggers on `audit_logs` and `tracking_events` that abort any `UPDATE` or `DELETE` statement with a `CANNOT_MODIFY_IMMUTABLE_LOG` database exception.
-- **Archival Policies**: Migration `023` establishes automated data retention functions for pruning non-regulatory temporary sync logs while safeguarding financial and custody evidence.
+- **Production Data Baseline**: Migration `024` removes the exact global sample tariffs inserted by migration `023`; production must be provisioned with approved live rates.
 
 ### 5.4 Domain Repository Registry
 All database operations pass through specialized repositories in [server/repositories/](file:///c:/Users/ariic/Documents/Logistics%20Platform/server/repositories/):

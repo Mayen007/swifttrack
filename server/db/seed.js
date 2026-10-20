@@ -4,18 +4,37 @@ const { db, initSchema } = require('./database.js');
 const { hashPassword } = require('../utils/security.js');
 const { seedAllBranchesDemoData } = require('./seedDemoBranches.js');
 
+function seedDemoPricingTariffs() {
+    const tariffRow = db.prepare('SELECT count(*) as count FROM logistics_pricing_tariffs').get();
+    if (tariffRow.count === 0) {
+        db.exec(`
+            INSERT INTO logistics_pricing_tariffs
+                (origin_hub_id, destination_hub_id, service_type, base_weight_kg, base_price,
+                 per_kg_above_base, cod_fee_percent, min_cod_fee, insurance_rate_percent,
+                 currency, is_active)
+            VALUES
+                (NULL, NULL, 'STANDARD', 5.0, 350.0, 50.0, 2.0, 100.0, 1.0, 'KES', 1),
+                (NULL, NULL, 'EXPRESS', 5.0, 600.0, 80.0, 2.0, 100.0, 1.0, 'KES', 1),
+                (NULL, NULL, 'SAME_DAY', 5.0, 850.0, 120.0, 2.0, 100.0, 1.0, 'KES', 1);
+        `);
+    }
+}
+
 /**
- * Clean Production Database Bootstrap
- * Seeds ONLY foundation tables: company settings, branches, warehouses,
- * roles, permissions, baseline operational staff, product catalog,
- * inventory baseline, vehicles, drivers, and walk-in counter customer.
- * NEVER creates synthetic orders, mock sales, or fake telemetry.
+ * Production bootstrap creates the schema and authorization metadata only.
+ * Company and operational records must be provisioned from verified live data.
  */
-function initProductionBootstrap() {
-    console.log('[Bootstrap] Initializing clean database schema...');
+function initProductionBootstrap({ includeDemoFixtures = false } = {}) {
+    if (includeDemoFixtures && process.env.NODE_ENV === 'production') {
+        throw new Error('Demo fixtures are disabled in production.');
+    }
+
+    console.log('[Bootstrap] Initializing database schema...');
     initSchema();
 
-    console.log('[Bootstrap] Seeding company settings...');
+    if (includeDemoFixtures) {
+        seedDemoPricingTariffs();
+        console.log('[Demo Bootstrap] Seeding sample company settings...');
     const existingCompany = db.prepare('SELECT id FROM company_settings WHERE id = 1').get();
     if (!existingCompany) {
         db.prepare(`
@@ -70,6 +89,7 @@ function initProductionBootstrap() {
             `).run(w.id, w.branch_id, w.code, w.name, w.location_desc);
         }
     }
+    }
 
     console.log('[Bootstrap] Seeding roles & permissions...');
     const roles = [
@@ -123,10 +143,7 @@ function initProductionBootstrap() {
     ];
 
     for (const p of permissions) {
-        const exist = db.prepare('SELECT id FROM permissions WHERE id = ?').get(p.id);
-        if (!exist) {
-            db.prepare('INSERT INTO permissions (id, code, module, description) VALUES (?, ?, ?, ?)').run(p.id, p.code, p.module, p.description);
-        }
+        db.prepare('INSERT OR IGNORE INTO permissions (code, module, description) VALUES (?, ?, ?)').run(p.code, p.module, p.description);
     }
 
     // Role Permissions mapping
@@ -163,7 +180,6 @@ function initProductionBootstrap() {
         }
     ];
 
-    db.prepare('DELETE FROM role_permissions').run();
     for (const mapping of rolePermissionMappings) {
         for (const code of mapping.perm_codes) {
             const perm = db.prepare('SELECT id FROM permissions WHERE code = ?').get(code);
@@ -171,6 +187,11 @@ function initProductionBootstrap() {
                 db.prepare('INSERT OR IGNORE INTO role_permissions (role_id, permission_id) VALUES (?, ?)').run(mapping.role_id, perm.id);
             }
         }
+    }
+
+    if (!includeDemoFixtures) {
+        console.log('[Bootstrap] Schema and RBAC initialized; no company or operational data seeded.');
+        return;
     }
 
     console.log('[Bootstrap] Seeding operational users with dynamic cryptographic salt hashes...');
@@ -510,7 +531,7 @@ function initProductionBootstrap() {
         `).run();
     }
 
-    console.log('[BOOTSTRAP] Clean production database bootstrap completed successfully.');
+    console.log('[Demo Bootstrap] Base fixture data initialized.');
 }
 
 /**
@@ -519,6 +540,10 @@ function initProductionBootstrap() {
  * active deliveries, held sales, refund approvals, and 14-day telemetry.
  */
 function seedDemoSimulation() {
+    if (process.env.NODE_ENV === 'production') {
+        throw new Error('Demo simulation data is disabled in production.');
+    }
+
     console.log('[Demo] Seeding commercial demo customers...');
     const demoCustomers = [
         { id: 2, branch_id: 1, no: 'CUST-0002', name: 'Safaricom Enterprise Operations', phone: '+254 722 110 099', email: 'procurement@safaricom.co.ke', address: 'Waiyaki Way, HQ 2, Westlands', city: 'Nairobi', pin: 'P051000111A' },
@@ -969,7 +994,7 @@ function ensureMultiStateInventorySeed() {
  * Full Seed: Runs production bootstrap followed by demo simulation.
  */
 function runSeed() {
-    initProductionBootstrap();
+    initProductionBootstrap({ includeDemoFixtures: true });
     seedDemoSimulation();
     ensureMultiStateInventorySeed();
 }
@@ -980,6 +1005,14 @@ function runSeed() {
  * and re-seeds cleanly with either production master data or demo simulation.
  */
 function resetDatabase(isProd = false) {
+    if (process.env.NODE_ENV === 'production') {
+        throw new Error('Refusing to reset a database while NODE_ENV=production.');
+    }
+
+    if (isProd && process.env.DB_CLIENT === 'postgres') {
+        throw new Error('Refusing to run the SQLite reset command when PostgreSQL is selected.');
+    }
+
     console.log('[Reset] Creating pre-reset snapshot backup...');
     const { createBackup } = require('./backup.js');
     try {

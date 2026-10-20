@@ -34,7 +34,7 @@
 | Service Container | Technology | Responsibilities | Health Probe |
 | :--- | :--- | :--- | :--- |
 | **`swifttrack_api`** | Node.js 22 Alpine / Express 5.2 | REST API, RBAC, static Vite frontend | `GET /api/v1/health` (HTTP 200) |
-| **`swifttrack_postgres`** | PostgreSQL 16 Alpine | Authoritative relational state, 23 migrations | `pg_isready -U swifttrack_admin` |
+| **`swifttrack_postgres`** | PostgreSQL 16 Alpine | Authoritative relational state, 24 migrations | `pg_isready -U swifttrack_admin` |
 | **`swifttrack_worker`** | Node.js 22 Alpine | Transactional outbox polling, SMS/Email retries | Heartbeat loop & queue depth query |
 
 ---
@@ -68,8 +68,9 @@ npm run db:migrate:status
 [MIGRATOR] Migration 001_initial_schema.sql: APPLIED
 [MIGRATOR] Migration 002_logistics_core.sql: APPLIED
 ...
-[MIGRATOR] Migration 023_retention_and_archival_policies.sql: APPLIED
-All 23 migrations up to date.
+[MIGRATOR] Migration 023_logistics_notifications_engine.sql: APPLIED
+[MIGRATOR] Migration 024_remove_default_demo_tariffs.sql: APPLIED
+All 24 migrations up to date.
 ```
 
 ### 3.2 Execute Pending Migrations

@@ -216,6 +216,10 @@ async function seedPermissionsAndMappings(client) {
  * Seeds a complete, coherent logistics and POS enterprise dataset.
  */
 async function seedCleanEnterpriseData(pool = null, options = {}) {
+    if (process.env.NODE_ENV === 'production' || options.productionOnly === true) {
+        throw new Error('Demo seed data is disabled in production.');
+    }
+
     const shouldClean = options.clean !== false;
     console.log(`[PostgreSQL Seed] Starting clean enterprise seeding (Clean: ${shouldClean})...`);
 
@@ -1070,13 +1074,22 @@ async function seedCleanEnterpriseData(pool = null, options = {}) {
  */
 async function seedProductionFoundation(pool = null, options = {}) {
     const shouldClean = options.clean === true;
-    console.log(`[PostgreSQL Seed] Starting pure production foundational setup (Clean: ${shouldClean})...`);
+    const includeDemoFixtures = options.includeDemoFixtures === true;
+    const productionRun = process.env.NODE_ENV === 'production' || options.productionOnly === true;
+    if (productionRun && shouldClean) {
+        throw new Error('Refusing to clean a production database during seed.');
+    }
+    if (productionRun && includeDemoFixtures) {
+        throw new Error('Demo fixtures are disabled in production.');
+    }
+    console.log(`[PostgreSQL Seed] Starting schema and RBAC setup (Clean: ${shouldClean})...`);
 
     await withTransaction(async (client) => {
         if (shouldClean) {
             await truncateAllTables(client);
         }
 
+        if (includeDemoFixtures) {
         // 1. Company Settings
         console.log('  -> Seeding company settings...');
         await client.query(`
@@ -1209,8 +1222,9 @@ async function seedProductionFoundation(pool = null, options = {}) {
                     location_desc = EXCLUDED.location_desc;
             `, [w.id, w.branch_id, w.code, w.name, w.location_desc]);
         }
+        }
 
-        // 4. Roles & Permissions Matrix
+        // System roles and permission metadata contain no tenant-specific data.
         console.log('  -> Seeding roles and permissions matrix...');
         const roles = [
             { id: 1, name: 'SUPER_ADMIN', display_name: 'Super Administrator', description: 'Complete system-wide unrestricted access across all hubs and functions' },
@@ -1232,19 +1246,16 @@ async function seedProductionFoundation(pool = null, options = {}) {
 
         await seedPermissionsAndMappings(client);
 
-        // 5. Sequence Resets for Foundational Tables
-        const serialTables = ['branches', 'warehouses', 'roles', 'permissions', 'company_settings'];
+        const serialTables = ['roles', 'permissions'];
         for (const tbl of serialTables) {
             await resetSequence(client, tbl);
         }
 
         console.log('\n============================================================');
-        console.log('[PostgreSQL Seed] [SUCCESS] Production system foundation seeded cleanly.');
-        console.log('  - 4 Regional Hubs (Nairobi, Mombasa, Kisumu, Nakuru)');
-        console.log('  - 5 Attached Hub Warehouses');
+        console.log('[PostgreSQL Seed] [SUCCESS] Schema and RBAC initialized; no company or operational data seeded.');
         console.log('  - Full RBAC Matrix (5 Roles, 40 Permissions)');
-        console.log('  - ZERO demo users, mock orders, or default passwords inserted.');
-        console.log('  - Provision administrator: Run "npm run admin:bootstrap"');
+        console.log('  - Provision verified company and operational data before go-live.');
+        console.log('  - Provision administrator with ADMIN_FULL_NAME, ADMIN_EMAIL, and ADMIN_PHONE.');
         console.log('============================================================\n');
     });
 }
@@ -1265,8 +1276,11 @@ if (require.main === module) {
             const args = process.argv.slice(2);
             const isProd = args.includes('--prod') || args.includes('--production') || process.env.NODE_ENV === 'production';
             if (isProd) {
-                console.log('[PostgreSQL Seed] Running pure production foundation seed (zero demo accounts)...');
-                await seedProductionFoundation(null, { clean: args.includes('--clean') });
+                console.log('[PostgreSQL Seed] Running production schema/RBAC seed (no tenant fixtures)...');
+                await seedProductionFoundation(null, {
+                    clean: args.includes('--clean'),
+                    productionOnly: true
+                });
             } else {
                 console.log('[PostgreSQL Seed] Running enterprise demo seed with test data...');
                 await seedCleanEnterpriseData(null, { clean: args.includes('--clean') || true });

@@ -183,7 +183,7 @@ SwiftTrack strictly separates four distinct domain concepts to ensure full audit
 
 SwiftTrack uses **PostgreSQL 16 as its authoritative production database engine**, with a high-performance, WAL-mode SQLite fallback engine for offline edge nodes and local unit tests.
 
-### PostgreSQL Migration Suite (23 Sequential Migrations)
+### PostgreSQL Migration Suite (24 Sequential Migrations)
 The authoritative schema is version-controlled in [`server/db/postgres/migrations/`](file:///c:/Users/ariic/Documents/Logistics%20Platform/server/db/postgres/migrations/):
 
 | Migration | File | Description & Invariants Enforced |
@@ -210,7 +210,8 @@ The authoritative schema is version-controlled in [`server/db/postgres/migration
 | `020` | [`020_totp_two_factor_auth.sql`](file:///c:/Users/ariic/Documents/Logistics%20Platform/server/db/postgres/migrations/020_totp_two_factor_auth.sql) | RFC 6238 TOTP secrets, single-use backup recovery codes, 2FA enforcement. |
 | `021` | [`021_control_tower_views.sql`](file:///c:/Users/ariic/Documents/Logistics%20Platform/server/db/postgres/migrations/021_control_tower_views.sql) | Optimized analytical materialized views for bottleneck detection & SLA metrics. |
 | `022` | [`022_partitioning_for_high_volume.sql`](file:///c:/Users/ariic/Documents/Logistics%20Platform/server/db/postgres/migrations/022_partitioning_for_high_volume.sql) | Range partitioning by month for `tracking_events`, `audit_logs`, and telemetry. |
-| `023` | [`023_retention_and_archival_policies.sql`](file:///c:/Users/ariic/Documents/Logistics%20Platform/server/db/postgres/migrations/023_retention_and_archival_policies.sql) | Automated data retention routines, cold storage archiving, and pruning jobs. |
+| `023` | [`023_logistics_notifications_engine.sql`](file:///c:/Users/ariic/Documents/Logistics%20Platform/server/db/postgres/migrations/023_logistics_notifications_engine.sql) | Notification delivery infrastructure and standard message templates. |
+| `024` | [`024_remove_default_demo_tariffs.sql`](file:///c:/Users/ariic/Documents/Logistics%20Platform/server/db/postgres/migrations/024_remove_default_demo_tariffs.sql) | Removes only unchanged sample global tariffs previously inserted by migration 023. |
 
 ### Data Access Architecture (Repository Pattern)
 Business services communicate through dedicated domain repositories in [`server/repositories/`](file:///c:/Users/ariic/Documents/Logistics%20Platform/server/repositories/):
@@ -227,17 +228,14 @@ Business services communicate through dedicated domain repositories in [`server/
 
 ---
 
-## 5. Role-Based Access Control (RBAC) & Test Accounts
+## 5. Role-Based Access Control (RBAC) & Demo Accounts
 
 SwiftTrack enforces strict branch data segregation and granular role capabilities across 5 operational tiers:
 
-| Role | Username | Password | Assigned Branch Scope | Operational Privileges |
-| :--- | :--- | :--- | :--- | :--- |
-| **Super Admin** | `admin` | `admin123` | Global (`HQ-ALL`) | Full platform governance, cross-hub oversight, user management, and financial reconciliation |
-| **Branch Manager** | `manager.nairobi`<br>`manager.mombasa`<br>`manager.kisumu`<br>`manager.nakuru` | `manager123` | Respective Regional Hub | Local station administration, stock transfers, COD reconciliation approvals, and expense sign-off |
-| **Dispatcher** | `dispatcher.nairobi`<br>`dispatcher.mombasa`<br>`dispatcher.kisumu`<br>`dispatcher.nakuru` | `dispatcher123` | Respective Regional Hub | Manifest compilation, transport run dispatching, courier route allocation, and exception handling |
-| **Driver / Courier** | `driver.nairobi`<br>`driver.mombasa`<br>`driver.kisumu`<br>`driver.nakuru` | `driver123` | Respective Regional Hub | Mobile driver POD portal, delivery attempt recording, OTP verification, and daily float remittance |
-| **Cashier** | `cashier.nairobi`<br>`cashier.mombasa`<br>`cashier.kisumu`<br>`cashier.nakuru` | `cashier123` | Respective Regional Hub | Walk-in counter booking, waybill printing, M-Pesa POS checkout, and customer parcel intake |
+The role definitions and permissions are system metadata. Demo users and their credentials are
+created only by local/CI demo seeders. Production creates no users; provision the first global
+administrator through `npm run admin:bootstrap` with real identity details and a secure one-time
+password, then create operational accounts from verified business records.
 
 ---
 
@@ -283,7 +281,7 @@ SWIFTTRACK TEST EXECUTION SUMMARY: 39 PASSED, 0 FAILED (100% PASS RATE)
    - [`tests/logistics/test-frontend-drivers.js`](file:///c:/Users/ariic/Documents/Logistics%20Platform/tests/logistics/test-frontend-drivers.js) — Driver assignment UI, route lists, and courier controls.
 
 3. **Database Architecture & Immutability Suites (2 Suites)**
-   - [`tests/database/test-postgres-data-architecture.js`](file:///c:/Users/ariic/Documents/Logistics%20Platform/tests/database/test-postgres-data-architecture.js) — All 23 PostgreSQL migrations, repositories, constraints, and indexes.
+   - [`tests/database/test-postgres-data-architecture.js`](file:///c:/Users/ariic/Documents/Logistics%20Platform/tests/database/test-postgres-data-architecture.js) — All 24 PostgreSQL migrations, repositories, constraints, and indexes.
    - [`tests/verify-db-postgres.js`](file:///c:/Users/ariic/Documents/Logistics%20Platform/tests/verify-db-postgres.js) — Dual-mode database adapter connectivity, query normalization, and transactions.
 
 4. **Security, Authentication & Integrity Suites (7 Suites)**
@@ -343,7 +341,7 @@ SwiftTrack includes a production-grade multi-stage [Dockerfile](file:///c:/Users
 
 ### Docker Compose Architecture
 The production stack orchestrates three isolated services:
-1. **`postgres`**: Official `postgres:18-alpine` database pre-configured with pooled connections, volume persistence (`pgdata`), and automatic initialization of all 23 migrations.
+1. **`postgres`**: Official `postgres:18-alpine` database pre-configured with pooled connections, volume persistence (`pgdata`), and automatic initialization of all 24 migrations.
 2. **`app`**: Multi-stage Node.js 22 runtime serving the Express.js API backend and static pre-compiled React 18 / Vite 6 client application under an unprivileged `node` user with healthcheck monitoring.
 3. **`worker`**: Dedicated background worker container running the transactional outbox notifications processor and sync engine with isolated resource boundaries.
 
@@ -401,16 +399,25 @@ cp .env.example .env
 ### 3. Database Initialization & Seeding
 
 ```bash
-# Option A: Initialize authoritative PostgreSQL database (requires PostgreSQL running)
+# Local/CI only: initialize PostgreSQL schema and demo fixtures
 npm run db:migrate
 npm run db:pg:seed
 
-# Option B: Initialize local SQLite demo dataset (zero external database required)
+# Local demo: initialize SQLite demo data (zero external database required)
 npm run db:seed:branches
 
-# Option C: Initialize pristine production SQLite foundation
-npm run db:reset:prod
+# Production: migrate PostgreSQL and seed system roles/permissions only
+NODE_ENV=production npm run db:migrate
+NODE_ENV=production npm run db:seed:prod
 ```
+
+Production seeding does not create company settings, branches, warehouses, staff, customers,
+products, inventory, vehicles, orders, sales, or telemetry. Provision those records from
+verified live business data before operational use. Create the first global administrator
+with real identity details; provide `ADMIN_FULL_NAME`, `ADMIN_EMAIL`, and `ADMIN_PHONE`
+alongside `ADMIN_INITIAL_PASSWORD` (or let the tool generate a one-time password), then run
+`npm run admin:bootstrap`. Never run demo seed commands or a clean/reset command against
+production.
 
 ### 4. Running Locally
 
@@ -487,7 +494,7 @@ swifttrack/
 ├── server/                          # Express.js backend application
 │   ├── db/
 │   │   ├── postgres/
-│   │   │   ├── migrations/          # 23 Authoritative PostgreSQL migration files
+│   │   │   ├── migrations/          # 24 Authoritative PostgreSQL migration files
 │   │   │   ├── migrator.js          # Programmatic migration runner (up, rollback, status)
 │   │   │   ├── pool.js              # Connection pooling & health checks
 │   │   │   ├── transactions.js      # ACID transaction execution helper
@@ -562,7 +569,7 @@ Comprehensive architecture, API contracts, incident runbooks, and production rea
 
 | Document | File Path | Scope & Focus |
 | :--- | :--- | :--- |
-| **System Architecture Specification** | [`docs/ARCHITECTURE.md`](file:///c:/Users/ariic/Documents/Logistics%20Platform/docs/ARCHITECTURE.md) | Component architecture, domain state machines, dual-engine `dbAdapter`, 23 migrations, partitioning, outbox pattern, and security pillars. |
+| **System Architecture Specification** | [`docs/ARCHITECTURE.md`](file:///c:/Users/ariic/Documents/Logistics%20Platform/docs/ARCHITECTURE.md) | Component architecture, domain state machines, dual-engine `dbAdapter`, 24 migrations, partitioning, outbox pattern, and security pillars. |
 | **REST API Reference & Specification** | [`docs/API.md`](file:///c:/Users/ariic/Documents/Logistics%20Platform/docs/API.md) | Complete OpenAPI / REST endpoints, request/response JSON schemas, rate limits, status codes, and error code matrix. |
 | **Production Incident & Operations Runbook** | [`docs/RUNBOOK.md`](file:///c:/Users/ariic/Documents/Logistics%20Platform/docs/RUNBOOK.md) | Pre-flight checklists, PostgreSQL migration drills, snapshot backups, RPO/RTO targets, worker queue management, and emergency response playbooks. |
 | **Production Readiness Certification** | [`PROD-READINESS.md`](file:///c:/Users/ariic/Documents/Logistics%20Platform/PROD-READINESS.md) | Authoritative certification deliverable, 28-area readiness matrix, feature completion matrix, and attestation record. |

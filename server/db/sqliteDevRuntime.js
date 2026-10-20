@@ -6,9 +6,9 @@ const { runSeed, initProductionBootstrap, ensureRichChartTelemetry } = require('
 
 function initSqliteDevRuntime() {
     sqlite.initSchema();
-    const company = sqlite.db.prepare('SELECT count(*) as count FROM company_settings').get();
+    const rolePermissions = sqlite.db.prepare('SELECT count(*) as count FROM role_permissions').get();
     const isDemoMode = process.env.DEMO_MODE === 'true';
-    if (company.count === 0) {
+    if (rolePermissions.count === 0) {
         if (isDemoMode) {
             console.log('Seeding initial system data with demo simulation...');
             runSeed();

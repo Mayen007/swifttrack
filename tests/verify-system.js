@@ -4,7 +4,7 @@ const assert = require('node:assert');
 const os = require('node:os');
 const path = require('node:path');
 const dbAdapter = require('../server/db/dbAdapter.js');
-const { initProductionBootstrap } = require('../server/db/seed.js');
+const { runSeed } = require('../server/db/seed.js');
 const app = require('../server/server.js');
 
 let server;
@@ -41,7 +41,7 @@ async function runTests() {
     } else {
         const invCheck = await dbAdapter.get('SELECT count(*) as count FROM inventory');
         if (!invCheck || Number(invCheck.count) === 0) {
-            initProductionBootstrap();
+            runSeed();
         }
     }
 

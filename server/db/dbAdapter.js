@@ -3,8 +3,11 @@
 // Provides a consistent, promise-based query & transaction abstraction across PostgreSQL and SQLite.
 
 require('../utils/env.js');
+const { AsyncLocalStorage } = require('node:async_hooks');
 
 const isPostgres = process.env.DB_CLIENT === 'postgres' || (!!process.env.DATABASE_URL && process.env.DB_CLIENT !== 'sqlite');
+const sqliteTransactionContext = new AsyncLocalStorage();
+let sqliteSavepointId = 0;
 
 let pgPool = null;
 let pgTransactions = null;
@@ -154,7 +157,6 @@ async function withTransaction(callback) {
             return await callback(tx);
         });
     } else {
-        sqliteDb.exec('BEGIN IMMEDIATE;');
         const tx = {
             query: (sql, params) => query(sql, params, null),
             get: (sql, params) => get(sql, params, null),
@@ -163,13 +165,24 @@ async function withTransaction(callback) {
             client: sqliteDb
         };
 
+        const nested = sqliteTransactionContext.getStore();
+        const savepoint = `swifttrack_nested_${++sqliteSavepointId}`;
+        sqliteDb.exec(nested ? `SAVEPOINT ${savepoint};` : 'BEGIN IMMEDIATE;');
+
         try {
-            const result = await callback(tx);
-            sqliteDb.exec('COMMIT;');
+            const result = nested
+                ? await callback(tx)
+                : await sqliteTransactionContext.run({ active: true }, () => callback(tx));
+            sqliteDb.exec(nested ? `RELEASE SAVEPOINT ${savepoint};` : 'COMMIT;');
             return result;
         } catch (err) {
             try {
-                sqliteDb.exec('ROLLBACK;');
+                if (nested) {
+                    sqliteDb.exec(`ROLLBACK TO SAVEPOINT ${savepoint};`);
+                    sqliteDb.exec(`RELEASE SAVEPOINT ${savepoint};`);
+                } else {
+                    sqliteDb.exec('ROLLBACK;');
+                }
             } catch (rbErr) {
                 // Ignore if already rolled back
             }

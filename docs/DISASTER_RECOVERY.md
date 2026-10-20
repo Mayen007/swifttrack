@@ -117,7 +117,7 @@ node tests/database/test-postgres-data-architecture.js
 ```
 Expected output:
 ```
-All 23 migrations verified.
+All 24 migrations verified.
 Relational constraints, foreign keys, and indexes: PASS (0 errors).
 ```
 

@@ -4,7 +4,7 @@ const { DatabaseSync } = require('node:sqlite');
 const path = require('node:path');
 const fs = require('node:fs');
 
-const DB_PATH = path.resolve(__dirname, '../../data/logistics_platform.db');
+const DB_PATH = path.resolve(process.env.DATABASE_PATH || path.resolve(__dirname, '../../data/logistics_platform.db'));
 const DB_DIR = path.dirname(DB_PATH);
 
 if (!fs.existsSync(DB_DIR)) {
@@ -1347,20 +1347,7 @@ function migrateShipmentCoreSchema() {
             );
         `);
 
-        // 4. Seed default tariffs if none exist
-        const tariffRow = db.prepare('SELECT count(*) as count FROM logistics_pricing_tariffs').get();
-        if (!tariffRow || tariffRow.count === 0) {
-            db.exec(`
-                INSERT INTO logistics_pricing_tariffs 
-                (origin_hub_id, destination_hub_id, service_type, base_weight_kg, base_price, per_kg_above_base, cod_fee_percent, min_cod_fee, insurance_rate_percent, currency, is_active)
-                VALUES 
-                (NULL, NULL, 'STANDARD', 5.0, 350.0, 50.0, 2.0, 100.0, 1.0, 'KES', 1),
-                (NULL, NULL, 'EXPRESS', 5.0, 600.0, 80.0, 2.0, 100.0, 1.0, 'KES', 1),
-                (NULL, NULL, 'SAME_DAY', 5.0, 850.0, 120.0, 2.0, 100.0, 1.0, 'KES', 1);
-            `);
-        }
-
-        // 5. Seed shipments permissions
+        // 4. Seed shipments permissions
         const shipmentPerms = [
             { code: 'shipments:create', module: 'Shipments', description: 'Create new parcel shipment booking' },
             { code: 'shipments:view:all', module: 'Shipments', description: 'View shipments organization-wide' },
@@ -2281,8 +2268,6 @@ module.exports = {
     initSchema,
     DB_PATH
 };
-
-
 
 
 

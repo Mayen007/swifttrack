@@ -62,9 +62,24 @@ async function runAsyncTest(name, fn) {
             ]);
         }
     } else {
-        const { initProductionBootstrap } = require('../../server/db/seed.js');
-        initProductionBootstrap();
+        const { runSeed } = require('../../server/db/seed.js');
+        runSeed();
     }
+
+    const dbAdapter = require('../../server/db/dbAdapter.js');
+    await dbAdapter.run(`
+        INSERT INTO company_settings (
+            id, company_name, kra_pin, phone, email, address, city, country
+        ) VALUES (1, 'Architecture Test Company', 'TEST-KRA', '+254700000000',
+                  'architecture@example.test', 'Test Address', 'Nairobi', 'Kenya')
+        ON CONFLICT (id) DO NOTHING
+    `);
+    await dbAdapter.run(`
+        INSERT INTO branches (name, code, city, address, phone, email, is_active)
+        VALUES ('Architecture Test Branch', 'ARCH-TEST-BOOTSTRAP', 'Nairobi',
+                'Test Address', '+254700000000', 'branch@example.test', true)
+        ON CONFLICT (code) DO NOTHING
+    `);
 
     // -------------------------------------------------------------------------
     // 1. PostgreSQL Schema Migrations Completeness & Dynamic Validation
@@ -103,7 +118,7 @@ async function runAsyncTest(name, fn) {
         });
     });
 
-    runTest('1.2: Logistics migrations (015-023) define all required production tables & triggers', () => {
+    runTest('1.2: Logistics migrations (015-024) define production tables and remove sample tariff data', () => {
         const migrationsDir = path.resolve(__dirname, '../../server/db/postgres/migrations');
 
         // Check 016_shipment_core.sql
@@ -127,6 +142,12 @@ async function runAsyncTest(name, fn) {
         assert(sql018.includes('CREATE TABLE IF NOT EXISTS handoffs'), 'handoffs table must exist');
         assert(sql018.includes('CREATE TABLE IF NOT EXISTS hub_receiving_sessions'), 'hub_receiving_sessions table must exist');
         assert(sql018.includes('CREATE TABLE IF NOT EXISTS discrepancies'), 'discrepancies table must exist');
+
+        const sql024 = fs.readFileSync(path.join(migrationsDir, '024_remove_default_demo_tariffs.sql'), 'utf8');
+        assert(sql024.includes('DELETE FROM logistics_pricing_tariffs'), 'migration 024 removes default tariff records');
+        assert(sql024.includes("service_type = 'STANDARD'"), 'migration 024 targets the known sample standard tariff');
+        assert(sql024.includes("service_type = 'EXPRESS'"), 'migration 024 targets the known sample express tariff');
+        assert(sql024.includes("service_type = 'SAME_DAY'"), 'migration 024 targets the known sample same-day tariff');
 
         // Check 019_last_mile_delivery.sql
         const sql019 = fs.readFileSync(path.join(migrationsDir, '019_last_mile_delivery_and_exceptions.sql'), 'utf8');

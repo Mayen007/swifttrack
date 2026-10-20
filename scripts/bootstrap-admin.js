@@ -11,6 +11,13 @@ async function bootstrapAdmin() {
     console.log('  SWIFTTRACK: SECURE ADMINISTRATIVE BOOTSTRAP PROVISIONER');
     console.log('============================================================\n');
 
+    const adminEmail = process.env.ADMIN_EMAIL?.trim();
+    const adminFullName = process.env.ADMIN_FULL_NAME?.trim();
+    const adminPhone = process.env.ADMIN_PHONE?.trim();
+    if (!adminEmail || !adminFullName || !adminPhone) {
+        throw new Error('Set ADMIN_FULL_NAME, ADMIN_EMAIL, and ADMIN_PHONE to the real administrator details.');
+    }
+
     // 1. Generate or retrieve initial password
     let initialPassword = process.env.ADMIN_INITIAL_PASSWORD;
     let isGenerated = false;
@@ -29,28 +36,22 @@ async function bootstrapAdmin() {
         process.exit(1);
     }
 
-    // 3. Ensure headquarters branch exists
-    let branch = await dbAdapter.get("SELECT id FROM branches ORDER BY id ASC LIMIT 1");
-    if (!branch) {
-        const branchRes = await dbAdapter.run(`
-            INSERT INTO branches (name, code, city, address, phone, email, is_active)
-            VALUES ('Nairobi Headquarters', 'NRB-HQ', 'Nairobi', 'Enterprise Road, Industrial Area', '+254700000000', 'hq@swifttrack.co.ke', true)
-        `);
-        branch = { id: branchRes.insertId };
-    }
-
-    // 4. Create or update superadmin user
+    // 3. Create or update a global administrator without inventing tenant data.
     const existing = await dbAdapter.get("SELECT id FROM users WHERE username = 'superadmin'");
 
     if (existing) {
         await dbAdapter.run(`
             UPDATE users
-            SET password_hash = ?,
+            SET email = ?,
+                full_name = ?,
+                phone = ?,
+                branch_id = NULL,
+                password_hash = ?,
                 must_change_password = true,
                 token_version = token_version + 1,
                 updated_at = CURRENT_TIMESTAMP
             WHERE id = ?
-        `, [passwordHash, existing.id]);
+        `, [adminEmail, adminFullName, adminPhone, passwordHash, existing.id]);
 
         console.log('✅ Superadmin user credentials successfully reset.');
     } else {
@@ -58,8 +59,8 @@ async function bootstrapAdmin() {
             INSERT INTO users (
                 username, email, password_hash, full_name, phone,
                 role_id, branch_id, must_change_password, is_active
-            ) VALUES ('superadmin', 'admin@swifttrack.co.ke', ?, 'System Administrator', '+254700000000', ?, ?, true, true)
-        `, [passwordHash, superAdminRole.id, branch.id]);
+            ) VALUES ('superadmin', ?, ?, ?, ?, ?, NULL, true, true)
+        `, [adminEmail, passwordHash, adminFullName, adminPhone, superAdminRole.id]);
 
         console.log('✅ Superadmin user successfully created.');
     }
