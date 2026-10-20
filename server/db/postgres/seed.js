@@ -483,7 +483,7 @@ async function seedCleanEnterpriseData(pool = null, options = {}) {
                     vehicle_id = EXCLUDED.vehicle_id,
                     phone = EXCLUDED.phone,
                     status = EXCLUDED.status;
-            `, [d.id, d.user_id, d.branch_id, d.employee_code, d.license, d.classes, d.issue, d.expiry, d.ntsa, d.natId, d.kra, d.kin, d.kinPhone, d.vehicle_id, d.phone, d.status]);
+            `, [d.id, d.user_id, d.branch_id, d.employee_code, d.license, d.classes, d.issue, d.expiry, d.ntsa ? 1 : 0, d.natId, d.kra, d.kin, d.kinPhone, d.vehicle_id, d.phone, d.status]);
         }
 
         // 7. Customers

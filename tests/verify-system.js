@@ -1,7 +1,8 @@
 // tests/verify-system.js
 // Comprehensive automated test suite validating all 15 phases, security, branch isolation, and transactions
 const assert = require('node:assert');
-const { db } = require('../server/db/database.js');
+const os = require('node:os');
+const path = require('node:path');
 const dbAdapter = require('../server/db/dbAdapter.js');
 const { initProductionBootstrap } = require('../server/db/seed.js');
 const app = require('../server/server.js');
@@ -34,13 +35,17 @@ async function runTests() {
     console.log('[TEST] RUNNING SWIFTTRACK KENYA LOGISTICS + POS VERIFICATION SUITE');
     console.log('================================================================\n');
 
-    server = app.listen(PORT);
-
-    // Ensure database has baseline bootstrap data (required in fresh checkout / CI)
-    const invCheck = await dbAdapter.get("SELECT count(*) as count FROM inventory");
-    if (!invCheck || Number(invCheck.count) === 0) {
-        initProductionBootstrap();
+    if (process.env.DB_CLIENT === 'postgres') {
+        const { seedCleanEnterpriseData } = require('../server/db/postgres/seed.js');
+        await seedCleanEnterpriseData(null, { clean: false });
+    } else {
+        const invCheck = await dbAdapter.get('SELECT count(*) as count FROM inventory');
+        if (!invCheck || Number(invCheck.count) === 0) {
+            initProductionBootstrap();
+        }
     }
+
+    server = app.listen(PORT);
 
     try {
         // -------------------------------------------------------------
@@ -509,13 +514,17 @@ async function runTests() {
 
         const { createBackup } = require('../server/db/backup.js');
         const fs = require('node:fs');
-
-        const backupResult = createBackup();
-        assert.ok(fs.existsSync(backupResult.path), 'Backup snapshot file was not created on disk');
-        assert.ok(backupResult.size > 0, 'Backup snapshot file is empty');
-        assert.strictEqual(backupResult.sha256.length, 64, 'Backup SHA-256 checksum is invalid');
-        console.log(`  [PASS] Point-in-time snapshot backup verified (${backupResult.filename}, ${backupResult.size} bytes)`);
-        console.log(`  [PASS] SHA-256 integrity checksum: ${backupResult.sha256}\n`);
+        const backupDir = fs.mkdtempSync(path.join(os.tmpdir(), 'swifttrack-system-backup-'));
+        try {
+            const backupResult = await createBackup({ backupDir });
+            assert.ok(fs.existsSync(backupResult.path), 'Backup snapshot file was not created on disk');
+            assert.ok(backupResult.size > 0, 'Backup snapshot file is empty');
+            assert.strictEqual(backupResult.sha256.length, 64, 'Backup SHA-256 checksum is invalid');
+            console.log(`  [PASS] Point-in-time snapshot backup verified (${backupResult.filename}, ${backupResult.size} bytes)`);
+            console.log(`  [PASS] SHA-256 integrity checksum: ${backupResult.sha256}\n`);
+        } finally {
+            fs.rmSync(backupDir, { recursive: true, force: true });
+        }
 
         // -------------------------------------------------------------
         // TEST 12: Inter-Branch Stock Transfer Lifecycle
