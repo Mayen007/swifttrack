@@ -64,9 +64,6 @@ jobs:
       - name: Run Authoritative PostgreSQL Migrations
         run: npm run db:migrate
 
-      - name: Seed Database for Test Suite Executions
-        run: node server/db/seed.js
-
       - name: Verify PostgreSQL Migrations & Repository Layer
         run: node tests/database/test-postgres-data-architecture.js
 

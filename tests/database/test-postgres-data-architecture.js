@@ -39,7 +39,29 @@ async function runAsyncTest(name, fn) {
 
 (async () => {
     // Ensure base tables and operational seed data exist for repository/adapter verification
-    if (process.env.DB_CLIENT !== 'postgres') {
+    if (process.env.DB_CLIENT === 'postgres') {
+        const { seedProductionFoundation } = require('../../server/db/postgres/seed.js');
+        await seedProductionFoundation(null, { clean: false });
+
+        const dbAdapter = require('../../server/db/dbAdapter.js');
+        const testUser = await dbAdapter.get('SELECT id FROM users WHERE id = ?', [1]);
+        if (!testUser) {
+            const { hashPassword } = require('../../server/utils/security.js');
+            await dbAdapter.run(`
+                INSERT INTO users (
+                    id, branch_id, role_id, username, email, full_name, phone,
+                    password_hash, is_active
+                ) VALUES (?, NULL, 1, ?, ?, ?, ?, ?, true)
+            `, [
+                1,
+                'architecture.test',
+                'architecture.test@swifttrack.co.ke',
+                'Architecture Test User',
+                '+254700000000',
+                hashPassword('ArchitectureTestPassword123!')
+            ]);
+        }
+    } else {
         const { initProductionBootstrap } = require('../../server/db/seed.js');
         initProductionBootstrap();
     }
