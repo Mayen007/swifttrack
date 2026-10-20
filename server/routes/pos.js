@@ -1,6 +1,7 @@
 // server/routes/pos.js
 // SwiftTrack Kenya: Complete POS Terminal, Cashier Shifts, Split Payments & Cash Drawer Control
 const express = require('express');
+const crypto = require('node:crypto');
 const router = express.Router();
 const dbAdapter = require('../db/dbAdapter.js');
 const { authenticateToken, requireRole, authorize } = require('../middleware/auth.js');
@@ -302,8 +303,9 @@ router.post('/checkout', authenticateToken, authorize('pos', 'create'), async (r
             });
         }
 
-        const saleNumber = `SALE-${branchId}-${Date.now().toString().slice(-6)}`;
-        const orderNumber = `ORD-POS-${branchId}-${Date.now().toString().slice(-6)}`;
+        const checkoutReference = `${Date.now().toString().slice(-6)}-${crypto.randomBytes(4).toString('hex').toUpperCase()}`;
+        const saleNumber = `SALE-${branchId}-${checkoutReference}`;
+        const orderNumber = `ORD-POS-${branchId}-${checkoutReference}`;
         const etimsInvoiceNumber = `KRA-CU-${company ? company.etims_branch_code : '00'}-${Date.now().toString().slice(-8)}`;
 
         let saleId;

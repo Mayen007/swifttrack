@@ -1,6 +1,7 @@
 // tests/inventory/test-advanced-inventory.js
 // SwiftTrack Kenya: Phase 3.3 Advanced Inventory Engine Test Suite & Acceptance Test
 const assert = require('node:assert');
+const { randomUUID } = require('node:crypto');
 const http = require('node:http');
 const app = require('../../server/server.js');
 const dbAdapter = require('../../server/db/dbAdapter.js');
@@ -124,7 +125,7 @@ async function runTest(name, fn) {
       return pId;
     }
 
-    const ts = Date.now().toString().slice(-6);
+    const ts = `${Date.now().toString().slice(-6)}-${randomUUID().slice(0, 8).toUpperCase()}`;
 
     // -------------------------------------------------------------
     // TEST 1: Batch / Lot Tracking
