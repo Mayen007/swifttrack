@@ -30,6 +30,8 @@ const vehiclesView = fs.readFileSync(path.join(clientSrc, 'views/VehiclesView.js
 const driverDetailModal = fs.readFileSync(path.join(clientSrc, 'components/drivers/DriverDetailModal.jsx'), 'utf8');
 const editDriverModal = fs.readFileSync(path.join(clientSrc, 'components/drivers/EditDriverModal.jsx'), 'utf8');
 const offlineStatus = fs.readFileSync(path.join(clientSrc, 'components/common/OfflineSyncStatus.jsx'), 'utf8');
+const systemTour = fs.readFileSync(path.join(clientSrc, 'components/SystemTour.jsx'), 'utf8');
+const navbar = fs.readFileSync(path.join(clientSrc, 'components/Navbar.jsx'), 'utf8');
 
 // Test 1: Route-level code-splitting & lazy chunk loading
 runTest('App.jsx implements React.lazy dynamic chunk loading for views', () => {
@@ -78,6 +80,16 @@ runTest('VehiclesView displays fleet telemetry and supports Kenya plate registra
     assert.ok(vehiclesView.includes('total_fleet_distance_km'), 'VehiclesView must track fleet distance');
     assert.ok(vehiclesView.includes('registration_number'), 'VehiclesView must capture registration plate');
     assert.ok(vehiclesView.includes('ownership_type'), 'VehiclesView must support ownership types');
+});
+
+// Test 8: First-login onboarding system tour
+runTest('System tour opens once per user after required password changes and can be replayed', () => {
+    assert.ok(appJsx.includes('swifttrack_system_tour_completed_v1:'), 'Tour completion must be stored per user');
+    assert.ok(appJsx.includes('if (!user || mustChangePassword)'), 'Tour must wait until mandatory password change is complete');
+    assert.ok(appJsx.includes('<SystemTour'), 'App.jsx must mount the system tour');
+    assert.ok(systemTour.includes('aria-modal="true"'), 'Tour must be presented as an accessible modal');
+    assert.ok(systemTour.includes('Skip tour'), 'Users must be able to skip onboarding');
+    assert.ok(navbar.includes('Take the system tour'), 'Users must be able to replay the tour from their profile menu');
 });
 
 console.log(`\nResults: ${passedTests}/${totalTests} tests passed (${Math.round((passedTests / totalTests) * 100)}%)\n`);

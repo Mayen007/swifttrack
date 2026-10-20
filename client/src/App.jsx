@@ -8,6 +8,7 @@ import { ToastContainer } from './components/ToastContainer.jsx';
 import { ErrorBoundary } from './components/common/ErrorBoundary.jsx';
 import { ViewSkeleton } from './components/common/ViewSkeleton.jsx';
 import { OfflineSyncStatus } from './components/common/OfflineSyncStatus.jsx';
+import { SystemTour } from './components/SystemTour.jsx';
 import { ShieldOff } from 'lucide-react';
 import { api } from './services/api.js';
 
@@ -92,7 +93,8 @@ function AccessDeniedView({ currentView, userRole, onNavigateHome }) {
 }
 
 function MainApp() {
-  const { user, loading, quickSwitch } = useAuth();
+  const { user, loading, quickSwitch, mustChangePassword, selectedBranch } = useAuth();
+  const [systemTourOpen, setSystemTourOpen] = useState(false);
   const [currentView, setCurrentViewState] = useState(() => {
     if (typeof window !== 'undefined') {
       try {
@@ -204,6 +206,35 @@ function MainApp() {
     }
   });
   const mainScrollRef = React.useRef(null);
+
+  useEffect(() => {
+    if (!user || mustChangePassword) {
+      setSystemTourOpen(false);
+      return;
+    }
+
+    const userKey = user.id ?? user.username;
+    if (!userKey) return;
+
+    try {
+      setSystemTourOpen(localStorage.getItem(`swifttrack_system_tour_completed_v1:${userKey}`) !== 'true');
+    } catch (error) {
+      console.warn('Could not read system tour progress:', error);
+      setSystemTourOpen(true);
+    }
+  }, [user?.id, user?.username, mustChangePassword]);
+
+  const closeSystemTour = useCallback(() => {
+    const userKey = user?.id ?? user?.username;
+    if (userKey) {
+      try {
+        localStorage.setItem(`swifttrack_system_tour_completed_v1:${userKey}`, 'true');
+      } catch (error) {
+        console.warn('Could not save system tour progress:', error);
+      }
+    }
+    setSystemTourOpen(false);
+  }, [user?.id, user?.username]);
 
   const toggleSidebarCollapse = () => {
     setSidebarCollapsed((prev) => {
@@ -395,6 +426,7 @@ function MainApp() {
       {/* Top Navigation Bar */}
       <Navbar
         onToggleNotifications={() => setNotificationsOpen(!notificationsOpen)}
+        onStartTour={() => setSystemTourOpen(true)}
         unreadCount={unreadCount}
         onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
         isSidebarOpen={sidebarOpen}
@@ -433,6 +465,13 @@ function MainApp() {
         onClose={() => setNotificationsOpen(false)}
         onRefreshCount={setUnreadCount}
         onNavigate={setCurrentView}
+      />
+
+      <SystemTour
+        isOpen={systemTourOpen}
+        onClose={closeSystemTour}
+        selectedBranch={selectedBranch}
+        user={user}
       />
 
       {/* Offline-First Synchronization Status Indicator */}

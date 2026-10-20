@@ -30,6 +30,7 @@ import {
   Moon,
   Monitor,
   LogOut,
+  Compass,
 } from 'lucide-react';
 
 function sanitizeDisplay(str) {
@@ -41,6 +42,7 @@ function sanitizeDisplay(str) {
 
 export function Navbar({
   onToggleNotifications,
+  onStartTour,
   unreadCount = 0,
   onToggleSidebar,
   isSidebarOpen,
@@ -466,6 +468,20 @@ export function Navbar({
                     {selectedBranch?.code || 'HQ'}
                   </span>
                 </div>
+              </div>
+
+              <div className="p-1.5 border-b border-[#222834]">
+                <button
+                  onClick={() => {
+                    setProfileDropdownOpen(false);
+                    onStartTour?.();
+                  }}
+                  className="w-full px-2.5 py-1.5 rounded text-left text-xs text-slate-300 hover:text-white hover:bg-[#161b26] flex items-center gap-2 transition-colors cursor-pointer"
+                  type="button"
+                >
+                  <Compass className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                  <span>Take the system tour</span>
+                </button>
               </div>
 
               {/* Single Consolidated Persona Switcher (Demo / Evaluation Mode Only) */}
