@@ -1262,8 +1262,8 @@ async function seedProductionFoundation(pool = null, options = {}) {
 
 // Baseline seeder that respects NODE_ENV and options.productionOnly
 async function seedProductionBaseline(pool = null, options = {}) {
-    const isProd = process.env.NODE_ENV === 'production' || options.productionOnly === true;
-    if (isProd) {
+    const includeDemoFixtures = options.includeDemoFixtures === true;
+    if (!includeDemoFixtures) {
         return seedProductionFoundation(pool, options);
     }
     return seedCleanEnterpriseData(pool, { clean: options.clean !== false });

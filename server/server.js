@@ -143,18 +143,13 @@ async function initializeDatabaseRuntime() {
         console.log('[Startup] Verifying schema migrations...');
         await migrator.migrateUp();
 
-        // 3. Seed system roles once; live company data is provisioned separately.
+        // 3. Seed system roles once; live company data is provisioned manually/separately.
         const roleCount = await dbAdapter.get('SELECT COUNT(*) as count FROM roles');
         const count = roleCount ? Number(roleCount.count) : 0;
         if (count === 0) {
-            if (isProd) {
-                console.log('[Startup] Fresh production database detected. Seeding schema and RBAC only...');
-                await seed.seedProductionFoundation();
-                console.log('[Startup] Provision verified business data and an administrator before operational use.');
-            } else {
-                console.log('[Startup] Fresh database detected. Seeding baseline enterprise demo data...');
-                await seed.seedProductionBaseline();
-            }
+            console.log('[Startup] Fresh database detected. Initializing schema and RBAC foundation only...');
+            await seed.seedProductionFoundation();
+            console.log('[Startup] Foundation initialized; demo data is disconnected.');
         }
     } else {
         if (isProd) {

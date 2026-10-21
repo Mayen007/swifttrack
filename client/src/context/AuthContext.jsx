@@ -11,10 +11,10 @@ export function AuthProvider({ children }) {
   const [selectedBranch, setSelectedBranch] = useState(null);
   const [loading, setLoading] = useState(true);
   const [isSwitching, setIsSwitching] = useState(false);
-  const [demoMode, setDemoMode] = useState(true);
+  const [demoMode, setDemoMode] = useState(false);
   const [mustChangePassword, setMustChangePassword] = useState(false);
   const [config, setConfig] = useState({
-    demoMode: true,
+    demoMode: false,
     currency: 'KES',
     etimsEnabled: true,
     passwordMinLength: 10,

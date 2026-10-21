@@ -9,6 +9,7 @@ import { ErrorBoundary } from './components/common/ErrorBoundary.jsx';
 import { ViewSkeleton } from './components/common/ViewSkeleton.jsx';
 import { OfflineSyncStatus } from './components/common/OfflineSyncStatus.jsx';
 import { SystemTour } from './components/SystemTour.jsx';
+import { InitialSetupModal } from './components/onboarding/InitialSetupModal.jsx';
 import { ShieldOff } from 'lucide-react';
 import { api } from './services/api.js';
 
@@ -93,8 +94,9 @@ function AccessDeniedView({ currentView, userRole, onNavigateHome }) {
 }
 
 function MainApp() {
-  const { user, loading, quickSwitch, mustChangePassword, selectedBranch } = useAuth();
+  const { user, loading, quickSwitch, mustChangePassword, selectedBranch, branches, isSuperAdmin, refreshBranches } = useAuth();
   const [systemTourOpen, setSystemTourOpen] = useState(false);
+  const [initialSetupOpen, setInitialSetupOpen] = useState(false);
   const [currentView, setCurrentViewState] = useState(() => {
     if (typeof window !== 'undefined') {
       try {
@@ -210,19 +212,53 @@ function MainApp() {
   useEffect(() => {
     if (!user || mustChangePassword) {
       setSystemTourOpen(false);
+      setInitialSetupOpen(false);
       return;
     }
 
     const userKey = user.id ?? user.username;
     if (!userKey) return;
 
-    try {
-      setSystemTourOpen(localStorage.getItem(`swifttrack_system_tour_completed_v1:${userKey}`) !== 'true');
-    } catch (error) {
-      console.warn('Could not read system tour progress:', error);
-      setSystemTourOpen(true);
+    if (!isSuperAdmin) {
+      // Non-admin users only get the system tour on first login
+      try {
+        setSystemTourOpen(localStorage.getItem(`swifttrack_system_tour_completed_v1:${userKey}`) !== 'true');
+      } catch {
+        setSystemTourOpen(true);
+      }
+      return;
     }
-  }, [user?.id, user?.username, mustChangePassword]);
+
+    // For Super Admin: check server-side onboarding_completed flag
+    let cancelled = false;
+    api.get('/api/v1/company').then((company) => {
+      if (cancelled) return;
+      if (company && !company.onboarding_completed) {
+        setInitialSetupOpen(true);
+      } else {
+        try {
+          setSystemTourOpen(localStorage.getItem(`swifttrack_system_tour_completed_v1:${userKey}`) !== 'true');
+        } catch {
+          setSystemTourOpen(true);
+        }
+      }
+    }).catch(() => {
+      if (cancelled) return;
+      // Fallback to localStorage if API fails
+      const orgSetupCompleted = localStorage.getItem('swifttrack_initial_setup_completed_v1') === 'true';
+      const isFreshSystem = Array.isArray(branches) && branches.length === 0;
+      if (isFreshSystem && !orgSetupCompleted) {
+        setInitialSetupOpen(true);
+      } else {
+        try {
+          setSystemTourOpen(localStorage.getItem(`swifttrack_system_tour_completed_v1:${userKey}`) !== 'true');
+        } catch {
+          setSystemTourOpen(true);
+        }
+      }
+    });
+    return () => { cancelled = true; };
+  }, [user?.id, user?.username, mustChangePassword, isSuperAdmin, branches]);
 
   const closeSystemTour = useCallback(() => {
     const userKey = user?.id ?? user?.username;
@@ -235,6 +271,20 @@ function MainApp() {
     }
     setSystemTourOpen(false);
   }, [user?.id, user?.username]);
+
+  const handleInitialSetupComplete = useCallback(async () => {
+    try {
+      await api.post('/api/v1/company/complete-onboarding', {});
+    } catch (e) {
+      console.warn('Could not persist onboarding completion:', e);
+    }
+    try {
+      localStorage.setItem('swifttrack_initial_setup_completed_v1', 'true');
+    } catch {}
+    if (refreshBranches) refreshBranches();
+    setInitialSetupOpen(false);
+    setSystemTourOpen(true);
+  }, [refreshBranches]);
 
   const toggleSidebarCollapse = () => {
     setSidebarCollapsed((prev) => {
@@ -473,6 +523,17 @@ function MainApp() {
         onNavigate={setCurrentView}
         selectedBranch={selectedBranch}
         user={user}
+      />
+
+      {/* Initial Organization & Operating Hub Setup Wizard */}
+      <InitialSetupModal
+        isOpen={initialSetupOpen}
+        onClose={() => setInitialSetupOpen(false)}
+        onComplete={handleInitialSetupComplete}
+        onStartTour={() => {
+          setInitialSetupOpen(false);
+          setSystemTourOpen(true);
+        }}
       />
 
       {/* Offline-First Synchronization Status Indicator */}

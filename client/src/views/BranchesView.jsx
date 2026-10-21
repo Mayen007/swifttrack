@@ -304,7 +304,7 @@ export function BranchesView() {
   const kpis = useMemo(() => {
     const totalHubs = branchDetails.length;
     const activeHubs = branchDetails.filter((b) => b.is_active !== 0).length;
-    const totalStaff = branchDetails.reduce((acc, b) => acc + (b.staff_count || 0), 0);
+    const totalStaff = branchDetails.reduce((acc, b) => acc + (Number(b.staff_count) || 0), 0);
     const totalWarehouses = Object.values(warehousesMap).reduce(
       (acc, list) => acc + (list ? list.length : 0),
       0
@@ -386,21 +386,43 @@ export function BranchesView() {
           <p className="font-mono text-xs text-slate-400">SYNCHRONIZING KENYA HUB TOPOLOGY MATRIX...</p>
         </div>
       ) : filteredBranches.length === 0 ? (
-        <div className="bg-[#12161f] border border-[#222834] rounded p-12 text-center">
-          <Building2 className="w-8 h-8 text-slate-600 mx-auto mb-2" />
-          <p className="text-sm font-bold text-white">No Regional Hubs Found</p>
-          <p className="text-xs text-slate-400 mt-1">
+        <div className="bg-[#12161f] border border-[#222834] rounded-xl p-12 text-center max-w-lg mx-auto">
+          <div className="w-12 h-12 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400 mx-auto mb-3">
+            <Building2 className="w-6 h-6" />
+          </div>
+          <p className="text-base font-bold text-white tracking-tight">No Regional Hubs Provisioned</p>
+          <p className="text-xs text-slate-400 mt-1.5 leading-relaxed">
             {searchQuery
               ? `No regional hubs match query "${searchQuery}". Try resetting search filter.`
-              : 'No regional hubs provisioned in this network.'}
+              : 'Your logistics network currently has 0 operating branches. Start by provisioning your central hub or configuring your organization identity.'}
           </p>
-          {searchQuery && (
+          {searchQuery ? (
             <button
               onClick={() => setSearchQuery('')}
-              className="mt-3 px-3 py-1.5 rounded bg-[#181d28] border border-[#222834] text-xs font-mono text-slate-300 hover:text-white cursor-pointer"
+              className="mt-4 px-3.5 py-2 rounded-lg bg-[#181d28] border border-[#222834] text-xs font-mono text-slate-300 hover:text-white cursor-pointer"
             >
               CLEAR SEARCH FILTER
             </button>
+          ) : isSuperAdmin && (
+            <div className="mt-5 flex items-center justify-center gap-3">
+              <button
+                onClick={() => setIsCompanySettingsOpen(true)}
+                className="px-4 py-2 rounded-xl border border-amber-500/40 bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 text-xs font-mono font-bold flex items-center gap-2 transition-colors cursor-pointer"
+              >
+                <Building2 className="w-4 h-4" />
+                <span>ORGANIZATION SETTINGS</span>
+              </button>
+              <button
+                onClick={() => {
+                  setCreateHubError('');
+                  setIsCreateHubModalOpen(true);
+                }}
+                className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-mono font-bold flex items-center gap-2 shadow-lg shadow-blue-600/30 transition-colors cursor-pointer"
+              >
+                <Plus className="w-4 h-4" />
+                <span>PROVISION FIRST HUB</span>
+              </button>
+            </div>
           )}
         </div>
       ) : (

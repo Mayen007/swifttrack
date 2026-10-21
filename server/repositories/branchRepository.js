@@ -101,9 +101,9 @@ class BranchRepository {
         const whereSql = where.length > 0 ? `WHERE ${where.join(' AND ')}` : '';
         const sql = `
             SELECT b.*,
-                   (SELECT count(*) FROM users WHERE branch_id = b.id AND is_active = true) as staff_count,
-                   (SELECT count(*) FROM warehouses WHERE branch_id = b.id AND is_active = true) as warehouse_count,
-                   (SELECT count(*) FROM orders WHERE branch_id = b.id) as total_orders
+                   (SELECT count(*)::int FROM users WHERE branch_id = b.id AND is_active = true) as staff_count,
+                   (SELECT count(*)::int FROM warehouses WHERE branch_id = b.id AND is_active = true) as warehouse_count,
+                   (SELECT count(*)::int FROM orders WHERE branch_id = b.id) as total_orders
             FROM branches b
             ${whereSql}
             ORDER BY b.id ASC
@@ -131,9 +131,9 @@ class BranchRepository {
         const whereSql = `WHERE ${where.join(' AND ')}`;
         const sql = `
             SELECT b.id, b.code, b.name, b.city, b.address, b.phone, b.email, b.is_active,
-                   CASE WHEN b.id = ? THEN (SELECT count(*) FROM users WHERE branch_id = b.id AND is_active = true) ELSE 0 END as staff_count,
-                   (SELECT count(*) FROM warehouses WHERE branch_id = b.id AND is_active = true) as warehouse_count,
-                   CASE WHEN b.id = ? THEN (SELECT count(*) FROM orders WHERE branch_id = b.id) ELSE 0 END as total_orders
+                   CASE WHEN b.id = ? THEN (SELECT count(*)::int FROM users WHERE branch_id = b.id AND is_active = true) ELSE 0 END as staff_count,
+                   (SELECT count(*)::int FROM warehouses WHERE branch_id = b.id AND is_active = true) as warehouse_count,
+                   CASE WHEN b.id = ? THEN (SELECT count(*)::int FROM orders WHERE branch_id = b.id) ELSE 0 END as total_orders
             FROM branches b
             ${whereSql}
             ORDER BY b.id ASC
@@ -147,8 +147,8 @@ class BranchRepository {
     async findByIdWithMetrics(id, tx = null) {
         const sql = `
             SELECT b.*,
-                   (SELECT count(*) FROM users WHERE branch_id = b.id AND is_active = true) as staff_count,
-                   (SELECT count(*) FROM warehouses WHERE branch_id = b.id AND is_active = true) as warehouse_count
+                   (SELECT count(*)::int FROM users WHERE branch_id = b.id AND is_active = true) as staff_count,
+                   (SELECT count(*)::int FROM warehouses WHERE branch_id = b.id AND is_active = true) as warehouse_count
             FROM branches b
             WHERE b.id = ?
         `;

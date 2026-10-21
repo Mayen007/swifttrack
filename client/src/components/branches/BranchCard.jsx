@@ -142,7 +142,7 @@ export function BranchCard({
             PERSONNEL
           </span>
           <span className="font-mono text-sm font-bold text-white tabular-nums">
-            {branch.staff_count || 0}
+            {Number(branch.staff_count) || 0}
           </span>
           <span className="block font-mono text-[9px] text-slate-400">ASSIGNED</span>
         </div>

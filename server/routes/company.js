@@ -6,7 +6,7 @@ const dbAdapter = require('../db/dbAdapter.js');
 const { authenticateToken, requireRole } = require('../middleware/auth.js');
 const { logAuditEvent } = require('../middleware/audit.js');
 
-// GET /api/v1/company - Retrieve current company settings
+// GET /api/v1/company - Retrieve current company settings (includes onboarding_completed)
 router.get('/', authenticateToken, async (req, res) => {
     try {
         const company = await dbAdapter.get('SELECT * FROM company_settings WHERE id = 1');
@@ -17,6 +17,28 @@ router.get('/', authenticateToken, async (req, res) => {
     } catch (err) {
         console.error('Failed to get company settings:', err);
         res.status(500).json({ error: 'Failed to retrieve company settings' });
+    }
+});
+
+// POST /api/v1/company/complete-onboarding - Mark initial setup wizard complete (SUPER_ADMIN only)
+router.post('/complete-onboarding', authenticateToken, requireRole('SUPER_ADMIN'), async (req, res) => {
+    try {
+        await dbAdapter.run(
+            'UPDATE company_settings SET onboarding_completed = true, updated_at = CURRENT_TIMESTAMP WHERE id = 1'
+        );
+        logAuditEvent({
+            userId: req.user.id,
+            role: req.user.roleName,
+            action: 'COMPLETE_ONBOARDING',
+            resource: 'company_settings',
+            resourceId: 1,
+            ipAddress: req.ip,
+            userAgent: req.get('user-agent')
+        });
+        res.json({ message: 'Onboarding marked complete' });
+    } catch (err) {
+        console.error('Failed to mark onboarding complete:', err);
+        res.status(500).json({ error: 'Failed to update onboarding status' });
     }
 });
 

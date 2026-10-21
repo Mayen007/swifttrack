@@ -104,6 +104,12 @@ export function SystemTour({ isOpen, user, selectedBranch, onClose, onNavigate }
       description: 'SwiftTrack brings parcel intake, branch operations, delivery, and reconciliation into one workspace.',
       icon: Compass,
     },
+    ...(role === 'SUPER_ADMIN' ? [{
+      eyebrow: 'ORGANIZATION IDENTITY',
+      title: 'Company & KRA Fiscal Settings.',
+      description: 'Your organization name, KRA PIN, VAT rate, and eTIMS tax settings govern all counter receipts and invoices. Access or update them anytime from your profile menu.',
+      icon: Building2,
+    }] : []),
     {
       eyebrow: 'START HERE',
       title: workspace.title,

@@ -250,7 +250,7 @@ export function DriverView() {
         recipient_name: recipientConfirmedName.trim(),
         recipient_phone: recipientPhone.trim(),
         otp_code: otpCode.trim(),
-        signature_data: signatureData || 'data:image/svg+xml;base64,mock-signature',
+        signature_data: signatureData || null,
         photo_data: photoData || undefined,
         cod_collected: isCod ? true : undefined,
         latitude: gpsCoords.latitude,

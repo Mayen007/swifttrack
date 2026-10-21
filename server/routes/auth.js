@@ -39,7 +39,7 @@ router.use(passwordsRouter);
 // -----------------------------------------------------------------------------
 router.get('/config', (req, res) => {
     res.json({
-        demoMode: process.env.DEMO_MODE === 'true' || process.env.NODE_ENV !== 'production',
+        demoMode: process.env.DEMO_MODE === 'true',
         currency: 'KES',
         vatRate: 16.0,
         etimsEnabled: true,
@@ -361,9 +361,9 @@ router.get('/me', authenticateToken, async (req, res) => {
 });
 
 router.post('/demo-switch', async (req, res) => {
-    if (process.env.DEMO_MODE !== 'true' && process.env.NODE_ENV === 'production') {
+    if (process.env.DEMO_MODE !== 'true') {
         return res.status(403).json({
-            error: 'Forbidden: Demo persona switching is disabled in production mode.'
+            error: 'Forbidden: Demo persona switching is disabled.'
         });
     }
 

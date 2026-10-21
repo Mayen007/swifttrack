@@ -55,6 +55,7 @@
     "db:migrate:rollback": "node server/db/postgres/migrator.js rollback",
     "db:pg:seed": "node server/db/postgres/seed.js",
     "db:migrate:sqlite-to-pg": "node scripts/migrate-sqlite-to-postgres.js",
+    "db:purge:demo": "node scripts/purge-demo-data.js",
     "admin:bootstrap": "node scripts/bootstrap-admin.js"
   },
   "keywords": [],
