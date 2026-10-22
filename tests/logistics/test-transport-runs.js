@@ -117,6 +117,14 @@ async function executeSuite() {
             ] // 2 parcels, total 7kg
         }, adminUser);
 
+        await assert.rejects(
+            transportService.addShipmentToManifest(createdRun.id, shipment1.id, adminUser),
+            /must be sorted at its current hub/,
+            'Unsorted shipments must not be added to outbound manifests'
+        );
+        await shipmentService.transitionShipmentStatus(shipment1.id, 'SORTED', { hub_id: branch1.id }, adminUser);
+        await shipmentService.transitionShipmentStatus(shipment2.id, 'SORTED', { hub_id: branch1.id }, adminUser);
+
         // Add Shipment 1 to Manifest
         await transportService.addShipmentToManifest(createdRun.id, shipment1.id, adminUser);
         // Add Shipment 2 to Manifest

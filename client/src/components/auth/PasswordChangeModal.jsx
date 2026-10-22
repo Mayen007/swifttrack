@@ -2,6 +2,7 @@
 // Dieter Rams Functionalist Password Security Modal with Real-time Strength Meter
 import React, { useState, useMemo } from 'react';
 import { useAuth } from '../../context/AuthContext.jsx';
+import { getPasswordRequirements } from '../../services/passwordPolicy.js';
 import {
   Lock,
   Key,
@@ -17,7 +18,7 @@ import {
 } from 'lucide-react';
 
 export function PasswordChangeModal({ isOpen, onClose, isMandatory = false }) {
-  const { changePassword, user, config } = useAuth();
+  const { changePassword, logout, user, config } = useAuth();
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -29,17 +30,14 @@ export function PasswordChangeModal({ isOpen, onClose, isMandatory = false }) {
 
   const minLength = config?.passwordMinLength || 10;
 
-  // Real-time strength checks
   const checks = useMemo(() => {
-    return [
-      { label: `At least ${minLength} characters`, passed: newPassword.length >= minLength },
-      { label: 'One uppercase letter (A-Z)', passed: /[A-Z]/.test(newPassword) },
-      { label: 'One lowercase letter (a-z)', passed: /[a-z]/.test(newPassword) },
-      { label: 'One numerical digit (0-9)', passed: /[0-9]/.test(newPassword) },
-      { label: 'One special symbol (!@#$%^&*)', passed: /[!@#$%^&*()_+\-=\[\]{}|;:,.<>?~`]/.test(newPassword) },
-      { label: 'Passwords match', passed: newPassword.length > 0 && newPassword === confirmPassword },
-    ];
-  }, [newPassword, confirmPassword, minLength]);
+    return getPasswordRequirements(newPassword, {
+      minLength,
+      username: user?.username,
+      email: user?.email,
+      confirmation: confirmPassword,
+    });
+  }, [newPassword, confirmPassword, minLength, user?.username, user?.email]);
 
   const passedCount = checks.filter(c => c.passed).length;
   const isAllValid = checks.every(c => c.passed);
@@ -68,7 +66,7 @@ export function PasswordChangeModal({ isOpen, onClose, isMandatory = false }) {
       setConfirmPassword('');
       if (onClose) onClose();
     } catch (err) {
-      setError(err.message || 'Failed to change password. Please verify current password.');
+      setError(err.errors?.join(' ') || err.message || 'Failed to change password. Please verify current password.');
     } finally {
       setSubmitting(false);
     }
@@ -91,7 +89,15 @@ export function PasswordChangeModal({ isOpen, onClose, isMandatory = false }) {
                 {isMandatory ? 'MANDATORY PASSWORD UPDATE' : 'UPDATE SECURITY PASSWORD'}
               </span>
             </div>
-            {!isMandatory && onClose && (
+            {isMandatory ? (
+              <button
+                type="button"
+                onClick={logout}
+                className="text-slate-400 hover:text-white transition-colors cursor-pointer px-2 py-1 text-[10px] font-mono uppercase"
+              >
+                Sign out
+              </button>
+            ) : onClose && (
               <button
                 type="button"
                 onClick={onClose}
@@ -163,7 +169,12 @@ export function PasswordChangeModal({ isOpen, onClose, isMandatory = false }) {
                 type={showNew ? 'text' : 'password'}
                 required
                 value={newPassword}
-                onChange={(e) => setNewPassword(e.target.value)}
+                maxLength={128}
+                autoComplete="new-password"
+                onChange={(e) => {
+                  setError(null);
+                  setNewPassword(e.target.value);
+                }}
                 placeholder="Enter strong password"
                 className="w-full pl-9 pr-10 py-2 bg-[#161c28] border border-[#252f44] focus:border-amber-400 focus:ring-1 focus:ring-amber-400 rounded-lg text-xs text-white placeholder-slate-500 font-mono transition-colors outline-none"
               />

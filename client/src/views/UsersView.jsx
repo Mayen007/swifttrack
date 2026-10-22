@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext.jsx';
 import { api } from '../services/api.js';
 import { sound } from '../services/sound.js';
+import { getPasswordRequirements } from '../services/passwordPolicy.js';
 import {
   RBAC_CAPABILITY_MATRIX,
   getRoleBadgeStyle,
@@ -19,7 +20,7 @@ import { SecurityAuditDrawer } from '../components/users/SecurityAuditDrawer.jsx
 import { ConfirmModal } from '../components/common/ConfirmModal.jsx';
 
 export function UsersView() {
-  const { user, branches, isSuperAdmin, isBranchManager, quickSwitch, demoMode } = useAuth();
+  const { user, branches, isSuperAdmin, isBranchManager, quickSwitch, demoMode, config } = useAuth();
 
   const [users, setUsers] = useState([]);
   const [availableRoles, setAvailableRoles] = useState([]);
@@ -161,6 +162,17 @@ export function UsersView() {
       return;
     }
 
+    const passwordFailures = getPasswordRequirements(createFormData.password, {
+      minLength: config?.passwordMinLength || 10,
+      username: createFormData.username,
+      email: createFormData.email,
+    }).filter((check) => !check.passed);
+    if (passwordFailures.length > 0) {
+      sound.playError();
+      setCreateError(`Update the initial password: ${passwordFailures.map((check) => check.label.toLowerCase()).join('; ')}.`);
+      return;
+    }
+
     try {
       setIsSubmittingCreate(true);
       const selectedRoleObj = availableRoles.find((r) => String(r.id) === String(createFormData.role_id));
@@ -184,9 +196,8 @@ export function UsersView() {
       setIsCreateModalOpen(false);
       await fetchUsersAndRoles();
     } catch (err) {
-      console.error('Failed to create staff member:', err);
       sound.playError();
-      setCreateError(err.message || 'Failed to provision staff member');
+      setCreateError(err.errors?.join(' ') || err.message || 'Failed to provision staff member');
     } finally {
       setIsSubmittingCreate(false);
     }
@@ -474,6 +485,7 @@ export function UsersView() {
         branches={branches}
         isSuperAdmin={isSuperAdmin}
         currentUser={user}
+        passwordMinLength={config?.passwordMinLength || 10}
         onSubmit={handleCreateUser}
       />
 

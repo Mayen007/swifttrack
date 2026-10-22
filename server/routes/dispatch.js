@@ -32,8 +32,9 @@ router.get('/kanban', authenticateToken, authorize('dispatch', 'view'), async (r
             LEFT JOIN vehicles v ON d.vehicle_id = v.id
         `;
         const params = [];
+        deliveriesQuery += ' WHERE (s.id IS NULL OR s.is_archived = FALSE)';
         if (branchId) {
-            deliveriesQuery += ' WHERE d.branch_id = ?';
+            deliveriesQuery += ' AND d.branch_id = ?';
             params.push(branchId);
         }
         deliveriesQuery += ' ORDER BY d.id DESC';
@@ -72,9 +73,10 @@ router.get('/board', authenticateToken, authorize('dispatch', 'view'), async (re
             LEFT JOIN vehicles v ON d.vehicle_id = v.id
         `;
         const params = [];
+        deliveriesQuery += ' WHERE (s.id IS NULL OR s.is_archived = FALSE)';
 
         if (branchId) {
-            deliveriesQuery += ' WHERE d.branch_id = ?';
+            deliveriesQuery += ' AND d.branch_id = ?';
             params.push(branchId);
         }
 

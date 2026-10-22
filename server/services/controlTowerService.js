@@ -36,7 +36,7 @@ async function getLiveOperationalSummary(query = {}, user = {}) {
             COALESCE(SUM(total_parcels), 0) as total_parcels_count,
             COALESCE(SUM(total_amount), 0.0) as total_freight_revenue_kes
         FROM shipments
-        WHERE 1=1
+        WHERE is_archived = FALSE
     `;
     const shpParams = [];
     if (effectiveHubId) {
@@ -262,6 +262,7 @@ async function getOperationalAlerts(query = {}, user = {}) {
         LEFT JOIN branches b ON d.hub_id = b.id
         LEFT JOIN shipments s ON d.shipment_id = s.id
         WHERE d.status IN ('OPEN', 'INVESTIGATING')
+          AND (s.id IS NULL OR s.is_archived = FALSE)
     `;
     const discParams = [];
     if (effectiveHubId) {
@@ -304,6 +305,7 @@ async function getOperationalAlerts(query = {}, user = {}) {
         JOIN shipments s ON del.shipment_id = s.id
         JOIN branches b ON del.hub_id = b.id
         WHERE (del.status = 'RETURN_TO_HUB' OR (del.status = 'FAILED' AND del.attempt_count >= del.max_attempts))
+          AND s.is_archived = FALSE
     `;
     const dlvParams = [];
     if (effectiveHubId) {
@@ -481,21 +483,24 @@ async function getHubNetworkTelemetry(user = {}) {
         const onHand = await dbAdapter.get(`
             SELECT COUNT(*) as count, COALESCE(SUM(chargeable_weight_kg), 0.0) as weight_kg
             FROM shipments
-            WHERE current_hub_id = ? AND status IN ('ACCEPTED', 'SORTED', 'AT_HUB', 'READY_FOR_DELIVERY')
+            WHERE current_hub_id = ? AND is_archived = FALSE
+              AND status IN ('ACCEPTED', 'SORTED', 'AT_HUB', 'READY_FOR_DELIVERY')
         `, [hub.id]);
 
         // Inbound en route to this hub
         const inbound = await dbAdapter.get(`
             SELECT COUNT(*) as count, COALESCE(SUM(chargeable_weight_kg), 0.0) as weight_kg
             FROM shipments
-            WHERE destination_hub_id = ? AND status IN ('IN_TRANSIT', 'LOADED')
+            WHERE destination_hub_id = ? AND is_archived = FALSE
+              AND status IN ('IN_TRANSIT', 'LOADED')
         `, [hub.id]);
 
         // Outbound departing this hub
         const outbound = await dbAdapter.get(`
             SELECT COUNT(*) as count
             FROM shipments
-            WHERE origin_hub_id = ? AND status IN ('ACCEPTED', 'BOOKED')
+            WHERE origin_hub_id = ? AND is_archived = FALSE
+              AND status IN ('ACCEPTED', 'BOOKED')
         `, [hub.id]);
 
         // Active last-mile delivery tasks at this hub

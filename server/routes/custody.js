@@ -2,7 +2,7 @@
 // SwiftTrack Logistics: Stage 4 Physical Custody & Hub Operations API Routes
 const express = require('express');
 const router = express.Router();
-const { authenticateToken } = require('../middleware/auth.js');
+const { authenticateToken, requireRole } = require('../middleware/auth.js');
 const custodyService = require('../services/custodyService.js');
 
 // ============================================================================
@@ -27,6 +27,17 @@ router.post('/scans/batch', authenticateToken, async (req, res) => {
         res.status(200).json(result);
     } catch (err) {
         console.error('Batch scan error:', err);
+        res.status(err.statusCode || 400).json({ error: err.message });
+    }
+});
+
+// POST /api/v1/custody/sortations/manual - Record dispatcher-confirmed manual sortation
+router.post('/sortations/manual', authenticateToken, requireRole('DISPATCHER'), async (req, res) => {
+    try {
+        const result = await custodyService.confirmManualSortation(req.body, req.user);
+        res.json(result);
+    } catch (err) {
+        console.error('Manual sortation confirmation error:', err);
         res.status(err.statusCode || 400).json({ error: err.message });
     }
 });

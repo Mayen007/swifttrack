@@ -31,17 +31,39 @@ const driverTelemetryCards = fs.readFileSync(path.join(clientSrc, 'components/dr
 const driverTable = fs.readFileSync(path.join(clientSrc, 'components/drivers/DriverTable.jsx'), 'utf8');
 const createDriverModal = fs.readFileSync(path.join(clientSrc, 'components/drivers/CreateDriverModal.jsx'), 'utf8');
 const vehiclesView = fs.readFileSync(path.join(clientSrc, 'views/VehiclesView.jsx'), 'utf8');
+const branchesView = fs.readFileSync(path.join(clientSrc, 'views/BranchesView.jsx'), 'utf8');
+const branchRoutes = fs.readFileSync(path.resolve(__dirname, '../../server/routes/branches.js'), 'utf8');
+const initialSetupModal = fs.readFileSync(path.join(clientSrc, 'components/onboarding/InitialSetupModal.jsx'), 'utf8');
+const authContext = fs.readFileSync(path.join(clientSrc, 'context/AuthContext.jsx'), 'utf8');
+const apiService = fs.readFileSync(path.join(clientSrc, 'services/api.js'), 'utf8');
+const passwordModal = fs.readFileSync(path.join(clientSrc, 'components/auth/PasswordChangeModal.jsx'), 'utf8');
+const passwordPolicy = fs.readFileSync(path.join(clientSrc, 'services/passwordPolicy.js'), 'utf8');
+const createUserModal = fs.readFileSync(path.join(clientSrc, 'components/users/CreateUserModal.jsx'), 'utf8');
+const usersView = fs.readFileSync(path.join(clientSrc, 'views/UsersView.jsx'), 'utf8');
+const loginView = fs.readFileSync(path.join(clientSrc, 'views/LoginView.jsx'), 'utf8');
+const loginDemoPersonas = fs.readFileSync(path.join(clientSrc, 'components/auth/LoginDemoPersonas.jsx'), 'utf8');
 const editDriverModal = fs.readFileSync(path.join(clientSrc, 'components/drivers/EditDriverModal.jsx'), 'utf8');
 const offlineStatus = fs.readFileSync(path.join(clientSrc, 'components/common/OfflineSyncStatus.jsx'), 'utf8');
 const systemTour = fs.readFileSync(path.join(clientSrc, 'components/SystemTour.jsx'), 'utf8');
 const dispatchHeader = fs.readFileSync(path.join(clientSrc, 'components/dispatch/DispatchConsoleHeader.jsx'), 'utf8');
+const dispatchView = fs.readFileSync(path.join(clientSrc, 'views/DispatchView.jsx'), 'utf8');
+const linehaulRuns = fs.readFileSync(path.join(clientSrc, 'components/dispatch/LinehaulRunsTab.jsx'), 'utf8');
 const navbar = fs.readFileSync(path.join(clientSrc, 'components/Navbar.jsx'), 'utf8');
 const sidebar = fs.readFileSync(path.join(clientSrc, 'components/Sidebar.jsx'), 'utf8');
 const dashboardView = fs.readFileSync(path.join(clientSrc, 'views/DashboardView.jsx'), 'utf8');
 const dashboardHeader = fs.readFileSync(path.join(clientSrc, 'components/dashboard/CommercialBentoHeader.jsx'), 'utf8');
 const controlTower = fs.readFileSync(path.join(clientSrc, 'components/dashboard/OperationsControlTower.jsx'), 'utf8');
 const hubOperations = fs.readFileSync(path.join(clientSrc, 'views/HubOperationsView.jsx'), 'utf8');
+const sortationTab = fs.readFileSync(path.join(clientSrc, 'components/hub/SortationTab.jsx'), 'utf8');
 const linehaulManifests = fs.readFileSync(path.join(clientSrc, 'components/hub/LinehaulManifestsTab.jsx'), 'utf8');
+const transshipmentTab = fs.readFileSync(path.join(clientSrc, 'components/hub/TransshipmentTab.jsx'), 'utf8');
+const custodyRoutes = fs.readFileSync(path.resolve(__dirname, '../../server/routes/custody.js'), 'utf8');
+const custodyService = fs.readFileSync(path.resolve(__dirname, '../../server/services/custodyService.js'), 'utf8');
+const shipmentService = fs.readFileSync(path.resolve(__dirname, '../../server/services/shipmentService.js'), 'utf8');
+const transportService = fs.readFileSync(path.resolve(__dirname, '../../server/services/transportService.js'), 'utf8');
+const dispatchRoutes = fs.readFileSync(path.resolve(__dirname, '../../server/routes/dispatch.js'), 'utf8');
+const controlTowerService = fs.readFileSync(path.resolve(__dirname, '../../server/services/controlTowerService.js'), 'utf8');
+const metricsService = fs.readFileSync(path.resolve(__dirname, '../../server/services/metricsService.js'), 'utf8');
 const discrepanciesTab = fs.readFileSync(path.join(clientSrc, 'components/hub/DiscrepanciesTab.jsx'), 'utf8');
 const inboundReceiving = fs.readFileSync(path.join(clientSrc, 'components/hub/InboundReceivingTab.jsx'), 'utf8');
 const e2eAcceptanceRoute = fs.readFileSync(path.resolve(__dirname, '../../server/routes/e2eAcceptance.js'), 'utf8');
@@ -102,6 +124,48 @@ runTest('Driver onboarding fields remain controlled and vehicle registration sen
     assert.ok(vehiclesView.includes('branch_id: Number(registerForm.branch_id) || 1'), 'Vehicle create request must send branch_id expected by the API');
     assert.ok(vehiclesView.includes('branch_id: selectedBranch?.id || 1'), 'Vehicle form must initialize and reset branch_id');
     assert.ok(vehiclesView.includes("params.append('branchId', branchFilter)"), 'Vehicle list filter must use the API branchId query key');
+});
+
+runTest('Headquarters are excluded from operational hubs but remain available to administrators', () => {
+    assert.ok(branchRoutes.includes("operationalOnly: req.query.include_non_operational !== 'true'"), 'Branch directory should return operational hubs by default');
+    assert.ok(branchesView.includes("api.get('/api/branches?include_non_operational=true')"), 'Branch administration must retain access to headquarters records');
+    assert.ok(initialSetupModal.includes("setStep(Array.isArray(existingHubs) && existingHubs.length > 0 ? 3 : 2)"), 'Organization setup must reuse existing hubs instead of creating duplicates');
+    assert.ok(initialSetupModal.includes("code: 'NBO-01'"), 'First setup hub must not use an HQ branch identifier');
+    assert.ok(initialSetupModal.includes('Set up your first parcel hub'), 'Setup must describe a parcel hub, not an operational HQ');
+});
+
+runTest('Mandatory password changes suppress blocked background requests', () => {
+    assert.ok(authContext.includes('normUser.mustChangePassword ? [] : await loadBranches()'), 'Authentication must not request branches before a required password change');
+    assert.ok(appJsx.includes('!api.token || mustChangePassword || user?.mustChangePassword'), 'Notification polling must stop during the required password flow');
+    assert.ok(appJsx.includes('<PasswordChangeModal isOpen isMandatory />'), 'A restricted session must render only the password-change experience');
+    assert.ok(apiService.includes('import.meta.env.DEV && isUnexpectedFailure'), 'Expected policy denials must not clutter the console');
+});
+
+runTest('Password feedback explains account-specific rejection rules before submission', () => {
+    assert.ok(passwordPolicy.includes('Does not contain your username'), 'Password policy must explain the username restriction');
+    assert.ok(passwordPolicy.includes('Does not contain your email identifier'), 'Password policy must explain the email identifier restriction');
+    assert.ok(passwordModal.includes('user?.username'), 'Password change feedback must validate against the signed-in username');
+    assert.ok(passwordModal.includes('user?.email'), 'Password change feedback must validate against the signed-in email');
+    assert.ok(apiService.includes('err.errors = data?.errors'), 'Password validation errors should retain the server policy details');
+    assert.ok(createUserModal.includes('type="password"'), 'Staff initial credentials must be masked');
+    assert.ok(usersView.includes('Update the initial password:'), 'Staff provisioning must explain password policy failures inline');
+    assert.ok(loginView.includes('If you were given a temporary password'), 'Login errors should explain exact temporary-password entry');
+});
+
+runTest('Demo login exposes all seeded test accounts and switches to the selected user', () => {
+    const personaList = loginView.match(/const demoPersonas = \[([\s\S]*?)\n  \];/);
+    assert.ok(personaList, 'Demo persona list must be defined');
+    assert.strictEqual((personaList[1].match(/username:/g) || []).length, 17, 'All 17 seeded demo users should be available');
+    assert.ok(loginView.includes('demoMode && (') && loginView.includes('demoPassword="Password123!"'), 'Demo credentials must only render in demo mode');
+    assert.ok(loginDemoPersonas.includes('{demoPassword}'), 'The shared seeded password must be visible in the demo switcher');
+    assert.ok(loginView.includes('quickSwitch(personaRole, branchId, personaUsername)'), 'Selecting a persona must authenticate as that exact seeded user');
+    assert.ok(authContext.includes('{ role: targetRole, branch_id: branchId, username }'), 'Demo switch request must identify the selected account');
+});
+
+runTest('Handled API failures stay out of production browser consoles', () => {
+    assert.ok(apiService.includes('const isUnexpectedFailure = !err.status || err.status >= 500'), 'Only server and network failures should be considered unexpected');
+    assert.ok(apiService.includes('if (import.meta.env.DEV && isUnexpectedFailure)'), 'API diagnostics must be development-only');
+    assert.ok(!usersView.includes("console.error('Failed to create staff member:'"), 'Staff validation errors should be shown in the form without duplicate console errors');
 });
 
 // Test 5: Date Input Timezone-Safe Normalization
@@ -167,8 +231,8 @@ runTest('Parcel Intake only lists active hubs and renders sanitized hub labels',
 });
 
 runTest('Notification polling waits until auth initialization has completed', () => {
-    assert.ok(appJsx.includes('if (loading || !user || !api.token)'), 'Notification polling must wait for auth initialization');
-    assert.ok(appJsx.includes('}, [user, loading]);'), 'Notification polling must restart when auth loading completes');
+    assert.ok(appJsx.includes('if (loading || !user || !api.token || mustChangePassword || user?.mustChangePassword)'), 'Notification polling must wait for auth initialization and required password changes');
+    assert.ok(appJsx.includes('}, [user, loading, mustChangePassword]);'), 'Notification polling must restart when auth state changes');
 });
 
 runTest('Hub receiving uses persisted sessions and does not invent session records', () => {
@@ -187,6 +251,51 @@ runTest('Hub manifests and discrepancies read their named API collections', () =
     assert.ok(hubOperations.includes('Array.isArray(response?.[collectionKey])'), 'Hub feed parser must support named collection responses');
     assert.ok(linehaulManifests.includes('manifests.filter('), 'Manifest ledger must receive a normalized list');
     assert.ok(discrepanciesTab.includes('discrepancies.filter('), 'Discrepancy ledger must receive a normalized list');
+});
+
+runTest('Sorted inter-hub parcels can be assigned to runs and viewed in Dispatch', () => {
+    assert.ok(transshipmentTab.includes('onAttachToManifest(shp)'), 'Assignment action must carry the selected shipment');
+    assert.ok(hubOperations.includes('/api/transport/runs?hub_id=${currentHubId}'), 'Hub operations must load runs for the current station');
+    assert.ok(hubOperations.includes("api.post('/api/transport/runs'"), 'Hub operations must create a run for a sorted parcel');
+    assert.ok(hubOperations.includes('/manifest/items'), 'Hub operations must attach the parcel to the run manifest');
+    assert.ok(dispatchView.includes('/api/transport/runs'), 'Dispatch must load linehaul runs independently from local deliveries');
+    assert.ok(dispatchView.includes("activeTab === 'LINEHAUL'"), 'Dispatch must provide a separate linehaul view');
+    assert.ok(dispatchHeader.includes('Linehaul'), 'Dispatch header must expose the linehaul view');
+    assert.ok(linehaulRuns.includes('No linehaul runs at this station'), 'Empty run state must explain how to create a run');
+});
+
+runTest('Discrepancy resolution sends the API field names and preserves failed submissions', () => {
+    assert.ok(hubOperations.includes('resolution_action: resolutionAction'), 'Resolution action must use the server field name');
+    assert.ok(hubOperations.includes('resolution_notes: resolutionNotes'), 'Resolution notes must use the server field name');
+    assert.ok(!hubOperations.includes("api.toast(`Resolution failed: ${err.message}`, 'error');\n      setResolvingModalOpen(false);"), 'Resolution failures must preserve the active form');
+    assert.ok(hubOperations.includes('{resolvingModalOpen && (') && hubOperations.includes('setSelectedDiscrepancy(null);'), 'Closing the dialog must unmount it and clear its selection');
+    assert.ok(discrepanciesTab.includes("['RESOLVED', 'WRITTEN_OFF'].includes(d.status)"), 'Closed discrepancies must not offer a resolve action');
+    assert.ok(discrepanciesTab.includes('{activeDiscrepancyCount} Active'), 'The badge must count only open discrepancies');
+});
+
+runTest('Dispatcher can confirm manual sortation without scanner hardware', () => {
+    assert.ok(sortationTab.includes('Dispatcher-owned hub sortation'), 'Sortation ownership must be explicit');
+    assert.ok(sortationTab.includes('Awaiting sortation'), 'Dispatchers must see consignments waiting to be sorted');
+    assert.ok(sortationTab.includes('No scanner is required'), 'The sortation guidance must not require scanner hardware');
+    assert.ok(sortationTab.includes('Add it to an outbound linehaul manifest next'), 'Inter-hub sorting must explain that manifesting is the next step');
+    assert.ok(hubOperations.includes("onOpenManifests={() => setActiveTab('MANIFESTS')}"), 'Sort confirmation must link to outbound manifests');
+    assert.ok(hubOperations.includes("api.post('/api/custody/sortations/manual'"), 'Manual sort must use a dedicated endpoint');
+    assert.ok(custodyRoutes.includes("requireRole('DISPATCHER')"), 'Only dispatchers and super admins may manually sort');
+    assert.ok(custodyService.includes("confirmation_method: 'MANUAL'"), 'Manual confirmation must be distinguished from a scan');
+    assert.ok(custodyService.includes('confirmed_at: event.created_at'), 'Confirmation must return its persisted timestamp');
+    assert.ok(sortationTab.includes('sortedItem.confirmedBy'), 'The UI must display who confirmed the sort');
+    assert.ok(!hubOperations.includes("api.post('/api/custody/scans'"), 'Manual sort must not fabricate a scanner event');
+    assert.ok(transshipmentTab.includes("['SORTED', 'READY_FOR_DISPATCH'].includes(shp.status)"), 'Unsorted shipments must not be offered for manifest attachment');
+    assert.ok(transshipmentTab.includes('onManualSort(shp)'), 'Transshipment queue must offer the dispatcher a manual-sort action');
+});
+
+runTest('Archived test shipments stay out of active shipment and dispatch queues', () => {
+    assert.ok(shipmentService.includes('s.is_archived = FALSE'), 'Shipment listing and outbound queues must hide archived records');
+    assert.ok(shipmentService.includes('filters.include_archived'), 'Super admins must be able to include archived shipment history');
+    assert.ok(transportService.includes('AND is_archived = FALSE'), 'Archived shipments must not be added to a manifest');
+    assert.ok(dispatchRoutes.includes('(s.id IS NULL OR s.is_archived = FALSE)'), 'Dispatch must hide delivery tasks linked to archived shipments');
+    assert.ok(controlTowerService.includes('WHERE is_archived = FALSE'), 'Operational hub metrics must ignore archived shipments');
+    assert.ok(metricsService.includes('WHERE is_archived = FALSE'), 'Active shipment telemetry must ignore archived shipments');
 });
 
 runTest('Live dashboard metrics do not substitute fabricated values when data is absent', () => {

@@ -9,6 +9,9 @@ export function DiscrepanciesTab({
   setDiscrepancySearch,
   onOpenResolve
 }) {
+  const activeDiscrepancyCount = discrepancies.filter(
+    (discrepancy) => !['RESOLVED', 'WRITTEN_OFF'].includes(discrepancy.status)
+  ).length;
   const filteredDiscrepancies = discrepancies.filter((d) => {
     if (discrepancySeverityFilter !== 'ALL' && d.severity !== discrepancySeverityFilter) return false;
     if (discrepancySearch.trim()) {
@@ -27,9 +30,9 @@ export function DiscrepanciesTab({
         <div>
           <h3 className="font-bold text-white text-sm font-mono uppercase tracking-wider flex items-center gap-2">
             <span>Operational Discrepancy Tickets</span>
-            {discrepancies.length > 0 && (
+            {activeDiscrepancyCount > 0 && (
               <span className="px-2 py-0.2 rounded-full text-[10px] font-mono font-bold bg-rose-500/10 text-rose-400 border border-rose-500/20">
-                {discrepancies.length} Active
+                {activeDiscrepancyCount} Active
               </span>
             )}
           </h3>
@@ -100,12 +103,16 @@ export function DiscrepanciesTab({
                   <td className="py-2 px-3 font-mono text-slate-400">Shipment #{d.shipment_id || 'N/A'}</td>
                   <td className="py-2 px-3 font-semibold text-blue-400">{d.status}</td>
                   <td className="py-2 px-3 text-right">
-                    <button
-                      onClick={() => onOpenResolve(d)}
-                      className="px-2.5 py-1 rounded-lg bg-blue-600 hover:bg-blue-500 text-[11px] font-bold text-white cursor-pointer"
-                    >
-                      Resolve
-                    </button>
+                    {['RESOLVED', 'WRITTEN_OFF'].includes(d.status) ? (
+                      <span className="text-[11px] font-semibold text-slate-500">Closed</span>
+                    ) : (
+                      <button
+                        onClick={() => onOpenResolve(d)}
+                        className="px-2.5 py-1 rounded-lg bg-blue-600 hover:bg-blue-500 text-[11px] font-bold text-white cursor-pointer"
+                      >
+                        Resolve
+                      </button>
+                    )}
                   </td>
                 </tr>
               ))

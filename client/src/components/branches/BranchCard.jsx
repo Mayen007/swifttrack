@@ -24,6 +24,7 @@ export function BranchCard({
   onOpenEdit,
 }) {
   const isOnline = branch.is_active !== 0;
+  const isHeadquarters = branch.is_hub === false || branch.is_hub === 0;
 
   return (
     <div
@@ -47,6 +48,11 @@ export function BranchCard({
               <span className="font-mono text-[11px] text-slate-400 uppercase tracking-wider">
                 {sanitizeDisplay(branch.city) || 'KENYA'}, KENYA
               </span>
+              {isHeadquarters && (
+                <span className="mt-1 inline-flex font-mono text-[9px] font-bold px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/30">
+                  HEADQUARTERS · NON-OPERATIONAL
+                </span>
+              )}
             </div>
           </div>
 
@@ -170,14 +176,16 @@ export function BranchCard({
       <div className="p-3 border-t border-[#222834] bg-[#141822] flex items-center gap-2">
         <button
           onClick={() => onSelectBranch(branch)}
-          disabled={isSelected}
+          disabled={isSelected || isHeadquarters}
           className={`flex-1 py-1.5 px-2 rounded text-xs font-mono font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
-            isSelected
+            isSelected || isHeadquarters
               ? 'bg-blue-900/40 text-blue-400 border border-blue-500/40 cursor-default'
               : 'bg-[#181d28] hover:bg-[#222938] text-slate-200 hover:text-white border border-[#222834]'
           }`}
         >
-          {isSelected ? (
+          {isHeadquarters ? (
+            <span>ADMIN HQ · NOT SELECTABLE</span>
+          ) : isSelected ? (
             <>
               <CheckCircle2 className="w-3.5 h-3.5 text-blue-400" />
               <span>ACTIVE SCOPE</span>

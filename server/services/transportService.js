@@ -378,8 +378,11 @@ async function addShipmentToManifest(runId, shipmentId, user = {}) {
     if (!manifest) throw new Error(`Manifest for run ${runId} not found`);
     if (manifest.status === 'LOCKED') throw new Error('Manifest is already locked. Unlock or create new run.');
 
-    const shipment = await dbAdapter.get('SELECT id, tracking_number, status, total_parcels, chargeable_weight_kg FROM shipments WHERE id = ?', [shipmentId]);
+    const shipment = await dbAdapter.get('SELECT id, tracking_number, status, total_parcels, chargeable_weight_kg FROM shipments WHERE id = ? AND is_archived = FALSE', [shipmentId]);
     if (!shipment) throw new Error(`Shipment ${shipmentId} not found`);
+    if (!['SORTED', 'READY_FOR_DISPATCH'].includes(shipment.status)) {
+        throw new Error('Shipment must be sorted at its current hub before adding it to an outbound manifest');
+    }
 
     return await dbAdapter.withTransaction(async (client) => {
         // Insert item

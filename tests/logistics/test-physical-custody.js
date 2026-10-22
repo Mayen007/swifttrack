@@ -12,7 +12,7 @@ console.log('  SWIFTTRACK LOGISTICS: STAGE 4 PHYSICAL CUSTODY SUITE');
 console.log('============================================================\n');
 
 let passedTests = 0;
-const totalTests = 8;
+const totalTests = 9;
 
 const adminUser = { id: 1, roleName: 'SUPER_ADMIN', fullName: 'Super Admin', branchId: 1 };
 const dispatcherUser = { id: 4, roleName: 'DISPATCHER', fullName: 'Nairobi Dispatcher', branchId: 1 };
@@ -78,6 +78,24 @@ async function run() {
 
         const postSortShp = await shipmentService.getShipmentById(shp1.id);
         assert.strictEqual(postSortShp.status, 'SORTED', 'Shipment should transition to SORTED');
+
+        const counterShipment = await shipmentService.createShipment({
+            origin_hub_id: 1,
+            destination_hub_id: 2,
+            sender: { name: 'Counter Sender', phone: '+254711000103', address: 'Nairobi', city: 'Nairobi' },
+            recipient: { name: 'Counter Recipient', phone: '+254722000204', address: 'Mombasa', city: 'Mombasa' },
+            service_type: 'STANDARD',
+            parcels: [{ weight_kg: 1, description: 'Counter intake' }]
+        }, adminUser);
+        await shipmentService.transitionShipmentStatus(counterShipment.id, 'ACCEPTED', {}, adminUser);
+        await custodyService.recordScanEvent({
+            barcode: counterShipment.tracking_number,
+            scan_type: 'SORT',
+            hub_id: 1,
+            location_desc: 'BAY-01'
+        }, dispatcherUser);
+        const sortedCounterShipment = await shipmentService.getShipmentById(counterShipment.id);
+        assert.strictEqual(sortedCounterShipment.status, 'SORTED', 'Counter-accepted shipment should transition to SORTED');
 
         passedTests++;
         console.log('[PASS] [PASS] 1. Single & Bulk Offline Barcode Scans: Verified with idempotency deduplication\n');
@@ -242,6 +260,8 @@ async function run() {
             vehicle_id: 1
         }, dispatcherUser);
 
+        await shipmentService.transitionShipmentStatus(mShp1.id, 'SORTED', { hub_id: 1 }, dispatcherUser);
+        await shipmentService.transitionShipmentStatus(mShp2.id, 'SORTED', { hub_id: 1 }, dispatcherUser);
         await transportService.addShipmentToManifest(run.id, mShp1.id, dispatcherUser);
         await transportService.addShipmentToManifest(run.id, mShp2.id, dispatcherUser);
         await transportService.lockManifest(run.id, dispatcherUser);
@@ -323,6 +343,11 @@ async function run() {
         assert.strictEqual(resolvedDisc.resolution_action, 'FOUND_AND_MERGED');
         assert.ok(resolvedDisc.resolved_at, 'Resolved at timestamp must be set');
         assert.strictEqual(resolvedDisc.investigator_user_id, adminUser.id);
+        await assert.rejects(
+            custodyService.resolveDiscrepancy(missingDisc.id, {}, adminUser),
+            (err) => err.statusCode === 409 && err.code === 'DISCREPANCY_ALREADY_CLOSED',
+            'Already-resolved discrepancies must return a conflict'
+        );
 
         // Verify tracking timeline received DISCREPANCY_RESOLVED event
         const missingShpDetails = await shipmentService.getShipmentById(mShp2.id);
@@ -331,6 +356,45 @@ async function run() {
 
         passedTests++;
         console.log('[PASS] [PASS] 8. Discrepancy Investigation: Full lifecycle resolution with audit timeline\n');
+
+        // -------------------------------------------------------------
+        // TEST 9: Dispatcher Manual Sort Confirmation Without Scanner Events
+        // -------------------------------------------------------------
+        console.log('> TEST 9: Dispatcher Manual Sort Confirmation Without Scanner Events...');
+
+        const manualSortShipment = await shipmentService.createShipment({
+            origin_hub_id: 1,
+            destination_hub_id: 2,
+            sender: { name: 'Manual Sort Sender', phone: '+254711000109', address: 'Nairobi', city: 'Nairobi' },
+            recipient: { name: 'Manual Sort Recipient', phone: '+254722000209', address: 'Mombasa', city: 'Mombasa' },
+            service_type: 'STANDARD',
+            parcels: [{ weight_kg: 2, description: 'Manual sort confirmation' }]
+        }, adminUser);
+        await shipmentService.transitionShipmentStatus(manualSortShipment.id, 'AT_ORIGIN_HUB', { hub_id: 1 }, adminUser);
+
+        const manualSortResult = await custodyService.confirmManualSortation({
+            shipment_id: manualSortShipment.id,
+            hub_id: 1
+        }, dispatcherUser);
+
+        assert.strictEqual(manualSortResult.current_status, 'SORTED');
+        assert.strictEqual(manualSortResult.confirmation_method, 'MANUAL');
+        assert.strictEqual(manualSortResult.allocated_bay, 'BAY-01 (Hub #2 Linehaul)');
+        assert.strictEqual(manualSortResult.confirmed_by, dispatcherUser.fullName);
+        assert.ok(manualSortResult.confirmed_at, 'Manual sort must return its persisted timestamp');
+        assert.strictEqual(await dbAdapter.get(
+            'SELECT id FROM scan_events WHERE shipment_id = ? AND scan_type = ?',
+            [manualSortShipment.id, 'SORT']
+        ), null, 'Manual sort must not create a scanner event');
+        const manualSortDetails = await shipmentService.getShipmentById(manualSortShipment.id);
+        const manualSortEvent = manualSortDetails.timeline.find((event) => event.event_code === 'MANUAL_SORT_CONFIRMED');
+        assert.ok(manualSortEvent, 'Manual sort must be recorded in the shipment timeline');
+        assert.strictEqual(manualSortEvent.actor_id, dispatcherUser.id);
+        assert.strictEqual(manualSortEvent.metadata.confirmation_method, 'MANUAL');
+        assert.strictEqual(manualSortEvent.metadata.allocated_bay, manualSortResult.allocated_bay);
+
+        passedTests++;
+        console.log('[PASS] 9. Manual Sortation: Dispatcher and timestamp recorded without a scanner event\n');
 
         console.log('============================================================');
         console.log(`[SUCCESS] ALL ${passedTests}/${totalTests} PHYSICAL CUSTODY & HUB OPERATIONS TESTS PASSED!`);

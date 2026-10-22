@@ -130,7 +130,8 @@ async function collectMetrics() {
         const shp = await dbAdapter.get(`
             SELECT COUNT(*) as active_count 
             FROM shipments 
-            WHERE status NOT IN ('DELIVERED', 'CANCELLED', 'RETURNED')
+            WHERE is_archived = FALSE
+              AND status NOT IN ('DELIVERED', 'CANCELLED', 'RETURNED')
         `);
         const run = await dbAdapter.get(`
             SELECT COUNT(*) as active_count 

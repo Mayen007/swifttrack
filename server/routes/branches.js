@@ -16,7 +16,8 @@ router.get('/', authenticateToken, authorize('branches', 'view'), async (req, re
             const branches = await branchRepository.findWithMetrics({
                 city,
                 search,
-                isActive: is_active !== undefined ? is_active === '1' || is_active === 'true' : undefined
+                isActive: is_active !== undefined ? is_active === '1' || is_active === 'true' : undefined,
+                operationalOnly: req.query.include_non_operational !== 'true'
             });
             return res.json(branches);
         }

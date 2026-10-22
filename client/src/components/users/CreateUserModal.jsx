@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react';
 import { UserPlus, Phone, X, RotateCcw, Key, AlertTriangle, Check } from 'lucide-react';
 import { sound } from '../../services/sound.js';
+import { getPasswordRequirements } from '../../services/passwordPolicy.js';
 
 export function CreateUserModal({
   isOpen,
@@ -13,6 +14,7 @@ export function CreateUserModal({
   branches,
   isSuperAdmin,
   currentUser,
+  passwordMinLength = 10,
   onSubmit,
 }) {
   // Allow dismissing modal with Escape key
@@ -29,6 +31,13 @@ export function CreateUserModal({
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, onClose]);
+
+  const passwordChecks = getPasswordRequirements(createFormData.password || '', {
+    minLength: passwordMinLength,
+    username: createFormData.username,
+    email: createFormData.email,
+  });
+  const isPasswordValid = passwordChecks.every((check) => check.passed);
 
   if (!isOpen) return null;
 
@@ -233,8 +242,10 @@ export function CreateUserModal({
               <div className="relative">
                 <Key className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
                 <input
-                  type="text"
+                  type="password"
                   required
+                  maxLength={128}
+                  autoComplete="new-password"
                   value={createFormData.password}
                   onChange={(e) =>
                     setCreateFormData({ ...createFormData, password: e.target.value })
@@ -242,8 +253,15 @@ export function CreateUserModal({
                   className="w-full bg-[#181d28] border border-[#222834] rounded pl-9 pr-3 py-1.5 text-xs text-white font-mono focus:outline-none focus:border-blue-500"
                 />
               </div>
+              <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-1">
+                {passwordChecks.map((check) => (
+                  <span key={check.label} className={`text-[9px] font-mono ${check.passed ? 'text-emerald-400' : 'text-slate-500'}`}>
+                    {check.passed ? '✓' : '•'} {check.label}
+                  </span>
+                ))}
+              </div>
               <span className="text-[9px] text-slate-400 mt-1 block font-mono">
-                Encrypted using Scrypt-64 key derivation function with company-wide cryptographic salt
+                The account holder will be asked to change this temporary password at first sign-in. Common compromised passwords are rejected.
               </span>
             </div>
           </div>
@@ -262,7 +280,7 @@ export function CreateUserModal({
             </button>
             <button
               type="submit"
-              disabled={isSubmittingCreate}
+              disabled={isSubmittingCreate || !isPasswordValid}
               className="px-4 py-1.5 rounded bg-blue-600 hover:bg-blue-500 text-white text-xs font-mono font-bold flex items-center gap-1.5 shadow-sm shadow-blue-950/50 cursor-pointer disabled:opacity-50"
             >
               {isSubmittingCreate ? (

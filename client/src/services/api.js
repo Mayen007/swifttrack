@@ -181,6 +181,7 @@ class ApiService {
         const err = new Error(errorMsg);
         err.status = res.status;
         err.code = data?.code;
+        err.errors = data?.errors;
         err.mustChangePassword = data?.mustChangePassword;
         err.remainingMinutes = data?.remainingMinutes;
         err.remainingAttempts = data?.remainingAttempts;
@@ -189,7 +190,8 @@ class ApiService {
 
       return data;
     } catch (err) {
-      if (err.status !== 401 && err.message !== 'Session expired') {
+      const isUnexpectedFailure = !err.status || err.status >= 500;
+      if (import.meta.env.DEV && isUnexpectedFailure) {
         console.error(`API Error [${endpoint}]:`, err.message);
       }
       throw err;

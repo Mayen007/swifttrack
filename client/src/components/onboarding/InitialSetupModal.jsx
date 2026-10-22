@@ -39,8 +39,8 @@ export function InitialSetupModal({ isOpen, onClose, onComplete, onStartTour }) 
   });
 
   const [branchData, setBranchData] = useState({
-    code: 'NRB-HQ',
-    name: 'Nairobi Central Distribution Hub',
+    code: 'NBO-01',
+    name: 'Nairobi Parcel Hub',
     city: 'Nairobi',
     address: 'Enterprise Road, Industrial Area',
     phone: '+254 711 000 001',
@@ -100,8 +100,9 @@ export function InitialSetupModal({ isOpen, onClose, onComplete, onStartTour }) 
         vat_rate: parseFloat(orgData.vat_rate) || 16.0,
       });
 
+      const existingHubs = await api.get('/api/branches');
       sound.playSuccess();
-      setStep(2);
+      setStep(Array.isArray(existingHubs) && existingHubs.length > 0 ? 3 : 2);
     } catch (err) {
       sound.playAlert();
       setErrorMsg(err.message || 'Failed to save organization settings.');
@@ -408,7 +409,7 @@ export function InitialSetupModal({ isOpen, onClose, onComplete, onStartTour }) 
             {step === 2 && (
               <form onSubmit={handleCreateFirstBranch} className="space-y-4">
                 <p className={`text-xs leading-relaxed ${bodyText}`}>
-                  Every parcel, manifest, and POS register belongs to an operating hub. Set up your central headquarters hub now to start processing waybills and dispatches.
+                  Every parcel, manifest, and POS register belongs to an operating hub. Set up your first parcel hub now to start processing waybills and dispatches.
                 </p>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
@@ -417,7 +418,7 @@ export function InitialSetupModal({ isOpen, onClose, onComplete, onStartTour }) 
                     <input
                       type="text"
                       required
-                      placeholder="e.g. NRB-HQ"
+                      placeholder="e.g. NBO-01"
                       value={branchData.code}
                       onChange={(e) => setBranchData({ ...branchData, code: e.target.value.toUpperCase() })}
                       className={`w-full border rounded-lg px-3 py-2 text-xs font-mono focus:outline-none transition-colors ${inputBlue}`}
@@ -441,7 +442,7 @@ export function InitialSetupModal({ isOpen, onClose, onComplete, onStartTour }) 
                     <input
                       type="text"
                       required
-                      placeholder="e.g. Nairobi Central Distribution Hub"
+                      placeholder="e.g. Nairobi Parcel Hub"
                       value={branchData.name}
                       onChange={(e) => setBranchData({ ...branchData, name: e.target.value })}
                       className={`w-full border rounded-lg px-3 py-2 text-xs focus:outline-none transition-colors ${inputBlue}`}

@@ -77,7 +77,7 @@ export function BranchesView() {
   const loadBranchNetwork = useCallback(async () => {
     try {
       setLoading(true);
-      const branchesData = await api.get('/api/branches');
+      const branchesData = await api.get('/api/branches?include_non_operational=true');
       const list = Array.isArray(branchesData) ? branchesData : [];
       setBranchDetails(list);
 

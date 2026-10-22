@@ -14,7 +14,7 @@
 
 An enterprise-grade, high-throughput parcel transportation, multi-leg corridor linehaul, fleet telemetry, last-mile courier fulfillment, and Cash-on-Delivery (COD) reconciliation platform. 
 
-SwiftTrack connects physical regional hubs (**Nairobi Central Hub `NRB-HQ`**, **Mombasa Port & Coastal Terminal `MSA-01`**, **Kisumu Lake Basin Depot `KSM-01`**, and **Nakuru Transit Depot `NAK1`**) with strict multi-branch data isolation, multi-piece parcel rating, lock-and-load manifest invariants, driver mobile POD with 6-digit OTP delivery confirmation, transactional outbox notifications, real-time control tower telemetry, and statutory KRA fiscal compliance.
+SwiftTrack connects physical regional hubs (**Nairobi parcel hub `NBO987`**, **Mombasa Port & Coastal Terminal `MSA-01`**, **Kisumu Lake Basin Depot `KSM-01`**, and **Nakuru Transit Depot `NAK1`**) with strict multi-branch data isolation, multi-piece parcel rating, lock-and-load manifest invariants, driver mobile POD with 6-digit OTP delivery confirmation, transactional outbox notifications, real-time control tower telemetry, and statutory KRA fiscal compliance. Headquarters (`NRB-HQ`) remains an administrative location and is excluded from operational hub selectors.
 
 ---
 
@@ -167,7 +167,7 @@ SwiftTrack strictly separates four distinct domain concepts to ensure full audit
 
 SwiftTrack uses **PostgreSQL 16 as its authoritative production database engine**, with a high-performance, WAL-mode SQLite fallback engine for offline edge nodes and local unit tests.
 
-### PostgreSQL Migration Suite (24 Sequential Migrations)
+### PostgreSQL Migration Suite (26 Sequential Migrations)
 The authoritative schema is version-controlled in [`server/db/postgres/migrations/`](file:///c:/Users/ariic/Documents/Logistics%20Platform/server/db/postgres/migrations/):
 
 | Migration | File | Description & Invariants Enforced |
@@ -196,6 +196,8 @@ The authoritative schema is version-controlled in [`server/db/postgres/migration
 | `022` | [`022_partitioning_for_high_volume.sql`](file:///c:/Users/ariic/Documents/Logistics%20Platform/server/db/postgres/migrations/022_partitioning_for_high_volume.sql) | Range partitioning by month for `tracking_events`, `audit_logs`, and telemetry. |
 | `023` | [`023_logistics_notifications_engine.sql`](file:///c:/Users/ariic/Documents/Logistics%20Platform/server/db/postgres/migrations/023_logistics_notifications_engine.sql) | Notification delivery infrastructure and standard message templates. |
 | `024` | [`024_remove_default_demo_tariffs.sql`](file:///c:/Users/ariic/Documents/Logistics%20Platform/server/db/postgres/migrations/024_remove_default_demo_tariffs.sql) | Removes only unchanged sample global tariffs previously inserted by migration 023. |
+| `025` | [`025_onboarding_flag.sql`](file:///c:/Users/ariic/Documents/Logistics%20Platform/server/db/postgres/migrations/025_onboarding_flag.sql) | Persists organization onboarding completion state. |
+| `026` | [`026_classify_headquarters_branch.sql`](file:///c:/Users/ariic/Documents/Logistics%20Platform/server/db/postgres/migrations/026_classify_headquarters_branch.sql) | Classifies `NRB-HQ` as administrative headquarters, not an operational parcel hub. |
 
 ### Data Access Architecture (Repository Pattern)
 Business services communicate through dedicated domain repositories in [`server/repositories/`](file:///c:/Users/ariic/Documents/Logistics%20Platform/server/repositories/):

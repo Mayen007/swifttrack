@@ -393,6 +393,11 @@ async function listShipments(filters = {}, user = {}) {
         WHERE 1=1
     `;
     const params = [];
+    const includeArchived = user.roleName === 'SUPER_ADMIN'
+        && (filters.include_archived === true || filters.include_archived === 'true');
+    if (!includeArchived) {
+        query += ' AND s.is_archived = FALSE';
+    }
 
     // Role / Branch Isolation Scoping
     if (user.roleName !== 'SUPER_ADMIN' && user.branchId) {
@@ -605,7 +610,12 @@ async function transitionShipmentStatus(id, targetStatus, payload = {}, user = {
             user.roleName || 'STAFF',
             user.fullName || user.username || 'System Operator',
             desc,
-            JSON.stringify({ previous_status: currentStatus, target_status: target, reason: payload.reason || null })
+            JSON.stringify({
+                previous_status: currentStatus,
+                target_status: target,
+                reason: payload.reason || null,
+                ...(payload.metadata || {})
+            })
         ], tx.client);
 
         // Audit Log
@@ -857,6 +867,7 @@ async function getShipmentsAwaitingManifest(hubId, destinationHubId = null) {
         FROM shipments s
         JOIN shipment_legs sl ON sl.shipment_id = s.id
         WHERE sl.origin_hub_id = ?
+          AND s.is_archived = FALSE
           AND sl.status IN ('PENDING', 'ACTIVE')
           AND sl.manifest_id IS NULL
           AND s.status IN ('BOOKED', 'ACCEPTED', 'AT_ORIGIN_HUB', 'SORTED', 'READY_FOR_DISPATCH', 'AT_HUB')

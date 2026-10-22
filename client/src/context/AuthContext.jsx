@@ -63,8 +63,10 @@ export function AuthProvider({ children }) {
       }
       setMustChangePassword(Boolean(normUser.mustChangePassword));
 
-      const bList = await loadBranches();
-      if (normUser.branch_id) {
+      const bList = normUser.mustChangePassword ? [] : await loadBranches();
+      if (normUser.mustChangePassword) {
+        setSelectedBranch(null);
+      } else if (normUser.branch_id) {
         const b = bList.find(item => item.id === normUser.branch_id);
         setSelectedBranch(b || null);
         if (b) localStorage.setItem('swifttrack_selected_branch_id', String(b.id));
@@ -80,7 +82,12 @@ export function AuthProvider({ children }) {
         }
       }
 
-      api.toast(`Welcome back, ${normUser.full_name}`, 'success');
+      api.toast(
+        normUser.mustChangePassword
+          ? 'Sign-in successful. Update your temporary password to continue.'
+          : `Welcome back, ${normUser.full_name}`,
+        'success'
+      );
       return normUser;
     }
   }, [loadBranches]);
@@ -146,13 +153,20 @@ export function AuthProvider({ children }) {
       if (res.refreshToken) {
         api.setRefreshToken(res.refreshToken);
       }
+      const branchList = await loadBranches();
+      const assignedBranch = branchList.find((branch) => String(branch.id) === String(user?.branch_id));
+      const savedBranchId = localStorage.getItem('swifttrack_selected_branch_id');
+      const selectedAdminBranch = user?.role === 'SUPER_ADMIN' && savedBranchId && savedBranchId !== 'all'
+        ? branchList.find((branch) => String(branch.id) === savedBranchId)
+        : null;
+      setSelectedBranch(assignedBranch || selectedAdminBranch || null);
       setMustChangePassword(false);
       setUser(prev => prev ? { ...prev, mustChangePassword: false } : null);
       api.toast('Password updated successfully', 'success');
       return res;
     }
     throw new Error(res?.error || 'Failed to update password');
-  }, []);
+  }, [loadBranches, user?.branch_id, user?.role]);
 
   // Self-Service Forgot Password Request
   const forgotPassword = useCallback(async (identifier) => {
@@ -213,7 +227,7 @@ export function AuthProvider({ children }) {
   }, []);
 
   // Quick switch role (demo/evaluation environments)
-  const quickSwitch = useCallback(async (role, branchId = null) => {
+  const quickSwitch = useCallback(async (role, branchId = null, username = null) => {
     try {
       setIsSwitching(true);
 
@@ -224,7 +238,7 @@ export function AuthProvider({ children }) {
 
       let res = null;
       try {
-        res = await api.post('/api/auth/demo-switch', { role: targetRole, branch_id: branchId });
+        res = await api.post('/api/auth/demo-switch', { role: targetRole, branch_id: branchId, username });
       } catch (e) {
         console.warn('demo-switch endpoint failed or disabled:', e.message);
       }
@@ -240,7 +254,9 @@ export function AuthProvider({ children }) {
           DRIVER: { username: branchId === 2 ? 'driver.mombasa' : 'driver.nairobi', password: 'Password123!' },
         };
 
-        const creds = roleCredentials[targetRole] || roleCredentials.SUPER_ADMIN;
+        const creds = username
+          ? { username, password: 'Password123!' }
+          : roleCredentials[targetRole] || roleCredentials.SUPER_ADMIN;
         res = await api.post('/api/auth/login', creds);
       }
 
@@ -261,8 +277,10 @@ export function AuthProvider({ children }) {
         setUser(normUser);
         setMustChangePassword(Boolean(normUser.mustChangePassword));
 
-        const bList = await loadBranches();
-        if (normUser.branch_id) {
+        const bList = normUser.mustChangePassword ? [] : await loadBranches();
+        if (normUser.mustChangePassword) {
+          setSelectedBranch(null);
+        } else if (normUser.branch_id) {
           const b = bList.find(item => item.id === normUser.branch_id);
           setSelectedBranch(b || null);
           if (b) localStorage.setItem('swifttrack_selected_branch_id', String(b.id));
@@ -325,8 +343,10 @@ export function AuthProvider({ children }) {
               }
               setMustChangePassword(Boolean(normUser.mustChangePassword));
 
-              const bList = await loadBranches();
-              if (normUser.branch_id) {
+              const bList = normUser.mustChangePassword ? [] : await loadBranches();
+              if (normUser.mustChangePassword) {
+                setSelectedBranch(null);
+              } else if (normUser.branch_id) {
                 const b = bList.find(item => item.id === normUser.branch_id);
                 setSelectedBranch(b || null);
               } else if (savedBranchId === 'all') {

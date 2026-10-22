@@ -10,6 +10,7 @@ import { ViewSkeleton } from './components/common/ViewSkeleton.jsx';
 import { OfflineSyncStatus } from './components/common/OfflineSyncStatus.jsx';
 import { SystemTour } from './components/SystemTour.jsx';
 import { InitialSetupModal } from './components/onboarding/InitialSetupModal.jsx';
+import { PasswordChangeModal } from './components/auth/PasswordChangeModal.jsx';
 import { ShieldOff } from 'lucide-react';
 import { api } from './services/api.js';
 
@@ -155,7 +156,7 @@ function MainApp() {
   // Poll/fetch real unread notification count
   useEffect(() => {
     // Don't poll at all if there's no authenticated user/token
-    if (loading || !user || !api.token) {
+    if (loading || !user || !api.token || mustChangePassword || user?.mustChangePassword) {
       setUnreadCount(0);
       return;
     }
@@ -198,7 +199,7 @@ function MainApp() {
         document.removeEventListener('visibilitychange', handleVisibility);
       }
     };
-  }, [user, loading]);
+  }, [user, loading, mustChangePassword]);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
     try {
@@ -470,6 +471,15 @@ function MainApp() {
         return <DashboardView onNavigate={setCurrentView} />;
     }
   };
+
+  if (mustChangePassword || user?.mustChangePassword) {
+    return (
+      <div className="min-h-screen bg-[#0c0e12] text-slate-200">
+        <PasswordChangeModal isOpen isMandatory />
+        <ToastContainer />
+      </div>
+    );
+  }
 
   return (
     <div className="h-screen w-screen bg-[#0c0e12] text-slate-200 flex flex-col overflow-hidden selection:bg-amber-500/30 selection:text-amber-200">

@@ -704,7 +704,7 @@ async function getExceptionById(id, client = null) {
  * Lists exceptions
  */
 async function listExceptions(query = {}, user = {}) {
-    let sql = 'SELECT e.*, s.tracking_number, b.name as hub_name FROM exceptions e LEFT JOIN shipments s ON e.shipment_id = s.id LEFT JOIN branches b ON e.hub_id = b.id WHERE 1=1';
+    let sql = 'SELECT e.*, s.tracking_number, b.name as hub_name FROM exceptions e LEFT JOIN shipments s ON e.shipment_id = s.id LEFT JOIN branches b ON e.hub_id = b.id WHERE (s.id IS NULL OR s.is_archived = FALSE)';
     const params = [];
 
     if (user.roleName !== 'SUPER_ADMIN' && user.branchId) {
@@ -768,7 +768,7 @@ async function getDeliveryById(id, client = null) {
  * Lists delivery tasks with filters
  */
 async function listDeliveries(query = {}, user = {}) {
-    let sql = 'SELECT d.*, s.tracking_number, drv.full_name as driver_name, b.name as hub_name FROM deliveries d LEFT JOIN shipments s ON d.shipment_id = s.id LEFT JOIN drivers dr ON d.driver_id = dr.id LEFT JOIN users drv ON dr.user_id = drv.id LEFT JOIN branches b ON d.hub_id = b.id WHERE 1=1';
+    let sql = 'SELECT d.*, s.tracking_number, drv.full_name as driver_name, b.name as hub_name FROM deliveries d LEFT JOIN shipments s ON d.shipment_id = s.id LEFT JOIN drivers dr ON d.driver_id = dr.id LEFT JOIN users drv ON dr.user_id = drv.id LEFT JOIN branches b ON d.hub_id = b.id WHERE (s.id IS NULL OR s.is_archived = FALSE)';
     const params = [];
 
     // Role-based scoping

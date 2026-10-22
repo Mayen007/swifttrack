@@ -6,7 +6,9 @@ export function TransshipmentTab({
   awaitingShipments,
   transshipmentSearch,
   setTransshipmentSearch,
-  onAttachToManifest
+  onAttachToManifest,
+  onManualSort,
+  sortingShipmentId
 }) {
   const filteredShipments = awaitingShipments.filter((shp) => {
     if (transshipmentSearch.trim()) {
@@ -72,7 +74,7 @@ export function TransshipmentTab({
               </tr>
             ) : (
               filteredShipments.map((shp) => (
-                <tr key={shp.id} className="hover:bg-white/[0.02]">
+                <tr key={`${shp.id}-${shp.leg_id}`} className="hover:bg-white/[0.02]">
                   <td className="py-2.5 px-3">
                     <div className="font-mono font-bold text-white">{shp.tracking_number}</div>
                     <div className="text-[10px] text-slate-500 font-mono">{shp.waybill_number || `WAY-${shp.id}`}</div>
@@ -99,12 +101,24 @@ export function TransshipmentTab({
                     </span>
                   </td>
                   <td className="py-2.5 px-3 text-right">
-                    <button
-                      onClick={onAttachToManifest}
-                      className="px-2.5 py-1 rounded-lg bg-blue-600 hover:bg-blue-500 text-[11px] font-bold text-white shadow cursor-pointer"
-                    >
-                      Attach to Manifest
-                    </button>
+                    {['SORTED', 'READY_FOR_DISPATCH'].includes(shp.status) ? (
+                      <button
+                        onClick={() => onAttachToManifest(shp)}
+                        className="px-2.5 py-1 rounded-lg bg-blue-600 hover:bg-blue-500 text-[11px] font-bold text-white shadow cursor-pointer"
+                      >
+                        Assign to Run
+                      </button>
+                    ) : ['ACCEPTED', 'AT_ORIGIN_HUB', 'AT_HUB'].includes(shp.status) ? (
+                      <button
+                        onClick={() => onManualSort(shp)}
+                        disabled={sortingShipmentId === shp.id}
+                        className="rounded-lg border border-blue-500/30 bg-blue-500/10 px-2.5 py-1 text-[11px] font-semibold text-blue-200 hover:bg-blue-500/20 disabled:opacity-50 cursor-pointer"
+                      >
+                        {sortingShipmentId === shp.id ? 'Confirming…' : 'Confirm manual sort'}
+                      </button>
+                    ) : (
+                      <span className="text-[11px] font-semibold text-slate-500">Receive at hub first</span>
+                    )}
                   </td>
                 </tr>
               ))

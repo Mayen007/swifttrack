@@ -57,6 +57,9 @@ export function HubOperationsView() {
   const [isDamagedScan, setIsDamagedScan] = useState(false);
   const [sessionScannedItems, setSessionScannedItems] = useState([]);
   const [manifests, setManifests] = useState([]);
+  const [transportRuns, setTransportRuns] = useState([]);
+  const [shipmentToManifest, setShipmentToManifest] = useState(null);
+  const [assigningShipment, setAssigningShipment] = useState(false);
 
   // Discrepancies State
   const [discrepancies, setDiscrepancies] = useState([]);
@@ -65,9 +68,9 @@ export function HubOperationsView() {
   const [resolutionNotes, setResolutionNotes] = useState('');
   const [resolvingModalOpen, setResolvingModalOpen] = useState(false);
 
-  // Scan & Sort State
-  const [sortScanInput, setSortScanInput] = useState('');
+  // Manual sortation state
   const [sortedItem, setSortedItem] = useState(null);
+  const [sortingShipmentId, setSortingShipmentId] = useState(null);
 
   // Handoffs State
   const [handoffs, setHandoffs] = useState([]);
@@ -85,6 +88,8 @@ export function HubOperationsView() {
     setSessionsError(null);
     if (!currentHubId) {
       setManifests([]);
+      setTransportRuns([]);
+      setShipmentToManifest(null);
       setDiscrepancies([]);
       setCrossBorderLegs([]);
       setAwaitingShipments([]);
@@ -97,9 +102,13 @@ export function HubOperationsView() {
 
     try {
       let sessionsLoadError = null;
-      const [mRes, dRes, cbRes, awRes, hRes, sessionsRes] = await Promise.all([
+      const [mRes, rRes, dRes, cbRes, awRes, hRes, sessionsRes] = await Promise.all([
         api.get('/api/transport/manifests').catch((error) => {
           console.error('Error fetching manifests:', error);
+          return null;
+        }),
+        api.get(`/api/transport/runs?hub_id=${currentHubId}`).catch((error) => {
+          console.error('Error fetching transport runs:', error);
           return null;
         }),
         api.get('/api/custody/discrepancies').catch((error) => {
@@ -126,17 +135,20 @@ export function HubOperationsView() {
       ]);
 
       const manifestItems = getFeedItems(mRes, 'manifests');
+      const runItems = getFeedItems(rRes, 'runs');
       const discrepancyItems = getFeedItems(dRes, 'discrepancies');
       const crossBorderItems = getFeedItems(cbRes, 'legs');
       const awaitingItems = getFeedItems(awRes, 'shipments');
       const handoffItems = getFeedItems(hRes, 'handoffs');
       setManifests(manifestItems || []);
+      setTransportRuns(runItems || []);
       setDiscrepancies(discrepancyItems || []);
       setCrossBorderLegs(crossBorderItems || []);
       setAwaitingShipments(awaitingItems || []);
       setHandoffs(handoffItems || []);
       const failedHubFeeds = [];
       if (!manifestItems) failedHubFeeds.push('manifests');
+      if (!runItems) failedHubFeeds.push('transport runs');
       if (!discrepancyItems) failedHubFeeds.push('discrepancies');
       if (!crossBorderItems) failedHubFeeds.push('cross-border movements');
       if (!awaitingItems) failedHubFeeds.push('awaiting shipments');
@@ -187,7 +199,40 @@ export function HubOperationsView() {
     }
   };
 
+  const handleAssignShipmentToRun = async (runId, createRun = false) => {
+    if (!shipmentToManifest || assigningShipment) return;
+    setAssigningShipment(true);
+    try {
+      let targetRunId = runId;
+      if (createRun) {
+        const run = await api.post('/api/transport/runs', {
+          origin_hub_id: currentHubId,
+          destination_hub_id: shipmentToManifest.leg_destination || shipmentToManifest.destination_hub_id,
+          notes: `Outbound linehaul for ${shipmentToManifest.tracking_number}`,
+        });
+        targetRunId = run?.id;
+        if (!targetRunId) throw new Error('The server did not return the created transport run.');
+      }
+      if (!targetRunId) throw new Error('Select a transport run or create a new one.');
+
+      await api.post(`/api/transport/runs/${targetRunId}/manifest/items`, {
+        shipment_id: shipmentToManifest.id,
+      });
+      sound.playSuccess();
+      api.toast(`${shipmentToManifest.tracking_number} assigned to the outbound run.`, 'success');
+      setShipmentToManifest(null);
+      await fetchHubData();
+    } catch (error) {
+      sound.playError();
+      api.toast(`Could not assign parcel to a run: ${error.message}`, 'error');
+      await fetchHubData();
+    } finally {
+      setAssigningShipment(false);
+    }
+  };
+
   useEffect(() => {
+    setShipmentToManifest(null);
     fetchHubData();
   }, [selectedBranch, currentHubId]);
 
@@ -335,59 +380,32 @@ export function HubOperationsView() {
     }
   };
 
-  const handleSortScan = async (e) => {
-    e.preventDefault();
-    if (!sortScanInput.trim()) return;
-    const barcode = sortScanInput.trim().toUpperCase();
-    sound.playBeep();
-
+  const handleManualSort = async (shipment) => {
+    if (sortingShipmentId) return;
+    setSortingShipmentId(shipment.id);
     try {
-      // Look up shipment by tracking number / barcode
-      const searchRes = await api.get(`/api/shipments?search=${encodeURIComponent(barcode)}`).catch(() => []);
-      const shipmentList = Array.isArray(searchRes) ? searchRes : (searchRes?.data || []);
-      const matchedShipment = shipmentList.find((s) => 
-        s.tracking_number === barcode || 
-        s.waybill_number === barcode ||
-        barcode.startsWith(s.tracking_number)
-      ) || shipmentList[0];
-
-      let chosenBay = '';
-      if (!matchedShipment) {
-        // Fallback staging bay
-        chosenBay = 'BAY-00 (Staging & Manual Audit)';
-      } else if (matchedShipment.destination_hub_id === currentHubId) {
-        if (matchedShipment.delivery_type === 'PICKUP_AT_HUB') {
-          chosenBay = 'BAY-05 (Customer Counter Pickup)';
-        } else {
-          chosenBay = 'BAY-04 (Local Courier Outbound / Doorstep)';
-        }
-      } else {
-        const destName = matchedShipment.destination_hub_name || 'Regional';
-        chosenBay = `BAY-01 (${destName} Linehaul)`;
+      const result = await api.post('/api/custody/sortations/manual', {
+        shipment_id: shipment.id,
+        hub_id: currentHubId,
+      });
+      if (result?.current_status !== 'SORTED' || !result?.event_id) {
+        throw new Error('The server did not confirm the manual sortation.');
       }
 
-      // Record sort custody scan in background
-      api.post('/api/custody/scans', {
-        barcode,
-        scan_type: 'SORT',
-        hub_id: currentHubId,
-        location_desc: chosenBay,
-        notes: `Allocated to ${chosenBay}`
-      }).catch((err) => console.warn('Sort custody scan notice:', err.message));
-
       setSortedItem({
-        barcode,
-        status: 'SORTED',
-        allocatedBay: chosenBay,
-        timestamp: new Date().toLocaleTimeString(),
-        shipment: matchedShipment || null
+        barcode: result.tracking_number,
+        allocatedBay: result.allocated_bay,
+        confirmedBy: result.confirmed_by,
+        confirmedAt: new Date(result.confirmed_at).toLocaleString('en-KE'),
       });
-      setSortScanInput('');
       sound.playSuccess();
-      api.toast(`Allocated to ${chosenBay}`, 'success');
+      api.toast(`${result.tracking_number} manually sorted to ${result.allocated_bay}`, 'success');
+      await fetchHubData();
     } catch (err) {
       sound.playError();
-      api.toast(`Sortation scan failed: ${err.message}`, 'error');
+      api.toast(`Manual sort confirmation failed: ${err.message}`, 'error');
+    } finally {
+      setSortingShipmentId(null);
     }
   };
 
@@ -422,17 +440,18 @@ export function HubOperationsView() {
     if (!selectedDiscrepancy) return;
     try {
       await api.post(`/api/custody/discrepancies/${selectedDiscrepancy.id}/resolve`, {
-        action: resolutionAction,
-        notes: resolutionNotes
+        resolution_action: resolutionAction,
+        resolution_notes: resolutionNotes
       });
       sound.playSuccess();
       api.toast(`Discrepancy #${selectedDiscrepancy.discrepancy_number || selectedDiscrepancy.id} successfully resolved`, 'success');
       setResolvingModalOpen(false);
+      setSelectedDiscrepancy(null);
+      setResolutionNotes('');
       fetchHubData();
     } catch (err) {
       sound.playError();
       api.toast(`Resolution failed: ${err.message}`, 'error');
-      setResolvingModalOpen(false);
     }
   };
 
@@ -480,10 +499,11 @@ export function HubOperationsView() {
 
       {activeTab === 'SORT' && (
         <SortationTab
-          sortScanInput={sortScanInput}
-          setSortScanInput={setSortScanInput}
-          onSortScan={handleSortScan}
+          onManualSort={handleManualSort}
+          onOpenManifests={() => setActiveTab('MANIFESTS')}
+          sortingShipmentId={sortingShipmentId}
           sortedItem={sortedItem}
+          awaitingShipments={awaitingShipments}
         />
       )}
 
@@ -502,6 +522,12 @@ export function HubOperationsView() {
       {activeTab === 'MANIFESTS' && (
         <LinehaulManifestsTab
           manifests={manifests}
+          runs={transportRuns}
+          currentHubId={currentHubId}
+          shipment={shipmentToManifest}
+          assigningShipment={assigningShipment}
+          onAssignShipment={handleAssignShipmentToRun}
+          onCancelShipmentAssignment={() => setShipmentToManifest(null)}
           manifestStatusFilter={manifestStatusFilter}
           setManifestStatusFilter={setManifestStatusFilter}
         />
@@ -516,6 +542,8 @@ export function HubOperationsView() {
           setDiscrepancySearch={setDiscrepancySearch}
           onOpenResolve={(d) => {
             setSelectedDiscrepancy(d);
+            setResolutionAction('FOUND_AND_RECONCILED');
+            setResolutionNotes('');
             setResolvingModalOpen(true);
           }}
         />
@@ -540,22 +568,30 @@ export function HubOperationsView() {
           awaitingShipments={awaitingShipments}
           transshipmentSearch={transshipmentSearch}
           setTransshipmentSearch={setTransshipmentSearch}
-          onAttachToManifest={() => {
+          onManualSort={handleManualSort}
+          sortingShipmentId={sortingShipmentId}
+          onAttachToManifest={(shipment) => {
+            setShipmentToManifest(shipment);
             setActiveTab('MANIFESTS');
             sound.playClick();
           }}
         />
       )}
 
-      <ResolveDiscrepancyModal
-        selectedDiscrepancy={selectedDiscrepancy}
-        resolutionAction={resolutionAction}
-        setResolutionAction={setResolutionAction}
-        resolutionNotes={resolutionNotes}
-        setResolutionNotes={setResolutionNotes}
-        onClose={() => setResolvingModalOpen(false)}
-        onSubmit={handleResolveDiscrepancy}
-      />
+      {resolvingModalOpen && (
+        <ResolveDiscrepancyModal
+          selectedDiscrepancy={selectedDiscrepancy}
+          resolutionAction={resolutionAction}
+          setResolutionAction={setResolutionAction}
+          resolutionNotes={resolutionNotes}
+          setResolutionNotes={setResolutionNotes}
+          onClose={() => {
+            setResolvingModalOpen(false);
+            setSelectedDiscrepancy(null);
+          }}
+          onSubmit={handleResolveDiscrepancy}
+        />
+      )}
 
       <CustomsActionModal
         selectedLegForCustoms={selectedLegForCustoms}

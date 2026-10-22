@@ -1207,6 +1207,11 @@ function migrateShipmentCoreSchema() {
                 END
             WHERE latitude IS NULL;
         `);
+        db.prepare(`
+            UPDATE branches
+            SET is_hub = 0, hub_type = 'HEADQUARTERS'
+            WHERE code = 'NRB-HQ'
+        `).run();
 
         // 3. Ensure logistics tables exist
         db.exec(`
@@ -1265,6 +1270,8 @@ function migrateShipmentCoreSchema() {
                 service_type TEXT NOT NULL DEFAULT 'STANDARD',
                 delivery_type TEXT NOT NULL DEFAULT 'LAST_MILE',
                 status TEXT NOT NULL DEFAULT 'BOOKED',
+                is_archived INTEGER NOT NULL DEFAULT 0,
+                archived_at DATETIME,
                 total_parcels INTEGER NOT NULL DEFAULT 1,
                 actual_weight_kg REAL NOT NULL DEFAULT 0.0,
                 volumetric_weight_kg REAL NOT NULL DEFAULT 0.0,
@@ -1346,6 +1353,14 @@ function migrateShipmentCoreSchema() {
                 created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
             );
         `);
+
+        const shipmentCols = db.prepare("PRAGMA table_info(shipments)").all().map(c => c.name);
+        if (!shipmentCols.includes('is_archived')) {
+            db.exec('ALTER TABLE shipments ADD COLUMN is_archived INTEGER NOT NULL DEFAULT 0;');
+        }
+        if (!shipmentCols.includes('archived_at')) {
+            db.exec('ALTER TABLE shipments ADD COLUMN archived_at DATETIME;');
+        }
 
         // 4. Seed shipments permissions
         const shipmentPerms = [
@@ -2268,6 +2283,4 @@ module.exports = {
     initSchema,
     DB_PATH
 };
-
-
 

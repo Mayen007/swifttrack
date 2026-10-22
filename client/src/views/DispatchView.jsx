@@ -11,12 +11,15 @@ import { ExceptionsTab } from '../components/dispatch/ExceptionsTab.jsx';
 import { AssignCourierModal } from '../components/dispatch/AssignCourierModal.jsx';
 import { LogExceptionModal } from '../components/dispatch/LogExceptionModal.jsx';
 import { InspectManifestModal } from '../components/dispatch/InspectManifestModal.jsx';
+import { LinehaulRunsTab } from '../components/dispatch/LinehaulRunsTab.jsx';
 
 export function DispatchView() {
   const { selectedBranch } = useAuth();
   const [deliveries, setDeliveries] = useState([]);
   const [drivers, setDrivers] = useState([]);
   const [vehicles, setVehicles] = useState([]);
+  const [transportRuns, setTransportRuns] = useState([]);
+  const [transportRunsError, setTransportRunsError] = useState('');
   const [summary, setSummary] = useState({
     total_active: 0,
     ready_count: 0,
@@ -54,10 +57,22 @@ export function DispatchView() {
     try {
       setLoading(true);
       const branchParam = selectedBranch ? `?branch_id=${selectedBranch.id}` : '';
-      const [boardRes, drvData] = await Promise.all([
+      const [boardRes, drvData, runsData] = await Promise.all([
         api.get(`/api/dispatch/board${branchParam}`).catch(() => null),
         api.get('/api/v1/drivers?limit=100').catch(() => null),
+        api.get(`/api/transport/runs${selectedBranch ? `?hub_id=${selectedBranch.id}` : ''}`).catch((error) => ({
+          error: error.message || 'Request failed',
+        })),
       ]);
+
+      const runs = Array.isArray(runsData) ? runsData : runsData?.runs;
+      if (Array.isArray(runs)) {
+        setTransportRuns(runs);
+        setTransportRunsError('');
+      } else {
+        setTransportRuns([]);
+        setTransportRunsError(runsData?.error || 'The server returned an invalid response.');
+      }
 
       let allItems = [];
       if (boardRes && boardRes.board) {
@@ -277,6 +292,7 @@ export function DispatchView() {
         filteredDeliveriesCount={filteredDeliveries.length}
         driversCount={drivers.length}
         exceptionItemsCount={exceptionItems.length}
+        linehaulRunsCount={transportRuns.length}
         summary={summary}
         searchQuery={searchQuery}
         setSearchQuery={setSearchQuery}
@@ -316,6 +332,10 @@ export function DispatchView() {
           exceptionItems={exceptionItems}
           onRequeueDelivery={handleRequeueDelivery}
         />
+      )}
+
+      {activeTab === 'LINEHAUL' && (
+        <LinehaulRunsTab runs={transportRuns} error={transportRunsError} />
       )}
 
       <AssignCourierModal

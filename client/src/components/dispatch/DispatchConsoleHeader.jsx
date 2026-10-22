@@ -5,6 +5,7 @@ import {
   Layers,
   Users,
   ShieldAlert,
+  Route,
   Search,
   X,
   Navigation,
@@ -22,6 +23,7 @@ export function DispatchConsoleHeader({
   filteredDeliveriesCount,
   driversCount,
   exceptionItemsCount,
+  linehaulRunsCount,
   summary,
   searchQuery,
   setSearchQuery,
@@ -101,6 +103,22 @@ export function DispatchConsoleHeader({
               <ShieldAlert className={`w-3.5 h-3.5 ${activeTab === 'EXCEPTIONS' ? 'text-white' : 'text-rose-400'}`} />
               Exceptions <span className="tabular-nums opacity-80">{exceptionItemsCount}</span>
             </button>
+
+            <button
+              aria-pressed={activeTab === 'LINEHAUL'}
+              onClick={() => {
+                onTabChange('LINEHAUL');
+                sound.playScan();
+              }}
+              className={`px-3 py-1.5 rounded-md text-[11px] font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                activeTab === 'LINEHAUL'
+                  ? 'bg-cyan-700 text-white font-bold shadow-xs'
+                  : 'text-slate-400 hover:text-white hover:bg-white/[0.05]'
+              }`}
+            >
+              <Route className={`w-3.5 h-3.5 ${activeTab === 'LINEHAUL' ? 'text-white' : 'text-cyan-400'}`} />
+              Linehaul <span className="tabular-nums opacity-80">{linehaulRunsCount}</span>
+            </button>
           </div>
 
           <button
@@ -118,6 +136,8 @@ export function DispatchConsoleHeader({
         </div>
       </div>
 
+      {activeTab !== 'LINEHAUL' && (
+        <>
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-px bg-[#2a3447] border border-[#2a3447] rounded-lg overflow-hidden mt-3">
         <div className="bg-[#0c0e12] p-2.5 flex items-center justify-between">
           <div>
@@ -253,6 +273,8 @@ export function DispatchConsoleHeader({
           </div>
         </div>
       </div>
+        </>
+      )}
     </div>
   );
 }

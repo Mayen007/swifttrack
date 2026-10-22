@@ -97,6 +97,9 @@ class BranchRepository {
             where.push('b.is_active = ?');
             params.push(Boolean(filters.isActive));
         }
+        if (filters.operationalOnly) {
+            where.push('b.is_hub = true');
+        }
 
         const whereSql = where.length > 0 ? `WHERE ${where.join(' AND ')}` : '';
         const sql = `
@@ -115,7 +118,7 @@ class BranchRepository {
      * Operational staff branch directory query.
      */
     async findForStaff(userBranchId, filters = {}, tx = null) {
-        const where = ['b.is_active = true'];
+        const where = ['b.is_active = true', 'b.is_hub = true'];
         const params = [userBranchId || 0, userBranchId || 0];
 
         if (filters.city) {

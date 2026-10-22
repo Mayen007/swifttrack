@@ -77,7 +77,9 @@ export function LoginView() {
         setError(null);
       }
     } catch (err) {
-      const msg = err.message || 'Invalid credentials or account locked.';
+      const msg = err.status === 401
+        ? 'Sign-in failed. Check your username and password. If you were given a temporary password, enter it exactly as provided.'
+        : err.message || 'Invalid credentials or account locked.';
       setError(msg);
       if (err.status === 423 || msg.toLowerCase().includes('locked')) {
         setIsLocked(true);
@@ -179,7 +181,7 @@ export function LoginView() {
 
     if (demoMode) {
       try {
-        await quickSwitch(personaRole, branchId);
+        await quickSwitch(personaRole, branchId, personaUsername);
       } catch (err) {
         setError(err.message || 'Could not switch to demo persona.');
       }
@@ -188,11 +190,22 @@ export function LoginView() {
 
   const demoPersonas = [
     { label: 'Super Admin', username: 'superadmin', role: 'SUPER_ADMIN', branch: 'Global HQ', branchId: null, color: 'text-amber-400' },
-    { label: 'Branch Manager', username: 'manager.nairobi', role: 'BRANCH_MANAGER', branch: 'Nairobi Hub', branchId: 1, color: 'text-blue-400' },
-    { label: 'Dispatcher', username: 'dispatcher.nairobi', role: 'DISPATCHER', branch: 'Nairobi Logistics', branchId: 1, color: 'text-indigo-400' },
-    { label: 'Counter Cashier', username: 'cashier.nairobi', role: 'CASHIER', branch: 'Nairobi Station Hub', branchId: 1, color: 'text-emerald-400' },
-    { label: 'Delivery Driver', username: 'driver.nairobi', role: 'DRIVER', branch: 'Nairobi Fleet', branchId: 1, color: 'text-sky-400' },
-    { label: 'Mombasa Manager', username: 'manager.mombasa', role: 'BRANCH_MANAGER', branch: 'Coast Port', branchId: 2, color: 'text-cyan-400' },
+    { label: 'Nairobi Manager', username: 'manager.nairobi', role: 'BRANCH_MANAGER', branch: 'Nairobi Hub', branchId: 1, color: 'text-blue-400' },
+    { label: 'Nairobi Dispatcher', username: 'dispatcher.nairobi', role: 'DISPATCHER', branch: 'Nairobi Hub', branchId: 1, color: 'text-indigo-400' },
+    { label: 'Nairobi Cashier', username: 'cashier.nairobi', role: 'CASHIER', branch: 'Nairobi Hub', branchId: 1, color: 'text-emerald-400' },
+    { label: 'Nairobi Driver', username: 'driver.nairobi', role: 'DRIVER', branch: 'Nairobi Hub', branchId: 1, color: 'text-sky-400' },
+    { label: 'Mombasa Manager', username: 'manager.mombasa', role: 'BRANCH_MANAGER', branch: 'Mombasa Hub', branchId: 2, color: 'text-blue-400' },
+    { label: 'Mombasa Dispatcher', username: 'dispatcher.mombasa', role: 'DISPATCHER', branch: 'Mombasa Hub', branchId: 2, color: 'text-indigo-400' },
+    { label: 'Mombasa Cashier', username: 'cashier.mombasa', role: 'CASHIER', branch: 'Mombasa Hub', branchId: 2, color: 'text-emerald-400' },
+    { label: 'Mombasa Driver', username: 'driver.mombasa', role: 'DRIVER', branch: 'Mombasa Hub', branchId: 2, color: 'text-sky-400' },
+    { label: 'Kisumu Manager', username: 'manager.kisumu', role: 'BRANCH_MANAGER', branch: 'Kisumu Hub', branchId: 3, color: 'text-blue-400' },
+    { label: 'Kisumu Dispatcher', username: 'dispatcher.kisumu', role: 'DISPATCHER', branch: 'Kisumu Hub', branchId: 3, color: 'text-indigo-400' },
+    { label: 'Kisumu Cashier', username: 'cashier.kisumu', role: 'CASHIER', branch: 'Kisumu Hub', branchId: 3, color: 'text-emerald-400' },
+    { label: 'Kisumu Driver', username: 'driver.kisumu', role: 'DRIVER', branch: 'Kisumu Hub', branchId: 3, color: 'text-sky-400' },
+    { label: 'Nakuru Manager', username: 'manager.nakuru', role: 'BRANCH_MANAGER', branch: 'Nakuru Hub', branchId: 4, color: 'text-blue-400' },
+    { label: 'Nakuru Dispatcher', username: 'dispatcher.nakuru', role: 'DISPATCHER', branch: 'Nakuru Hub', branchId: 4, color: 'text-indigo-400' },
+    { label: 'Nakuru Cashier', username: 'cashier.nakuru', role: 'CASHIER', branch: 'Nakuru Hub', branchId: 4, color: 'text-emerald-400' },
+    { label: 'Nakuru Driver', username: 'driver.nakuru', role: 'DRIVER', branch: 'Nakuru Hub', branchId: 4, color: 'text-sky-400' },
   ];
 
   return (
@@ -380,6 +393,7 @@ export function LoginView() {
               <LoginDemoPersonas
                 demoPersonas={demoPersonas}
                 onSelectPersona={handleSelectDemoPersona}
+                demoPassword="Password123!"
               />
             )}
           </div>

@@ -90,7 +90,7 @@ async function recordScanEvent(data, user = {}, client = null) {
                 nextStatus = 'AT_ORIGIN_HUB';
                 eventCode = 'ACCEPTED_AT_ORIGIN';
                 eventName = 'Accepted at Origin Hub';
-            } else if (scanType === 'SORT' && (shipment.status === 'AT_ORIGIN_HUB' || shipment.status === 'AT_HUB')) {
+            } else if (scanType === 'SORT' && ['ACCEPTED', 'AT_ORIGIN_HUB', 'AT_HUB'].includes(shipment.status)) {
                 nextStatus = 'SORTED';
                 eventCode = 'SORTED_AT_HUB';
                 eventName = 'Sorted for Dispatch';
@@ -137,6 +137,80 @@ async function recordScanEvent(data, user = {}, client = null) {
     } else {
         return await dbAdapter.withTransaction(executeOperation);
     }
+}
+
+async function confirmManualSortation(data = {}, user = {}) {
+    const shipmentId = Number(data.shipment_id);
+    const hubId = Number(data.hub_id);
+    if (!Number.isInteger(shipmentId) || shipmentId <= 0) {
+        throw new Error('A valid shipment_id is required');
+    }
+    if (!Number.isInteger(hubId) || hubId <= 0) {
+        throw new Error('A valid hub_id is required');
+    }
+    if (user.roleName !== 'SUPER_ADMIN' && Number(user.branchId) !== hubId) {
+        const err = new Error('You can only confirm manual sortation at your assigned hub');
+        err.statusCode = 403;
+        throw err;
+    }
+
+    const shipment = await dbAdapter.get(`
+        SELECT s.id, s.tracking_number, s.status, s.current_hub_id, s.delivery_type,
+               s.destination_hub_id, sl.destination_hub_id AS leg_destination
+        FROM shipments s
+        JOIN shipment_legs sl ON sl.shipment_id = s.id
+        WHERE s.id = ?
+          AND sl.origin_hub_id = ?
+          AND sl.status IN ('PENDING', 'ACTIVE')
+          AND sl.manifest_id IS NULL
+        ORDER BY sl.leg_sequence
+        LIMIT 1
+    `, [shipmentId, hubId]);
+
+    if (!shipment) {
+        const err = new Error('Shipment is not awaiting an outbound sort at this hub');
+        err.statusCode = 404;
+        throw err;
+    }
+    if (!['ACCEPTED', 'AT_ORIGIN_HUB', 'AT_HUB'].includes(shipment.status)) {
+        const err = new Error('Shipment must be received at this hub before it can be sorted');
+        err.statusCode = 409;
+        throw err;
+    }
+    if (Number(shipment.current_hub_id) !== hubId) {
+        const err = new Error('Shipment is not currently recorded at this hub');
+        err.statusCode = 409;
+        throw err;
+    }
+
+    const destinationHubId = Number(shipment.leg_destination || shipment.destination_hub_id);
+    const allocatedBay = destinationHubId === hubId
+        ? shipment.delivery_type === 'PICKUP_AT_HUB'
+            ? 'BAY-05 (Customer Counter Pickup)'
+            : 'BAY-04 (Local Courier Outbound / Doorstep)'
+        : `BAY-01 (Hub #${destinationHubId} Linehaul)`;
+
+    const transition = await shipmentService.transitionShipmentStatus(shipmentId, 'SORTED', {
+        hub_id: hubId,
+        event_code: 'MANUAL_SORT_CONFIRMED',
+        event_name: 'Manual Sort Confirmed',
+        notes: `Dispatcher manually confirmed sortation to ${allocatedBay}; next destination is Hub #${destinationHubId}.`,
+        metadata: {
+            confirmation_method: 'MANUAL',
+            allocated_bay: allocatedBay,
+            next_destination_hub_id: destinationHubId
+        }
+    }, user);
+    const event = await dbAdapter.get('SELECT created_at FROM tracking_events WHERE id = ?', [transition.event_id]);
+
+    return {
+        ...transition,
+        tracking_number: shipment.tracking_number,
+        allocated_bay: allocatedBay,
+        confirmation_method: 'MANUAL',
+        confirmed_by: user.fullName || user.username || 'Dispatcher',
+        confirmed_at: event.created_at
+    };
 }
 
 /**
@@ -769,7 +843,7 @@ async function createDiscrepancy(data, user = {}) {
  * Lists discrepancies with filters
  */
 async function listDiscrepancies(query = {}, user = {}) {
-    let sql = 'SELECT d.*, s.tracking_number, b.name as hub_name, u.full_name as reported_by_name FROM discrepancies d LEFT JOIN shipments s ON d.shipment_id = s.id LEFT JOIN branches b ON d.hub_id = b.id LEFT JOIN users u ON d.reported_by_user_id = u.id WHERE 1=1';
+    let sql = 'SELECT d.*, s.tracking_number, b.name as hub_name, u.full_name as reported_by_name FROM discrepancies d LEFT JOIN shipments s ON d.shipment_id = s.id LEFT JOIN branches b ON d.hub_id = b.id LEFT JOIN users u ON d.reported_by_user_id = u.id WHERE (s.id IS NULL OR s.is_archived = FALSE)';
     const params = [];
 
     if (user.roleName !== 'SUPER_ADMIN' && user.branchId) {
@@ -830,8 +904,11 @@ async function resolveDiscrepancy(id, data = {}, user = {}) {
     const discrepancy = await dbAdapter.get('SELECT * FROM discrepancies WHERE id = ?', [id]);
     if (!discrepancy) throw new Error(`Discrepancy ${id} not found`);
 
-    if (discrepancy.status === 'RESOLVED') {
-        throw new Error(`Discrepancy ${discrepancy.discrepancy_number} is already resolved`);
+    if (['RESOLVED', 'WRITTEN_OFF'].includes(discrepancy.status)) {
+        const err = new Error(`Discrepancy ${discrepancy.discrepancy_number} is already ${discrepancy.status.toLowerCase().replace('_', ' ')}`);
+        err.statusCode = 409;
+        err.code = 'DISCREPANCY_ALREADY_CLOSED';
+        throw err;
     }
 
     const action = data.resolution_action || 'RESOLVED_BY_INVESTIGATION';
@@ -874,6 +951,7 @@ async function resolveDiscrepancy(id, data = {}, user = {}) {
 
 module.exports = {
     recordScanEvent,
+    confirmManualSortation,
     recordBatchScans,
     listScanEvents,
     recordHandoff,
