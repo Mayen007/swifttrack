@@ -74,7 +74,11 @@ export function DriverDetailModal({
                     <span>•</span>
                     <span className="flex items-center gap-1 text-amber-400">
                       <Star className="w-3.5 h-3.5 fill-amber-400" />
-                      <span>{(Number(selectedDriver.rating) || 5.0).toFixed(1)} / 5.0</span>
+                      <span>
+                        {selectedDriver.rating == null
+                          ? 'Not yet rated'
+                          : `${Number(selectedDriver.rating).toFixed(1)} / 5.0`}
+                      </span>
                     </span>
                   </p>
                 </div>
@@ -260,18 +264,27 @@ export function DriverDetailModal({
                     <>
                       <div className="grid grid-cols-4 gap-4">
                         <div className="p-4 bg-[#181d28] border border-[#222834] rounded-xl text-center">
-                          <div className="text-2xl font-bold text-blue-400">{driverScorecard.metrics.success_rate_pct}%</div>
+                          <div className="text-2xl font-bold text-blue-400">
+                            {driverScorecard.metrics.success_rate_pct == null ? '—' : `${driverScorecard.metrics.success_rate_pct}%`}
+                          </div>
                           <div className="text-xs text-slate-400 font-medium mt-1">Delivery Success Rate</div>
                         </div>
 
                         <div className="p-4 bg-[#181d28] border border-[#222834] rounded-xl text-center">
-                          <div className="text-2xl font-bold text-emerald-400">{driverScorecard.metrics.on_time_rate_pct}%</div>
+                          <div className="text-2xl font-bold text-emerald-400">
+                            {driverScorecard.metrics.on_time_rate_pct == null ? '—' : `${driverScorecard.metrics.on_time_rate_pct}%`}
+                          </div>
                           <div className="text-xs text-slate-400 font-medium mt-1">On-Time Arrival Rate</div>
                         </div>
 
                         <div className="p-4 bg-[#181d28] border border-[#222834] rounded-xl text-center">
-                          <div className="text-2xl font-bold text-amber-400">{driverScorecard.metrics.avg_turnaround_minutes}m</div>
+                          <div className="text-2xl font-bold text-amber-400">
+                            {driverScorecard.metrics.avg_turnaround_minutes == null ? '—' : `${driverScorecard.metrics.avg_turnaround_minutes}m`}
+                          </div>
                           <div className="text-xs text-slate-400 font-medium mt-1">Avg Turnaround Time</div>
+                          {driverScorecard.metrics.avg_turnaround_minutes == null && (
+                            <div className="text-[10px] text-slate-500 mt-1">No completed trips yet</div>
+                          )}
                         </div>
 
                         <div className="p-4 bg-[#181d28] border border-[#222834] rounded-xl text-center">

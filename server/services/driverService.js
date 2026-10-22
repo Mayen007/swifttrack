@@ -166,9 +166,11 @@ async function listDrivers({ branchId, status, search, complianceStatus, page = 
         const comp = calculateCompliance(drv.license_expiry_date, drv.ntsa_verified);
         return {
             ...drv,
-            rating: drv.rating != null ? Number(drv.rating) : 5.0,
             active_deliveries_count: Number(drv.active_deliveries_count) || 0,
             completed_deliveries_count: Number(drv.completed_deliveries_count) || 0,
+            rating: Number(drv.completed_deliveries_count) > 0 && drv.rating != null
+                ? Number(drv.rating)
+                : null,
             incident_count: Number(drv.incident_count) || 0,
             assigned_vehicle_id: drv.vehicle_id || null,
             compliance: comp
@@ -226,9 +228,11 @@ async function getDriverById(id, tx = null) {
         throw err;
     }
 
-    driver.rating = driver.rating != null ? Number(driver.rating) : 5.0;
     driver.active_deliveries_count = Number(driver.active_deliveries_count) || 0;
     driver.completed_deliveries_count = Number(driver.completed_deliveries_count) || 0;
+    driver.rating = driver.completed_deliveries_count > 0 && driver.rating != null
+        ? Number(driver.rating)
+        : null;
     driver.incident_count = Number(driver.incident_count) || 0;
     driver.assigned_vehicle_id = driver.vehicle_id || null;
     driver.compliance = calculateCompliance(driver.license_expiry_date, driver.ntsa_verified);
@@ -440,7 +444,7 @@ async function updateDriver(id, data, updaterUserId = null) {
     const license_expiry_date = data.license_expiry_date !== undefined ? data.license_expiry_date : existing.license_expiry_date;
     const ntsa_verified = data.ntsa_verified !== undefined ? (data.ntsa_verified ? 1 : 0) : existing.ntsa_verified;
     const ntsa_verification_date = data.ntsa_verification_date !== undefined ? data.ntsa_verification_date : existing.ntsa_verification_date;
-    const rating = data.rating !== undefined ? Number(data.rating) : existing.rating;
+    const rating = data.rating !== undefined ? Number(data.rating) : (existing.rating ?? 5.0);
     const notes = data.notes !== undefined ? data.notes : existing.notes;
 
     return await dbAdapter.withTransaction(async (tx) => {
@@ -810,9 +814,9 @@ async function getDriverPerformance(driverId) {
     const totalActive = Number(stats.total_active) || 0;
     const finishedCount = totalCompleted + totalFailed;
 
-    const successRate = finishedCount > 0 
+    const successRate = finishedCount > 0
         ? Math.round((totalCompleted / finishedCount) * 1000) / 10 
-        : 100.0;
+        : null;
 
     const completedDeliveries = await dbAdapter.all(`
         SELECT 
@@ -847,11 +851,11 @@ async function getDriverPerformance(driverId) {
 
     const onTimeRate = completedDeliveries.length > 0
         ? Math.round((onTimeCount / completedDeliveries.length) * 1000) / 10
-        : 100.0;
+        : null;
 
     const avgTurnaroundMinutes = validDurationCount > 0
         ? Math.round(totalMinutes / validDurationCount)
-        : 35;
+        : null;
 
     const incRow = await dbAdapter.get('SELECT count(*) as count FROM driver_incident_logs WHERE driver_id = ?', [driverId]);
     const incidentCount = incRow ? Number(incRow.count) : 0;
@@ -861,7 +865,7 @@ async function getDriverPerformance(driverId) {
         driver_name: driver.full_name,
         employee_code: driver.employee_code,
         current_status: driver.status,
-        rating: driver.rating || 5.0,
+        rating: driver.rating,
         metrics: {
             total_assigned: totalAssigned,
             total_completed: totalCompleted,
@@ -1000,7 +1004,10 @@ async function getFleetTelemetry(branchId = null) {
             sum(CASE WHEN status = 'ON_DELIVERY' THEN 1 ELSE 0 END) as on_delivery_drivers,
             sum(CASE WHEN status IN ('OFF_DUTY', 'ON_LEAVE') THEN 1 ELSE 0 END) as off_duty_drivers,
             sum(CASE WHEN status = 'SUSPENDED' THEN 1 ELSE 0 END) as suspended_drivers,
-            avg(rating) as avg_rating
+            avg(CASE WHEN EXISTS (
+                SELECT 1 FROM deliveries completed
+                WHERE completed.driver_id = drivers.id AND completed.status = 'DELIVERED'
+            ) THEN rating END) as avg_rating
         FROM drivers
         ${whereClause}
     `, params) || {};
@@ -1041,9 +1048,9 @@ async function getFleetTelemetry(branchId = null) {
         }
     }
 
-    const fleetOnTimeRate = completed.length > 0 
+    const fleetOnTimeRate = completed.length > 0
         ? Math.round((onTime / completed.length) * 1000) / 10 
-        : 96.5;
+        : null;
 
     return {
         total_drivers: Number(counts.total_drivers) || 0,
@@ -1055,7 +1062,9 @@ async function getFleetTelemetry(branchId = null) {
         expired_licenses_count: expired,
         valid_licenses_count: valid,
         fleet_on_time_rate_pct: fleetOnTimeRate,
-        fleet_avg_rating: counts.avg_rating ? Math.round(Number(counts.avg_rating) * 10) / 10 : 5.0
+        fleet_avg_rating: counts.avg_rating == null
+            ? null
+            : Math.round(Number(counts.avg_rating) * 10) / 10
     };
 }
 

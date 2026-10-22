@@ -143,7 +143,9 @@ export function DriversView() {
     base_salary_kes: '',
     vehicle_id: '',
     assigned_vehicle_id: '',
-    blood_group: 'O+'
+    blood_group: 'O+',
+    city: '',
+    notes: ''
   });
 
   const [statusForm, setStatusForm] = useState({
@@ -171,7 +173,7 @@ export function DriversView() {
       if (branchFilter) params.append('branch_id', branchFilter);
 
       const vehParams = new URLSearchParams();
-      if (branchFilter) vehParams.append('branch_id', branchFilter);
+      if (branchFilter) vehParams.append('branchId', branchFilter);
       vehParams.append('limit', '100');
 
       const [drvRes, telRes, vehRes, branchRes] = await Promise.all([
@@ -199,6 +201,8 @@ export function DriversView() {
 
   const handleCreateDriver = async (e) => {
     e.preventDefault();
+    if (createTab !== 'depot_vehicle') return;
+
     setActionLoading(true);
     try {
       const chosenVehicle = createForm.vehicle_id || createForm.assigned_vehicle_id;
@@ -238,7 +242,9 @@ export function DriversView() {
         base_salary_kes: '',
         vehicle_id: '',
         assigned_vehicle_id: '',
-        blood_group: 'O+'
+        blood_group: 'O+',
+        city: '',
+        notes: ''
       });
       fetchData();
     } catch (err) {

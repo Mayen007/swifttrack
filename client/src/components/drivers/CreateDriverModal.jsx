@@ -68,7 +68,19 @@ export function CreateDriverModal({
           </button>
         </div>
 
-        <form onSubmit={onSubmit} className="p-6 overflow-y-auto flex-1 space-y-4">
+        <form
+          onKeyDown={(event) => {
+            if (event.key === 'Enter' && createTab !== 'depot_vehicle' && event.target.tagName === 'INPUT') {
+              event.preventDefault();
+            }
+          }}
+          onSubmit={(event) => {
+            event.preventDefault();
+            if (createTab !== 'depot_vehicle') return;
+            onSubmit(event);
+          }}
+          className="p-6 overflow-y-auto flex-1 space-y-4"
+        >
           {createTab === 'basic' && (
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
@@ -152,7 +164,7 @@ export function CreateDriverModal({
                   <input
                     type="text"
                     placeholder="e.g. Nairobi"
-                    value={createForm.city}
+                    value={createForm.city || ''}
                     onChange={(e) => setCreateForm({ ...createForm, city: e.target.value })}
                     className="w-full px-3 py-2 bg-slate-950/60 border border-slate-700/80 rounded-lg text-sm text-white placeholder-slate-500 focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500 focus:outline-hidden"
                   />
@@ -344,7 +356,7 @@ export function CreateDriverModal({
                 <textarea
                   rows="3"
                   placeholder="Special endorsements, routes, experience, certifications..."
-                  value={createForm.notes}
+                  value={createForm.notes || ''}
                   onChange={(e) => setCreateForm({ ...createForm, notes: e.target.value })}
                   className="w-full px-3 py-2 bg-slate-950/60 border border-slate-700/80 rounded-lg text-sm text-white placeholder-slate-500 focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500 focus:outline-hidden"
                 />

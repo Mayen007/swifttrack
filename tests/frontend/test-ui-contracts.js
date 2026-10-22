@@ -26,8 +26,11 @@ console.log('=================================================================\n
 const clientSrc = path.resolve(__dirname, '../../client/src');
 const appJsx = fs.readFileSync(path.join(clientSrc, 'App.jsx'), 'utf8');
 const driversView = fs.readFileSync(path.join(clientSrc, 'views/DriversView.jsx'), 'utf8');
-const vehiclesView = fs.readFileSync(path.join(clientSrc, 'views/VehiclesView.jsx'), 'utf8');
 const driverDetailModal = fs.readFileSync(path.join(clientSrc, 'components/drivers/DriverDetailModal.jsx'), 'utf8');
+const driverTelemetryCards = fs.readFileSync(path.join(clientSrc, 'components/drivers/DriverTelemetryCards.jsx'), 'utf8');
+const driverTable = fs.readFileSync(path.join(clientSrc, 'components/drivers/DriverTable.jsx'), 'utf8');
+const createDriverModal = fs.readFileSync(path.join(clientSrc, 'components/drivers/CreateDriverModal.jsx'), 'utf8');
+const vehiclesView = fs.readFileSync(path.join(clientSrc, 'views/VehiclesView.jsx'), 'utf8');
 const editDriverModal = fs.readFileSync(path.join(clientSrc, 'components/drivers/EditDriverModal.jsx'), 'utf8');
 const offlineStatus = fs.readFileSync(path.join(clientSrc, 'components/common/OfflineSyncStatus.jsx'), 'utf8');
 const systemTour = fs.readFileSync(path.join(clientSrc, 'components/SystemTour.jsx'), 'utf8');
@@ -72,6 +75,33 @@ runTest('DriverDetailModal formats dates via en-KE locale to prevent raw ISO lea
     assert.ok(driverDetailModal.includes("toLocaleDateString('en-KE'"), 'formatDate must format with en-KE locale');
     assert.ok(driverDetailModal.includes('formatDate(selectedDriver.license_expiry_date)'), 'License expiry date must be formatted');
     assert.ok(driverDetailModal.includes('formatDate(selectedDriver.license_issue_date)'), 'License issue date must be formatted');
+});
+
+runTest('Driver scorecards and fleet telemetry do not invent performance data', () => {
+    assert.ok(driverDetailModal.includes("success_rate_pct == null ? '—'"), 'No-trip delivery success must not display as 100%');
+    assert.ok(driverDetailModal.includes("on_time_rate_pct == null ? '—'"), 'No-trip on-time rate must not display as 100%');
+    assert.ok(driverDetailModal.includes("avg_turnaround_minutes == null ? '—'"), 'No-trip turnaround must not show a sample duration');
+    assert.ok(driverDetailModal.includes("'Not yet rated'"), 'Unrated driver profile must not show a default 5/5');
+    assert.ok(driverTable.includes('drv.rating == null'), 'Unrated drivers must be labeled instead of assigned a default rating');
+    assert.ok(driverTelemetryCards.includes("fleet_on_time_rate_pct == null ? '—'"), 'Empty fleet on-time metric must be shown as unavailable');
+    assert.ok(driverTelemetryCards.includes("fleet_avg_rating == null ? '—'"), 'Empty fleet rating must be shown as unavailable');
+});
+
+runTest('Driver onboarding cannot implicitly submit before the final step', () => {
+    assert.ok(createDriverModal.includes("event.key === 'Enter' && createTab !== 'depot_vehicle' && event.target.tagName === 'INPUT'"), 'Enter from an input must not submit the form before the final step');
+    assert.ok(createDriverModal.includes("if (createTab !== 'depot_vehicle') return;"), 'Early form submits must not advance or submit the wizard');
+    assert.ok(createDriverModal.includes('onSubmit(event);'), 'Only the final step should invoke driver creation');
+    assert.ok(driversView.includes("if (createTab !== 'depot_vehicle') return;"), 'The create handler must reject submissions before the final step');
+});
+
+runTest('Driver onboarding fields remain controlled and vehicle registration sends API branch_id', () => {
+    assert.ok(driversView.includes("city: ''"), 'Driver onboarding state must initialize city');
+    assert.ok(driversView.includes("notes: ''"), 'Driver onboarding state must initialize notes');
+    assert.ok(createDriverModal.includes('value={createForm.city || \'\'}'), 'City input must remain controlled');
+    assert.ok(createDriverModal.includes('value={createForm.notes || \'\'}'), 'Notes input must remain controlled');
+    assert.ok(vehiclesView.includes('branch_id: Number(registerForm.branch_id) || 1'), 'Vehicle create request must send branch_id expected by the API');
+    assert.ok(vehiclesView.includes('branch_id: selectedBranch?.id || 1'), 'Vehicle form must initialize and reset branch_id');
+    assert.ok(vehiclesView.includes("params.append('branchId', branchFilter)"), 'Vehicle list filter must use the API branchId query key');
 });
 
 // Test 5: Date Input Timezone-Safe Normalization

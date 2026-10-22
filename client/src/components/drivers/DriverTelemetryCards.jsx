@@ -68,9 +68,11 @@ export function DriverTelemetryCards({ telemetry }) {
         </div>
         <div className="flex items-baseline justify-between mt-0.5">
           <span className="text-xl font-bold text-white tracking-tight tabular-nums">
-            {telemetry?.fleet_on_time_rate_pct ?? 0}%
+            {telemetry?.fleet_on_time_rate_pct == null ? '—' : `${telemetry.fleet_on_time_rate_pct}%`}
           </span>
-          <span className="text-[10px] font-medium text-indigo-400/80">Fleet target</span>
+          <span className="text-[10px] font-medium text-indigo-400/80">
+            {telemetry?.fleet_on_time_rate_pct == null ? 'No completed trips' : 'Completed trips'}
+          </span>
         </div>
       </div>
 
@@ -82,9 +84,11 @@ export function DriverTelemetryCards({ telemetry }) {
         </div>
         <div className="flex items-baseline justify-between mt-0.5">
           <span className="text-xl font-bold text-white tracking-tight tabular-nums">
-            {telemetry?.fleet_avg_rating ?? '5.0'}
+            {telemetry?.fleet_avg_rating == null ? '—' : telemetry.fleet_avg_rating}
           </span>
-          <span className="text-[10px] font-medium text-amber-400/80">/ 5.0 rating</span>
+          <span className="text-[10px] font-medium text-amber-400/80">
+            {telemetry?.fleet_avg_rating == null ? 'No rated drivers' : '/ 5.0 rating'}
+          </span>
         </div>
       </div>
     </div>

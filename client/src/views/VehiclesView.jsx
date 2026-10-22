@@ -88,7 +88,7 @@ export function VehiclesView() {
     max_payload_kg: 1200,
     cargo_volume_cbm: 6.5,
     current_odometer_km: 0,
-    assigned_branch_id: selectedBranch?.id || 1,
+    branch_id: selectedBranch?.id || 1,
     assigned_driver_id: ''
   });
 
@@ -138,10 +138,10 @@ export function VehiclesView() {
       if (searchQuery.trim()) params.append('search', searchQuery.trim());
       if (statusFilter !== 'ALL') params.append('status', statusFilter);
       if (typeFilter !== 'ALL') params.append('vehicle_type', typeFilter);
-      if (branchFilter) params.append('branch_id', branchFilter);
+      if (branchFilter) params.append('branchId', branchFilter);
 
       const driverParams = new URLSearchParams();
-      if (branchFilter) driverParams.append('branch_id', branchFilter);
+      if (branchFilter) driverParams.append('branchId', branchFilter);
 
       const [vehRes, telRes, branchRes, driverRes] = await Promise.all([
         api.get(`/api/v1/vehicles?${params.toString()}`),
@@ -183,7 +183,7 @@ export function VehiclesView() {
         max_payload_kg: Number(registerForm.max_payload_kg) || 1000,
         cargo_volume_cbm: Number(registerForm.cargo_volume_cbm) || 5,
         current_odometer_km: Number(registerForm.current_odometer_km) || 0,
-        assigned_branch_id: Number(registerForm.assigned_branch_id) || 1,
+        branch_id: Number(registerForm.branch_id) || 1,
         assigned_driver_id: registerForm.assigned_driver_id ? Number(registerForm.assigned_driver_id) : null
       };
 
@@ -204,7 +204,7 @@ export function VehiclesView() {
         max_payload_kg: 1200,
         cargo_volume_cbm: 6.5,
         current_odometer_km: 0,
-        assigned_branch_id: selectedBranch?.id || 1,
+        branch_id: selectedBranch?.id || 1,
         assigned_driver_id: ''
       });
       fetchData();

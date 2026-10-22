@@ -217,9 +217,15 @@ export function DriverTable({
                     {/* Scorecard */}
                     <td className={`${cellPadding} min-w-[125px]`}>
                       <div className="flex items-center gap-1 text-xs font-semibold text-slate-200 whitespace-nowrap">
-                        <Star className="w-3 h-3 fill-amber-400 text-amber-400 shrink-0" />
-                        <span className="tabular-nums font-bold">{(Number(drv.rating) || 5.0).toFixed(1)}</span>
-                        <span className="text-slate-600 mx-0.5">·</span>
+                        {drv.rating == null ? (
+                          <span className="text-slate-400 font-normal">Not rated</span>
+                        ) : (
+                          <>
+                            <Star className="w-3 h-3 fill-amber-400 text-amber-400 shrink-0" />
+                            <span className="tabular-nums font-bold">{Number(drv.rating).toFixed(1)}</span>
+                            <span className="text-slate-600 mx-0.5">·</span>
+                          </>
+                        )}
                         <span className="text-[11px] text-slate-400 font-normal">
                           {drv.completed_deliveries_count || 0} jobs
                         </span>

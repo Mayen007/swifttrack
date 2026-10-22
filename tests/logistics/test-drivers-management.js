@@ -29,6 +29,7 @@ async function runTest(name, fn) {
   let createdDriver1 = null;
   let createdDriver2 = null;
   let testVehicle = null;
+  let createdTestVehicleId = null;
   let duplicateAssignmentVehicleId = null;
   let duplicateAssignmentVehicleReg = null;
   const createdDeliveryIds = [];
@@ -157,6 +158,19 @@ async function runTest(name, fn) {
       assert.strictEqual(createdDriver2.compliance.status, 'EXPIRED');
     });
 
+    await runTest('3.5. Drivers without completed trips have no performance rates or rating', async () => {
+      const scorecard = await driverService.getDriverPerformance(createdDriver2.id);
+      assert.strictEqual(scorecard.metrics.success_rate_pct, null);
+      assert.strictEqual(scorecard.metrics.on_time_rate_pct, null);
+      assert.strictEqual(scorecard.metrics.avg_turnaround_minutes, null);
+      assert.strictEqual(scorecard.rating, null);
+
+      const drivers = await driverService.listDrivers({ search: createdDriver2.full_name });
+      const listedDriver = drivers.drivers.find(driver => driver.id === createdDriver2.id);
+      assert(listedDriver, 'Newly created test driver must appear in the roster');
+      assert.strictEqual(listedDriver.rating, null);
+    });
+
     // TEST 4: Operational Status State Machine & Transitions
     await runTest('4. Driver Operational Status: AVAILABLE -> ON_DELIVERY -> OFF_DUTY -> ON_LEAVE -> SUSPENDED with history log', async () => {
       // 4a. Transition to ON_DELIVERY
@@ -211,7 +225,8 @@ async function runTest(name, fn) {
           INSERT INTO vehicles (branch_id, registration_number, vehicle_type, model, max_capacity_kg, is_active)
           VALUES (?, ?, 'VAN', 'Toyota HiAce', 1200, true)
         `, [branch1.id, regNo]);
-        testVehicle = await dbAdapter.get('SELECT * FROM vehicles WHERE id = ?', [res.insertId || res.id]);
+        createdTestVehicleId = Number(res.insertId || res.id);
+        testVehicle = await dbAdapter.get('SELECT * FROM vehicles WHERE id = ?', [createdTestVehicleId]);
       }
 
       // Assign vehicle
@@ -345,6 +360,10 @@ async function runTest(name, fn) {
 
     // Cleanup
     try {
+      if (createdTestVehicleId) {
+        await dbAdapter.run('UPDATE drivers SET vehicle_id = NULL WHERE vehicle_id = ?', [createdTestVehicleId]);
+        await dbAdapter.run('UPDATE vehicles SET is_active = false WHERE id = ?', [createdTestVehicleId]);
+      }
       if (duplicateAssignmentVehicleId) {
         await dbAdapter.run('DELETE FROM vehicles WHERE id = ?', [duplicateAssignmentVehicleId]);
       } else if (duplicateAssignmentVehicleReg) {
