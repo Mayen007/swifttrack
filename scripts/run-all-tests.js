@@ -13,6 +13,7 @@ const TEST_SUITES = [
     { file: 'tests/security/test-sql-injection.js', domain: 'Security', name: 'SQL Injection Guards' },
     { file: 'tests/security/test-csrf-cors.js', domain: 'Security', name: 'CSRF & CORS Isolation' },
     { file: 'tests/security/test-xss.js', domain: 'Security', name: 'XSS Sanitization' },
+    { file: 'tests/security/test-idempotency-isolation.js', domain: 'Security', name: 'Idempotency Principal Isolation' },
 
     // 2. Database & Data Architecture
     { file: 'tests/database/test-postgres-data-architecture.js', domain: 'Database', name: 'PostgreSQL Architecture' },

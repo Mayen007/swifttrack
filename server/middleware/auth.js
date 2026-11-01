@@ -8,15 +8,34 @@ const sessionRepository = require('../repositories/sessionRepository.js');
 const { SCOPES, AUTHORIZATION_MATRIX, checkPermission } = require('../config/permissions.js');
 
 /**
- * Validates the Authorization Bearer token, checks revocation, verifies session and token versions,
- * and enforces mandatory first-login password changes.
+ * Structured, non-500 authentication failure. Carries the HTTP status and any
+ * extra fields that must be merged into the JSON error response.
  */
-async function authenticateToken(req, res, next) {
+class AuthFailure extends Error {
+    constructor(statusCode, message, extra = {}) {
+        super(message);
+        this.name = 'AuthFailure';
+        this.statusCode = statusCode;
+        this.extra = extra;
+    }
+}
+
+/**
+ * Resolves the authenticated principal from the request's Bearer token, checks
+ * revocation, verifies session and token versions, and enforces mandatory
+ * first-login password changes.
+ *
+ * Throws an AuthFailure (4xx) for expected credential problems and rethrows
+ * unexpected infrastructure errors. The resolved principal is returned so that
+ * callers (e.g. the idempotency middleware) can authenticate before the route
+ * handler runs without duplicating this logic.
+ */
+async function resolveAuthenticatedUser(req) {
     const authHeader = req.headers['authorization'];
     const token = authHeader && authHeader.split(' ')[1];
 
     if (!token) {
-        return res.status(401).json({ error: 'Authentication required: No token provided' });
+        throw new AuthFailure(401, 'Authentication required: No token provided');
     }
 
     const secret = getJwtSecret();
@@ -24,92 +43,107 @@ async function authenticateToken(req, res, next) {
     let decoded;
     try {
         decoded = jwt.verify(token, secret);
-    } catch (err) {
-        return res.status(401).json({ error: 'Invalid or expired token. Please log in again.' });
+    } catch {
+        throw new AuthFailure(401, 'Invalid or expired token. Please log in again.');
+    }
+
+    // 1. Revocation Blacklist Check via SessionRepository
+    if (decoded.jti) {
+        const isRevoked = await sessionRepository.isTokenRevoked(decoded.jti);
+        if (isRevoked) {
+            throw new AuthFailure(401, 'Token has been revoked or signed out. Please log in again.');
+        }
+    }
+
+    // 2. Fetch fresh user record from DB via UserRepository
+    const user = await userRepository.findById(decoded.id);
+
+    if (!user || !user.is_active) {
+        throw new AuthFailure(403, 'User account is inactive or no longer exists');
+    }
+
+    // 3. Admin Force Logout / Password Change Token Version Invalidation
+    if (decoded.tokenVersion !== undefined && Number(decoded.tokenVersion) < Number(user.token_version)) {
+        throw new AuthFailure(401, 'Session has been terminated by an administrator or password change. Please log in again.');
+    }
+
+    // 4. Session Validation (if token contains sessionId)
+    if (decoded.sessionId) {
+        const session = await sessionRepository.findSessionById(decoded.sessionId);
+        if (session) {
+            if (!session.is_active || session.is_expired) {
+                throw new AuthFailure(401, 'Session has expired or was terminated. Please log in again.');
+            }
+            // Refresh session activity timestamp
+            try {
+                await sessionRepository.touchSession(decoded.sessionId);
+            } catch {}
+        }
+    }
+
+    // 5. First-Login Mandatory Password Change Enforcement
+    if (user.must_change_password) {
+        const allowedPaths = [
+            '/api/auth/change-password',
+            '/api/auth/me',
+            '/api/auth/logout',
+            '/api/auth/config',
+            '/api/v1/auth/change-password',
+            '/api/v1/auth/me',
+            '/api/v1/auth/logout',
+            '/api/v1/auth/config'
+        ];
+        const isAllowedPath = allowedPaths.some(p => req.originalUrl?.startsWith(p) || req.baseUrl?.startsWith(p));
+
+        if (!isAllowedPath) {
+            throw new AuthFailure(
+                403,
+                'Mandatory password change required. You must establish a new password before accessing system tools.',
+                { code: 'PASSWORD_CHANGE_REQUIRED', mustChangePassword: true }
+            );
+        }
+    }
+
+    // 6. Fetch permissions granted to this role
+    const permissions = await userRepository.getPermissionsByRoleName(user.role_name);
+
+    return {
+        id: user.id,
+        username: user.username,
+        email: user.email,
+        fullName: user.full_name,
+        phone: user.phone,
+        branchId: user.branch_id,
+        branchName: user.branch_name,
+        branchCode: user.branch_code,
+        roleName: user.role_name,
+        roleDisplayName: user.role_display_name,
+        mustChangePassword: Boolean(user.must_change_password),
+        twoFactorEnabled: Boolean(user.two_factor_enabled),
+        sessionId: decoded.sessionId || null,
+        jti: decoded.jti || null,
+        tokenVersion: user.token_version,
+        permissions
+    };
+}
+
+/**
+ * Express middleware wrapper around resolveAuthenticatedUser.
+ * If an earlier middleware (idempotency) already resolved the principal, this
+ * short-circuits instead of repeating the session/DB lookups.
+ */
+async function authenticateToken(req, res, next) {
+    if (req.user) {
+        return next();
     }
 
     try {
-        // 1. Revocation Blacklist Check via SessionRepository
-        if (decoded.jti) {
-            const isRevoked = await sessionRepository.isTokenRevoked(decoded.jti);
-            if (isRevoked) {
-                return res.status(401).json({ error: 'Token has been revoked or signed out. Please log in again.' });
-            }
-        }
-
-        // 2. Fetch fresh user record from DB via UserRepository
-        const user = await userRepository.findById(decoded.id);
-
-        if (!user || !user.is_active) {
-            return res.status(403).json({ error: 'User account is inactive or no longer exists' });
-        }
-
-        // 3. Admin Force Logout / Password Change Token Version Invalidation
-        if (decoded.tokenVersion !== undefined && Number(decoded.tokenVersion) < Number(user.token_version)) {
-            return res.status(401).json({ error: 'Session has been terminated by an administrator or password change. Please log in again.' });
-        }
-
-        // 4. Session Validation (if token contains sessionId)
-        if (decoded.sessionId) {
-            const session = await sessionRepository.findSessionById(decoded.sessionId);
-            if (session) {
-                if (!session.is_active || session.is_expired) {
-                    return res.status(401).json({ error: 'Session has expired or was terminated. Please log in again.' });
-                }
-                // Refresh session activity timestamp
-                try {
-                    await sessionRepository.touchSession(decoded.sessionId);
-                } catch {}
-            }
-        }
-
-        // 5. First-Login Mandatory Password Change Enforcement
-        if (user.must_change_password) {
-            const allowedPaths = [
-                '/api/auth/change-password',
-                '/api/auth/me',
-                '/api/auth/logout',
-                '/api/auth/config',
-                '/api/v1/auth/change-password',
-                '/api/v1/auth/me',
-                '/api/v1/auth/logout',
-                '/api/v1/auth/config'
-            ];
-            const isAllowedPath = allowedPaths.some(p => req.originalUrl?.startsWith(p) || req.baseUrl?.startsWith(p));
-
-            if (!isAllowedPath) {
-                return res.status(403).json({
-                    error: 'Mandatory password change required. You must establish a new password before accessing system tools.',
-                    code: 'PASSWORD_CHANGE_REQUIRED',
-                    mustChangePassword: true
-                });
-            }
-        }
-
-        // 6. Fetch permissions granted to this role
-        const permissions = await userRepository.getPermissionsByRoleName(user.role_name);
-
-        req.user = {
-            id: user.id,
-            username: user.username,
-            email: user.email,
-            fullName: user.full_name,
-            phone: user.phone,
-            branchId: user.branch_id,
-            branchName: user.branch_name,
-            branchCode: user.branch_code,
-            roleName: user.role_name,
-            roleDisplayName: user.role_display_name,
-            mustChangePassword: Boolean(user.must_change_password),
-            twoFactorEnabled: Boolean(user.two_factor_enabled),
-            sessionId: decoded.sessionId || null,
-            jti: decoded.jti || null,
-            tokenVersion: user.token_version,
-            permissions
-        };
-
-        next();
+        req.user = await resolveAuthenticatedUser(req);
+        return next();
     } catch (err) {
+        if (err instanceof AuthFailure) {
+            return res.status(err.statusCode).json({ error: err.message, ...err.extra });
+        }
         console.error('[Auth Middleware Error]', err);
         return res.status(500).json({ error: 'Authentication internal error' });
     }
@@ -361,6 +395,8 @@ function authorize(resource, action, options = {}) {
 
 module.exports = {
     authenticateToken,
+    resolveAuthenticatedUser,
+    AuthFailure,
     requireRole,
     requirePermission,
     enforceBranchIsolation,

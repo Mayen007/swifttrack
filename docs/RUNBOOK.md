@@ -34,7 +34,7 @@
 | Service Container | Technology | Responsibilities | Health Probe |
 | :--- | :--- | :--- | :--- |
 | **`swifttrack_api`** | Node.js 22 Alpine / Express 5.2 | REST API, RBAC, static Vite frontend | `GET /api/v1/health` (HTTP 200) |
-| **`swifttrack_postgres`** | PostgreSQL 16 Alpine | Authoritative relational state, 24 migrations | `pg_isready -U swifttrack_admin` |
+| **`swifttrack_postgres`** | PostgreSQL 16 Alpine | Authoritative relational state, 27 migrations | `pg_isready -U swifttrack_admin` |
 | **`swifttrack_worker`** | Node.js 22 Alpine | Transactional outbox polling, SMS/Email retries | Heartbeat loop & queue depth query |
 
 ---
@@ -45,7 +45,7 @@ Before deploying a new release or promoting to production:
 1. **Secret Entropy Validation**: Confirm `JWT_SECRET` is set to a cryptographically secure hex string of at least 64 characters. Reject default development strings.
 2. **Database Engine Mode**: Verify `DB_CLIENT=postgres` in the target `.env`.
 3. **CORS Origins**: Ensure `CORS_ORIGINS` contains only authorized production domains (e.g., `https://app.swifttrack.co.ke`).
-4. **Automated Test Gate**: Confirm all 39 test suites pass:
+4. **Automated Test Gate**: Confirm all 46 scheduled test suites pass:
    ```bash
    npm run test:all
    ```
@@ -66,11 +66,11 @@ npm run db:migrate:status
 *Expected Output:*
 ```text
 [MIGRATOR] Migration 001_initial_schema.sql: APPLIED
-[MIGRATOR] Migration 002_logistics_core.sql: APPLIED
+[MIGRATOR] Migration 002_soft_delete_and_retention.sql: APPLIED
 ...
-[MIGRATOR] Migration 023_logistics_notifications_engine.sql: APPLIED
-[MIGRATOR] Migration 024_remove_default_demo_tariffs.sql: APPLIED
-All 24 migrations up to date.
+[MIGRATOR] Migration 026_classify_headquarters_branch.sql: APPLIED
+[MIGRATOR] Migration 027_archive_shipments.sql: APPLIED
+All 27 migrations up to date.
 ```
 
 ### 3.2 Execute Pending Migrations
@@ -86,11 +86,13 @@ In the event of an issue requiring immediate rollback:
 npm run db:migrate:rollback
 ```
 
-### 3.4 Monthly Partition Maintenance
-Migration `022_partitioning_for_high_volume.sql` uses range partitioning for `tracking_events` and `audit_logs`. The automated monthly partition creator runs via cron or can be invoked manually:
-```bash
-node -e "require('./server/db/postgres/pool.js').query('SELECT create_monthly_partitions();')"
+### 3.4 Retention & Archival Maintenance
+The migration suite does **not** currently define range partitioning; high-volume tables rely on the compound and partial indexes added in migration `003`. Data lifecycle is handled by soft-deletion and retention columns from migration `002` plus shipment archival state from migration `027`:
+```sql
+-- Inspect archived shipment volume
+SELECT COUNT(*) AS archived_shipments FROM shipments WHERE is_archived = TRUE;
 ```
+Long-term retention and monthly range partitioning remain roadmap items and must not be assumed present in the current schema.
 
 ---
 

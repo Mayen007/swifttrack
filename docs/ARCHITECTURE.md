@@ -21,7 +21,7 @@
 - [5. Persistence & Database Architecture](#5-persistence--database-architecture)
   - [5.1 Dual-Engine Adapter (`dbAdapter.js`)](#51-dual-engine-adapter-dbadapterjs)
   - [5.2 PostgreSQL 16 Authoritative Migration Architecture](#52-postgresql-16-authoritative-migration-architecture)
-  - [5.3 Partitioning, Retention & Immutability Triggers](#53-partitioning-retention--immutability-triggers)
+  - [5.3 Retention & Immutability Triggers](#53-retention--immutability-triggers)
   - [5.4 Domain Repository Registry](#54-domain-repository-registry)
 - [6. Asynchronous Messaging & Edge Resilience](#6-asynchronous-messaging--edge-resilience)
   - [6.1 Transactional Outbox Pattern](#61-transactional-outbox-pattern)
@@ -192,39 +192,44 @@ SwiftTrack uses an intelligent database abstraction layer ([server/db/dbAdapter.
 2. **Node 24 Native SQLite**: High-performance local development and offline edge mode using `node:sqlite` in Write-Ahead Logging (`WAL`) mode with parameterized queries (`?`).
 
 ### 5.2 PostgreSQL 16 Authoritative Migration Architecture
-The authoritative production schema is structured into **24 sequential, transactional migrations** in [server/db/postgres/migrations/](file:///c:/Users/ariic/Documents/Logistics%20Platform/server/db/postgres/migrations/):
+The authoritative production schema is structured into **27 sequential, transactional up migrations** (with rollback companions for `026` and `027`) in [server/db/postgres/migrations/](file:///c:/Users/ariic/Documents/Logistics%20Platform/server/db/postgres/migrations/):
 
 ```
-001_initial_schema.sql                 -> Branches, users, roles, products, inventory, orders
-002_logistics_core.sql                 -> Shipments, parcels, tracking events, custody scans
-003_transport_and_runs.sql             -> Corridors, transport runs, manifests, checkpoints
-004_fleet_and_drivers.sql              -> Fleet vehicles, drivers, licenses, maintenance
-005_last_mile_and_pod.sql              -> Delivery attempts, failure reasons (BR-008), POD
-006_cod_and_reconciliation.sql         -> COD transactions, remittances, reconciliation (BR-010)
-007_notifications_outbox.sql           -> Transactional outbox, templates, worker status
-008_offline_sync_queue.sql             -> Edge sync queues, operation idempotency keys
-009_cross_border_customs.sql           -> Border posts, declarations, customs inspections
-010_indexes_and_constraints.sql        -> Foreign keys, unique waybill indexing, query performance
-011_pos_counter_booking.sql            -> Walk-in counter sessions, parcel quote calculation
-012_immutable_audit_triggers.sql       -> PostgreSQL PL/pgSQL triggers blocking UPDATE/DELETE
-013_pricing_engine.sql                 -> Rate cards, corridor distance matrices, weight tiers
-014_customer_crm.sql                   -> Shipper & consignee CRM directory, corporate accounts
-015_warehouse_bins_and_zones.sql       -> Warehouse bin locations, quarantine bays, staging zones
-016_procurement_and_purchase_orders.sql-> Vendor management, POs, Goods Receipt Notes (GRN)
-017_inter_branch_transfers.sql         -> Stock transfer requests, dispatch manifests, transit
-018_expenses_and_petty_cash.sql        -> Branch petty cash floats, expense vouchers, approvals
-019_session_and_token_revocation.sql   -> Active user sessions, JWT token revocation blacklist
-020_totp_two_factor_auth.sql           -> RFC 6238 TOTP secrets, single-use recovery codes
-021_control_tower_views.sql            -> Materialized analytical views for bottleneck detection
-022_partitioning_for_high_volume.sql   -> Monthly range partitioning on tracking & audit tables
-023_logistics_notifications_engine.sql -> Notification templates, delivery infrastructure, and offline gateway
-024_remove_default_demo_tariffs.sql     -> Removes unchanged sample global tariff records
+001_initial_schema.sql                       -> Baseline 36 tables, foreign keys, unique constraints, audit immutability triggers
+002_soft_delete_and_retention.sql            -> Soft-deletion columns, retention metadata, partial unique indexes
+003_performance_indexes.sql                  -> Compound, partial, and GIN indexes for logistics and POS throughput
+004_commerce_catalog_variants_pricing.sql    -> Catalog, variants, brands, suppliers, dynamic pricing
+005_inventory_states.sql                     -> ON_HAND, AVAILABLE, RESERVED, IN_TRANSIT, DAMAGED, EXPIRED states
+006_inventory_operations.sql                 -> Stock movement and atomic adjustment operations
+007_advanced_inventory.sql                   -> Batch/lot tracking, expiry control, valuation
+008_customer_management.sql                  -> Shipper/consignee CRM, addresses, credit terms
+009_pos_shifts_and_drawer.sql                -> POS shifts, cash drawer sessions, register controls
+010_orders_engine.sql                        -> Order lifecycle, allocations, tender balances
+011_payments_engine.sql                      -> Payments ledger, tenders, M-Pesa linkage
+012_procurement_lifecycle.sql                -> Suppliers, purchase orders, GRNs, invoices
+013_fleet_drivers.sql                        -> Driver rostering, licences, duty status
+014_fleet_vehicles.sql                       -> Fleet vehicles, capacity, maintenance, telematics
+015_logistics_hubs_and_foundations.sql       -> Hub extensions, logistics permissions, principal-bound idempotency_keys
+016_shipment_core.sql                        -> Shipments, parcels, legs, waybills, tracking events
+017_transport_management.sql                 -> Corridors, transport runs, manifests, checkpoints
+018_physical_custody_and_hub_operations.sql  -> Scans, handoffs, hub receiving, discrepancies
+019_last_mile_delivery_and_exceptions.sql    -> Delivery attempts, BR-008 reasons, POD evidence, exceptions
+020_pos_counter_booking_and_waybills.sql     -> Counter booking, payment linking, waybill generation
+021_cod_settlements_and_reconciliation.sql   -> COD settlements, remittances, reconciliation (BR-010)
+022_control_tower_and_network_telemetry.sql  -> Control Tower views and network telemetry aggregates
+023_logistics_notifications_engine.sql       -> Transactional outbox, notification templates, delivery infrastructure
+024_remove_default_demo_tariffs.sql          -> Removes unchanged sample global tariff records
+025_onboarding_flag.sql                      -> Organization onboarding completion state
+026_classify_headquarters_branch.sql         -> NRB-HQ classified as administrative headquarters
+027_archive_shipments.sql                    -> Shipment archival state (is_archived, archived_at) and index
 ```
 
-### 5.3 Partitioning, Retention & Immutability Triggers
-- **Partitioning**: High-volume tables (`tracking_events`, `audit_logs`, `custody_scans`) are partitioned by month via range partitioning in Migration `022`, ensuring sub-millisecond query performance as log volumes scale into tens of millions.
-- **Audit Immutability Triggers**: Migration `012` installs PL/pgSQL triggers on `audit_logs` and `tracking_events` that abort any `UPDATE` or `DELETE` statement with a `CANNOT_MODIFY_IMMUTABLE_LOG` database exception.
-- **Production Data Baseline**: Migration `024` removes the exact global sample tariffs inserted by migration `023`; production must be provisioned with approved live rates.
+### 5.3 Retention & Immutability Triggers
+- **Audit immutability**: Migration `001` installs PL/pgSQL triggers on `audit_logs` that abort any `UPDATE` or `DELETE` with a `CRITICAL SECURITY VIOLATION` exception.
+- **Tracking immutability**: Migration `016` installs an equivalent append-only trigger on `tracking_events`.
+- **Custody immutability**: Migration `018` prevents updates and deletes on the `scan_events` chain-of-custody ledger.
+- **Retention & archival**: Migration `002` adds soft-deletion columns and retention metadata; migration `027` adds shipment archival state. High-volume access paths are indexed in migration `003`.
+- **Production data baseline**: Migration `024` removes the exact global sample tariffs previously inserted as defaults; production must be provisioned with approved live rates.
 
 ### 5.4 Domain Repository Registry
 All database operations pass through specialized repositories in [server/repositories/](file:///c:/Users/ariic/Documents/Logistics%20Platform/server/repositories/):
@@ -263,6 +268,7 @@ For remote depots and field drivers operating in low-connectivity zones:
 - **Token Security**: 15-minute short-lived JWT access tokens paired with 7-day single-use rotating refresh tokens. Tokens are fingerprinted and invalidated immediately upon logout via database blacklist table `revoked_tokens`.
 - **Brute-Force Account Protection**: 5 consecutive invalid login attempts trigger an automated 15-minute account lockout (`HTTP 423 Locked`).
 - **Two-Factor Authentication (RFC 6238 TOTP)**: Zero-dependency native TOTP engine ([server/utils/totp.js](file:///c:/Users/ariic/Documents/Logistics%20Platform/server/utils/totp.js)) supporting Base32 secret decoding, HMAC-SHA1 algorithm, 30-second window drift tolerance, and 8 single-use backup recovery codes.
+- **Principal-Bound Idempotency**: Mutating requests carrying an `Idempotency-Key` are authenticated before the key is evaluated. Records are stored in the durable `idempotency_keys` table (migration `015_logistics_hubs_and_foundations.sql`) under `(user_id, idempotency_key)`, with atomic `INSERT ... ON CONFLICT` claims, 2xx-only replay, and a 60-second stale-claim takeover. Unauthenticated requests and authentication endpoints bypass the middleware entirely, so credential failures are never cached, and keys can never collide across users.
 - **Enterprise Defense Headers**: Configured with Content Security Policy (CSP Level 3), HSTS, `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`, and origin-verified CORS.
 
 ---

@@ -8,7 +8,7 @@
 ![Vite](https://img.shields.io/badge/Vite-6.2-646CFF?style=flat-square&logo=vite&logoColor=white)
 ![Docker](https://img.shields.io/badge/Docker-Multi--Stage-2496ED?style=flat-square&logo=docker&logoColor=white)
 ![CI/CD](https://img.shields.io/badge/CI%2FCD-GitHub_Actions_Passing-2088FF?style=flat-square&logo=githubactions&logoColor=white)
-![Test Suites](https://img.shields.io/badge/Verification-39%2F39_Suites_Passing_(100%25)-10B981?style=flat-square)
+![Test Suites](https://img.shields.io/badge/Verification-46_Scheduled_Suites-10B981?style=flat-square)
 ![Design System](https://img.shields.io/badge/Aesthetics-Dieter_Rams_Functionalism-0c0e12?style=flat-square)
 ![WCAG](https://img.shields.io/badge/Accessibility-WCAG_AAA-10B981?style=flat-square)
 
@@ -36,7 +36,7 @@ SwiftTrack connects physical regional hubs (**Nairobi parcel hub `NBO987`**, **M
 - [4. Authoritative Database Architecture & Migrations](#4-authoritative-database-architecture--migrations)
 - [5. Role-Based Access Control (RBAC) & Test Accounts](#5-role-based-access-control-rbac--test-accounts)
 - [6. Enterprise Security & Cryptographic Hardening](#6-enterprise-security--cryptographic-hardening)
-- [7. Automated Verification & Test Matrix (39/39 Passing)](#7-automated-verification--test-matrix-3939-passing)
+- [7. Automated Verification & Test Matrix](#7-automated-verification--test-matrix)
 - [8. Deployment & Container Orchestration](#8-deployment--container-orchestration)
 - [9. Getting Started & Local Development](#9-getting-started--local-development)
 - [10. Environment Configuration](#10-environment-configuration)
@@ -167,37 +167,38 @@ SwiftTrack strictly separates four distinct domain concepts to ensure full audit
 
 SwiftTrack uses **PostgreSQL 16 as its authoritative production database engine**, with a high-performance, WAL-mode SQLite fallback engine for offline edge nodes and local unit tests.
 
-### PostgreSQL Migration Suite (26 Sequential Migrations)
+### PostgreSQL Migration Suite (27 Sequential Migrations)
 The authoritative schema is version-controlled in [`server/db/postgres/migrations/`](file:///c:/Users/ariic/Documents/Logistics%20Platform/server/db/postgres/migrations/):
 
 | Migration | File | Description & Invariants Enforced |
 | :--- | :--- | :--- |
-| `001` | [`001_initial_schema.sql`](file:///c:/Users/ariic/Documents/Logistics%20Platform/server/db/postgres/migrations/001_initial_schema.sql) | Core entities: branches, users, roles, products, inventory, orders, items. |
-| `002` | [`002_logistics_core.sql`](file:///c:/Users/ariic/Documents/Logistics%20Platform/server/db/postgres/migrations/002_logistics_core.sql) | Shipments, parcels, tracking events, custody scans, and trigger guards. |
-| `003` | [`003_transport_and_runs.sql`](file:///c:/Users/ariic/Documents/Logistics%20Platform/server/db/postgres/migrations/003_transport_and_runs.sql) | Corridors, transport runs, manifests, checkpoints, and vehicle assignments. |
-| `004` | [`004_fleet_and_drivers.sql`](file:///c:/Users/ariic/Documents/Logistics%20Platform/server/db/postgres/migrations/004_fleet_and_drivers.sql) | Fleet vehicles, drivers, licenses, maintenance logs, and telematics. |
-| `005` | [`005_last_mile_and_pod.sql`](file:///c:/Users/ariic/Documents/Logistics%20Platform/server/db/postgres/migrations/005_last_mile_and_pod.sql) | Delivery attempts, failure classifications (`BR-008`), and digital POD records. |
-| `006` | [`006_cod_and_reconciliation.sql`](file:///c:/Users/ariic/Documents/Logistics%20Platform/server/db/postgres/migrations/006_cod_and_reconciliation.sql) | COD transactions, remittances, float ledger, and reconciliation batches (`BR-010`). |
-| `007` | [`007_notifications_outbox.sql`](file:///c:/Users/ariic/Documents/Logistics%20Platform/server/db/postgres/migrations/007_notifications_outbox.sql) | Transactional outbox, templates, notification logs, and retry state. |
-| `008` | [`008_offline_sync_queue.sql`](file:///c:/Users/ariic/Documents/Logistics%20Platform/server/db/postgres/migrations/008_offline_sync_queue.sql) | Edge sync queues, operation idempotency keys, and replay caches. |
-| `009` | [`009_cross_border_customs.sql`](file:///c:/Users/ariic/Documents/Logistics%20Platform/server/db/postgres/migrations/009_cross_border_customs.sql) | Border posts, declarations, customs inspections, and clearance holds. |
-| `010` | [`010_indexes_and_constraints.sql`](file:///c:/Users/ariic/Documents/Logistics%20Platform/server/db/postgres/migrations/010_indexes_and_constraints.sql) | Foreign key indexes, unique waybill constraints, and query optimization. |
-| `011` | [`011_pos_counter_booking.sql`](file:///c:/Users/ariic/Documents/Logistics%20Platform/server/db/postgres/migrations/011_pos_counter_booking.sql) | POS counter sessions, parcel quote calculation, and thermal receipts. |
-| `012` | [`012_immutable_audit_triggers.sql`](file:///c:/Users/ariic/Documents/Logistics%20Platform/server/db/postgres/migrations/012_immutable_audit_triggers.sql) | PostgreSQL PL/pgSQL triggers strictly forbidding UPDATE/DELETE on audit tables. |
-| `013` | [`013_pricing_engine.sql`](file:///c:/Users/ariic/Documents/Logistics%20Platform/server/db/postgres/migrations/013_pricing_engine.sql) | Pricing rate cards, corridor distance matrices, and weight tier rules. |
-| `014` | [`014_customer_crm.sql`](file:///c:/Users/ariic/Documents/Logistics%20Platform/server/db/postgres/migrations/014_customer_crm.sql) | Shipper & consignee CRM directory, corporate accounts, credit terms. |
-| `015` | [`015_warehouse_bins_and_zones.sql`](file:///c:/Users/ariic/Documents/Logistics%20Platform/server/db/postgres/migrations/015_warehouse_bins_and_zones.sql) | Warehouse bin locations, quarantine bays, staging zones, and aisle racks. |
-| `016` | [`016_procurement_and_purchase_orders.sql`](file:///c:/Users/ariic/Documents/Logistics%20Platform/server/db/postgres/migrations/016_procurement_and_purchase_orders.sql) | Vendor management, purchase orders, goods receipt notes (GRN), and invoices. |
-| `017` | [`017_inter_branch_transfers.sql`](file:///c:/Users/ariic/Documents/Logistics%20Platform/server/db/postgres/migrations/017_inter_branch_transfers.sql) | Stock transfer requests, dispatch manifests, transit tracking, receiving. |
-| `018` | [`018_expenses_and_petty_cash.sql`](file:///c:/Users/ariic/Documents/Logistics%20Platform/server/db/postgres/migrations/018_expenses_and_petty_cash.sql) | Branch petty cash floats, expense vouchers, receipt attachments, approvals. |
-| `019` | [`019_session_and_token_revocation.sql`](file:///c:/Users/ariic/Documents/Logistics%20Platform/server/db/postgres/migrations/019_session_and_token_revocation.sql) | Active user sessions, JWT token revocation blacklist, device fingerprints. |
-| `020` | [`020_totp_two_factor_auth.sql`](file:///c:/Users/ariic/Documents/Logistics%20Platform/server/db/postgres/migrations/020_totp_two_factor_auth.sql) | RFC 6238 TOTP secrets, single-use backup recovery codes, 2FA enforcement. |
-| `021` | [`021_control_tower_views.sql`](file:///c:/Users/ariic/Documents/Logistics%20Platform/server/db/postgres/migrations/021_control_tower_views.sql) | Optimized analytical materialized views for bottleneck detection & SLA metrics. |
-| `022` | [`022_partitioning_for_high_volume.sql`](file:///c:/Users/ariic/Documents/Logistics%20Platform/server/db/postgres/migrations/022_partitioning_for_high_volume.sql) | Range partitioning by month for `tracking_events`, `audit_logs`, and telemetry. |
-| `023` | [`023_logistics_notifications_engine.sql`](file:///c:/Users/ariic/Documents/Logistics%20Platform/server/db/postgres/migrations/023_logistics_notifications_engine.sql) | Notification delivery infrastructure and standard message templates. |
+| `001` | [`001_initial_schema.sql`](file:///c:/Users/ariic/Documents/Logistics%20Platform/server/db/postgres/migrations/001_initial_schema.sql) | Baseline relational schema: 36 core tables, foreign keys, unique constraints. |
+| `002` | [`002_soft_delete_and_retention.sql`](file:///c:/Users/ariic/Documents/Logistics%20Platform/server/db/postgres/migrations/002_soft_delete_and_retention.sql) | Soft-deletion columns, retention metadata, and partial unique indexes. |
+| `003` | [`003_performance_indexes.sql`](file:///c:/Users/ariic/Documents/Logistics%20Platform/server/db/postgres/migrations/003_performance_indexes.sql) | Compound, partial, and GIN indexes for high-throughput logistics and POS queries. |
+| `004` | [`004_commerce_catalog_variants_pricing.sql`](file:///c:/Users/ariic/Documents/Logistics%20Platform/server/db/postgres/migrations/004_commerce_catalog_variants_pricing.sql) | Product catalog, variants, brands, suppliers, and dynamic pricing. |
+| `005` | [`005_inventory_states.sql`](file:///c:/Users/ariic/Documents/Logistics%20Platform/server/db/postgres/migrations/005_inventory_states.sql) | Multi-state inventory ledger (`ON_HAND`, `AVAILABLE`, `RESERVED`, `IN_TRANSIT`, `DAMAGED`, `EXPIRED`). |
+| `006` | [`006_inventory_operations.sql`](file:///c:/Users/ariic/Documents/Logistics%20Platform/server/db/postgres/migrations/006_inventory_operations.sql) | Stock movement and atomic inventory adjustment operations. |
+| `007` | [`007_advanced_inventory.sql`](file:///c:/Users/ariic/Documents/Logistics%20Platform/server/db/postgres/migrations/007_advanced_inventory.sql) | Batch/lot tracking, expiry control, and inventory valuation. |
+| `008` | [`008_customer_management.sql`](file:///c:/Users/ariic/Documents/Logistics%20Platform/server/db/postgres/migrations/008_customer_management.sql) | Shipper and consignee CRM directory, addresses, and credit terms. |
+| `009` | [`009_pos_shifts_and_drawer.sql`](file:///c:/Users/ariic/Documents/Logistics%20Platform/server/db/postgres/migrations/009_pos_shifts_and_drawer.sql) | POS shifts, cash drawer sessions, and register controls. |
+| `010` | [`010_orders_engine.sql`](file:///c:/Users/ariic/Documents/Logistics%20Platform/server/db/postgres/migrations/010_orders_engine.sql) | Order lifecycle, allocations, and tender balances. |
+| `011` | [`011_payments_engine.sql`](file:///c:/Users/ariic/Documents/Logistics%20Platform/server/db/postgres/migrations/011_payments_engine.sql) | Payments ledger, tenders, and M-Pesa transaction linkage. |
+| `012` | [`012_procurement_lifecycle.sql`](file:///c:/Users/ariic/Documents/Logistics%20Platform/server/db/postgres/migrations/012_procurement_lifecycle.sql) | Suppliers, purchase orders, goods receipt notes (GRN), and invoices. |
+| `013` | [`013_fleet_drivers.sql`](file:///c:/Users/ariic/Documents/Logistics%20Platform/server/db/postgres/migrations/013_fleet_drivers.sql) | Driver rostering, licences, duty status, and compliance records. |
+| `014` | [`014_fleet_vehicles.sql`](file:///c:/Users/ariic/Documents/Logistics%20Platform/server/db/postgres/migrations/014_fleet_vehicles.sql) | Fleet vehicles, capacity limits, maintenance, and telematics. |
+| `015` | [`015_logistics_hubs_and_foundations.sql`](file:///c:/Users/ariic/Documents/Logistics%20Platform/server/db/postgres/migrations/015_logistics_hubs_and_foundations.sql) | Hub capability extensions, logistics permissions, and the principal-bound `idempotency_keys` table (unique `(user_id, idempotency_key)`). |
+| `016` | [`016_shipment_core.sql`](file:///c:/Users/ariic/Documents/Logistics%20Platform/server/db/postgres/migrations/016_shipment_core.sql) | Shipment core: shipments, parcels, legs, waybills, and tracking events. |
+| `017` | [`017_transport_management.sql`](file:///c:/Users/ariic/Documents/Logistics%20Platform/server/db/postgres/migrations/017_transport_management.sql) | Corridors, transport runs, manifests, checkpoints, and vehicle assignments. |
+| `018` | [`018_physical_custody_and_hub_operations.sql`](file:///c:/Users/ariic/Documents/Logistics%20Platform/server/db/postgres/migrations/018_physical_custody_and_hub_operations.sql) | Barcode scans, formal handoffs, hub receiving, and discrepancy detection. |
+| `019` | [`019_last_mile_delivery_and_exceptions.sql`](file:///c:/Users/ariic/Documents/Logistics%20Platform/server/db/postgres/migrations/019_last_mile_delivery_and_exceptions.sql) | Delivery attempts, `BR-008` failure reasons, POD evidence, and centralized exceptions. |
+| `020` | [`020_pos_counter_booking_and_waybills.sql`](file:///c:/Users/ariic/Documents/Logistics%20Platform/server/db/postgres/migrations/020_pos_counter_booking_and_waybills.sql) | Counter booking, payment linking, and waybill generation. |
+| `021` | [`021_cod_settlements_and_reconciliation.sql`](file:///c:/Users/ariic/Documents/Logistics%20Platform/server/db/postgres/migrations/021_cod_settlements_and_reconciliation.sql) | COD settlements, remittances, and financial reconciliation (`BR-010`). |
+| `022` | [`022_control_tower_and_network_telemetry.sql`](file:///c:/Users/ariic/Documents/Logistics%20Platform/server/db/postgres/migrations/022_control_tower_and_network_telemetry.sql) | Operations Control Tower views and network telemetry aggregates. |
+| `023` | [`023_logistics_notifications_engine.sql`](file:///c:/Users/ariic/Documents/Logistics%20Platform/server/db/postgres/migrations/023_logistics_notifications_engine.sql) | Transactional outbox, notification templates, and delivery infrastructure. |
 | `024` | [`024_remove_default_demo_tariffs.sql`](file:///c:/Users/ariic/Documents/Logistics%20Platform/server/db/postgres/migrations/024_remove_default_demo_tariffs.sql) | Removes only unchanged sample global tariffs previously inserted by migration 023. |
 | `025` | [`025_onboarding_flag.sql`](file:///c:/Users/ariic/Documents/Logistics%20Platform/server/db/postgres/migrations/025_onboarding_flag.sql) | Persists organization onboarding completion state. |
 | `026` | [`026_classify_headquarters_branch.sql`](file:///c:/Users/ariic/Documents/Logistics%20Platform/server/db/postgres/migrations/026_classify_headquarters_branch.sql) | Classifies `NRB-HQ` as administrative headquarters, not an operational parcel hub. |
+| `027` | [`027_archive_shipments.sql`](file:///c:/Users/ariic/Documents/Logistics%20Platform/server/db/postgres/migrations/027_archive_shipments.sql) | Adds shipment archival state (`is_archived`, `archived_at`) and index. |
 
 ### Data Access Architecture (Repository Pattern)
 Business services communicate through dedicated domain repositories in [`server/repositories/`](file:///c:/Users/ariic/Documents/Logistics%20Platform/server/repositories/):
@@ -229,81 +230,109 @@ password, then create operational accounts from verified business records.
 
 - **Dynamic Salt Cryptography**: Passwords hashed using Node native `crypto.scrypt` with 16-byte cryptographically secure random salts and constant-time timing-safe comparison (`crypto.timingSafeEqual`).
 - **Session Security & Rotating Refresh Tokens**: 15-minute short-lived JWT access tokens paired with 7-day single-use rotating refresh tokens. Immediate token revocation via database-backed blacklist table (`revoked_tokens`).
+- **Principal-Bound Idempotency**: Authenticated mutating requests may supply an `Idempotency-Key`; records are scoped per user in the durable `idempotency_keys` table, only `2xx` responses are replayed, and authentication endpoints plus unauthenticated requests bypass the middleware so credential failures are never cached.
 - **Brute-Force Protection & Account Lockout**: 5 consecutive failed login attempts trigger an automatic 15-minute account lockout (`HTTP 423 Locked`).
 - **RFC 6238 TOTP Two-Factor Authentication**: Zero external dependency native TOTP engine (`server/utils/totp.js`) with Base32 decoding, HMAC-SHA1 30-second window drift tolerance, and 8 single-use backup recovery codes.
 - **Enterprise Defense Headers**: Configured with strict Content Security Policy (CSP), HTTP Strict Transport Security (HSTS), `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`, and origin-verified CORS.
 
 ---
 
-## 7. Automated Verification & Test Matrix (39/39 Passing)
+## 7. Automated Verification & Test Matrix
 
-The repository maintains an automated, zero-regression test suite of **39 test suites** covering all critical backend services, state machines, database layers, and security barriers:
+The unified runner at [`scripts/run-all-tests.js`](file:///c:/Users/ariic/Documents/Logistics%20Platform/scripts/run-all-tests.js) schedules **46 suites** covering backend services, state machines, database layers, security barriers, frontend contracts, and an end-to-end acceptance journey:
 
 ```text
 ======================================================================
-SWIFTTRACK TEST EXECUTION SUMMARY: 39 PASSED, 0 FAILED (100% PASS RATE)
+SWIFTTRACK ENTERPRISE TEST RUNNER
+46 suites scheduled via `npm run test:all`
+The runner prints the authoritative PASS/FAIL summary per execution.
 ======================================================================
 ```
 
 ### Complete Test Catalog
 
-1. **Logistics Domain Suites (11 Suites)**
-   - [`tests/logistics/test-shipments-core.js`](file:///c:/Users/ariic/Documents/Logistics%20Platform/tests/logistics/test-shipments-core.js) — Canonical state machine transitions, dimensional rating, and parcel integrity.
-   - [`tests/logistics/test-transport-runs.js`](file:///c:/Users/ariic/Documents/Logistics%20Platform/tests/logistics/test-transport-runs.js) — Corridors, vehicle lock-and-load validation, manifests, and checkpoints.
-   - [`tests/logistics/test-physical-custody.js`](file:///c:/Users/ariic/Documents/Logistics%20Platform/tests/logistics/test-physical-custody.js) — Scan tracking, formal agent/driver handoffs, and shortage/overage detection.
-   - [`tests/logistics/test-last-mile-delivery.js`](file:///c:/Users/ariic/Documents/Logistics%20Platform/tests/logistics/test-last-mile-delivery.js) — Dispatch queue, BR-008 attempt failure codes, and OTP signature POD.
-   - [`tests/logistics/test-pos-counter-booking.js`](file:///c:/Users/ariic/Documents/Logistics%20Platform/tests/logistics/test-pos-counter-booking.js) — Counter booking, volumetric pricing, and waybill printing.
-   - [`tests/logistics/test-cod-settlement.js`](file:///c:/Users/ariic/Documents/Logistics%20Platform/tests/logistics/test-cod-settlement.js) — Cash collection, remittance float, and BR-010 variance approvals.
-   - [`tests/logistics/test-control-tower.js`](file:///c:/Users/ariic/Documents/Logistics%20Platform/tests/logistics/test-control-tower.js) — Network telemetry, bottleneck alerts, and active corridor monitoring.
-   - [`tests/logistics/test-notifications-engine.js`](file:///c:/Users/ariic/Documents/Logistics%20Platform/tests/logistics/test-notifications-engine.js) — Transactional outbox drain, templating, and exponential backoff retry.
-   - [`tests/logistics/test-multi-leg-and-customs.js`](file:///c:/Users/ariic/Documents/Logistics%20Platform/tests/logistics/test-multi-leg-and-customs.js) — Multi-leg corridor transshipment and cross-border customs declarations.
-   - [`tests/logistics/test-offline-sync.js`](file:///c:/Users/ariic/Documents/Logistics%20Platform/tests/logistics/test-offline-sync.js) — Edge sync queue, idempotent replay deduplication, and sync caches.
-   - [`tests/logistics/test-e2e-acceptance.js`](file:///c:/Users/ariic/Documents/Logistics%20Platform/tests/logistics/test-e2e-acceptance.js) — Complete 23-step multi-leg consignment journey from booking to POD.
+The catalog mirrors `scripts/run-all-tests.js` exactly. Additional focused verification scripts not included in `test:all` (for example `tests/verify-auth-phase1.js`, `tests/verify-auth-phase1-2.js`, `tests/verify-api-foundation.js`, `tests/verify-phase1-exit-criteria.js`, `tests/verify-db-postgres.js`, and `tests/database/test-production-seed-safety.js`) can be run individually.
 
-2. **Fleet & Driver Management Suites (4 Suites)**
-   - [`tests/logistics/test-vehicles-management.js`](file:///c:/Users/ariic/Documents/Logistics%20Platform/tests/logistics/test-vehicles-management.js) — Vehicle registration, maintenance lifecycle, and capacity checks.
-   - [`tests/logistics/test-drivers-management.js`](file:///c:/Users/ariic/Documents/Logistics%20Platform/tests/logistics/test-drivers-management.js) — Driver rostering, license validity verification, and duty statuses.
-   - [`tests/logistics/test-frontend-vehicles.js`](file:///c:/Users/ariic/Documents/Logistics%20Platform/tests/logistics/test-frontend-vehicles.js) — Fleet management UI state and vehicle dispatch instruments.
-   - [`tests/logistics/test-frontend-drivers.js`](file:///c:/Users/ariic/Documents/Logistics%20Platform/tests/logistics/test-frontend-drivers.js) — Driver assignment UI, route lists, and courier controls.
-
-3. **Database Architecture & Immutability Suites (2 Suites)**
-   - [`tests/database/test-postgres-data-architecture.js`](file:///c:/Users/ariic/Documents/Logistics%20Platform/tests/database/test-postgres-data-architecture.js) — All 24 PostgreSQL migrations, repositories, constraints, and indexes.
-   - [`tests/verify-db-postgres.js`](file:///c:/Users/ariic/Documents/Logistics%20Platform/tests/verify-db-postgres.js) — Dual-mode database adapter connectivity, query normalization, and transactions.
-
-4. **Security, Authentication & Integrity Suites (7 Suites)**
-   - [`tests/security/test-sql-injection.js`](file:///c:/Users/ariic/Documents/Logistics%20Platform/tests/security/test-sql-injection.js) — SQL injection defense across all parameterized endpoints.
+1. **Architectural Guardrails & Security (6 Suites)**
+   - [`scripts/verify-architecture-rules.js`](file:///c:/Users/ariic/Documents/Logistics%20Platform/scripts/verify-architecture-rules.js) — Enforces repository boundaries and forbids direct database imports from routes/services.
+   - [`scripts/audit-secrets.js`](file:///c:/Users/ariic/Documents/Logistics%20Platform/scripts/audit-secrets.js) — Scans tracked files for leaked credentials and private keys.
+   - [`tests/security/test-sql-injection.js`](file:///c:/Users/ariic/Documents/Logistics%20Platform/tests/security/test-sql-injection.js) — SQL injection defense across parameterized endpoints.
    - [`tests/security/test-csrf-cors.js`](file:///c:/Users/ariic/Documents/Logistics%20Platform/tests/security/test-csrf-cors.js) — CORS origins, pre-flight headers, and CSRF token barriers.
-   - [`tests/security/test-xss.js`](file:///c:/Users/ariic/Documents/Logistics%20Platform/tests/security/test-xss.js) — Input sanitization, CSP header presence, and payload escaping.
-   - [`tests/verify-auth-phase1.js`](file:///c:/Users/ariic/Documents/Logistics%20Platform/tests/verify-auth-phase1.js) — Multi-role authentication, session tokens, and lockout thresholds.
-   - [`tests/verify-auth-phase1-2.js`](file:///c:/Users/ariic/Documents/Logistics%20Platform/tests/verify-auth-phase1-2.js) — RFC 6238 TOTP two-factor setup, verification, and recovery codes.
-   - [`tests/verify-api-foundation.js`](file:///c:/Users/ariic/Documents/Logistics%20Platform/tests/verify-api-foundation.js) — Core API routing, response contract schemas, and status codes.
-   - [`tests/verify-phase1-exit-criteria.js`](file:///c:/Users/ariic/Documents/Logistics%20Platform/tests/verify-phase1-exit-criteria.js) — Full production security, token, and session gate compliance.
+   - [`tests/security/test-xss.js`](file:///c:/Users/ariic/Documents/Logistics%20Platform/tests/security/test-xss.js) — Input sanitization, CSP headers, and payload escaping.
+   - [`tests/security/test-idempotency-isolation.js`](file:///c:/Users/ariic/Documents/Logistics%20Platform/tests/security/test-idempotency-isolation.js) — Principal-bound idempotency: anonymous bypass, per-user isolation, auth-failure/non-2xx non-caching, concurrent `409`, and expired-key reuse.
 
-5. **Warehousing, Inventory & Procurement Suites (5 Suites)**
-   - [`tests/inventory/test-inventory-operations.js`](file:///c:/Users/ariic/Documents/Logistics%20Platform/tests/inventory/test-inventory-operations.js) — Stock movements, atomic inventory adjustments, and deficit alerts.
-   - [`tests/inventory/test-advanced-inventory.js`](file:///c:/Users/ariic/Documents/Logistics%20Platform/tests/inventory/test-advanced-inventory.js) — Multi-warehouse inventory balances, safety stock, and reorder levels.
-   - [`tests/inventory/test-inventory-states.js`](file:///c:/Users/ariic/Documents/Logistics%20Platform/tests/inventory/test-inventory-states.js) — Reserved, allocated, in-transit, and damaged inventory state transitions.
-   - [`tests/procurement/test-procurement-lifecycle.js`](file:///c:/Users/ariic/Documents/Logistics%20Platform/tests/procurement/test-procurement-lifecycle.js) — PO creation, approvals, goods receiving notes (GRN), and invoice matching.
-   - [`tests/procurement/test-frontend-procurement.js`](file:///c:/Users/ariic/Documents/Logistics%20Platform/tests/procurement/test-frontend-procurement.js) — Procurement UI routing, PO status chips, and GRN modal forms.
+2. **Database & Data Architecture (1 Suite)**
+   - [`tests/database/test-postgres-data-architecture.js`](file:///c:/Users/ariic/Documents/Logistics%20Platform/tests/database/test-postgres-data-architecture.js) — All 27 PostgreSQL migrations, repository boundaries, constraints, and indexes.
 
-6. **Commerce, Orders & Cashier Workflow Suites (8 Suites)**
+3. **Core System & API Documentation Parity (2 Suites)**
+   - [`tests/verify-system.js`](file:///c:/Users/ariic/Documents/Logistics%20Platform/tests/verify-system.js) — Comprehensive integration flows spanning authentication, branch isolation, POS, stock, manifests, backups, and audit immutability.
+   - [`tests/docs/test-api-doc-parity.js`](file:///c:/Users/ariic/Documents/Logistics%20Platform/tests/docs/test-api-doc-parity.js) — Ensures documented endpoints exist in the live Express router and OpenAPI spec.
+
+4. **Inventory & Warehousing (3 Suites)**
+   - [`tests/inventory/test-inventory-states.js`](file:///c:/Users/ariic/Documents/Logistics%20Platform/tests/inventory/test-inventory-states.js) — Reserved, allocated, in-transit, and damaged inventory transitions.
+   - [`tests/inventory/test-inventory-operations.js`](file:///c:/Users/ariic/Documents/Logistics%20Platform/tests/inventory/test-inventory-operations.js) — Atomic stock movements and adjustment guardrails.
+   - [`tests/inventory/test-advanced-inventory.js`](file:///c:/Users/ariic/Documents/Logistics%20Platform/tests/inventory/test-advanced-inventory.js) — Batch/lot expiry control and valuation.
+
+5. **Point of Sale (2 Suites)**
+   - [`tests/pos/test-complete-pos-workflow.js`](file:///c:/Users/ariic/Documents/Logistics%20Platform/tests/pos/test-complete-pos-workflow.js) — POS cart tenders, KRA 16% VAT calculation, shift, and till management.
+   - [`tests/logistics/test-pos-counter-booking.js`](file:///c:/Users/ariic/Documents/Logistics%20Platform/tests/logistics/test-pos-counter-booking.js) — Counter booking, volumetric pricing, and waybill printing.
+
+6. **Orders Engine (1 Suite)**
+   - [`tests/orders/test-orders-engine.js`](file:///c:/Users/ariic/Documents/Logistics%20Platform/tests/orders/test-orders-engine.js) — Order lifecycle, allocation, branch filtering, and tender balances.
+
+7. **Commercial Catalog & Customers (3 Suites)**
+   - [`tests/commerce/test-catalog-variants.js`](file:///c:/Users/ariic/Documents/Logistics%20Platform/tests/commerce/test-catalog-variants.js) — SKU variants, brands, categories, and packaging dimensions.
    - [`tests/commerce/test-pricing-engine.js`](file:///c:/Users/ariic/Documents/Logistics%20Platform/tests/commerce/test-pricing-engine.js) — Dynamic pricing matrices, customer discounts, and tier rules.
-   - [`tests/commerce/test-catalog-variants.js`](file:///c:/Users/ariic/Documents/Logistics%20Platform/tests/commerce/test-catalog-variants.js) — Product SKU management, category tagging, and packaging dimensions.
-   - [`tests/customers/test-customer-management.js`](file:///c:/Users/ariic/Documents/Logistics%20Platform/tests/customers/test-customer-management.js) — Corporate shipper profiles, customer addresses, and credit limits.
-   - [`tests/orders/test-orders-engine.js`](file:///c:/Users/ariic/Documents/Logistics%20Platform/tests/orders/test-orders-engine.js) — Order lifecycle, branch filtering, and tender balance checks.
-   - [`tests/orders/test-frontend-orders.js`](file:///c:/Users/ariic/Documents/Logistics%20Platform/tests/orders/test-frontend-orders.js) — Orders table UI, filter chips, and historical receipt reprinting.
-   - [`tests/payments/test-payments-engine.js`](file:///c:/Users/ariic/Documents/Logistics%20Platform/tests/payments/test-payments-engine.js) — M-Pesa STK push simulation, cash drawer tenders, and bank transfers.
-   - [`tests/payments/test-frontend-payments.js`](file:///c:/Users/ariic/Documents/Logistics%20Platform/tests/payments/test-frontend-payments.js) — Payment modal dialogs, change calculation, and tender confirmation.
-   - [`tests/pos/test-complete-pos-workflow.js`](file:///c:/Users/ariic/Documents/Logistics%20Platform/tests/pos/test-complete-pos-workflow.js) — POS cart tenders, KRA 16% VAT calculation, and receipt printing.
-   - [`tests/pos/test-frontend-pos.js`](file:///c:/Users/ariic/Documents/Logistics%20Platform/tests/pos/test-frontend-pos.js) — POS register UI, barcode scanner input events, and held carts.
+   - [`tests/customers/test-customer-management.js`](file:///c:/Users/ariic/Documents/Logistics%20Platform/tests/customers/test-customer-management.js) — Corporate shipper profiles, addresses, and credit limits.
 
-7. **System Core End-to-End Suite (1 Suite)**
-   - [`tests/verify-system.js`](file:///c:/Users/ariic/Documents/Logistics%20Platform/tests/verify-system.js) — 14-flow comprehensive integration test spanning authentication, branch isolation, POS, stock, manifests, backups, and audit immutability.
+8. **Procurement Lifecycle (1 Suite)**
+   - [`tests/procurement/test-procurement-lifecycle.js`](file:///c:/Users/ariic/Documents/Logistics%20Platform/tests/procurement/test-procurement-lifecycle.js) — PO creation, approvals, goods receiving notes (GRN), and invoice matching.
+
+9. **Reporting & Analytics (1 Suite)**
+   - [`tests/reports/test-reports-engine.js`](file:///c:/Users/ariic/Documents/Logistics%20Platform/tests/reports/test-reports-engine.js) — Financial reporting and operational analytics aggregates.
+
+10. **Payments & Billing (2 Suites)**
+    - [`tests/payments/test-payments-engine.js`](file:///c:/Users/ariic/Documents/Logistics%20Platform/tests/payments/test-payments-engine.js) — Payments ledger, tender handling, and M-Pesa settlement.
+    - [`tests/logistics/test-daraja-gateway.js`](file:///c:/Users/ariic/Documents/Logistics%20Platform/tests/logistics/test-daraja-gateway.js) — Safaricom Daraja STK push and callback processing.
+
+11. **Logistics & Transport Runs (12 Suites)**
+    - [`tests/logistics/test-shipments-core.js`](file:///c:/Users/ariic/Documents/Logistics%20Platform/tests/logistics/test-shipments-core.js) — Canonical state machine transitions, dimensional rating, and parcel integrity.
+    - [`tests/logistics/test-transport-runs.js`](file:///c:/Users/ariic/Documents/Logistics%20Platform/tests/logistics/test-transport-runs.js) — Corridors, vehicle lock-and-load validation, manifests, and checkpoints.
+    - [`tests/logistics/test-physical-custody.js`](file:///c:/Users/ariic/Documents/Logistics%20Platform/tests/logistics/test-physical-custody.js) — Scan tracking, formal handoffs, and shortage/overage detection.
+    - [`tests/logistics/test-last-mile-delivery.js`](file:///c:/Users/ariic/Documents/Logistics%20Platform/tests/logistics/test-last-mile-delivery.js) — Dispatch queue, BR-008 failure codes, and OTP/signature POD.
+    - [`tests/logistics/test-cod-settlement.js`](file:///c:/Users/ariic/Documents/Logistics%20Platform/tests/logistics/test-cod-settlement.js) — COD collection, remittance float, and variance approvals.
+    - [`tests/logistics/test-control-tower.js`](file:///c:/Users/ariic/Documents/Logistics%20Platform/tests/logistics/test-control-tower.js) — Network telemetry, bottleneck alerts, and corridor monitoring.
+    - [`tests/logistics/test-notifications-engine.js`](file:///c:/Users/ariic/Documents/Logistics%20Platform/tests/logistics/test-notifications-engine.js) — Transactional outbox drain, templating, and exponential backoff.
+    - [`tests/logistics/test-notifications-gateway.js`](file:///c:/Users/ariic/Documents/Logistics%20Platform/tests/logistics/test-notifications-gateway.js) — Africa's Talking and Twilio gateway dispatch.
+    - [`tests/logistics/test-multi-leg-and-customs.js`](file:///c:/Users/ariic/Documents/Logistics%20Platform/tests/logistics/test-multi-leg-and-customs.js) — Multi-leg transshipment and cross-border customs declarations.
+    - [`tests/logistics/test-customs-manifest.js`](file:///c:/Users/ariic/Documents/Logistics%20Platform/tests/logistics/test-customs-manifest.js) — EAC customs and ASYCUDA manifest handling.
+    - [`tests/logistics/test-offline-sync.js`](file:///c:/Users/ariic/Documents/Logistics%20Platform/tests/logistics/test-offline-sync.js) — Edge sync queue, idempotent replay deduplication, and sync caches.
+    - [`tests/logistics/test-client-offline-queue.js`](file:///c:/Users/ariic/Documents/Logistics%20Platform/tests/logistics/test-client-offline-queue.js) — Client-side offline queue persistence and auto-replay.
+
+12. **Fleet Management (2 Suites)**
+    - [`tests/logistics/test-vehicles-management.js`](file:///c:/Users/ariic/Documents/Logistics%20Platform/tests/logistics/test-vehicles-management.js) — Vehicle registration, maintenance lifecycle, and capacity checks.
+    - [`tests/logistics/test-drivers-management.js`](file:///c:/Users/ariic/Documents/Logistics%20Platform/tests/logistics/test-drivers-management.js) — Driver rostering, licence validity, and duty statuses.
+
+13. **Frontend Integrity (7 Suites)**
+    - [`tests/pos/test-frontend-pos.js`](file:///c:/Users/ariic/Documents/Logistics%20Platform/tests/pos/test-frontend-pos.js) — POS register UI, scanner events, and held carts.
+    - [`tests/orders/test-frontend-orders.js`](file:///c:/Users/ariic/Documents/Logistics%20Platform/tests/orders/test-frontend-orders.js) — Orders table UI, filters, and receipt reprinting.
+    - [`tests/payments/test-frontend-payments.js`](file:///c:/Users/ariic/Documents/Logistics%20Platform/tests/payments/test-frontend-payments.js) — Payment modals, change calculation, and tender confirmation.
+    - [`tests/procurement/test-frontend-procurement.js`](file:///c:/Users/ariic/Documents/Logistics%20Platform/tests/procurement/test-frontend-procurement.js) — Procurement UI routing, PO status chips, and GRN forms.
+    - [`tests/logistics/test-frontend-drivers.js`](file:///c:/Users/ariic/Documents/Logistics%20Platform/tests/logistics/test-frontend-drivers.js) — Driver assignment UI, route lists, and courier controls.
+    - [`tests/logistics/test-frontend-vehicles.js`](file:///c:/Users/ariic/Documents/Logistics%20Platform/tests/logistics/test-frontend-vehicles.js) — Fleet UI state and vehicle dispatch instruments.
+    - [`tests/frontend/test-ui-contracts.js`](file:///c:/Users/ariic/Documents/Logistics%20Platform/tests/frontend/test-ui-contracts.js) — Shared UI contracts and modal stacking behavior.
+
+14. **Disaster Recovery & Observability (2 Suites)**
+    - [`tests/database/test-backup-restore.js`](file:///c:/Users/ariic/Documents/Logistics%20Platform/tests/database/test-backup-restore.js) — Database backup and restore drill.
+    - [`tests/system/test-metrics-endpoint.js`](file:///c:/Users/ariic/Documents/Logistics%20Platform/tests/system/test-metrics-endpoint.js) — Prometheus metrics and health endpoint contracts.
+
+15. **End-to-End Acceptance (1 Suite)**
+    - [`tests/logistics/test-e2e-acceptance.js`](file:///c:/Users/ariic/Documents/Logistics%20Platform/tests/logistics/test-e2e-acceptance.js) — Complete multi-leg consignment journey from booking to POD.
 
 ### Running Test Suites
 
 ```bash
-# Run all 39 test suites across the repository
+# Run all 46 test suites across the repository
 npm run test:all
 
 # Run specific domain test suites
@@ -316,6 +345,8 @@ npm run test:control-tower  # Control Tower & Operational Intelligence
 npm run test:notifications  # Transactional Outbox & Notification Worker
 npm run test:multi-leg      # Multi-Leg Corridors & Customs Clearance
 npm run test:offline        # Offline Sync & Idempotency
+npm run test:security       # SQLi, CSRF/CORS, XSS & Idempotency Isolation
+npm run test:idempotency    # Principal-Bound Idempotency Suite
 npm run test:e2e            # Complete 23-Step End-to-End Consignment Journey
 ```
 
@@ -327,7 +358,7 @@ SwiftTrack includes a production-grade multi-stage [Dockerfile](file:///c:/Users
 
 ### Docker Compose Architecture
 The production stack orchestrates three isolated services:
-1. **`postgres`**: Official `postgres:18-alpine` database pre-configured with pooled connections, volume persistence (`pgdata`), and automatic initialization of all 24 migrations.
+1. **`postgres`**: Official `postgres:18-alpine` database pre-configured with pooled connections, volume persistence (`pgdata`), and automatic initialization of all 27 migrations.
 2. **`app`**: Multi-stage Node.js 22 runtime serving the Express.js API backend and static pre-compiled React 18 / Vite 6 client application under an unprivileged `node` user with healthcheck monitoring.
 3. **`worker`**: Dedicated background worker container running the transactional outbox notifications processor and sync engine with isolated resource boundaries.
 
@@ -484,7 +515,7 @@ swifttrack/
 ├── server/                          # Express.js backend application
 │   ├── db/
 │   │   ├── postgres/
-│   │   │   ├── migrations/          # 24 Authoritative PostgreSQL migration files
+│   │   │   ├── migrations/          # 27 Authoritative PostgreSQL migration files
 │   │   │   ├── migrator.js          # Programmatic migration runner (up, rollback, status)
 │   │   │   ├── pool.js              # Connection pooling & health checks
 │   │   │   ├── transactions.js      # ACID transaction execution helper
@@ -533,7 +564,7 @@ swifttrack/
 │   ├── workers/
 │   │   └── notificationWorker.js    # Exponential backoff outbox processor
 │   └── server.js                    # Express app initialization & HTTP listener
-├── tests/                           # 39 Automated verification test suites
+├── tests/                           # 46 Automated verification test suites
 │   ├── logistics/                   # Logistics core & operational suites
 │   ├── database/                    # PostgreSQL migrations & repository architecture
 │   ├── security/                    # SQL injection, CSRF, XSS, headers
@@ -559,11 +590,11 @@ Comprehensive architecture, API contracts, incident runbooks, and production rea
 
 | Document | File Path | Scope & Focus |
 | :--- | :--- | :--- |
-| **System Architecture Specification** | [`docs/ARCHITECTURE.md`](file:///c:/Users/ariic/Documents/Logistics%20Platform/docs/ARCHITECTURE.md) | Component architecture, domain state machines, dual-engine `dbAdapter`, 24 migrations, partitioning, outbox pattern, and security pillars. |
+| **System Architecture Specification** | [`docs/ARCHITECTURE.md`](file:///c:/Users/ariic/Documents/Logistics%20Platform/docs/ARCHITECTURE.md) | Component architecture, domain state machines, dual-engine `dbAdapter`, 27 migrations, retention, outbox pattern, and security pillars. |
 | **REST API Reference & Specification** | [`docs/API.md`](file:///c:/Users/ariic/Documents/Logistics%20Platform/docs/API.md) | Complete OpenAPI / REST endpoints, request/response JSON schemas, rate limits, status codes, and error code matrix. |
 | **Production Incident & Operations Runbook** | [`docs/RUNBOOK.md`](file:///c:/Users/ariic/Documents/Logistics%20Platform/docs/RUNBOOK.md) | Pre-flight checklists, PostgreSQL migration drills, snapshot backups, RPO/RTO targets, worker queue management, and emergency response playbooks. |
 | **Production Readiness Certification** | [`PROD-READINESS.md`](file:///c:/Users/ariic/Documents/Logistics%20Platform/PROD-READINESS.md) | Authoritative certification deliverable, 28-area readiness matrix, feature completion matrix, and attestation record. |
-| **Machine-Readable Attestation** | [`tests/production-readiness-certification.json`](file:///c:/Users/ariic/Documents/Logistics%20Platform/tests/production-readiness-certification.json) | Structured compliance metadata, verified test counts (39/39), and operational domain seals. |
+| **Machine-Readable Attestation** | [`tests/production-readiness-certification.json`](file:///c:/Users/ariic/Documents/Logistics%20Platform/tests/production-readiness-certification.json) | Structured compliance metadata and operational domain seals. |
 
 ---
 

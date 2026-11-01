@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "SwiftTrack Kenya — Enterprise Logistics & Retail POS API",
-    "description": "Production REST API for multi-branch warehouse logistics, last-mile courier fulfillment, retail point-of-sale, and statutory KRA 16% VAT compliance.",
+    "description": "Production REST API for multi-branch warehouse logistics, last-mile courier fulfillment, retail point-of-sale, and statutory KRA 16% VAT compliance. Authenticated POST/PUT/PATCH/DELETE requests may supply an optional Idempotency-Key header; keys are scoped to the authenticated user, only 2xx responses are replayed, and authentication endpoints never participate.",
     "version": "1.4.0",
     "contact": {
       "name": "SwiftTrack Kenya Technical Operations",
@@ -30,12 +30,21 @@
         "scheme": "bearer",
         "bearerFormat": "JWT",
         "description": "Standard Bearer JWT access token obtained via /api/v1/auth/login"
-      },
-      "IdempotencyKey": {
-        "type": "apiKey",
-        "in": "header",
+      }
+    },
+    "parameters": {
+      "IdempotencyKeyHeader": {
         "name": "Idempotency-Key",
-        "description": "Unique client-generated idempotency key (UUID or 16+ hex) to safely retry mutating operations"
+        "in": "header",
+        "required": false,
+        "description": "Client-generated key for safe retries of authenticated mutating requests. The idempotency middleware only participates when a valid Bearer principal is present; authentication endpoints are always excluded. Keys are scoped per user, so the same key used by different users never collides. Only 2xx responses are stored and replayed; reusing a key with a different method, path, query string, body, or principal returns 422.",
+        "schema": {
+          "type": "string",
+          "minLength": 8,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_-]+$",
+          "example": "8f14e45f-ea4f-4f1a-9c2b-7a3f0c9d2b61"
+        }
       }
     },
     "schemas": {
@@ -703,9 +712,6 @@
         "security": [
           {
             "BearerAuth": []
-          },
-          {
-            "IdempotencyKey": []
           }
         ],
         "parameters": [
@@ -716,11 +722,23 @@
             "schema": {
               "type": "integer"
             }
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKeyHeader"
           }
         ],
         "responses": {
           "200": {
             "description": "Proof of delivery recorded and delivery finalized"
+          },
+          "400": {
+            "description": "Invalid Idempotency-Key header format (INVALID_IDEMPOTENCY_KEY)"
+          },
+          "409": {
+            "description": "An identical request is already in flight (IDEMPOTENCY_IN_PROGRESS)"
+          },
+          "422": {
+            "description": "Idempotency key reused with a different payload, path, query string, or principal (IDEMPOTENCY_PAYLOAD_MISMATCH)"
           }
         }
       }
@@ -891,14 +909,25 @@
         "security": [
           {
             "BearerAuth": []
-          },
+          }
+        ],
+        "parameters": [
           {
-            "IdempotencyKey": []
+            "$ref": "#/components/parameters/IdempotencyKeyHeader"
           }
         ],
         "responses": {
           "200": {
             "description": "Stock transfer request created"
+          },
+          "400": {
+            "description": "Invalid Idempotency-Key header format (INVALID_IDEMPOTENCY_KEY)"
+          },
+          "409": {
+            "description": "An identical request is already in flight (IDEMPOTENCY_IN_PROGRESS)"
+          },
+          "422": {
+            "description": "Idempotency key reused with a different payload, path, query string, or principal (IDEMPOTENCY_PAYLOAD_MISMATCH)"
           }
         }
       }
@@ -948,9 +977,11 @@
         "security": [
           {
             "BearerAuth": []
-          },
+          }
+        ],
+        "parameters": [
           {
-            "IdempotencyKey": []
+            "$ref": "#/components/parameters/IdempotencyKeyHeader"
           }
         ],
         "requestBody": {
@@ -971,10 +1002,10 @@
             "description": "Invalid checkout payload or insufficient inventory"
           },
           "409": {
-            "description": "Idempotent request conflict (concurrent execution)"
+            "description": "An identical request is already in flight (IDEMPOTENCY_IN_PROGRESS)"
           },
           "422": {
-            "description": "Idempotency key payload mismatch"
+            "description": "Idempotency key reused with a different payload, path, query string, or principal (IDEMPOTENCY_PAYLOAD_MISMATCH)"
           }
         }
       }
@@ -1047,14 +1078,25 @@
         "security": [
           {
             "BearerAuth": []
-          },
+          }
+        ],
+        "parameters": [
           {
-            "IdempotencyKey": []
+            "$ref": "#/components/parameters/IdempotencyKeyHeader"
           }
         ],
         "responses": {
           "200": {
             "description": "Refund request entered into approval queue"
+          },
+          "400": {
+            "description": "Invalid Idempotency-Key header format (INVALID_IDEMPOTENCY_KEY)"
+          },
+          "409": {
+            "description": "An identical request is already in flight (IDEMPOTENCY_IN_PROGRESS)"
+          },
+          "422": {
+            "description": "Idempotency key reused with a different payload, path, query string, or principal (IDEMPOTENCY_PAYLOAD_MISMATCH)"
           }
         }
       }

@@ -6,7 +6,7 @@ const app = require('../server/server.js');
 const v1Router = require('../server/routes/v1/index.js');
 const { validateField, validateRequest } = require('../server/middleware/validation.js');
 const { parsePagination, buildPaginationMeta, parseSorting, parseFilters } = require('../server/middleware/query.js');
-const { idempotencyStore, computeFingerprint } = require('../server/middleware/idempotency.js');
+const { createIdempotencyMiddleware } = require('../server/middleware/idempotency.js');
 
 console.log('\n============================================================');
 console.log('SWIFTTRACK KENYA: VERIFICATION SUITE — 1.4 API FOUNDATION');
@@ -318,7 +318,7 @@ function makeRequest(path, options = {}) {
         // -----------------------------------------------------------------------------
         // 7. Idempotency Key Middleware
         // -----------------------------------------------------------------------------
-        await runAsyncTest('7.1: Replaying request with same Idempotency-Key returns cached response with Idempotent-Replay: true', async () => {
+        await runAsyncTest('7.1: Unauthenticated requests bypass idempotency (never cached or replayed)', async () => {
             let executionCount = 0;
 
             v1Router.post('/test-idempotency', (req, res) => {
@@ -330,52 +330,115 @@ function makeRequest(path, options = {}) {
                 });
             });
 
-            const key = 'test-idemp-key-unique-001';
+            const key = 'test-idemp-key-anon-001';
             const payload = { amount: 450, customer: 'Alice' };
 
-            // 1st request
             const res1 = await makeRequest('/api/v1/test-idempotency', {
                 method: 'POST',
                 headers: { 'Idempotency-Key': key },
                 body: payload
             });
-
-            assert.strictEqual(res1.status, 200);
-            assert.strictEqual(res1.body.executionCount, 1);
-            assert.strictEqual(res1.headers['x-idempotency-key'], key);
-
-            // 2nd request with same key and body (Idempotent replay)
             const res2 = await makeRequest('/api/v1/test-idempotency', {
                 method: 'POST',
                 headers: { 'Idempotency-Key': key },
                 body: payload
             });
 
+            assert.strictEqual(res1.status, 200);
             assert.strictEqual(res2.status, 200);
-            assert.strictEqual(res2.headers['idempotent-replay'], 'true');
-            assert.strictEqual(res2.body.executionCount, 1, 'Handler must not execute second time!');
-            assert.strictEqual(executionCount, 1);
+            assert.strictEqual(res1.headers['idempotent-replay'], undefined);
+            assert.strictEqual(res2.headers['idempotent-replay'], undefined);
+            assert.strictEqual(executionCount, 2, 'Anonymous requests must not be served from a shared key namespace');
         });
 
-        await runAsyncTest('7.2: Reusing Idempotency-Key with different payload triggers 422 Unprocessable Entity', async () => {
-            const key = 'test-idemp-key-tamper-check';
+        await runAsyncTest('7.2: Authenticated replay is principal-bound and payload-checked', async () => {
+            const express = require('express');
+            const memory = new Map();
+            const repository = {
+                sqlTimestamp: (offsetMs = 0) => new Date(Date.now() + offsetMs).toISOString().slice(0, 19).replace('T', ' '),
+                async find(userId, key) {
+                    const row = memory.get(`${userId}:${key}`);
+                    return row ? { ...row, completed: row.responseCode !== 0 } : null;
+                },
+                async claim(record) {
+                    if (memory.has(`${record.userId}:${record.key}`)) return false;
+                    memory.set(`${record.userId}:${record.key}`, { ...record, responseCode: 0, responseBody: {}, createdAt: new Date() });
+                    return true;
+                },
+                async complete(record) {
+                    const existing = memory.get(`${record.userId}:${record.key}`);
+                    memory.set(`${record.userId}:${record.key}`, { ...existing, ...record, userId: record.userId, createdAt: existing ? existing.createdAt : new Date() });
+                },
+                async release(userId, key) {
+                    const row = memory.get(`${userId}:${key}`);
+                    if (row && row.responseCode === 0) { memory.delete(`${userId}:${key}`); return true; }
+                    return false;
+                },
+                async remove(userId, key) { return memory.delete(`${userId}:${key}`); },
+                async takeover() { return false; }
+            };
 
-            // First request with payload A
-            await makeRequest('/api/v1/test-idempotency', {
-                method: 'POST',
-                headers: { 'Idempotency-Key': key },
-                body: { amount: 100 }
+            const isolated = express();
+            isolated.use(express.json());
+            isolated.use(createIdempotencyMiddleware({
+                repository,
+                resolveUser: async (req) => ({ id: req.headers['x-test-actor'], branchId: 1 })
+            }));
+
+            let executionCount = 0;
+            isolated.post('/mutate', (req, res) => {
+                executionCount++;
+                res.json({ createdBy: req.user.id, amount: req.body.amount, executionCount });
             });
 
-            // Second request with altered payload B using same key
-            const resTampered = await makeRequest('/api/v1/test-idempotency', {
-                method: 'POST',
-                headers: { 'Idempotency-Key': key },
-                body: { amount: 500 } // modified amount!
-            });
+            await new Promise((resolve) => {
+                const isolatedServer = isolated.listen(0, () => {
+                    const port = isolatedServer.address().port;
+                    const call = (actor, key, body) => new Promise((resolveCall, rejectCall) => {
+                        const req = http.request(new URL('/mutate', `http://127.0.0.1:${port}`), {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Authorization': 'Bearer test-token',
+                                'X-Test-Actor': actor,
+                                'Idempotency-Key': key
+                            }
+                        }, (res) => {
+                            let raw = '';
+                            res.on('data', chunk => raw += chunk);
+                            res.on('end', () => resolveCall({ status: res.statusCode, headers: res.headers, body: JSON.parse(raw || '{}') }));
+                        });
+                        req.on('error', rejectCall);
+                        req.write(JSON.stringify(body));
+                        req.end();
+                    });
 
-            assert.strictEqual(resTampered.status, 422);
-            assert.strictEqual(resTampered.body.code, 'IDEMPOTENCY_PAYLOAD_MISMATCH');
+                    (async () => {
+                        try {
+                            const first = await call('alice', 'principal-key-01', { amount: 100 });
+                            assert.strictEqual(first.status, 200);
+                            assert.strictEqual(first.body.createdBy, 'alice');
+
+                            const replay = await call('alice', 'principal-key-01', { amount: 100 });
+                            assert.strictEqual(replay.headers['idempotent-replay'], 'true');
+                            assert.strictEqual(replay.body.executionCount, 1);
+
+                            const tampered = await call('alice', 'principal-key-01', { amount: 500 });
+                            assert.strictEqual(tampered.status, 422);
+                            assert.strictEqual(tampered.body.code, 'IDEMPOTENCY_PAYLOAD_MISMATCH');
+
+                            const otherUser = await call('bob', 'principal-key-01', { amount: 100 });
+                            assert.strictEqual(otherUser.status, 200);
+                            assert.strictEqual(otherUser.body.createdBy, 'bob');
+                            assert.strictEqual(otherUser.headers['idempotent-replay'], undefined);
+                        } finally {
+                            isolatedServer.close(resolve);
+                        }
+                    })().catch((err) => {
+                        isolatedServer.close(() => { throw err; });
+                    });
+                });
+            });
         });
 
         // -----------------------------------------------------------------------------
@@ -390,7 +453,15 @@ function makeRequest(path, options = {}) {
             assert(res.body.paths['/pos/checkout'], 'Must document /pos/checkout');
             assert(res.body.paths['/inventory'], 'Must document /inventory');
             assert(res.body.components.securitySchemes.BearerAuth, 'Must define BearerAuth scheme');
-            assert(res.body.components.securitySchemes.IdempotencyKey, 'Must define IdempotencyKey scheme');
+            assert(!res.body.components.securitySchemes.IdempotencyKey, 'Idempotency-Key must not be an auth scheme');
+            const idempotencyParam = res.body.components.parameters.IdempotencyKeyHeader;
+            assert(idempotencyParam, 'Must define IdempotencyKeyHeader parameter');
+            assert.strictEqual(idempotencyParam.in, 'header');
+            const podParameters = res.body.paths['/deliveries/{id}/pod'].post.parameters;
+            assert(
+                podParameters.some(p => p.$ref === '#/components/parameters/IdempotencyKeyHeader'),
+                'POD endpoint must reference the Idempotency-Key header parameter'
+            );
         });
 
         await runAsyncTest('8.2: GET /api/v1/docs serves interactive Dieter Rams obsidian dark-mode explorer', async () => {

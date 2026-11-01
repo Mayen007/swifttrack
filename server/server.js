@@ -45,7 +45,10 @@ app.use(tieredBodyParser);
 app.use(tieredUrlEncodedParser);
 app.use(csrfProtection);
 
-// 4. Idempotency Key interceptor for mutating requests
+// 4. Principal-bound idempotency for authenticated mutating requests.
+//    The middleware resolves the Bearer principal itself (and hands it to the
+//    route via req.user), so keys can never be recorded under an anonymous
+//    fallback. Auth endpoints and non-2xx responses are never cached.
 app.use(idempotencyMiddleware());
 
 // 5. Brute-force rate limiter on authentication endpoint

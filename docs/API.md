@@ -134,6 +134,49 @@ When an error occurs, handlers return an appropriate non-2xx HTTP status code ac
 }
 ```
 
+### 1.3 Idempotent Retries (`Idempotency-Key`)
+
+Mutating requests (`POST`, `PUT`, `PATCH`, `DELETE`) may send an `Idempotency-Key` header so that retrying after a network failure cannot double-execute a business operation.
+
+**Eligibility**
+
+- The request must be authenticated with a valid `Authorization: Bearer <token>`. The middleware resolves the principal before looking at the key.
+- Requests without a valid principal bypass idempotency entirely and are handled by route-level authentication (`401`/`403`). Keys are **never** recorded under an anonymous fallback principal.
+- Authentication endpoints (`/api/v1/auth/*`, `/api/auth/*`) never participate, so login/refresh responses are never cached or replayed.
+- `GET`, `HEAD`, and `OPTIONS` requests are always live and never consume a key.
+
+**Key format**
+
+`Idempotency-Key` must be 8–128 characters matching `[A-Za-z0-9_-]+`. Invalid keys return `400 INVALID_IDEMPOTENCY_KEY`.
+
+**Request fingerprint**
+
+The stored fingerprint covers the HTTP method, the full path **including the query string**, the authenticated user id, and the JSON body. Reusing the same key for a different endpoint, query scope, payload, or user returns `422 IDEMPOTENCY_PAYLOAD_MISMATCH` instead of executing. Because keys are scoped by user id, two users may safely use the same key value without colliding.
+
+**Response semantics**
+
+| Situation | HTTP result |
+| :--- | :--- |
+| First request (claim acquired) | Normal handler response; `X-Idempotency-Key` echoed |
+| Successful retry of a completed `2xx` | Original status and body replayed with `Idempotent-Replay: true`, `X-Idempotency-Key`, and `X-Original-Timestamp` |
+| Identical request still executing | `409 IDEMPOTENCY_IN_PROGRESS` with `Retry-After: 1` |
+| Same key, different fingerprint | `422 IDEMPOTENCY_PAYLOAD_MISMATCH` |
+| Handler returns non-`2xx` | Claim released; the response is **not** cached, so a corrected retry executes |
+| Auth failure (`401`/`403`) | Never cached; the corrected token may retry the same key |
+
+Only `2xx` responses are persisted and eligible for replay. Records live in the durable `idempotency_keys` table (PostgreSQL migration `015_logistics_hubs_and_foundations.sql`, SQLite schema equivalent) with a 24-hour TTL; an in-flight claim abandoned by a crashed worker is reclaimed after 60 seconds. There is no process-local fallback store.
+
+**Example**
+
+```http
+POST /api/v1/pos/checkout HTTP/1.1
+Authorization: Bearer eyJhbGciOi...
+Idempotency-Key: 8f14e45f-ea4f-4f1a-9c2b-7a3f0c9d2b61
+Content-Type: application/json
+```
+
+A retry with an identical key, path, query string, body, and user returns the original result with `Idempotent-Replay: true` instead of creating a second sale.
+
 ---
 
 ## 2. Error Codes & HTTP Status Matrix
@@ -144,10 +187,12 @@ When an error occurs, handlers return an appropriate non-2xx HTTP status code ac
 | `400 Bad Request` | `BR_008_FAILURE_REASON_REQUIRED` | Attempting to record a delivery failure without a valid failure reason. |
 | `400 Bad Request` | `BR_010_VARIANCE_JUSTIFICATION_REQUIRED` | Attempting to reconcile a COD batch with discrepancy without an audit memo. |
 | `400 Bad Request` | `MANIFEST_LOCKED` | Attempting to modify shipments in a sealed or dispatched manifest (`BR-005`). |
+| `400 Bad Request` | `INVALID_IDEMPOTENCY_KEY` | `Idempotency-Key` header is missing the required length or contains disallowed characters. |
 | `401 Unauthorized`| `TOKEN_EXPIRED` / `REVOKED` | JWT access token expired, invalid signature, or revoked in blacklist table. |
 | `403 Forbidden`   | `CROSS_BRANCH_FORBIDDEN` | Cashier or dispatcher attempting to access records outside their regional hub. |
 | `404 Not Found`   | `ENTITY_NOT_FOUND` | Waybill, transport run, or vehicle ID does not exist. |
-| `409 Conflict`    | `IDEMPOTENT_REPLAY` | Operation UUID already committed; returns cached response. |
+| `409 Conflict`    | `IDEMPOTENCY_IN_PROGRESS` | An identical idempotent request is still executing; retry after the `Retry-After` interval. |
+| `422 Unprocessable Entity` | `IDEMPOTENCY_PAYLOAD_MISMATCH` | The key was already used with a different method, path, query string, body, or authenticated principal. |
 | `423 Locked`      | `ACCOUNT_LOCKED` | 5 consecutive failed logins triggered a 15-minute brute-force lockout. |
 
 ---

@@ -58,7 +58,7 @@ Evaluation Scale:
 
 ## 3. Authoritative PostgreSQL Database Migrations Registry
 
-The PostgreSQL database schema is governed by 23 version-controlled, sequential, idempotent SQL migrations located in `server/db/postgres/migrations/`:
+The PostgreSQL database schema is governed by 27 version-controlled, sequential, idempotent SQL migrations located in `server/db/postgres/migrations/`:
 
 | Version | Migration Name | Applied In Production | Checksum Integrity | Description |
 | :-: | :--- | :--- | :--- | :--- |
@@ -76,7 +76,7 @@ The PostgreSQL database schema is governed by 23 version-controlled, sequential,
 | `012` | `012_procurement_lifecycle.sql` | YES | MATCH | Supplier POs, multi-stage approvals, goods received notes (GRN), invoice matching, and payment vouchers. |
 | `013` | `013_fleet_drivers.sql` | YES | MATCH | Driver licensing, NTSA verification dates, duty statuses, incident logs, and rating scorecards. |
 | `014` | `014_fleet_vehicles.sql` | YES | MATCH | Vehicle registry, volumetric capacity ($m^3$), payload ($kg$), fuel records, maintenance scheduling, and odometer logs. |
-| `015` | `015_logistics_hubs_and_foundations.sql` | YES | MATCH | Hub facility profiles, operational contact channels, transit docks, and storage zone layouts. |
+| `015` | `015_logistics_hubs_and_foundations.sql` | YES | MATCH | Hub facility profiles, logistics permissions, and the principal-bound `idempotency_keys` table. |
 | `016` | `016_shipment_core.sql` | YES | MATCH | Volumetric pricing tariffs, shipments, parcel items, tracking milestones, and status transition audit. |
 | `017` | `017_transport_management.sql` | YES | MATCH | Corridors, linehaul routes, transport runs, manifest cargo manifests, and waypoint checkpoint logs. |
 | `018` | `018_physical_custody_and_hub_operations.sql`| YES | MATCH | Physical barcode scans, formal custody handoffs, receiving sessions, and intake variance discrepancy logs. |
@@ -85,6 +85,10 @@ The PostgreSQL database schema is governed by 23 version-controlled, sequential,
 | `021` | `021_cod_settlements_and_reconciliation.sql` | YES | MATCH | Cash on Delivery float ledger, daily driver remittances, manager discrepancy justification (`BR-010`). |
 | `022` | `022_control_tower_and_network_telemetry.sql` | YES | MATCH | Control Tower bottleneck metrics, hub dwell times, active corridor alerts, and analytical views. |
 | `023` | `023_logistics_notifications_engine.sql` | YES | MATCH | Transactional outbox queue, exponential retry worker state, communication delivery logs, templates, and `offline_sync_logs`. |
+| `024` | `024_remove_default_demo_tariffs.sql` | YES | MATCH | Removes only unchanged sample global tariff records inserted as defaults. |
+| `025` | `025_onboarding_flag.sql` | YES | MATCH | Persists organization onboarding completion state. |
+| `026` | `026_classify_headquarters_branch.sql` | YES | MATCH | Classifies `NRB-HQ` as administrative headquarters rather than an operational parcel hub. |
+| `027` | `027_archive_shipments.sql` | YES | MATCH | Shipment archival state (`is_archived`, `archived_at`) and supporting index. |
 
 ---
 

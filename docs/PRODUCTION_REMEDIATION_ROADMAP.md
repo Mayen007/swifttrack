@@ -216,7 +216,8 @@ Eliminate universal credentials, secure authentication tokens against leakage, r
 - `server/routes/auth.js`
 - `server/middleware/security.js`
 - `server/middleware/idempotency.js`
-- `server/db/postgres/migrations/024_durable_security_and_idempotency.sql` *(new)*
+- `server/repositories/idempotencyRepository.js`
+- `server/db/postgres/migrations/015_logistics_hubs_and_foundations.sql` *(principal-bound `idempotency_keys`)*
 - `client/src/services/api.js`
 - `client/src/views/LoginView.jsx`, `client/src/context/AuthContext.jsx`
 
@@ -240,15 +241,17 @@ Eliminate universal credentials, secure authentication tokens against leakage, r
   - Ensure password reset, invitation, and magic link endpoints use short-lived, single-use, hashed verification tokens verified via POST request body.
 
 #### 3.3 Durable PostgreSQL Idempotency & Distributed Rate Limiting
-- [ ] Create migration `024_durable_security_and_idempotency.sql`:
-  - `idempotency_keys` table (`idempotency_key`, `scope`, `request_hash`, `status`, `response_status`, `response_body`, `expires_at`, `created_at`).
-  - `rate_limit_buckets` table for persistent IP / user token buckets.
-- [ ] Refactor `server/middleware/idempotency.js`:
-  - Replace in-memory `new Map()` with database-backed atomic reservations (`INSERT ... ON CONFLICT`).
-  - Handle concurrent duplicate requests with `409 Conflict` or pending polling.
-  - Automatically enforce idempotency for booking, shipment creation, payments, refunds, and COD settlements.
+- [x] Durable idempotency ships in migration `015_logistics_hubs_and_foundations.sql`:
+  - `idempotency_keys` table keyed by `(user_id, idempotency_key)` with `request_hash`, `resource_type`, `response_code` (`0` = in-flight claim, `2xx` = completed), `response_body` (JSONB), `created_at`, and `expires_at`.
+  - SQLite schema parity lives in `server/db/schema.sql`.
+- [x] Refactor `server/middleware/idempotency.js`:
+  - Database-backed atomic claims via `INSERT ... ON CONFLICT`; the process-local `new Map()` store has been removed (the middleware logs loudly and fails open if the repository is unavailable).
+  - Auth-aware ordering: the middleware resolves the principal with `resolveAuthenticatedUser` before evaluating the key. Unauthenticated requests and `/api/v1/auth/*` / `/api/auth/*` endpoints bypass it entirely, so auth failures are never cached.
+  - Fingerprint covers HTTP method, full path including query string, authenticated user id, and request body; keys are scoped per user.
+  - Only `2xx` responses are persisted and replayed; non-`2xx` responses release the claim so corrected retries execute.
+  - Concurrent duplicates receive `409 IDEMPOTENCY_IN_PROGRESS`; abandoned in-flight claims are reclaimed after `inFlightTtlMs` (default 60 s), and expired records are atomically revived rather than permanently poisoned.
 - [ ] Refactor `server/middleware/security.js` rate limiting:
-  - Support PostgreSQL or Redis storage store so restarts and multiple instances maintain limit state.
+  - Still uses a process-local `new Map()`; replace with PostgreSQL or Redis storage so restarts and multiple instances maintain limit state.
 
 #### 3.4 Security Header & CSP Convergence
 - [ ] Align `server/middleware/security.js` with documented policy:
@@ -262,7 +265,7 @@ Eliminate universal credentials, secure authentication tokens against leakage, r
 node tests/security/test-sql-injection.js
 node tests/security/test-csrf-cors.js
 node tests/security/test-xss.js
-node tests/security/test-idempotency-durability.js
+node tests/security/test-idempotency-isolation.js
 ```
 
 ---
