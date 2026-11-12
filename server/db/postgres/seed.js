@@ -316,6 +316,9 @@ async function seedCleanEnterpriseData(pool = null, options = {}) {
 
         for (const b of branches) {
             await client.query(`
+                UPDATE branches SET code = code || '_OLD_' || id WHERE code = $1 AND id != $2
+            `, [b.code, b.id]);
+            await client.query(`
                 INSERT INTO branches (
                     id, code, name, city, address, phone, email, is_active,
                     is_hub, hub_type, latitude, longitude, max_parcels_capacity, contact_person
@@ -413,6 +416,10 @@ async function seedCleanEnterpriseData(pool = null, options = {}) {
         ];
 
         for (const u of staff) {
+            await client.query(`
+                UPDATE users SET username = username || '_OLD_' || id, email = email || '_OLD_' || id
+                WHERE (username = $1 OR email = $2) AND id != $3
+            `, [u.username, u.email, u.id]);
             await client.query(`
                 INSERT INTO users (
                     id, branch_id, role_id, username, email, full_name, phone,
@@ -1177,6 +1184,9 @@ async function seedProductionFoundation(pool = null, options = {}) {
         ];
 
         for (const b of branches) {
+            await client.query(`
+                UPDATE branches SET code = code || '_OLD_' || id WHERE code = $1 AND id != $2
+            `, [b.code, b.id]);
             await client.query(`
                 INSERT INTO branches (
                     id, code, name, city, address, phone, email, is_active,

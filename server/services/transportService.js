@@ -663,6 +663,10 @@ function assertRunDestinationAccess(run, user) {
  * and transitions all manifest shipments to IN_TRANSIT
  */
 async function dispatchTransportRun(runId, payload = {}, user = {}) {
+    if (payload && (payload.roleName || payload.role_id || payload.username) && Object.keys(user).length === 0) {
+        user = payload;
+        payload = {};
+    }
     const run = await getTransportRunById(runId);
     if (!run) throw new Error(`Transport Run ${runId} not found`);
 
@@ -836,6 +840,10 @@ async function recordCheckpoint(runId, data, user = {}) {
  * Marks transport run arrived at destination hub
  */
 async function arriveTransportRun(runId, payload = {}, user = {}) {
+    if (payload && (payload.roleName || payload.role_id || payload.username) && Object.keys(user).length === 0) {
+        user = payload;
+        payload = {};
+    }
     const run = await getTransportRunById(runId);
     if (!run) throw new Error(`Transport Run ${runId} not found`);
     assertRunDestinationAccess(run, user);

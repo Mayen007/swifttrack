@@ -153,6 +153,7 @@ async function run() {
         }, dispatcherNairobi);
 
         // Add shipment to manifest, lock manifest, and dispatch the run
+        await shipmentService.transitionShipmentStatus(testShipment.id, 'SORTED', { hub_id: 1 }, dispatcherNairobi);
         await transportService.addShipmentToManifest(run.id, testShipment.id, dispatcherNairobi);
         await transportService.lockManifest(run.id, dispatcherNairobi);
         await transportService.dispatchTransportRun(run.id, { departure_odometer_km: 120500 }, dispatcherNairobi);

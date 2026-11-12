@@ -363,7 +363,7 @@ router.get('/me', authenticateToken, async (req, res) => {
 router.post('/demo-switch', async (req, res) => {
     if (process.env.DEMO_MODE !== 'true') {
         return res.status(403).json({
-            error: 'Forbidden: Demo persona switching is disabled.'
+            error: 'Forbidden: Demo persona switching is disabled in production mode.'
         });
     }
 

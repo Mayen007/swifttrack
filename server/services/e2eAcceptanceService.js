@@ -236,6 +236,12 @@ class E2EAcceptanceService {
                 corridor: `${originBranch.city || 'Origin'} -> ${intermediateBranch.city || 'Transit'}`
             });
 
+            await shipmentService.transitionShipmentStatus(shipment.id, 'SORTED', {
+                hub_id: originHubId,
+                location_desc: `${originBranch.name} Sorting Bay`,
+                notes: 'Shipment sorted for Leg 1 linehaul manifest'
+            }, admin);
+
             await transportService.addShipmentToManifest(run1.id, shipment.id, admin);
             logStep(8, 'Shipment Assigned to Transport Run 1', {
                 run_id: run1.id,
@@ -334,6 +340,12 @@ class E2EAcceptanceService {
                 vehicle_id: vehicle2.id,
                 scheduled_departure: new Date().toISOString(),
                 notes: `Leg 2 Linehaul: ${intermediateBranch.name} Transfer to ${destinationBranch.name}`
+            }, admin);
+
+            await shipmentService.transitionShipmentStatus(shipment.id, 'SORTED', {
+                hub_id: intermediateHubId,
+                location_desc: `${intermediateBranch.name} Sorting Bay`,
+                notes: 'Shipment sorted for Leg 2 linehaul manifest'
             }, admin);
 
             await transportService.addShipmentToManifest(run2.id, shipment.id, admin);

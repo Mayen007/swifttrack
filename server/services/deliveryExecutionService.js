@@ -38,12 +38,27 @@ async function createDeliveryTask(data, user = {}) {
     }
 
     const existingTask = await dbAdapter.get(`
-        SELECT id FROM deliveries
+        SELECT id, pod_otp, pod_required_methods FROM deliveries
         WHERE shipment_id = ?
           AND status NOT IN ('DELIVERED', 'FAILED', 'RETURN_RECEIVED')
         ORDER BY id DESC LIMIT 1
     `, [data.shipment_id]);
-    if (existingTask) return await getDeliveryById(existingTask.id);
+    if (existingTask) {
+        if (data.pod_required_methods) {
+            const podRequired = Array.isArray(data.pod_required_methods)
+                ? data.pod_required_methods.join(',')
+                : data.pod_required_methods;
+            const podOtp = podRequired.toUpperCase().includes('OTP') && !existingTask.pod_otp
+                ? String(Math.floor(100000 + Math.random() * 900000))
+                : existingTask.pod_otp;
+            await dbAdapter.run(`
+                UPDATE deliveries
+                SET pod_required_methods = ?, pod_otp = ?
+                WHERE id = ?
+            `, [podRequired, podOtp, existingTask.id]);
+        }
+        return await getDeliveryById(existingTask.id);
+    }
 
     // Valid shipment statuses for delivery creation
     const validStatuses = ['AT_HUB', 'READY_FOR_DELIVERY', 'READY_FOR_PICKUP', 'BOOKED', 'SORTED'];

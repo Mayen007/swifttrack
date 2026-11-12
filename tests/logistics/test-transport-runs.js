@@ -215,9 +215,9 @@ async function executeSuite() {
         assert.strictEqual(reconciliation.shortage_count, 1, '1 shipment missing shortage');
         assert.strictEqual(reconciliation.manifest_status, 'DISCREPANCY', 'Manifest flagged as discrepancy');
 
-        // Verify Shipment 1 is AT_HUB
+        // Verify Shipment 1 is AT_HUB or READY_FOR_DELIVERY (when auto-provisioned for last-mile)
         const s1 = await dbAdapter.get('SELECT status, current_hub_id FROM shipments WHERE id = ?', [shipment1.id]);
-        assert.strictEqual(s1.status, 'AT_HUB');
+        assert.ok(['AT_HUB', 'READY_FOR_DELIVERY'].includes(s1.status), `Expected AT_HUB or READY_FOR_DELIVERY, got ${s1.status}`);
         assert.strictEqual(s1.current_hub_id, branch2.id, 'Current hub should be Mombasa');
 
         // Verify Shipment 2 is EXCEPTION

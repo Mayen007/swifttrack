@@ -1,5 +1,6 @@
 // tests/database/test-postgres-data-architecture.js
 // Automated Verification Suite for Phase 2: Production Data Architecture & Repositories
+require('../../server/utils/env.js');
 const assert = require('node:assert');
 const fs = require('node:fs');
 const path = require('node:path');
