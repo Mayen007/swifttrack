@@ -29,9 +29,9 @@ export function ApprovalsHeader({
             <h1 className="text-sm font-bold text-slate-100 uppercase tracking-wider font-mono">
               Manager Approvals & Authorization Console
             </h1>
-            <span className="px-2 py-0.5 rounded bg-[#181d28] border border-[#222834] text-[10px] font-mono text-slate-400">
+            {/* <span className="px-2 py-0.5 rounded bg-[#181d28] border border-[#222834] text-[10px] font-mono text-slate-400">
               GOVERNANCE & CONTROLS
-            </span>
+            </span> */}
           </div>
           <p className="text-[11px] text-slate-400 mt-0.5 font-mono">
             STATION: <span className="text-slate-200 font-semibold">{selectedBranch?.name || 'All Regional Branches'}</span>

@@ -15,7 +15,6 @@ import {
   X,
   Shield,
   Building2,
-  ShoppingCart,
   Bike,
   Check,
   Lock,
@@ -87,7 +86,6 @@ export function Navbar({
     { role: 'BRANCH_MANAGER_NAIROBI', label: 'Branch Manager (NBO)', desc: 'Nairobi Central Hub', icon: Building2, badge: 'NBO' },
     { role: 'BRANCH_MANAGER_MOMBASA', label: 'Branch Manager (MBA)', desc: 'Mombasa Port Hub', icon: Building2, badge: 'MBA' },
     { role: 'DISPATCHER', label: 'Dispatcher', desc: 'Fleet Operations', icon: Truck, badge: 'FLT' },
-    { role: 'CASHIER', label: 'Cashier', desc: 'POS Counter Terminal', icon: ShoppingCart, badge: 'POS' },
     { role: 'DRIVER', label: 'Courier Driver', desc: 'Mobile Delivery & POD', icon: Bike, badge: 'DRV' },
   ];
 

@@ -27,11 +27,7 @@ const TEST_SUITES = [
     { file: 'tests/inventory/test-inventory-operations.js', domain: 'Inventory', name: 'Stock Movement Operations' },
     { file: 'tests/inventory/test-advanced-inventory.js', domain: 'Inventory', name: 'Batch & Expiry Valuation' },
 
-    // 5. Point of Sale (POS)
-    { file: 'tests/pos/test-complete-pos-workflow.js', domain: 'POS', name: 'POS Shift & Till Management' },
-    { file: 'tests/logistics/test-pos-counter-booking.js', domain: 'POS', name: 'POS Parcel Counter Booking' },
-
-    // 6. Orders Engine
+    // 5. Orders Engine
     { file: 'tests/orders/test-orders-engine.js', domain: 'Orders', name: 'Order State Machine & Allocation' },
 
     // 7. Commercial Catalog & Customers
@@ -68,7 +64,6 @@ const TEST_SUITES = [
     { file: 'tests/logistics/test-drivers-management.js', domain: 'Fleet', name: 'Driver Rostering & Compliance' },
 
     // 13. Frontend Static Architecture & Navigation Integrity
-    { file: 'tests/pos/test-frontend-pos.js', domain: 'Frontend Integrity', name: 'Frontend POS Component Integrity' },
     { file: 'tests/orders/test-frontend-orders.js', domain: 'Frontend Integrity', name: 'Frontend Orders Integrity' },
     { file: 'tests/payments/test-frontend-payments.js', domain: 'Frontend Integrity', name: 'Frontend Payments Integrity' },
     { file: 'tests/procurement/test-frontend-procurement.js', domain: 'Frontend Integrity', name: 'Frontend Procurement Integrity' },

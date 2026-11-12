@@ -77,7 +77,7 @@ router.get('/health', async (req, res) => {
         database: dbConnected ? 'connected' : 'error',
         engine: process.env.DB_CLIENT || 'postgres',
         apiVersion: 'v1.4.0',
-        system: 'SwiftTrack Kenya Multi-Branch Logistics + POS',
+        system: 'SwiftTrack Kenya Multi-Branch Logistics',
         uptimeSeconds: Math.floor(process.uptime()),
         timestamp: new Date().toISOString()
     };
@@ -96,7 +96,6 @@ router.use('/warehouses', require('../warehouses.js'));
 router.use('/users', require('../users.js'));
 router.use('/products', require('../products.js'));
 router.use('/inventory', require('../inventory.js'));
-router.use('/pos', require('../pos.js'));
 router.use('/orders', require('../orders.js'));
 router.use('/dispatch', require('../dispatch.js'));
 router.use('/deliveries', require('../deliveries.js'));

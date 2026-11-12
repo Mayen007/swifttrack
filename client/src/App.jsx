@@ -17,7 +17,6 @@ import { api } from './services/api.js';
 // Route-Level Lazy-Loaded Module Chunks (PRD Performance Mandate Section 30)
 const DashboardView = React.lazy(() => import('./views/DashboardView.jsx').then(m => ({ default: m.DashboardView })));
 const OperationsControlTower = React.lazy(() => import('./components/dashboard/OperationsControlTower.jsx').then(m => ({ default: m.OperationsControlTower })));
-const PosView = React.lazy(() => import('./views/PosView.jsx').then(m => ({ default: m.PosView })));
 const DispatchView = React.lazy(() => import('./views/DispatchView.jsx').then(m => ({ default: m.DispatchView })));
 const DriverView = React.lazy(() => import('./views/DriverView.jsx').then(m => ({ default: m.DriverView })));
 const InventoryView = React.lazy(() => import('./views/InventoryView.jsx').then(m => ({ default: m.InventoryView })));
@@ -54,15 +53,15 @@ const VIEW_PERMISSIONS = {
   drivers: ['SUPER_ADMIN', 'BRANCH_MANAGER', 'DISPATCHER'],
   vehicles: ['SUPER_ADMIN', 'BRANCH_MANAGER', 'DISPATCHER'],
   driver: ['DRIVER'],
-  pos: ['CASHIER', 'SUPER_ADMIN', 'BRANCH_MANAGER'],
-  'cod-finance': ['SUPER_ADMIN', 'BRANCH_MANAGER', 'CASHIER'],
-  shipments: ['SUPER_ADMIN', 'BRANCH_MANAGER', 'DISPATCHER', 'CASHIER'],
-  payments: ['SUPER_ADMIN', 'BRANCH_MANAGER', 'CASHIER'],
-  expenses: ['SUPER_ADMIN', 'BRANCH_MANAGER', 'CASHIER'],
-  products: ['SUPER_ADMIN', 'BRANCH_MANAGER', 'DISPATCHER', 'CASHIER'],
-  inventory: ['SUPER_ADMIN', 'BRANCH_MANAGER', 'DISPATCHER', 'CASHIER'],
-  orders: ['SUPER_ADMIN', 'BRANCH_MANAGER', 'DISPATCHER', 'CASHIER'],
-  customers: ['SUPER_ADMIN', 'BRANCH_MANAGER', 'DISPATCHER', 'CASHIER'],
+  pos: ['SUPER_ADMIN', 'BRANCH_MANAGER'],
+  'cod-finance': ['SUPER_ADMIN', 'BRANCH_MANAGER'],
+  shipments: ['SUPER_ADMIN', 'BRANCH_MANAGER', 'DISPATCHER'],
+  payments: ['SUPER_ADMIN', 'BRANCH_MANAGER'],
+  expenses: ['SUPER_ADMIN', 'BRANCH_MANAGER'],
+  products: ['SUPER_ADMIN', 'BRANCH_MANAGER', 'DISPATCHER'],
+  inventory: ['SUPER_ADMIN', 'BRANCH_MANAGER', 'DISPATCHER'],
+  orders: ['SUPER_ADMIN', 'BRANCH_MANAGER', 'DISPATCHER'],
+  customers: ['SUPER_ADMIN', 'BRANCH_MANAGER', 'DISPATCHER'],
 };
 
 function AccessDeniedView({ currentView, userRole, onNavigateHome }) {
@@ -317,7 +316,6 @@ function MainApp() {
   }, [currentView]);
 
   const getDefaultHomeView = (role) => {
-    if (role === 'CASHIER') return 'pos';
     if (role === 'DRIVER') return 'driver';
     if (role === 'DISPATCHER') return 'control-tower';
     return 'dashboard';
@@ -352,10 +350,6 @@ function MainApp() {
       const urlParams = new URLSearchParams(window.location.search);
       const urlView = urlParams.get('view');
       if (urlView) {
-        if (urlView === 'dashboard' && user.role === 'CASHIER') {
-          setCurrentView('pos', {}, { replace: true });
-          return;
-        }
         if (urlView === 'dashboard' && user.role === 'DRIVER') {
           setCurrentView('driver', {}, { replace: true });
           return;
@@ -433,8 +427,6 @@ function MainApp() {
         return <CodReconciliationView />;
       case 'communications':
         return <CommunicationsView />;
-      case 'pos':
-        return <PosView onNavigate={setCurrentView} />;
       case 'dispatch':
         return <DispatchView />;
       case 'drivers':

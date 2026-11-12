@@ -3,7 +3,6 @@
 const crypto = require('node:crypto');
 const dbAdapter = require('../db/dbAdapter.js');
 const shipmentPricingService = require('./shipmentPricingService.js');
-const posShiftService = require('./posShiftService.js');
 const { logAuditEvent } = require('../middleware/audit.js');
 
 /**
@@ -88,30 +87,6 @@ async function bookCounterShipment(data, user = {}) {
 
     const destHub = await dbAdapter.get('SELECT id, name, code, city, address, phone FROM branches WHERE id = ?', [destinationHubId]);
     if (!destHub) throw new Error(`Destination hub ID ${destinationHubId} not found`);
-
-    // 1. Shift Verification Guard: Cashier must have an active open shift
-    const branchForShift = (user.roleName === 'SUPER_ADMIN' && data.origin_hub_id)
-        ? Number(data.origin_hub_id)
-        : (user.branchId || originHubId);
-    
-    let activeShift = await posShiftService.getCurrentShift(user.id, branchForShift);
-    if (!activeShift && user.branchId) {
-        activeShift = await posShiftService.getCurrentShift(user.id, user.branchId);
-    }
-    if (!activeShift && user.roleName === 'SUPER_ADMIN') {
-        const anyShift = await dbAdapter.get("SELECT branch_id FROM pos_shifts WHERE cashier_user_id = ? AND status = 'OPEN' ORDER BY id DESC LIMIT 1", [user.id]);
-        if (anyShift) {
-            activeShift = await posShiftService.getCurrentShift(user.id, anyShift.branch_id);
-        } else {
-            activeShift = await posShiftService.openShift({ opening_cash: 5000, notes: 'Super Admin Auto-Open Shift', branch_id: branchForShift }, user);
-        }
-    }
-    if (!activeShift) {
-        const err = new Error('Cannot process counter booking: No active shift open for this cashier. Please open a shift with starting cash float to begin.');
-        err.statusCode = 403;
-        err.code = 'NO_ACTIVE_SHIFT';
-        throw err;
-    }
 
     // 2. Calculate Rated Pricing Breakdown
     const pricing = await shipmentPricingService.calculateShipmentQuote({
@@ -421,10 +396,7 @@ async function bookCounterShipment(data, user = {}) {
             });
         }
 
-        // G. Update Cashier Shift Totals & Cash Drawer Ledger
-        await posShiftService.recordSaleInShift(activeShift.id, pricing.total_amount, paymentsList, user, tx);
-
-        // H. Audit Log
+        // G. Audit Log
         logAuditEvent({
             userId: user.id || 1,
             role: user.roleName || 'CASHIER',
@@ -469,7 +441,6 @@ async function bookCounterShipment(data, user = {}) {
             pricing,
             parcels: insertedParcels,
             payments: createdPayments,
-            shift_id: activeShift.id,
             waybill
         };
     });

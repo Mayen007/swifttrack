@@ -173,7 +173,7 @@ async function startServer() {
 
         serverInstance = app.listen(PORT, () => {
             console.log(`========================================================`);
-            console.log(`[START] SwiftTrack Logistics + POS Server Running on Port ${PORT}`);
+            console.log(`[START] SwiftTrack Logistics Server Running on Port ${PORT}`);
             console.log(`[URL] http://localhost:${PORT}`);
             console.log(`   Engine: ${process.env.DB_CLIENT === 'postgres' ? 'PostgreSQL 16+ (Authoritative)' : 'SQLite (Dev/Demo Only)'}`);
             console.log(`   Mode: ${process.env.DEMO_MODE === 'true' ? 'SANDBOX / EVALUATION' : 'ENTERPRISE PRODUCTION'}`);
