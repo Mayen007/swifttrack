@@ -141,6 +141,9 @@ router.get('/:id/active-leg', authenticateToken, async (req, res) => {
 // GET /api/v1/shipments/awaiting-manifest/:hubId - Retrieve shipments at hub ready to be manifested
 router.get('/awaiting-manifest/:hubId', authenticateToken, async (req, res) => {
     try {
+        if (req.user.roleName !== 'SUPER_ADMIN' && Number(req.user.branchId) !== Number(req.params.hubId)) {
+            return res.status(403).json({ error: 'You can only view dispatch-ready parcels for your assigned hub' });
+        }
         const shipments = await shipmentService.getShipmentsAwaitingManifest(req.params.hubId, req.query.destination_hub_id);
         res.json(shipments);
     } catch (err) {

@@ -37,6 +37,14 @@ async function createDeliveryTask(data, user = {}) {
         throw new Error(`Shipment ${data.shipment_id} not found`);
     }
 
+    const existingTask = await dbAdapter.get(`
+        SELECT id FROM deliveries
+        WHERE shipment_id = ?
+          AND status NOT IN ('DELIVERED', 'FAILED', 'RETURN_RECEIVED')
+        ORDER BY id DESC LIMIT 1
+    `, [data.shipment_id]);
+    if (existingTask) return await getDeliveryById(existingTask.id);
+
     // Valid shipment statuses for delivery creation
     const validStatuses = ['AT_HUB', 'READY_FOR_DELIVERY', 'READY_FOR_PICKUP', 'BOOKED', 'SORTED'];
     if (!validStatuses.includes(shipment.status)) {
@@ -93,6 +101,16 @@ async function createDeliveryTask(data, user = {}) {
             notes: `Delivery task ${deliveryNumber} created for last-mile destination`
         }, user);
 
+        await dbAdapter.run(`
+            INSERT INTO notifications (
+                branch_id, type, title, message, reference_type, reference_id
+            ) VALUES (?, 'DELIVERY_READY_FOR_DISPATCH', 'Parcel ready for delivery', ?, 'DELIVERY', ?)
+        `, [
+            branchId,
+            `Parcel ${shipment.tracking_number} has arrived and is ready for a delivery driver.`,
+            String(deliveryId)
+        ], client);
+
         // Link or initialize COD Settlement if shipment has positive COD obligation
         if (shipment.cod_amount && shipment.cod_amount > 0) {
             const existingSettlement = await dbAdapter.get('SELECT id FROM cod_settlements WHERE shipment_id = ?', [shipment.id], client);
@@ -125,7 +143,7 @@ async function assignDeliveryTask(deliveryId, { driver_id, vehicle_id }, user = 
 
     if (!driver_id) throw new Error('driver_id is required for assignment');
 
-    const driver = await dbAdapter.get('SELECT d.id, u.full_name FROM drivers d JOIN users u ON d.user_id = u.id WHERE d.id = ?', [driver_id]);
+    const driver = await dbAdapter.get('SELECT d.id, d.user_id, u.full_name FROM drivers d JOIN users u ON d.user_id = u.id WHERE d.id = ?', [driver_id]);
     if (!driver) throw new Error(`Driver ${driver_id} not found`);
 
     return await dbAdapter.withTransaction(async (client) => {
@@ -134,6 +152,15 @@ async function assignDeliveryTask(deliveryId, { driver_id, vehicle_id }, user = 
             SET driver_id = ?, vehicle_id = ?, status = 'ASSIGNED', updated_at = CURRENT_TIMESTAMP
             WHERE id = ?
         `, [driver_id, vehicle_id || null, deliveryId], client);
+        await dbAdapter.run(`
+            UPDATE drivers
+            SET status = 'ON_DELIVERY', status_updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+        `, [driver_id], client);
+        await dbAdapter.run(`
+            INSERT INTO delivery_status_history (delivery_id, status, notes, updated_by_user_id)
+            VALUES (?, 'ASSIGNED', ?, ?)
+        `, [deliveryId, `Assigned to driver ${driver.full_name}`, user.id || 1], client);
 
         if (delivery.shipment_id) {
             await dbAdapter.run(`
@@ -152,6 +179,17 @@ async function assignDeliveryTask(deliveryId, { driver_id, vehicle_id }, user = 
                 JSON.stringify({ driver_id, vehicle_id, delivery_id: deliveryId })
             ], client);
         }
+
+        await dbAdapter.run(`
+            INSERT INTO notifications (
+                branch_id, user_id, type, title, message, reference_type, reference_id
+            ) VALUES (?, ?, 'DELIVERY_ASSIGNED', 'New delivery assigned', ?, 'DELIVERY', ?)
+        `, [
+            delivery.branch_id,
+            driver.user_id,
+            `Delivery ${delivery.delivery_number} is assigned to you.`,
+            String(deliveryId)
+        ], client);
 
         return await getDeliveryById(deliveryId, client);
     });

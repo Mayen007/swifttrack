@@ -2,7 +2,7 @@
 // SwiftTrack Logistics: Stage 3 Transport & Manifest Management API Routes
 const express = require('express');
 const router = express.Router();
-const { authenticateToken } = require('../middleware/auth.js');
+const { authenticateToken, requireRole } = require('../middleware/auth.js');
 const transportService = require('../services/transportService.js');
 const customsService = require('../services/customsService.js');
 
@@ -62,6 +62,48 @@ router.post('/runs', authenticateToken, async (req, res) => {
         res.status(201).json(run);
     } catch (err) {
         console.error('Create transport run error:', err);
+        res.status(err.statusCode || 400).json({ error: err.message });
+    }
+});
+
+// POST /api/v1/transport/dispatch-shipment - Assign a driver and dispatch one sorted parcel
+router.post('/dispatch-shipment', authenticateToken, requireRole('DISPATCHER', 'BRANCH_MANAGER'), async (req, res) => {
+    try {
+        const { shipment_id, driver_id, vehicle_id } = req.body;
+        const shipmentId = Number(shipment_id);
+        const driverId = Number(driver_id);
+        const vehicleId = Number(vehicle_id);
+        if (![shipmentId, driverId, vehicleId].every((id) => Number.isSafeInteger(id) && id > 0)) {
+            return res.status(400).json({ error: 'shipment_id, driver_id, and vehicle_id are required' });
+        }
+        const dispatch = await transportService.dispatchShipmentWithDriver(
+            shipmentId,
+            { driver_id: driverId, vehicle_id: vehicleId },
+            req.user
+        );
+        res.json({ message: 'Parcel assigned and dispatched', dispatch });
+    } catch (err) {
+        console.error('Dispatch shipment error:', err);
+        res.status(err.statusCode || 400).json({ error: err.message });
+    }
+});
+
+// POST /api/v1/transport/runs/:id/dispatch-assignment - Assign fleet and dispatch a planned manifest
+router.post('/runs/:id/dispatch-assignment', authenticateToken, requireRole('DISPATCHER', 'BRANCH_MANAGER'), async (req, res) => {
+    try {
+        const driverId = Number(req.body.driver_id);
+        const vehicleId = Number(req.body.vehicle_id);
+        if (![driverId, vehicleId].every((id) => Number.isSafeInteger(id) && id > 0)) {
+            return res.status(400).json({ error: 'driver_id and vehicle_id must be positive integers' });
+        }
+        const run = await transportService.dispatchPlannedRunWithDriver(
+            req.params.id,
+            { driver_id: driverId, vehicle_id: vehicleId },
+            req.user
+        );
+        res.json({ message: 'Planned run assigned and dispatched', run });
+    } catch (err) {
+        console.error('Dispatch planned run error:', err);
         res.status(err.statusCode || 400).json({ error: err.message });
     }
 });
@@ -136,7 +178,7 @@ router.post('/runs/:id/checkpoints', authenticateToken, async (req, res) => {
 });
 
 // POST /api/v1/transport/runs/:id/arrive - Record arrival at destination hub
-router.post('/runs/:id/arrive', authenticateToken, async (req, res) => {
+router.post('/runs/:id/arrive', authenticateToken, requireRole('DISPATCHER', 'BRANCH_MANAGER'), async (req, res) => {
     try {
         const run = await transportService.arriveTransportRun(req.params.id, req.body, req.user);
         res.json({ message: 'Transport run arrived at destination hub', run });
@@ -147,7 +189,7 @@ router.post('/runs/:id/arrive', authenticateToken, async (req, res) => {
 });
 
 // POST /api/v1/transport/runs/:id/receive - Destination hub receiving & discrepancy check (BR-006)
-router.post('/runs/:id/receive', authenticateToken, async (req, res) => {
+router.post('/runs/:id/receive', authenticateToken, requireRole('DISPATCHER', 'BRANCH_MANAGER'), async (req, res) => {
     try {
         const { received_shipment_ids } = req.body;
         if (!Array.isArray(received_shipment_ids)) {

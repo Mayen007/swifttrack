@@ -189,23 +189,17 @@ export function LoginView() {
   };
 
   const demoPersonas = [
-    { label: 'Super Admin', username: 'superadmin', role: 'SUPER_ADMIN', branch: 'Global HQ', branchId: null, color: 'text-amber-400' },
-    { label: 'Nairobi Manager', username: 'manager.nairobi', role: 'BRANCH_MANAGER', branch: 'Nairobi Hub', branchId: 1, color: 'text-blue-400' },
-    { label: 'Nairobi Dispatcher', username: 'dispatcher.nairobi', role: 'DISPATCHER', branch: 'Nairobi Hub', branchId: 1, color: 'text-indigo-400' },
-    { label: 'Nairobi Cashier', username: 'cashier.nairobi', role: 'CASHIER', branch: 'Nairobi Hub', branchId: 1, color: 'text-emerald-400' },
-    { label: 'Nairobi Driver', username: 'driver.nairobi', role: 'DRIVER', branch: 'Nairobi Hub', branchId: 1, color: 'text-sky-400' },
-    { label: 'Mombasa Manager', username: 'manager.mombasa', role: 'BRANCH_MANAGER', branch: 'Mombasa Hub', branchId: 2, color: 'text-blue-400' },
-    { label: 'Mombasa Dispatcher', username: 'dispatcher.mombasa', role: 'DISPATCHER', branch: 'Mombasa Hub', branchId: 2, color: 'text-indigo-400' },
-    { label: 'Mombasa Cashier', username: 'cashier.mombasa', role: 'CASHIER', branch: 'Mombasa Hub', branchId: 2, color: 'text-emerald-400' },
-    { label: 'Mombasa Driver', username: 'driver.mombasa', role: 'DRIVER', branch: 'Mombasa Hub', branchId: 2, color: 'text-sky-400' },
-    { label: 'Kisumu Manager', username: 'manager.kisumu', role: 'BRANCH_MANAGER', branch: 'Kisumu Hub', branchId: 3, color: 'text-blue-400' },
-    { label: 'Kisumu Dispatcher', username: 'dispatcher.kisumu', role: 'DISPATCHER', branch: 'Kisumu Hub', branchId: 3, color: 'text-indigo-400' },
-    { label: 'Kisumu Cashier', username: 'cashier.kisumu', role: 'CASHIER', branch: 'Kisumu Hub', branchId: 3, color: 'text-emerald-400' },
-    { label: 'Kisumu Driver', username: 'driver.kisumu', role: 'DRIVER', branch: 'Kisumu Hub', branchId: 3, color: 'text-sky-400' },
-    { label: 'Nakuru Manager', username: 'manager.nakuru', role: 'BRANCH_MANAGER', branch: 'Nakuru Hub', branchId: 4, color: 'text-blue-400' },
-    { label: 'Nakuru Dispatcher', username: 'dispatcher.nakuru', role: 'DISPATCHER', branch: 'Nakuru Hub', branchId: 4, color: 'text-indigo-400' },
-    { label: 'Nakuru Cashier', username: 'cashier.nakuru', role: 'CASHIER', branch: 'Nakuru Hub', branchId: 4, color: 'text-emerald-400' },
-    { label: 'Nakuru Driver', username: 'driver.nakuru', role: 'DRIVER', branch: 'Nakuru Hub', branchId: 4, color: 'text-sky-400' },
+    { label: 'System Administrator', username: 'superadmin', role: 'SUPER_ADMIN', branch: 'Global HQ', branchId: null, color: 'text-amber-400' },
+    { label: 'Nairobi Manager', username: 'malesh', role: 'BRANCH_MANAGER', branch: 'Nairobi Central Hub', branchId: 2, color: 'text-blue-400' },
+    { label: 'Nakuru Manager', username: 'mayen', role: 'BRANCH_MANAGER', branch: 'Nakuru West Hub', branchId: 1, color: 'text-blue-400' },
+    { label: 'Mombasa Manager', username: 'samhassan', role: 'BRANCH_MANAGER', branch: 'Mombasa Coastal Hub', branchId: 3, color: 'text-blue-400' },
+    { label: 'Nairobi Cashier', username: 'nyagoah', role: 'CASHIER', branch: 'Nairobi Central Hub', branchId: 2, color: 'text-emerald-400' },
+    { label: 'Nairobi Dispatcher', username: 'yohannes', role: 'DISPATCHER', branch: 'Nairobi Central Hub', branchId: 2, color: 'text-indigo-400' },
+    { label: 'Nairobi Driver', username: 'arual', role: 'DRIVER', branch: 'Nairobi Central Hub', branchId: 2, color: 'text-sky-400' },
+    { label: 'Nakuru Driver', username: 'driver.giftoyoo.269', role: 'DRIVER', branch: 'Nakuru West Hub', branchId: 1, color: 'text-sky-400' },
+    { label: 'Nairobi Driver', username: 'driver.abdulmalikrobow.830', role: 'DRIVER', branch: 'Nairobi Central Hub', branchId: 2, color: 'text-sky-400' },
+    { label: 'Nakuru Cashier', username: 'maggie', role: 'CASHIER', branch: 'Nakuru West Hub', branchId: 1, color: 'text-emerald-400' },
+    { label: 'Mombasa Cashier', username: 'adutta', role: 'CASHIER', branch: 'Mombasa Coastal Hub', branchId: 3, color: 'text-emerald-400' },
   ];
 
   return (

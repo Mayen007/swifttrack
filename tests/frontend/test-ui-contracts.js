@@ -48,6 +48,7 @@ const systemTour = fs.readFileSync(path.join(clientSrc, 'components/SystemTour.j
 const dispatchHeader = fs.readFileSync(path.join(clientSrc, 'components/dispatch/DispatchConsoleHeader.jsx'), 'utf8');
 const dispatchView = fs.readFileSync(path.join(clientSrc, 'views/DispatchView.jsx'), 'utf8');
 const linehaulRuns = fs.readFileSync(path.join(clientSrc, 'components/dispatch/LinehaulRunsTab.jsx'), 'utf8');
+const notificationsDrawer = fs.readFileSync(path.join(clientSrc, 'components/NotificationsDrawer.jsx'), 'utf8');
 const navbar = fs.readFileSync(path.join(clientSrc, 'components/Navbar.jsx'), 'utf8');
 const sidebar = fs.readFileSync(path.join(clientSrc, 'components/Sidebar.jsx'), 'utf8');
 const dashboardView = fs.readFileSync(path.join(clientSrc, 'views/DashboardView.jsx'), 'utf8');
@@ -61,6 +62,8 @@ const custodyRoutes = fs.readFileSync(path.resolve(__dirname, '../../server/rout
 const custodyService = fs.readFileSync(path.resolve(__dirname, '../../server/services/custodyService.js'), 'utf8');
 const shipmentService = fs.readFileSync(path.resolve(__dirname, '../../server/services/shipmentService.js'), 'utf8');
 const transportService = fs.readFileSync(path.resolve(__dirname, '../../server/services/transportService.js'), 'utf8');
+const transportRoutes = fs.readFileSync(path.resolve(__dirname, '../../server/routes/transport.js'), 'utf8');
+const deliveryExecutionService = fs.readFileSync(path.resolve(__dirname, '../../server/services/deliveryExecutionService.js'), 'utf8');
 const dispatchRoutes = fs.readFileSync(path.resolve(__dirname, '../../server/routes/dispatch.js'), 'utf8');
 const controlTowerService = fs.readFileSync(path.resolve(__dirname, '../../server/services/controlTowerService.js'), 'utf8');
 const metricsService = fs.readFileSync(path.resolve(__dirname, '../../server/services/metricsService.js'), 'utf8');
@@ -152,13 +155,26 @@ runTest('Password feedback explains account-specific rejection rules before subm
     assert.ok(loginView.includes('If you were given a temporary password'), 'Login errors should explain exact temporary-password entry');
 });
 
-runTest('Demo login exposes all seeded test accounts and switches to the selected user', () => {
+runTest('Demo login exposes current active accounts and switches to the selected user', () => {
     const personaList = loginView.match(/const demoPersonas = \[([\s\S]*?)\n  \];/);
     assert.ok(personaList, 'Demo persona list must be defined');
-    assert.strictEqual((personaList[1].match(/username:/g) || []).length, 17, 'All 17 seeded demo users should be available');
+    const usernames = Array.from(personaList[1].matchAll(/username: '([^']+)'/g), match => match[1]);
+    assert.deepStrictEqual(usernames, [
+        'superadmin',
+        'malesh',
+        'mayen',
+        'samhassan',
+        'nyagoah',
+        'yohannes',
+        'arual',
+        'driver.giftoyoo.269',
+        'driver.abdulmalikrobow.830',
+        'maggie',
+        'adutta',
+    ], 'The switcher must list the current provisioned usernames, not generic seed names');
     assert.ok(loginView.includes('demoMode && (') && loginView.includes('demoPassword="Password123!"'), 'Demo credentials must only render in demo mode');
     assert.ok(loginDemoPersonas.includes('{demoPassword}'), 'The shared seeded password must be visible in the demo switcher');
-    assert.ok(loginView.includes('quickSwitch(personaRole, branchId, personaUsername)'), 'Selecting a persona must authenticate as that exact seeded user');
+    assert.ok(loginView.includes('quickSwitch(personaRole, branchId, personaUsername)'), 'Selecting a persona must authenticate as that exact provisioned user');
     assert.ok(authContext.includes('{ role: targetRole, branch_id: branchId, username }'), 'Demo switch request must identify the selected account');
 });
 
@@ -260,8 +276,37 @@ runTest('Sorted inter-hub parcels can be assigned to runs and viewed in Dispatch
     assert.ok(hubOperations.includes('/manifest/items'), 'Hub operations must attach the parcel to the run manifest');
     assert.ok(dispatchView.includes('/api/transport/runs'), 'Dispatch must load linehaul runs independently from local deliveries');
     assert.ok(dispatchView.includes("activeTab === 'LINEHAUL'"), 'Dispatch must provide a separate linehaul view');
-    assert.ok(dispatchHeader.includes('Linehaul'), 'Dispatch header must expose the linehaul view');
-    assert.ok(linehaulRuns.includes('No linehaul runs at this station'), 'Empty run state must explain how to create a run');
+    assert.ok(dispatchHeader.includes('Parcel queue'), 'Dispatch header must expose the parcel dispatch queue');
+    assert.ok(dispatchView.includes("useState('LINEHAUL')"), 'Dispatch must open on the parcel queue by default');
+    assert.ok(linehaulRuns.includes('Parcels awaiting dispatch'), 'Dispatch must show parcels awaiting dispatcher action');
+    assert.ok(linehaulRuns.includes("label: 'Ready to dispatch'") && linehaulRuns.includes("label: 'In transit'") && linehaulRuns.includes("label: 'Arrived · receive'"), 'Linehaul runs must retain stage-based Kanban columns');
+    assert.ok(linehaulRuns.includes('grid-cols-1 items-start gap-3 md:grid-cols-2 xl:grid-cols-3'), 'Linehaul Kanban must responsively expand from one to three columns');
+    assert.ok(linehaulRuns.includes('max-h-[720px] min-h-0 flex-1 flex-col gap-2 overflow-y-auto'), 'Run cards must scroll within columns instead of stretching the board');
+    assert.ok(linehaulRuns.includes('shipments = []') && linehaulRuns.includes('runs = []'), 'Dispatch queue must tolerate temporarily missing collections');
+    assert.ok(linehaulRuns.includes('Assign driver & dispatch'), 'Dispatcher must be able to assign a parcel from this queue');
+    assert.ok(linehaulRuns.includes('Confirm sort'), 'Unsorted parcels must have the required sorting step in the dispatch workflow');
+    assert.ok(linehaulRuns.includes('Complete receiving'), 'Destination receiving must hand parcels to the next dispatch stage');
+    assert.ok(dispatchView.includes('currentHubId={currentHubId}'), 'Linehaul receiving must know the selected destination hub');
+    assert.ok(dispatchView.includes('onRefresh={fetchDeliveries}'), 'Receiving must refresh the dispatch queues');
+    assert.ok(dispatchView.includes('onDispatchRun={handleDispatchRun}'), 'Dispatch must wire recovery for previously planned manifests');
+    assert.ok(linehaulRuns.includes('Assign driver & dispatch planned run'), 'Existing draft runs must be dispatchable from the linehaul queue');
+    assert.ok(dispatchView.includes("setActiveTab(isLocalDelivery ? 'KANBAN' : 'LINEHAUL')"), 'Dispatch must keep linehaul consignments visible after assignment');
+    assert.ok(notificationsDrawer.includes("notifType.includes('DISPATCH')"), 'Booking notification must navigate dispatchers to their queue');
+});
+
+runTest('Shipment dispatch completes the correct linehaul or final-mile workflow', () => {
+    assert.ok(transportService.includes('dispatchShipmentWithDriver'), 'One server workflow must dispatch a sorted shipment');
+    assert.ok(transportService.includes('dispatchPlannedRunWithDriver'), 'Existing planned manifests must be assignable and dispatchable');
+    assert.ok(transportService.includes("'SORTED', 'READY_FOR_DISPATCH', 'LOADED'"), 'A previously loaded parcel on its draft manifest must be recoverable');
+    assert.ok(transportService.includes("item.shipment_status !== 'LOADED'"), 'Locking a draft manifest must not repeat an invalid LOADED transition');
+    assert.ok(transportService.includes('await lockManifest(run.id, user)'), 'Linehaul manifests must be loaded before dispatch');
+    assert.ok(transportService.includes('deliveryExecutionService.createDeliveryTask'), 'Local dispatch must create a courier delivery task');
+    assert.ok(transportService.includes('final_leg_shipment_ids'), 'Final hub arrival must identify parcels for last-mile delivery');
+    assert.ok(shipmentService.includes('SHIPMENT_READY_FOR_DISPATCH'), 'Booking must notify the origin dispatcher queue');
+    assert.ok(deliveryExecutionService.includes('DELIVERY_READY_FOR_DISPATCH'), 'Destination arrival must notify the final-mile dispatcher');
+    assert.ok(transportRoutes.includes("requireRole('DISPATCHER', 'BRANCH_MANAGER')"), 'Dispatch and receiving actions must be role restricted');
+    assert.ok(transportService.includes('assertRunDestinationAccess(run, user)'), 'Only the destination hub may receive a transport run');
+    assert.ok(transportService.includes('The transport run must arrive at its destination before receiving'), 'Manifest receipt must follow run arrival');
 });
 
 runTest('Discrepancy resolution sends the API field names and preserves failed submissions', () => {

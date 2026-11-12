@@ -65,14 +65,16 @@ export function NotificationsDrawer({ isOpen, onClose, onRefreshCount, onNavigat
 
     // 2. Resolve destination view and focus ID
     let targetView = null;
-    let focusId = n.reference_id || null;
+    const focusId = n.reference_type === 'DELIVERY' ? n.reference_id : null;
 
     const refType = (n.reference_type || '').toUpperCase();
     const notifType = (n.type || '').toUpperCase();
 
     const role = (user?.role || user?.roleName || '').toUpperCase();
 
-    if (refType === 'DELIVERY' || notifType.includes('DELIVERY') || notifType.includes('DISPATCH')) {
+    if (refType === 'TRANSPORT_RUN') {
+      targetView = 'dispatch';
+    } else if (refType === 'DELIVERY' || notifType.includes('DELIVERY') || notifType.includes('DISPATCH')) {
       // If user is a driver or supervisor viewing driver operations
       if (role === 'DRIVER') {
         targetView = 'driver';

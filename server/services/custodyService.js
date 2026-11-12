@@ -172,7 +172,7 @@ async function confirmManualSortation(data = {}, user = {}) {
         err.statusCode = 404;
         throw err;
     }
-    if (!['ACCEPTED', 'AT_ORIGIN_HUB', 'AT_HUB'].includes(shipment.status)) {
+    if (!['BOOKED', 'ACCEPTED', 'AT_ORIGIN_HUB', 'AT_HUB'].includes(shipment.status)) {
         const err = new Error('Shipment must be received at this hub before it can be sorted');
         err.statusCode = 409;
         throw err;

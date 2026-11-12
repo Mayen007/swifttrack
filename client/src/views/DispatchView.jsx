@@ -14,12 +14,14 @@ import { InspectManifestModal } from '../components/dispatch/InspectManifestModa
 import { LinehaulRunsTab } from '../components/dispatch/LinehaulRunsTab.jsx';
 
 export function DispatchView() {
-  const { selectedBranch } = useAuth();
+  const { selectedBranch, user } = useAuth();
+  const currentHubId = selectedBranch?.id ?? user?.branch_id;
   const [deliveries, setDeliveries] = useState([]);
   const [drivers, setDrivers] = useState([]);
   const [vehicles, setVehicles] = useState([]);
   const [transportRuns, setTransportRuns] = useState([]);
-  const [transportRunsError, setTransportRunsError] = useState('');
+  const [awaitingShipments, setAwaitingShipments] = useState([]);
+  const [dispatchQueueError, setDispatchQueueError] = useState('');
   const [summary, setSummary] = useState({
     total_active: 0,
     ready_count: 0,
@@ -33,7 +35,7 @@ export function DispatchView() {
   const [searchQuery, setSearchQuery] = useState('');
   const [priorityFilter, setPriorityFilter] = useState('ALL');
   const [driverFilter, setDriverFilter] = useState('ALL');
-  const [activeTab, setActiveTab] = useState('KANBAN');
+  const [activeTab, setActiveTab] = useState('LINEHAUL');
 
   const [assignModalOpen, setAssignModalOpen] = useState(false);
   const [selectedDelivery, setSelectedDelivery] = useState(null);
@@ -57,21 +59,38 @@ export function DispatchView() {
     try {
       setLoading(true);
       const branchParam = selectedBranch ? `?branch_id=${selectedBranch.id}` : '';
-      const [boardRes, drvData, runsData] = await Promise.all([
+      const hubId = currentHubId;
+      const [boardRes, drvData, runsData, queueData] = await Promise.all([
         api.get(`/api/dispatch/board${branchParam}`).catch(() => null),
         api.get('/api/v1/drivers?limit=100').catch(() => null),
         api.get(`/api/transport/runs${selectedBranch ? `?hub_id=${selectedBranch.id}` : ''}`).catch((error) => ({
           error: error.message || 'Request failed',
         })),
+        hubId
+          ? api.get(`/api/shipments/awaiting-manifest/${hubId}`).catch((error) => ({
+            error: error.message || 'Request failed',
+          }))
+          : Promise.resolve({ error: 'Select a branch to view its dispatch queue.' }),
       ]);
 
       const runs = Array.isArray(runsData) ? runsData : runsData?.runs;
       if (Array.isArray(runs)) {
-        setTransportRuns(runs);
-        setTransportRunsError('');
+        setTransportRuns(runs.filter((run) => (
+          !['COMPLETED', 'CANCELLED'].includes(run.status)
+          && Number(run.total_shipments_count) > 0
+        )));
       } else {
         setTransportRuns([]);
-        setTransportRunsError(runsData?.error || 'The server returned an invalid response.');
+        if (!dispatchQueueError) {
+          setDispatchQueueError(runsData?.error || 'Linehaul runs could not be loaded.');
+        }
+      }
+      if (Array.isArray(queueData)) {
+        setAwaitingShipments(queueData);
+        if (Array.isArray(runs)) setDispatchQueueError('');
+      } else {
+        setAwaitingShipments([]);
+        setDispatchQueueError(queueData?.error || 'The server returned an invalid response.');
       }
 
       let allItems = [];
@@ -113,9 +132,55 @@ export function DispatchView() {
     }
   };
 
+  const handleManualSort = async (shipment) => {
+    try {
+      await api.post('/api/custody/sortations/manual', {
+        shipment_id: shipment.id,
+        hub_id: selectedBranch?.id ?? user?.branch_id,
+      });
+      api.toast(`${shipment.tracking_number} sorted and ready for dispatch.`, 'success');
+      await fetchDeliveries();
+    } catch (error) {
+      api.toast(`Could not confirm parcel sort: ${error.message}`, 'error');
+    }
+  };
+
+  const handleDispatchShipment = async (shipment, driverId, vehicleId) => {
+    try {
+      await api.post('/api/transport/dispatch-shipment', {
+        shipment_id: shipment.id,
+        driver_id: Number(driverId),
+        vehicle_id: Number(vehicleId),
+      });
+      api.toast(`${shipment.tracking_number} assigned and dispatched.`, 'success');
+      const isLocalDelivery = Number(shipment.leg_destination) === Number(shipment.current_hub_id);
+      setActiveTab(isLocalDelivery ? 'KANBAN' : 'LINEHAUL');
+      await fetchDeliveries();
+    } catch (error) {
+      api.toast(`Could not dispatch ${shipment.tracking_number}: ${error.message}`, 'error');
+      await fetchDeliveries();
+    }
+  };
+
+  const handleDispatchRun = async (run, driverId, vehicleId) => {
+    try {
+      await api.post(`/api/transport/runs/${run.id}/dispatch-assignment`, {
+        driver_id: Number(driverId),
+        vehicle_id: Number(vehicleId),
+      });
+      api.toast(`${run.run_number} assigned and dispatched.`, 'success');
+      await fetchDeliveries();
+    } catch (error) {
+      api.toast(`Could not dispatch ${run.run_number}: ${error.message}`, 'error');
+      await fetchDeliveries();
+    }
+  };
+
   useEffect(() => {
     fetchDeliveries();
-  }, [selectedBranch]);
+    const refreshInterval = setInterval(fetchDeliveries, 15000);
+    return () => clearInterval(refreshInterval);
+  }, [selectedBranch, user?.branch_id]);
 
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -292,7 +357,7 @@ export function DispatchView() {
         filteredDeliveriesCount={filteredDeliveries.length}
         driversCount={drivers.length}
         exceptionItemsCount={exceptionItems.length}
-        linehaulRunsCount={transportRuns.length}
+        dispatchQueueCount={awaitingShipments.length}
         summary={summary}
         searchQuery={searchQuery}
         setSearchQuery={setSearchQuery}
@@ -335,7 +400,19 @@ export function DispatchView() {
       )}
 
       {activeTab === 'LINEHAUL' && (
-        <LinehaulRunsTab runs={transportRuns} error={transportRunsError} />
+        <LinehaulRunsTab
+          shipments={awaitingShipments}
+          runs={transportRuns}
+          currentHubId={currentHubId}
+          drivers={drivers}
+          vehicles={vehicles}
+          error={dispatchQueueError}
+          loading={loading}
+          onManualSort={handleManualSort}
+          onDispatchShipment={handleDispatchShipment}
+          onDispatchRun={handleDispatchRun}
+          onRefresh={fetchDeliveries}
+        />
       )}
 
       <AssignCourierModal

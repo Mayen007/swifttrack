@@ -23,7 +23,7 @@ export function DispatchConsoleHeader({
   filteredDeliveriesCount,
   driversCount,
   exceptionItemsCount,
-  linehaulRunsCount,
+  dispatchQueueCount,
   summary,
   searchQuery,
   setSearchQuery,
@@ -117,7 +117,7 @@ export function DispatchConsoleHeader({
               }`}
             >
               <Route className={`w-3.5 h-3.5 ${activeTab === 'LINEHAUL' ? 'text-white' : 'text-cyan-400'}`} />
-              Linehaul <span className="tabular-nums opacity-80">{linehaulRunsCount}</span>
+              Parcel queue <span className="tabular-nums opacity-80">{dispatchQueueCount}</span>
             </button>
           </div>
 

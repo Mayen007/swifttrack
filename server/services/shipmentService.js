@@ -323,6 +323,16 @@ async function createShipment(data, user = {}) {
             JSON.stringify({ tracking_number: trackingNumber, chargeable_weight_kg: pricing.chargeable_weight_kg })
         ], tx.client);
 
+        await dbAdapter.run(`
+            INSERT INTO notifications (
+                branch_id, type, title, message, reference_type, reference_id
+            ) VALUES (?, 'SHIPMENT_READY_FOR_DISPATCH', 'New parcel needs dispatch', ?, 'SHIPMENT', ?)
+        `, [
+            data.origin_hub_id,
+            `Parcel ${trackingNumber} is booked and awaiting dispatch at ${originHub.name}.`,
+            String(shipmentId)
+        ], tx.client);
+
         // 5. Audit Log
         await logAuditEvent({
             userId: user.id || 1,
@@ -867,12 +877,13 @@ async function getShipmentsAwaitingManifest(hubId, destinationHubId = null) {
         FROM shipments s
         JOIN shipment_legs sl ON sl.shipment_id = s.id
         WHERE sl.origin_hub_id = ?
+          AND s.current_hub_id = ?
           AND s.is_archived = FALSE
           AND sl.status IN ('PENDING', 'ACTIVE')
           AND sl.manifest_id IS NULL
           AND s.status IN ('BOOKED', 'ACCEPTED', 'AT_ORIGIN_HUB', 'SORTED', 'READY_FOR_DISPATCH', 'AT_HUB')
     `;
-    const params = [hubId];
+    const params = [hubId, hubId];
     if (destinationHubId) {
         sql += ` AND sl.destination_hub_id = ?`;
         params.push(destinationHubId);

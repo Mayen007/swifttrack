@@ -3,6 +3,7 @@
 const crypto = require('node:crypto');
 const dbAdapter = require('../db/dbAdapter.js');
 const shipmentService = require('./shipmentService.js');
+const deliveryExecutionService = require('./deliveryExecutionService.js');
 const { logAuditEvent } = require('../middleware/audit.js');
 const notificationService = require('./notificationService.js');
 
@@ -498,7 +499,12 @@ async function lockManifest(runId, user = {}) {
         `, [runId], client);
 
         // Mark items as LOADED and advance shipments to LOADED
-        const items = await dbAdapter.all('SELECT shipment_id FROM manifest_items WHERE manifest_id = ?', [manifest.id], client);
+        const items = await dbAdapter.all(`
+            SELECT mi.shipment_id, s.status as shipment_status
+            FROM manifest_items mi
+            JOIN shipments s ON s.id = mi.shipment_id
+            WHERE mi.manifest_id = ?
+        `, [manifest.id], client);
 
         for (const item of items) {
             await dbAdapter.run(`
@@ -509,16 +515,147 @@ async function lockManifest(runId, user = {}) {
                 WHERE manifest_id = ? AND shipment_id = ?
             `, [user.id || 1, manifest.id, item.shipment_id], client);
 
-            // Update shipment status via canonical state machine
-            await shipmentService.transitionShipmentStatus(item.shipment_id, 'LOADED', {
-                hub_id: run.origin_hub_id,
-                location_desc: hub ? hub.name : 'Origin Hub',
-                notes: `Shipment loaded on transport run ${run.run_number} (Manifest ${manifest.manifest_number})`
-            }, user);
+            if (item.shipment_status !== 'LOADED') {
+                await shipmentService.transitionShipmentStatus(item.shipment_id, 'LOADED', {
+                    hub_id: run.origin_hub_id,
+                    location_desc: hub ? hub.name : 'Origin Hub',
+                    notes: `Shipment loaded on transport run ${run.run_number} (Manifest ${manifest.manifest_number})`
+                }, user);
+            }
         }
 
         return await getTransportRunById(runId, client);
     });
+}
+
+async function dispatchShipmentWithDriver(shipmentId, assignment, user = {}) {
+    if (!assignment.driver_id || !assignment.vehicle_id) {
+        throw new Error('A driver and vehicle are required to dispatch a parcel');
+    }
+
+    const shipment = await dbAdapter.get(`
+        SELECT id, tracking_number, status, current_hub_id, is_archived
+        FROM shipments WHERE id = ?
+    `, [shipmentId]);
+    if (!shipment || shipment.is_archived) throw new Error('Shipment not found');
+    if (!['SORTED', 'READY_FOR_DISPATCH'].includes(shipment.status)) {
+        throw new Error('Confirm the parcel is sorted at this hub before dispatching it');
+    }
+
+    const leg = await shipmentService.getActiveLeg(shipment.id);
+    if (!leg || Number(leg.origin_hub_id) !== Number(shipment.current_hub_id)) {
+        throw new Error('The parcel has no active route from its current hub');
+    }
+    if (user.roleName !== 'SUPER_ADMIN' && Number(user.branchId) !== Number(shipment.current_hub_id)) {
+        const error = new Error('You can only dispatch parcels from your assigned hub');
+        error.statusCode = 403;
+        throw error;
+    }
+
+    const driver = await dbAdapter.get(`
+        SELECT id, user_id, branch_id, status
+        FROM drivers WHERE id = ?
+    `, [assignment.driver_id]);
+    if (!driver) throw new Error('Driver not found');
+    if (Number(driver.branch_id) !== Number(shipment.current_hub_id)) {
+        throw new Error('Choose a driver assigned to this hub');
+    }
+    if (driver.status !== 'AVAILABLE') throw new Error('Choose an available driver');
+
+    const vehicle = await dbAdapter.get(`
+        SELECT id, branch_id, status
+        FROM vehicles WHERE id = ? AND is_active = TRUE
+    `, [assignment.vehicle_id]);
+    if (!vehicle) throw new Error('Active vehicle not found');
+    if (Number(vehicle.branch_id) !== Number(shipment.current_hub_id)) {
+        throw new Error('Choose a vehicle assigned to this hub');
+    }
+    if (vehicle.status !== 'AVAILABLE') throw new Error('Choose an available vehicle');
+
+    if (Number(leg.destination_hub_id) === Number(shipment.current_hub_id)) {
+        const delivery = await deliveryExecutionService.createDeliveryTask({
+            shipment_id: shipment.id
+        }, user);
+        return await deliveryExecutionService.assignDeliveryTask(delivery.id, {
+            driver_id: driver.id,
+            vehicle_id: vehicle.id
+        }, user);
+    }
+
+    const run = await createTransportRun({
+        origin_hub_id: shipment.current_hub_id,
+        destination_hub_id: leg.destination_hub_id,
+        driver_id: driver.id,
+        vehicle_id: vehicle.id,
+        notes: `Dispatcher assignment for ${shipment.tracking_number}`
+    }, user);
+    await addShipmentToManifest(run.id, shipment.id, user);
+    await lockManifest(run.id, user);
+    return await dispatchTransportRun(run.id, {}, user);
+}
+
+async function dispatchPlannedRunWithDriver(runId, assignment, user = {}) {
+    const run = await getTransportRunById(runId);
+    if (!run) throw new Error(`Transport Run ${runId} not found`);
+    if (user.roleName !== 'SUPER_ADMIN' && Number(user.branchId) !== Number(run.origin_hub_id)) {
+        const error = new Error('You can only dispatch transport runs from your assigned hub');
+        error.statusCode = 403;
+        throw error;
+    }
+    if (run.status !== 'PLANNED' || run.manifest?.status !== 'DRAFT') {
+        const error = new Error('Only planned runs with draft manifests can be dispatched from this queue');
+        error.statusCode = 409;
+        throw error;
+    }
+    if (!Array.isArray(run.manifest.items) || run.manifest.items.length === 0) {
+        throw new Error('Cannot dispatch a run without any shipments on the manifest');
+    }
+
+    const shipments = await dbAdapter.all(`
+        SELECT s.id, s.status, s.current_hub_id, s.is_archived, mi.status as manifest_item_status
+        FROM manifest_items mi
+        JOIN shipments s ON s.id = mi.shipment_id
+        WHERE mi.manifest_id = ?
+    `, [run.manifest.id]);
+    if (shipments.length !== run.manifest.items.length
+        || shipments.some((shipment) => shipment.is_archived
+            || Number(shipment.current_hub_id) !== Number(run.origin_hub_id)
+            || !['SORTED', 'READY_FOR_DISPATCH', 'LOADED'].includes(shipment.status)
+            || !['ASSIGNED', 'LOADED'].includes(shipment.manifest_item_status))) {
+        throw new Error('Every parcel on the run must be active, sorted, and at the origin hub');
+    }
+
+    const driver = await dbAdapter.get(
+        'SELECT id, branch_id, status FROM drivers WHERE id = ?',
+        [assignment.driver_id]
+    );
+    if (!driver) throw new Error('Driver not found');
+    if (Number(driver.branch_id) !== Number(run.origin_hub_id)) throw new Error('Choose a driver assigned to this hub');
+    if (driver.status !== 'AVAILABLE') throw new Error('Choose an available driver');
+
+    const vehicle = await dbAdapter.get(
+        'SELECT id, branch_id, status FROM vehicles WHERE id = ? AND is_active = TRUE',
+        [assignment.vehicle_id]
+    );
+    if (!vehicle) throw new Error('Active vehicle not found');
+    if (Number(vehicle.branch_id) !== Number(run.origin_hub_id)) throw new Error('Choose a vehicle assigned to this hub');
+    if (vehicle.status !== 'AVAILABLE') throw new Error('Choose an available vehicle');
+
+    await dbAdapter.run(`
+        UPDATE transport_runs
+        SET driver_id = ?, vehicle_id = ?, updated_at = CURRENT_TIMESTAMP
+        WHERE id = ? AND status = 'PLANNED'
+    `, [driver.id, vehicle.id, runId]);
+    await lockManifest(runId, user);
+    return await dispatchTransportRun(runId, {}, user);
+}
+
+function assertRunDestinationAccess(run, user) {
+    if (user.roleName !== 'SUPER_ADMIN' && Number(user.branchId) !== Number(run.destination_hub_id)) {
+        const error = new Error('You can only receive transport runs at their destination hub');
+        error.statusCode = 403;
+        throw error;
+    }
 }
 
 /**
@@ -573,6 +710,20 @@ async function dispatchTransportRun(runId, payload = {}, user = {}) {
                 status_updated_at = CURRENT_TIMESTAMP
             WHERE id = ?
         `, [run.driver_id], client);
+
+        const driver = await dbAdapter.get('SELECT user_id FROM drivers WHERE id = ?', [run.driver_id], client);
+        if (driver?.user_id) {
+            await dbAdapter.run(`
+                INSERT INTO notifications (
+                    branch_id, user_id, type, title, message, reference_type, reference_id
+                ) VALUES (?, ?, 'LINEHAUL_DISPATCHED', 'Linehaul run dispatched', ?, 'TRANSPORT_RUN', ?)
+            `, [
+                run.origin_hub_id,
+                driver.user_id,
+                `Run ${run.run_number} is dispatched to Hub #${run.destination_hub_id}.`,
+                String(runId)
+            ], client);
+        }
 
         // 4. Update manifest items and shipments to IN_TRANSIT
         for (const item of run.manifest.items) {
@@ -687,6 +838,13 @@ async function recordCheckpoint(runId, data, user = {}) {
 async function arriveTransportRun(runId, payload = {}, user = {}) {
     const run = await getTransportRunById(runId);
     if (!run) throw new Error(`Transport Run ${runId} not found`);
+    assertRunDestinationAccess(run, user);
+    if (run.status === 'ARRIVED') return run;
+    if (run.status !== 'IN_TRANSIT') {
+        const error = new Error('Only an in-transit run can be marked as arrived');
+        error.statusCode = 409;
+        throw error;
+    }
 
     const arrivalOdo = Number(payload.arrival_odometer_km) || (Number(run.departure_odometer_km) + (Number(run.distance_km) || 100));
 
@@ -706,6 +864,16 @@ async function arriveTransportRun(runId, payload = {}, user = {}) {
             await dbAdapter.run('UPDATE vehicles SET current_odometer_km = ? WHERE id = ?', [arrivalOdo, run.vehicle_id], client);
         }
 
+        await dbAdapter.run(`
+            INSERT INTO notifications (
+                branch_id, type, title, message, reference_type, reference_id
+            ) VALUES (?, 'LINEHAUL_ARRIVED', 'Linehaul arrival needs receiving', ?, 'TRANSPORT_RUN', ?)
+        `, [
+            run.destination_hub_id,
+            `Run ${run.run_number} has arrived. Reconcile its parcel manifest.`,
+            String(runId)
+        ], client);
+
         return await getTransportRunById(runId, client);
     });
 }
@@ -723,18 +891,64 @@ async function receiveManifest(runOrManifestId, receivedShipmentIds = [], user =
         }
     }
     if (!run) throw new Error(`Transport Run or Manifest ${runOrManifestId} not found`);
+    assertRunDestinationAccess(run, user);
+    if (run.status !== 'ARRIVED') {
+        const error = new Error('The transport run must arrive at its destination before receiving');
+        error.statusCode = 409;
+        throw error;
+    }
 
     const runId = run.id;
     const manifest = run.manifest;
     if (!manifest) throw new Error(`No manifest found for run ${runId}`);
+    if (run.status === 'COMPLETED') {
+        const retryableFinalLegs = await dbAdapter.all(`
+            SELECT DISTINCT s.id
+            FROM shipments s
+            JOIN manifest_items mi ON mi.shipment_id = s.id
+            JOIN shipment_legs sl ON sl.shipment_id = s.id AND sl.manifest_id = mi.manifest_id
+            WHERE mi.manifest_id = ?
+              AND mi.status = 'RECEIVED'
+              AND sl.status = 'COMPLETED'
+              AND s.delivery_type = 'LAST_MILE'
+              AND s.status = 'AT_HUB'
+              AND s.current_hub_id = ?
+              AND NOT EXISTS (
+                  SELECT 1 FROM shipment_legs next_leg
+                  WHERE next_leg.shipment_id = sl.shipment_id
+                    AND next_leg.leg_sequence > sl.leg_sequence
+              )
+        `, [manifest.id, run.destination_hub_id]);
+        for (const shipment of retryableFinalLegs) {
+            await deliveryExecutionService.createDeliveryTask({ shipment_id: shipment.id }, user);
+        }
+        return {
+            run_id: runId,
+            status: run.status,
+            manifest_status: manifest.status,
+            received_count: manifest.items.filter((item) => item.status === 'RECEIVED').length,
+            shortage_count: manifest.items.filter((item) => item.status === 'SHORTAGE').length,
+        };
+    }
+    const receivedSet = new Set();
+    for (const shipmentId of receivedShipmentIds) {
+        const parsedId = Number(shipmentId);
+        if (!Number.isSafeInteger(parsedId) || parsedId <= 0) {
+            throw new Error('received_shipment_ids must contain positive integer shipment IDs');
+        }
+        if (!manifest.items.some((item) => Number(item.shipment_id) === parsedId)) {
+            throw new Error(`Shipment ${parsedId} is not on this run manifest`);
+        }
+        receivedSet.add(parsedId);
+    }
 
     const destHub = await dbAdapter.get('SELECT name, city FROM branches WHERE id = ?', [run.destination_hub_id]);
     const destHubName = destHub ? destHub.name : 'Destination Hub';
 
-    return await dbAdapter.withTransaction(async (client) => {
-        const receivedSet = new Set(receivedShipmentIds.map(Number));
+    const result = await dbAdapter.withTransaction(async (client) => {
         let shortageCount = 0;
         let receivedCount = 0;
+        const finalLegShipmentIds = [];
 
         for (const item of manifest.items) {
             if (receivedSet.has(item.shipment_id)) {
@@ -748,7 +962,7 @@ async function receiveManifest(runOrManifestId, receivedShipmentIds = [], user =
                 `, [user.id || 1, manifest.id, item.shipment_id], client);
 
                 // Multi-leg completion & activation via canonical domain service
-                await shipmentService.completeLegAndActivateNext(
+                const legResult = await shipmentService.completeLegAndActivateNext(
                     item.shipment_id,
                     manifest.id,
                     run.destination_hub_id,
@@ -756,6 +970,7 @@ async function receiveManifest(runOrManifestId, receivedShipmentIds = [], user =
                     user,
                     { run_number: run.run_number }
                 );
+                if (legResult.is_final_leg) finalLegShipmentIds.push(item.shipment_id);
 
                 receivedCount++;
             } else {
@@ -814,9 +1029,20 @@ async function receiveManifest(runOrManifestId, receivedShipmentIds = [], user =
             status: RUN_STATUSES.COMPLETED,
             manifest_status: manifestStatus,
             received_count: receivedCount,
-            shortage_count: shortageCount
+            shortage_count: shortageCount,
+            final_leg_shipment_ids: finalLegShipmentIds
         };
     });
+
+    const finalLegShipmentIds = result.final_leg_shipment_ids;
+    delete result.final_leg_shipment_ids;
+    for (const shipmentId of finalLegShipmentIds) {
+        const shipment = await dbAdapter.get('SELECT delivery_type FROM shipments WHERE id = ?', [shipmentId]);
+        if (shipment?.delivery_type === 'LAST_MILE') {
+            await deliveryExecutionService.createDeliveryTask({ shipment_id: shipmentId }, user);
+        }
+    }
+    return result;
 }
 
 /**
@@ -1183,6 +1409,8 @@ module.exports = {
     removeShipmentFromManifest,
     lockManifest,
     dispatchTransportRun,
+    dispatchShipmentWithDriver,
+    dispatchPlannedRunWithDriver,
     recordCheckpoint,
     arriveTransportRun,
     receiveManifest,
